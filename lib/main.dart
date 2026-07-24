@@ -37,7 +37,7 @@ class _MetoCareAppState extends State<MetoCareApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'MetoCare',
+      title: 'EngelsizClub',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -148,7 +148,8 @@ class _AuthScreenState extends State<AuthScreen> {
     return Scaffold(
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final maxW = constraints.maxWidth >= 720 ? 420.0 : constraints.maxWidth;
+          final maxW =
+              constraints.maxWidth >= 720 ? 420.0 : constraints.maxWidth;
           return ColoredBox(
             color: MetoColors.background,
             child: Center(
@@ -166,7 +167,8 @@ class _AuthScreenState extends State<AuthScreen> {
                           borderRadius: BorderRadius.circular(36),
                           boxShadow: [
                             BoxShadow(
-                              color: MetoColors.primaryDark.withValues(alpha: 0.14),
+                              color: MetoColors.primaryDark
+                                  .withValues(alpha: 0.14),
                               blurRadius: 40,
                               offset: const Offset(0, 16),
                             ),
@@ -187,7 +189,8 @@ class _AuthScreenState extends State<AuthScreen> {
                         authTab: _authTab,
                         onTab: (t) => setState(() => _authTab = t),
                         girisHesapTip: _girisHesapTip,
-                        onGirisHesapTip: (v) => setState(() => _girisHesapTip = v),
+                        onGirisHesapTip: (v) =>
+                            setState(() => _girisHesapTip = v),
                         girisEmail: _girisEmail,
                         girisSifre: _girisSifre,
                         onGirisEmail: (v) => setState(() => _girisEmail = v),
@@ -206,7 +209,8 @@ class _AuthScreenState extends State<AuthScreen> {
                         onKayitSifre: (v) => setState(() => _kayitSifre = v),
                         onKayitSifre2: (v) => setState(() => _kayitSifre2 = v),
                         onKayitTip: (v) => setState(() => _kayitTip = v),
-                        onKayitUzmanlik: (v) => setState(() => _kayitUzmanlik = v),
+                        onKayitUzmanlik: (v) =>
+                            setState(() => _kayitUzmanlik = v),
                         onKayitSozlesme: () =>
                             setState(() => _kayitSozlesme = !_kayitSozlesme),
                         onCreateAccount: _createAccount,
@@ -277,10 +281,9 @@ class _SplashStep extends StatelessWidget {
       children: [
         const _BrandHeader(
           height: 256,
-          logoSize: 80,
+          logoSize: 112,
           titleSize: 24,
           subtitle: 'Özel gereksinimli kahramanlarımız için rehber',
-          logoEmojiSize: 36,
         ),
         Expanded(
           child: ListView(
@@ -431,10 +434,9 @@ class _SignInStep extends StatelessWidget {
       children: [
         const _BrandHeader(
           height: 176,
-          logoSize: 56,
+          logoSize: 64,
           titleSize: 20,
           subtitle: 'Özel gereksinimli kahramanlarımız için',
-          logoEmojiSize: 28,
           logoRadius: 16,
         ),
         Padding(
@@ -702,12 +704,12 @@ class _SignInStep extends StatelessWidget {
                 height: 20,
                 margin: const EdgeInsets.only(top: 2),
                 decoration: BoxDecoration(
-                  color: kayitSozlesme ? MetoColors.primary : Colors.transparent,
+                  color:
+                      kayitSozlesme ? MetoColors.primary : Colors.transparent,
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: kayitSozlesme
-                        ? MetoColors.primary
-                        : MetoColors.mutedFg,
+                    color:
+                        kayitSozlesme ? MetoColors.primary : MetoColors.mutedFg,
                     width: 2,
                   ),
                 ),
@@ -881,7 +883,7 @@ class _ChoosingStep extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'MetoCare uygulamasına giriş için',
+                      'EngelsizClub uygulamasına giriş için',
                       style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
                     ),
                   ],
@@ -1084,14 +1086,21 @@ class _LoadingStepState extends State<_LoadingStep>
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 80,
-            height: 80,
+            width: 96,
+            height: 96,
             decoration: BoxDecoration(
-              color: MetoColors.primary.withValues(alpha: 0.10),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(24),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x22000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
             ),
-            alignment: Alignment.center,
-            child: const Text('🌱', style: TextStyle(fontSize: 36)),
+            clipBehavior: Clip.antiAlias,
+            child: const _EngelsizLogo(),
           ),
           const SizedBox(height: 20),
           const Text(
@@ -1138,13 +1147,30 @@ class _LoadingStepState extends State<_LoadingStep>
 
 // ─── Shared UI pieces ────────────────────────────────────────────────────────
 
+class _EngelsizLogo extends StatelessWidget {
+  const _EngelsizLogo();
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.translate(
+      offset: const Offset(0, 8),
+      child: Transform.scale(
+        scale: 1.5,
+        child: Image.asset(
+          'src/imports/119686.png',
+          fit: BoxFit.cover,
+        ),
+      ),
+    );
+  }
+}
+
 class _BrandHeader extends StatelessWidget {
   const _BrandHeader({
     required this.height,
     required this.logoSize,
     required this.titleSize,
     required this.subtitle,
-    required this.logoEmojiSize,
     this.logoRadius = 24,
   });
 
@@ -1152,7 +1178,6 @@ class _BrandHeader extends StatelessWidget {
   final double logoSize;
   final double titleSize;
   final String subtitle;
-  final double logoEmojiSize;
   final double logoRadius;
 
   @override
@@ -1177,49 +1202,49 @@ class _BrandHeader extends StatelessWidget {
           ),
           child: SafeArea(
             bottom: false,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: logoSize,
-                  height: logoSize,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.20),
-                    borderRadius: BorderRadius.circular(logoRadius),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.18),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
+            child: Padding(
+              padding: EdgeInsets.only(top: height > 200 ? 24 : 0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: logoSize,
+                    height: logoSize,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.95),
+                      borderRadius: BorderRadius.circular(logoRadius),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.18),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: const _EngelsizLogo(),
                   ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '🌱',
-                    style: TextStyle(fontSize: logoEmojiSize),
+                  SizedBox(height: height > 200 ? 16 : 8),
+                  Text(
+                    'EngelsizClub',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: titleSize,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3,
+                    ),
                   ),
-                ),
-                SizedBox(height: height > 200 ? 16 : 8),
-                Text(
-                  'MetoCare',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: titleSize,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.70),
+                      fontSize: height > 200 ? 14 : 12,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.70),
-                    fontSize: height > 200 ? 14 : 12,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

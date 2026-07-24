@@ -10,6 +10,16 @@ import 'pages/merkezler_page.dart';
 
 enum MetoTab { home, merkezler, ilanlar, forum, haklar, kartlar }
 
+enum _KrediStep { paket, kart, basarili }
+
+typedef _KrediPaket = ({
+  int adet,
+  String fiyat,
+  String birim,
+  String desc,
+  bool popular,
+});
+
 /// Figma Make `App` shell — bottom nav + profil paneli.
 class MainShell extends StatefulWidget {
   const MainShell({
@@ -33,7 +43,15 @@ class _MainShellState extends State<MainShell> {
   bool _krediHosBonusGosterildi = false;
   int _ilanlarUnread = 0;
 
-  static const _krediPaketleri = [
+  _KrediStep _krediStep = _KrediStep.paket;
+  _KrediPaket? _seciliPaket;
+  bool _odemeYukleniyor = false;
+  final _kartNo = TextEditingController();
+  final _kartAd = TextEditingController();
+  final _kartSkt = TextEditingController();
+  final _kartCvv = TextEditingController();
+
+  static const List<_KrediPaket> _krediPaketleri = [
     (
       adet: 1,
       fiyat: '₺49,90',
@@ -66,6 +84,46 @@ class _MainShellState extends State<MainShell> {
     _userKredi = _isProf ? 10 : 3;
   }
 
+  @override
+  void dispose() {
+    _kartNo.dispose();
+    _kartAd.dispose();
+    _kartSkt.dispose();
+    _kartCvv.dispose();
+    super.dispose();
+  }
+
+  void _resetKredi() {
+    _krediSatin = false;
+    _krediStep = _KrediStep.paket;
+    _seciliPaket = null;
+    _odemeYukleniyor = false;
+    _kartNo.clear();
+    _kartAd.clear();
+    _kartSkt.clear();
+    _kartCvv.clear();
+  }
+
+  bool get _kartValid =>
+      _kartNo.text.replaceAll(' ', '').length == 16 &&
+      _kartAd.text.trim().length > 3 &&
+      _kartSkt.text.length == 5 &&
+      _kartCvv.text.length >= 3;
+
+  void _handleOde() {
+    final paket = _seciliPaket;
+    if (!_kartValid || paket == null) return;
+    setState(() => _odemeYukleniyor = true);
+    Future<void>.delayed(const Duration(milliseconds: 1800), () {
+      if (!mounted) return;
+      setState(() {
+        _userKredi += paket.adet;
+        _odemeYukleniyor = false;
+        _krediStep = _KrediStep.basarili;
+      });
+    });
+  }
+
   String get _initials {
     final parts = widget.user.name.trim().split(RegExp(r'\s+'));
     final letters = parts.map((w) => w.isEmpty ? '' : w[0]).join();
@@ -89,6 +147,7 @@ class _MainShellState extends State<MainShell> {
             setState(() => _ilanlarUnread = n);
           },
           onOpenKrediYukle: () => setState(() {
+            _resetKredi();
             _showProfilPanel = true;
             _krediSatin = true;
           }),
@@ -116,8 +175,8 @@ class _MainShellState extends State<MainShell> {
                   initials: _initials,
                   avatarColor: widget.user.avatarColor,
                   onAvatarTap: () => setState(() {
+                    _resetKredi();
                     _showProfilPanel = true;
-                    _krediSatin = false;
                   }),
                 ),
                 Expanded(child: _body),
@@ -147,7 +206,7 @@ class _MainShellState extends State<MainShell> {
             GestureDetector(
               onTap: () => setState(() {
                 _showProfilPanel = false;
-                _krediSatin = false;
+                _resetKredi();
               }),
               child: Container(color: Colors.black.withValues(alpha: 0.4)),
             ),
@@ -199,9 +258,10 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _buildProfilMenu() {
-    final tip = widget.user.userType == 'uzman' || widget.user.userType == 'bakici'
-        ? '💼 Uzman'
-        : '👨‍👩‍👧 Aile';
+    final tip =
+        widget.user.userType == 'uzman' || widget.user.userType == 'bakici'
+            ? '💼 Uzman'
+            : '👨‍👩‍👧 Aile';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -405,7 +465,10 @@ class _MainShellState extends State<MainShell> {
         ),
         const SizedBox(height: 12),
         FilledButton.icon(
-          onPressed: () => setState(() => _krediSatin = true),
+          onPressed: () => setState(() {
+            _krediStep = _KrediStep.paket;
+            _krediSatin = true;
+          }),
           style: FilledButton.styleFrom(
             backgroundColor: const Color(0xFFF59E0B),
             foregroundColor: Colors.white,
@@ -480,22 +543,54 @@ class _MainShellState extends State<MainShell> {
           child: Row(
             children: [
               IconButton(
-                onPressed: () => setState(() => _krediSatin = false),
+                onPressed: () => setState(() {
+                  if (_krediStep == _KrediStep.kart) {
+                    _krediStep = _KrediStep.paket;
+                  } else {
+                    _resetKredi();
+                  }
+                }),
                 style: IconButton.styleFrom(backgroundColor: MetoColors.muted),
                 icon: const Icon(Icons.arrow_back, size: 18),
               ),
               const SizedBox(width: 8),
-              const Text(
-                'Kredi Yükle',
-                style: TextStyle(
+              Text(
+                switch (_krediStep) {
+                  _KrediStep.paket => 'Kredi Yükle',
+                  _KrediStep.kart => 'Kart Bilgileri',
+                  _KrediStep.basarili => 'Ödeme Başarılı',
+                },
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                   color: MetoColors.foreground,
                 ),
               ),
+              if (_krediStep != _KrediStep.basarili) ...[
+                const Spacer(),
+                Text(
+                  _krediStep == _KrediStep.paket ? '1/2' : '2/2',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: MetoColors.mutedFg,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
+        if (_krediStep == _KrediStep.paket) _buildKrediPaketStep(),
+        if (_krediStep == _KrediStep.kart) _buildKrediKartStep(),
+        if (_krediStep == _KrediStep.basarili) _buildKrediBasariliStep(),
+      ],
+    );
+  }
+
+  Widget _buildKrediPaketStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
@@ -539,18 +634,15 @@ class _MainShellState extends State<MainShell> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
                 side: BorderSide(
-                  color: p.popular
-                      ? MetoColors.primary
-                      : MetoColors.border,
+                  color: p.popular ? MetoColors.primary : MetoColors.border,
                   width: 2,
                 ),
               ),
               child: InkWell(
                 borderRadius: BorderRadius.circular(16),
                 onTap: () => setState(() {
-                  _userKredi += p.adet;
-                  _krediSatin = false;
-                  _showProfilPanel = false;
+                  _seciliPaket = p;
+                  _krediStep = _KrediStep.kart;
                 }),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -609,7 +701,8 @@ class _MainShellState extends State<MainShell> {
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
-                                color: MetoColors.primary.withValues(alpha: 0.7),
+                                color:
+                                    MetoColors.primary.withValues(alpha: 0.7),
                               ),
                             ),
                           ],
@@ -646,6 +739,355 @@ class _MainShellState extends State<MainShell> {
           'Ödeme güvenli şekilde işlenir. Kredi satın alındıktan sonra iade edilmez.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 11, color: MetoColors.mutedFg),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildKrediKartStep() {
+    final paket = _seciliPaket;
+    if (paket == null) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [MetoColors.primary, Color(0xFF1A5C51)],
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Seçilen Paket',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.7),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${paket.adet} Kredi',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                paket.fiyat,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        _kartField(
+          label: 'Kart Numarası',
+          controller: _kartNo,
+          hint: '0000 0000 0000 0000',
+          keyboardType: TextInputType.number,
+          maxLength: 19,
+          formatter: _formatKartNo,
+          suffix: _kartNo.text.startsWith('5') ? '🟠' : '💳',
+        ),
+        const SizedBox(height: 12),
+        _kartField(
+          label: 'Kart Üzerindeki Ad',
+          controller: _kartAd,
+          hint: 'AD SOYAD',
+          formatter: (v) => v.toUpperCase(),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _kartField(
+                label: 'Son Kullanma',
+                controller: _kartSkt,
+                hint: 'AA/YY',
+                keyboardType: TextInputType.number,
+                maxLength: 5,
+                formatter: _formatSkt,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _kartField(
+                label: 'CVV',
+                controller: _kartCvv,
+                hint: '•••',
+                keyboardType: TextInputType.number,
+                maxLength: 4,
+                obscure: true,
+                formatter: (v) => v.replaceAll(RegExp(r'\D'), ''),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: MetoColors.muted,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Text(
+                '🔒 SSL',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: MetoColors.mutedFg,
+                ),
+              ),
+              Text(
+                '🛡️ 3D Secure',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: MetoColors.mutedFg,
+                ),
+              ),
+              Text(
+                '✅ PCI DSS',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: MetoColors.mutedFg,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        FilledButton(
+          onPressed: _kartValid && !_odemeYukleniyor ? _handleOde : null,
+          style: FilledButton.styleFrom(
+            backgroundColor: MetoColors.primary,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: MetoColors.primary.withValues(alpha: 0.4),
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: _odemeYukleniyor
+              ? const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(width: 10),
+                    Text(
+                      'İşleniyor...',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                )
+              : Text(
+                  '🔒 ${paket.fiyat} Öde · ${paket.adet} Kredi Al',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Kredi satın alındıktan sonra iade edilmez.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 10, color: MetoColors.mutedFg),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildKrediBasariliStep() {
+    final paket = _seciliPaket;
+    if (paket == null) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 24),
+        Center(
+          child: Container(
+            width: 80,
+            height: 80,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              color: Color(0xFFDCFCE7),
+              shape: BoxShape.circle,
+            ),
+            child: const Text('✅', style: TextStyle(fontSize: 36)),
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Ödeme Başarılı!',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: MetoColors.foreground,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${paket.adet} kredi hesabınıza eklendi.',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 14, color: MetoColors.mutedFg),
+        ),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          decoration: BoxDecoration(
+            color: MetoColors.muted,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Yeni bakiyeniz',
+                style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
+              ),
+              Text(
+                '🪙 $_userKredi kredi',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: MetoColors.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        FilledButton(
+          onPressed: () => setState(() {
+            _resetKredi();
+            _showProfilPanel = false;
+          }),
+          style: FilledButton.styleFrom(
+            backgroundColor: MetoColors.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: const Text(
+            'Tamam',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static String _formatKartNo(String v) {
+    final digits = v.replaceAll(RegExp(r'\D'), '');
+    final capped = digits.substring(0, digits.length.clamp(0, 16));
+    final groups = <String>[];
+    for (var i = 0; i < capped.length; i += 4) {
+      groups.add(capped.substring(i, (i + 4).clamp(0, capped.length)));
+    }
+    return groups.join(' ');
+  }
+
+  static String _formatSkt(String v) {
+    final digits = v.replaceAll(RegExp(r'\D'), '');
+    final capped = digits.substring(0, digits.length.clamp(0, 4));
+    if (capped.length <= 2) return capped;
+    return '${capped.substring(0, 2)}/${capped.substring(2)}';
+  }
+
+  Widget _kartField({
+    required String label,
+    required TextEditingController controller,
+    required String hint,
+    required String Function(String) formatter,
+    TextInputType? keyboardType,
+    int? maxLength,
+    bool obscure = false,
+    String? suffix,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: MetoColors.mutedFg,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          obscureText: obscure,
+          maxLength: maxLength,
+          onChanged: (value) {
+            final formatted = formatter(value);
+            if (formatted != value) {
+              controller.value = TextEditingValue(
+                text: formatted,
+                selection: TextSelection.collapsed(offset: formatted.length),
+              );
+            }
+            setState(() {});
+          },
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: MetoColors.foreground,
+          ),
+          decoration: InputDecoration(
+            counterText: '',
+            hintText: hint,
+            suffixText: suffix,
+            filled: true,
+            fillColor: MetoColors.muted,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 14,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: MetoColors.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: MetoColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: MetoColors.primary),
+            ),
+          ),
         ),
       ],
     );
@@ -886,9 +1328,9 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                   ),
                 )
               else
-                Flexible(
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -1075,16 +1517,15 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                         ),
                         const SizedBox(height: 16),
                         FilledButton(
-                          onPressed:
-                              _subject.text.trim().isEmpty ||
+                          onPressed: _subject.text.trim().isEmpty ||
                                   _message.text.trim().isEmpty
                               ? null
                               : () => setState(() => _sent = true),
                           style: FilledButton.styleFrom(
                             backgroundColor: MetoColors.primary,
                             foregroundColor: Colors.white,
-                            disabledBackgroundColor: MetoColors.primary
-                                .withValues(alpha: 0.4),
+                            disabledBackgroundColor:
+                                MetoColors.primary.withValues(alpha: 0.4),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
@@ -1124,7 +1565,45 @@ class _StatusBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       child: Row(
         children: [
+          Container(
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Transform.translate(
+              offset: const Offset(0, 2),
+              child: Transform.scale(
+                scale: 1.5,
+                child: Image.asset(
+                  'src/imports/119686.png',
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          const Text(
+            '9:41',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: MetoColors.foreground,
+            ),
+          ),
           const Spacer(),
+          const Text(
+            '●●●',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: MetoColors.foreground,
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(width: 12),
           GestureDetector(
             onTap: onAvatarTap,
             child: Container(
