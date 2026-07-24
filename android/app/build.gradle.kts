@@ -5,9 +5,15 @@ plugins {
 }
 
 android {
-    ndkVersion = "25.1.8937393"
+    // ndkVersion = "25.1.8937393"
     packaging {
-        resources.excludes.add("META-INF/*")
+        jniLibs {
+            keepDebugSymbols += "**/*.so"
+        }
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/INDEX.LIST"
+        }
     }
     namespace = "com.example.engelsizclub"
     compileSdk = flutter.compileSdkVersion
@@ -34,6 +40,7 @@ android {
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
