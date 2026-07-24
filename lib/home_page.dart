@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -169,15 +170,15 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Engelsiz Club',
-                      style: TextStyle(
+                      style: GoogleFonts.nunito(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
-                        height: 1.2,
-                        letterSpacing: -0.3,
+                        height: 1.25,
+                        letterSpacing: -0.4,
                       ),
                     ),
                   ),
@@ -236,28 +237,28 @@ class _HomePageState extends State<HomePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Row(
+                      Row(
                         children: [
-                          Text('👋', style: TextStyle(fontSize: 16)),
-                          SizedBox(width: 6),
+                          Text('👋', style: GoogleFonts.nunito(fontSize: 16)),
+                          const SizedBox(width: 6),
                           Text(
                             'Hoş geldiniz',
-                            style: TextStyle(
+                            style: GoogleFonts.nunito(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xCCFFFFFF),
+                              color: const Color(0xCCFFFFFF),
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 4),
-                      const Text(
+                      Text(
                         'Destek, bilgi ve\ntopluluk bir arada',
-                        style: TextStyle(
+                        style: GoogleFonts.nunito(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
                           color: Colors.white,
-                          height: 1.25,
+                          height: 1.375,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -321,9 +322,9 @@ class _HomePageState extends State<HomePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Hastalıklar & Durumlar',
-                  style: TextStyle(
+                  style: GoogleFonts.nunito(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                     color: MetoColors.foreground,
@@ -369,14 +370,14 @@ class _HomePageState extends State<HomePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.shield_outlined,
+                    const Icon(Icons.shield_outlined,
                         size: 16, color: MetoColors.primary),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Text(
                       'YAKINDA',
-                      style: TextStyle(
+                      style: GoogleFonts.nunito(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.8,
@@ -386,18 +387,21 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Uzman Canlı Danışmanlık',
-                  style: TextStyle(
+                  style: GoogleFonts.nunito(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: MetoColors.foreground,
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'Çocuk psikiyatristi ve terapistlerle video görüşmesi yapın.',
-                  style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+                  style: GoogleFonts.nunito(
+                    fontSize: 12,
+                    color: MetoColors.mutedFg,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Material(
@@ -412,12 +416,12 @@ class _HomePageState extends State<HomePage> {
                       );
                     },
                     borderRadius: BorderRadius.circular(999),
-                    child: const Padding(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
                       child: Text(
                         'Bildirim Al',
-                        style: TextStyle(
+                        style: GoogleFonts.nunito(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                           color: MetoColors.primary,
@@ -996,7 +1000,7 @@ class _HeroChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: const TextStyle(
+            style: GoogleFonts.nunito(
               fontSize: 12,
               fontWeight: FontWeight.w800,
               color: Colors.white,
@@ -1072,11 +1076,11 @@ class _DiseaseCard extends StatelessWidget {
                 disease.name,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: GoogleFonts.nunito(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: MetoColors.foreground,
-                  height: 1.2,
+                  height: 1.25,
                 ),
               ),
               const Spacer(),
@@ -1084,13 +1088,13 @@ class _DiseaseCard extends StatelessWidget {
                 children: [
                   Text(
                     'Daha fazla',
-                    style: TextStyle(
+                    style: GoogleFonts.nunito(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: disease.color,
                     ),
                   ),
-                  Icon(Icons.chevron_right, size: 14, color: disease.color),
+                  Icon(Icons.chevron_right, size: 12, color: disease.color),
                 ],
               ),
             ],
@@ -1144,17 +1148,18 @@ class DisclaimerBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFFDE68A)),
       ),
-      child: const Row(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline, size: 16, color: Color(0xFFD97706)),
-          SizedBox(width: 8),
+          const Icon(Icons.info_outline, size: 16, color: Color(0xFFD97706)),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Bu uygulama yalnızca bilgilendirme amaçlıdır. Tanı, tedavi veya tıbbi tavsiye yerine geçmez. Her zaman uzman bir sağlık profesyoneline başvurun.',
-              style: TextStyle(
+              style: GoogleFonts.nunito(
                 fontSize: 12,
-                color: Color(0xFFB45309),
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFFB45309),
                 height: 1.45,
               ),
             ),

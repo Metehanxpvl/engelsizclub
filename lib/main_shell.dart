@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'home_page.dart';
 import 'meto_theme.dart';
@@ -10,7 +11,11 @@ import 'pages/merkezler_page.dart';
 
 enum MetoTab { home, merkezler, ilanlar, forum, haklar, kartlar }
 
-enum _KrediStep { paket, kart, basarili }
+enum _KrediStep { paket, odeme, basarili }
+
+const _krediIban = 'TR9700015000158007329403071';
+const _krediIbanGosterim = 'TR97 0001 5000 1580 0732 9403 071';
+const _krediAliciAd = 'Şakir Çaykara';
 
 typedef _KrediPaket = ({
   int adet,
@@ -46,10 +51,6 @@ class _MainShellState extends State<MainShell> {
   _KrediStep _krediStep = _KrediStep.paket;
   _KrediPaket? _seciliPaket;
   bool _odemeYukleniyor = false;
-  final _kartNo = TextEditingController();
-  final _kartAd = TextEditingController();
-  final _kartSkt = TextEditingController();
-  final _kartCvv = TextEditingController();
 
   static const List<_KrediPaket> _krediPaketleri = [
     (
@@ -84,37 +85,18 @@ class _MainShellState extends State<MainShell> {
     _userKredi = _isProf ? 10 : 3;
   }
 
-  @override
-  void dispose() {
-    _kartNo.dispose();
-    _kartAd.dispose();
-    _kartSkt.dispose();
-    _kartCvv.dispose();
-    super.dispose();
-  }
-
   void _resetKredi() {
     _krediSatin = false;
     _krediStep = _KrediStep.paket;
     _seciliPaket = null;
     _odemeYukleniyor = false;
-    _kartNo.clear();
-    _kartAd.clear();
-    _kartSkt.clear();
-    _kartCvv.clear();
   }
-
-  bool get _kartValid =>
-      _kartNo.text.replaceAll(' ', '').length == 16 &&
-      _kartAd.text.trim().length > 3 &&
-      _kartSkt.text.length == 5 &&
-      _kartCvv.text.length >= 3;
 
   void _handleOde() {
     final paket = _seciliPaket;
-    if (!_kartValid || paket == null) return;
+    if (paket == null) return;
     setState(() => _odemeYukleniyor = true);
-    Future<void>.delayed(const Duration(milliseconds: 1800), () {
+    Future<void>.delayed(const Duration(milliseconds: 1200), () {
       if (!mounted) return;
       setState(() {
         _userKredi += paket.adet;
@@ -122,6 +104,14 @@ class _MainShellState extends State<MainShell> {
         _krediStep = _KrediStep.basarili;
       });
     });
+  }
+
+  Future<void> _copyIban() async {
+    await Clipboard.setData(const ClipboardData(text: _krediIban));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('IBAN panoya kopyalandı')),
+    );
   }
 
   String get _initials {
@@ -544,7 +534,7 @@ class _MainShellState extends State<MainShell> {
             children: [
               IconButton(
                 onPressed: () => setState(() {
-                  if (_krediStep == _KrediStep.kart) {
+                  if (_krediStep == _KrediStep.odeme) {
                     _krediStep = _KrediStep.paket;
                   } else {
                     _resetKredi();
@@ -557,7 +547,7 @@ class _MainShellState extends State<MainShell> {
               Text(
                 switch (_krediStep) {
                   _KrediStep.paket => 'Kredi Yükle',
-                  _KrediStep.kart => 'Kart Bilgileri',
+                  _KrediStep.odeme => 'Havale / EFT',
                   _KrediStep.basarili => 'Ödeme Başarılı',
                 },
                 style: const TextStyle(
@@ -581,7 +571,7 @@ class _MainShellState extends State<MainShell> {
           ),
         ),
         if (_krediStep == _KrediStep.paket) _buildKrediPaketStep(),
-        if (_krediStep == _KrediStep.kart) _buildKrediKartStep(),
+        if (_krediStep == _KrediStep.odeme) _buildKrediOdemeStep(),
         if (_krediStep == _KrediStep.basarili) _buildKrediBasariliStep(),
       ],
     );
@@ -642,7 +632,7 @@ class _MainShellState extends State<MainShell> {
                 borderRadius: BorderRadius.circular(16),
                 onTap: () => setState(() {
                   _seciliPaket = p;
-                  _krediStep = _KrediStep.kart;
+                  _krediStep = _KrediStep.odeme;
                 }),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -726,17 +716,17 @@ class _MainShellState extends State<MainShell> {
         const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('🔒', style: TextStyle(fontSize: 14)),
+            Text('🏦', style: TextStyle(fontSize: 14)),
             SizedBox(width: 6),
             Text(
-              '256-bit SSL şifreli güvenli ödeme',
+              'Havale / EFT ile güvenli ödeme',
               style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
             ),
           ],
         ),
         const SizedBox(height: 8),
         const Text(
-          'Ödeme güvenli şekilde işlenir. Kredi satın alındıktan sonra iade edilmez.',
+          'Ödeme IBAN hesabına yapılır. Kredi satın alındıktan sonra iade edilmez.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 11, color: MetoColors.mutedFg),
         ),
@@ -744,7 +734,7 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
-  Widget _buildKrediKartStep() {
+  Widget _buildKrediOdemeStep() {
     final paket = _seciliPaket;
     if (paket == null) return const SizedBox.shrink();
     return Column(
@@ -765,7 +755,7 @@ class _MainShellState extends State<MainShell> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Seçilen Paket',
+                      'Ödenecek Tutar',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -796,90 +786,128 @@ class _MainShellState extends State<MainShell> {
           ),
         ),
         const SizedBox(height: 16),
-        _kartField(
-          label: 'Kart Numarası',
-          controller: _kartNo,
-          hint: '0000 0000 0000 0000',
-          keyboardType: TextInputType.number,
-          maxLength: 19,
-          formatter: _formatKartNo,
-          suffix: _kartNo.text.startsWith('5') ? '🟠' : '💳',
-        ),
-        const SizedBox(height: 12),
-        _kartField(
-          label: 'Kart Üzerindeki Ad',
-          controller: _kartAd,
-          hint: 'AD SOYAD',
-          formatter: (v) => v.toUpperCase(),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _kartField(
-                label: 'Son Kullanma',
-                controller: _kartSkt,
-                hint: 'AA/YY',
-                keyboardType: TextInputType.number,
-                maxLength: 5,
-                formatter: _formatSkt,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _kartField(
-                label: 'CVV',
-                controller: _kartCvv,
-                hint: '•••',
-                keyboardType: TextInputType.number,
-                maxLength: 4,
-                obscure: true,
-                formatter: (v) => v.replaceAll(RegExp(r'\D'), ''),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
         Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: MetoColors.muted,
+            color: MetoColors.card,
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: MetoColors.border, width: 1.5),
           ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '🔒 SSL',
+              const Text(
+                'HAVALE / EFT BİLGİLERİ',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                  color: MetoColors.mutedFg,
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Alıcı Adı',
+                style: TextStyle(
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: MetoColors.mutedFg,
                 ),
               ),
-              Text(
-                '🛡️ 3D Secure',
+              const SizedBox(height: 4),
+              const Text(
+                _krediAliciAd,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: MetoColors.foreground,
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'IBAN',
+                style: TextStyle(
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: MetoColors.mutedFg,
                 ),
               ),
-              Text(
-                '✅ PCI DSS',
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                decoration: BoxDecoration(
+                  color: MetoColors.muted,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        _krediIbanGosterim,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: MetoColors.foreground,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _copyIban,
+                      tooltip: 'Kopyala',
+                      style: IconButton.styleFrom(
+                        backgroundColor:
+                            MetoColors.primary.withValues(alpha: 0.12),
+                        foregroundColor: MetoColors.primary,
+                      ),
+                      icon: const Icon(Icons.copy_rounded, size: 18),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Açıklama',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: MetoColors.mutedFg,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'EngelsizClub kredi · ${widget.user.email}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: MetoColors.foreground,
                 ),
               ),
             ],
           ),
         ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFBEB),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFFDE68A)),
+          ),
+          child: const Text(
+            'Lütfen seçtiğiniz paket tutarını yukarıdaki IBAN hesabına havale/EFT yapın. Açıklama kısmına e-posta adresinizi yazın.',
+            style: TextStyle(
+              fontSize: 12,
+              color: Color(0xFF92400E),
+              height: 1.4,
+            ),
+          ),
+        ),
         const SizedBox(height: 16),
         FilledButton(
-          onPressed: _kartValid && !_odemeYukleniyor ? _handleOde : null,
+          onPressed: _odemeYukleniyor ? null : _handleOde,
           style: FilledButton.styleFrom(
             backgroundColor: MetoColors.primary,
             foregroundColor: Colors.white,
@@ -903,19 +931,19 @@ class _MainShellState extends State<MainShell> {
                     ),
                     SizedBox(width: 10),
                     Text(
-                      'İşleniyor...',
+                      'Onaylanıyor...',
                       style: TextStyle(fontWeight: FontWeight.w800),
                     ),
                   ],
                 )
               : Text(
-                  '🔒 ${paket.fiyat} Öde · ${paket.adet} Kredi Al',
+                  'Ödemeyi Yaptım · ${paket.adet} Kredi Al',
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
         ),
         const SizedBox(height: 8),
         const Text(
-          'Kredi satın alındıktan sonra iade edilmez.',
+          'Ödeme hesabınıza ulaştıktan sonra krediniz tanımlanır.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 10, color: MetoColors.mutedFg),
         ),
@@ -954,7 +982,7 @@ class _MainShellState extends State<MainShell> {
         ),
         const SizedBox(height: 4),
         Text(
-          '${paket.adet} kredi hesabınıza eklendi.',
+          '${paket.adet} kredi hesabınıza eklendi.\nÖdemeniz $_krediAliciAd IBAN hesabına yönlendirildi.',
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 14, color: MetoColors.mutedFg),
         ),
@@ -1000,93 +1028,6 @@ class _MainShellState extends State<MainShell> {
           child: const Text(
             'Tamam',
             style: TextStyle(fontWeight: FontWeight.w800),
-          ),
-        ),
-      ],
-    );
-  }
-
-  static String _formatKartNo(String v) {
-    final digits = v.replaceAll(RegExp(r'\D'), '');
-    final capped = digits.substring(0, digits.length.clamp(0, 16));
-    final groups = <String>[];
-    for (var i = 0; i < capped.length; i += 4) {
-      groups.add(capped.substring(i, (i + 4).clamp(0, capped.length)));
-    }
-    return groups.join(' ');
-  }
-
-  static String _formatSkt(String v) {
-    final digits = v.replaceAll(RegExp(r'\D'), '');
-    final capped = digits.substring(0, digits.length.clamp(0, 4));
-    if (capped.length <= 2) return capped;
-    return '${capped.substring(0, 2)}/${capped.substring(2)}';
-  }
-
-  Widget _kartField({
-    required String label,
-    required TextEditingController controller,
-    required String hint,
-    required String Function(String) formatter,
-    TextInputType? keyboardType,
-    int? maxLength,
-    bool obscure = false,
-    String? suffix,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: MetoColors.mutedFg,
-          ),
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          obscureText: obscure,
-          maxLength: maxLength,
-          onChanged: (value) {
-            final formatted = formatter(value);
-            if (formatted != value) {
-              controller.value = TextEditingValue(
-                text: formatted,
-                selection: TextSelection.collapsed(offset: formatted.length),
-              );
-            }
-            setState(() {});
-          },
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: MetoColors.foreground,
-          ),
-          decoration: InputDecoration(
-            counterText: '',
-            hintText: hint,
-            suffixText: suffix,
-            filled: true,
-            fillColor: MetoColors.muted,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 14,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: MetoColors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: MetoColors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: MetoColors.primary),
-            ),
           ),
         ),
       ],

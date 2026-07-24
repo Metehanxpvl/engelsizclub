@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 
 import 'main_shell.dart';
@@ -42,6 +43,8 @@ class _MetoCareAppState extends State<MetoCareApp> {
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: MetoColors.background,
+        textTheme: GoogleFonts.nunitoTextTheme(),
+        primaryTextTheme: GoogleFonts.nunitoTextTheme(),
         colorScheme: const ColorScheme.light(
           primary: MetoColors.primary,
           onPrimary: Colors.white,
@@ -309,7 +312,7 @@ class _SplashStep extends StatelessWidget {
                         children: [
                           Text(
                             f.$2,
-                            style: const TextStyle(
+                            style: GoogleFonts.nunito(
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
                               color: MetoColors.foreground,
@@ -317,8 +320,9 @@ class _SplashStep extends StatelessWidget {
                           ),
                           Text(
                             f.$3,
-                            style: const TextStyle(
+                            style: GoogleFonts.nunito(
                               fontSize: 12,
+                              fontWeight: FontWeight.w500,
                               color: MetoColors.mutedFg,
                             ),
                           ),
@@ -349,7 +353,7 @@ class _SplashStep extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    textStyle: const TextStyle(
+                    textStyle: GoogleFonts.nunito(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
                     ),
@@ -358,9 +362,12 @@ class _SplashStep extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'Ücretsiz · Reklamsız · Güvenli',
-                style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+                style: GoogleFonts.nunito(
+                  fontSize: 12,
+                  color: MetoColors.mutedFg,
+                ),
               ),
             ],
           ),
@@ -1227,20 +1234,21 @@ class _BrandHeader extends StatelessWidget {
                   SizedBox(height: height > 200 ? 16 : 8),
                   Text(
                     'EngelsizClub',
-                    style: TextStyle(
+                    style: GoogleFonts.nunito(
                       color: Colors.white,
                       fontSize: titleSize,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: -0.3,
+                      letterSpacing: -0.4,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: GoogleFonts.nunito(
                       color: Colors.white.withValues(alpha: 0.70),
                       fontSize: height > 200 ? 14 : 12,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
