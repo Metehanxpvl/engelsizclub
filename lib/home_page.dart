@@ -310,7 +310,7 @@ class _HomePageState extends State<HomePage> {
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 16, 16, 12),
             child: PubMedSearchBar(
-              placeholder: 'Hastalık veya tedavi araştır (PubMed)...',
+              placeholder: 'Hastalık veya tedavi araştır (PubMed · FDA)...',
             ),
           ),
 
@@ -1190,7 +1190,23 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
   String _tab = 'pubmed';
   List<_PubMedItem> _pubmed = [];
   List<_TrialItem> _trials = [];
+  List<_FdaItem> _fda = [];
   String? _expanded;
+  int _pubmedPage = 0;
+  int _trialsPage = 0;
+  int _fdaPage = 0;
+
+  /// Sayfa başına gösterilen kart sayısı.
+  static const _pageSize = 6;
+
+  /// API'den tek seferde çekilen maksimum sonuç (en güncelden eskiye).
+  static const _fetchMax = 100;
+
+  /// FDA sonuçları (çeviri kotası için daha az).
+  static const _fdaFetchMax = 20;
+
+  /// Çeviri önbelleği — aynı metni iki kez çevirmeyi önler.
+  final Map<String, String> _trCache = {};
 
   static const _dict = {
     'otizm': 'autism',
@@ -1231,17 +1247,264 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
       _searched = true;
       _pubmed = [];
       _trials = [];
+      _fda = [];
       _expanded = null;
+      _pubmedPage = 0;
+      _trialsPage = 0;
+      _fdaPage = 0;
     });
 
-    final eng = _toEnglish(raw);
+    final eng = await _queryToEnglish(raw);
     _translatedQ = eng;
 
     try {
-      await Future.wait([_fetchPubmed(eng), _fetchTrials(eng)]);
+      await Future.wait([
+        _fetchPubmed(eng),
+        _fetchTrials(eng),
+        _fetchFda(eng),
+      ]);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  String _fdaSearchUrl([String? query]) {
+    final q = (query ?? _translatedQ).trim();
+    if (q.isEmpty) return 'https://www.fda.gov/search';
+    return 'https://www.fda.gov/search?s=${Uri.encodeComponent(q)}';
+  }
+
+  /// Türkçe sorguyu İngilizceye çevirir (Google → sözlük yedeği).
+  Future<String> _queryToEnglish(String raw) async {
+    final lowered = raw.toLowerCase().trim();
+    final g = await _translate(raw, from: 'tr', to: 'en');
+    if (g.isNotEmpty && g.toLowerCase() != lowered) return g;
+    return _toEnglish(raw);
+  }
+
+  /// Tek bir metni çevirir. Önce keysiz Google uç noktası (kaliteli, yüksek
+  /// kota), başarısız olursa MyMemory yedeği. Sonuç önbelleğe alınır.
+  Future<String> _translate(String text,
+      {required String from, required String to}) async {
+    // Satır sonları toplu çeviride kayıt ayıracıdır; sadece yatay boşluk sadeleşir.
+    final t = text
+        .replaceAll(RegExp(r'[^\S\n]+'), ' ')
+        .replaceAll(RegExp(r' *\n *'), '\n')
+        .trim();
+    if (t.isEmpty) return t;
+    final cacheKey = '$from|$to|$t';
+    final cached = _trCache[cacheKey];
+    if (cached != null) return cached;
+
+    // 1) Google (resmi olmayan, anahtarsız) uç noktası.
+    try {
+      final r = await http.get(Uri.parse(
+        'https://translate.googleapis.com/translate_a/single'
+        '?client=gtx&sl=$from&tl=$to&dt=t&q=${Uri.encodeComponent(t)}',
+      ));
+      if (r.statusCode == 200) {
+        final data = jsonDecode(r.body) as List;
+        final segs = (data.isNotEmpty ? data[0] as List? : null) ?? const [];
+        final buf = StringBuffer();
+        for (final s in segs) {
+          if (s is List && s.isNotEmpty) buf.write(s[0]?.toString() ?? '');
+        }
+        final out = buf.toString().trim();
+        if (out.isNotEmpty) {
+          _trCache[cacheKey] = out;
+          return out;
+        }
+      }
+    } catch (_) {}
+
+    // 2) MyMemory yedeği (kısa metin sınırı).
+    try {
+      final q = t.length > 480 ? '${t.substring(0, 480)}…' : t;
+      final r = await http.get(Uri.parse(
+        'https://api.mymemory.translated.net/get'
+        '?q=${Uri.encodeComponent(q)}&langpair=$from|$to',
+      ));
+      if (r.statusCode == 200) {
+        final data = jsonDecode(r.body) as Map;
+        final translated =
+            (data['responseData'] as Map?)?['translatedText']?.toString() ?? '';
+        if (translated.isNotEmpty &&
+            !translated.toUpperCase().contains('MYMEMORY')) {
+          _trCache[cacheKey] = translated;
+          return translated;
+        }
+      }
+    } catch (_) {}
+
+    _trCache[cacheKey] = t;
+    return t;
+  }
+
+  /// Çok sayıda metni verimli çevirir: satırları birleştirip tek istekte
+  /// çevirir (Google satır sınırlarını korur), böylece 100 başlık ~birkaç
+  /// istekte çevrilir.
+  Future<List<String>> _translateMany(List<String> texts,
+      {String from = 'en', String to = 'tr'}) async {
+    final out = List<String>.filled(texts.length, '', growable: false);
+    if (texts.isEmpty) return out;
+
+    // ~1000 karakterlik gruplara böl (URL uzunluğu için güvenli).
+    final chunks = <List<int>>[];
+    var cur = <int>[];
+    var curLen = 0;
+    for (var i = 0; i < texts.length; i++) {
+      final clean = texts[i].replaceAll(RegExp(r'\s+'), ' ').trim();
+      final len = clean.length + 1;
+      if (cur.isNotEmpty && curLen + len > 1000) {
+        chunks.add(cur);
+        cur = <int>[];
+        curLen = 0;
+      }
+      cur.add(i);
+      curLen += len;
+    }
+    if (cur.isNotEmpty) chunks.add(cur);
+
+    await Future.wait(chunks.map((idxs) async {
+      final joined = idxs
+          .map((i) => texts[i].replaceAll(RegExp(r'\s+'), ' ').trim())
+          .join('\n');
+      final res = await _translate(joined, from: from, to: to);
+      final parts = res.split('\n');
+      if (parts.length == idxs.length) {
+        for (var k = 0; k < idxs.length; k++) {
+          final p = parts[k].trim();
+          out[idxs[k]] = p.isEmpty ? texts[idxs[k]] : p;
+        }
+        return;
+      }
+      // Satır hizası bozulduysa güvenli yol: her kaydı ayrı çevir.
+      await Future.wait(idxs.map((i) async {
+        out[i] = await _translate(texts[i], from: from, to: to);
+      }));
+    }));
+    return out;
+  }
+
+  Future<void> _fetchFda(String eng) async {
+    try {
+      final items = <_FdaItem>[];
+      final seen = <String>{};
+
+      Future<void> pull(String path, String search) async {
+        if (items.length >= _fdaFetchMax) return;
+        final uri = Uri.parse(
+          'https://api.fda.gov/$path'
+          '?search=${Uri.encodeComponent(search)}'
+          '&limit=${_fdaFetchMax - items.length}',
+        );
+        final r = await http.get(uri);
+        if (r.statusCode != 200) return;
+        final results =
+            ((jsonDecode(r.body) as Map)['results'] as List?) ?? [];
+        for (final raw in results) {
+          if (items.length >= _fdaFetchMax) break;
+          final m = Map<String, dynamic>.from(raw as Map);
+          if (path == 'drug/label') {
+            final openfda =
+                Map<String, dynamic>.from((m['openfda'] as Map?) ?? {});
+            final brands = ((openfda['brand_name'] as List?) ?? [])
+                .map((e) => e.toString())
+                .where((e) => e.isNotEmpty)
+                .toList();
+            final generics = ((openfda['generic_name'] as List?) ?? [])
+                .map((e) => e.toString())
+                .where((e) => e.isNotEmpty)
+                .toList();
+            final titleEng = brands.isNotEmpty
+                ? brands.first
+                : (generics.isNotEmpty ? generics.first : 'FDA ilaç kaydı');
+            final indic = ((m['indications_and_usage'] as List?) ?? [])
+                .map((e) => e.toString())
+                .where((e) => e.trim().isNotEmpty);
+            final purpose = ((m['purpose'] as List?) ?? [])
+                .map((e) => e.toString())
+                .where((e) => e.trim().isNotEmpty);
+            var snippetEng =
+                (indic.isNotEmpty ? indic.first : (purpose.isNotEmpty ? purpose.first : ''))
+                    .replaceAll(RegExp(r'\s+'), ' ')
+                    .trim();
+            if (snippetEng.length > 280) {
+              snippetEng = '${snippetEng.substring(0, 280)}…';
+            }
+            final setId = m['set_id']?.toString() ??
+                (() {
+                  final spl = openfda['spl_set_id'] as List?;
+                  if (spl == null || spl.isEmpty) return '';
+                  return spl.first.toString();
+                })();
+            final key = setId.isNotEmpty ? setId : titleEng.toLowerCase();
+            if (!seen.add(key)) continue;
+            items.add(_FdaItem(
+              id: key,
+              title: titleEng,
+              snippet: snippetEng,
+              kind: 'İlaç etiketi',
+              url: _fdaSearchUrl(eng),
+            ));
+          } else if (path == 'food/enforcement') {
+            final titleEng =
+                (m['product_description']?.toString() ?? 'Gıda kaydı')
+                    .replaceAll(RegExp(r'\s+'), ' ')
+                    .trim();
+            var snippetEng =
+                (m['reason_for_recall']?.toString() ?? '')
+                    .replaceAll(RegExp(r'\s+'), ' ')
+                    .trim();
+            if (snippetEng.length > 280) {
+              snippetEng = '${snippetEng.substring(0, 280)}…';
+            }
+            final report = m['report_date']?.toString() ?? '';
+            final key =
+                '${m['recall_number'] ?? titleEng}-$report'.toLowerCase();
+            if (!seen.add(key)) continue;
+            items.add(_FdaItem(
+              id: key,
+              title: titleEng.length > 120
+                  ? '${titleEng.substring(0, 120)}…'
+                  : titleEng,
+              snippet: snippetEng,
+              kind: 'Gıda / geri çağırma',
+              url: _fdaSearchUrl(eng),
+            ));
+          }
+        }
+      }
+
+      // Önce tırnaklı tam ifade, az sonuçsa genel arama.
+      await pull('drug/label', '"$eng"');
+      if (items.length < 4) {
+        await pull('drug/label', eng);
+      }
+      if (items.length < _fdaFetchMax) {
+        await pull('food/enforcement', '"$eng"');
+      }
+      if (items.isEmpty) {
+        await pull('food/enforcement', eng);
+      }
+
+      // Başlık + özeti toplu Türkçe'ye çevir.
+      final titlesTr = await _translateMany(items.map((e) => e.title).toList());
+      final snipsTr = await _translateMany(items.map((e) => e.snippet).toList());
+      final translated = <_FdaItem>[];
+      for (var i = 0; i < items.length; i++) {
+        translated.add(_FdaItem(
+          id: items[i].id,
+          title: titlesTr[i],
+          snippet: items[i].snippet.isEmpty ? '' : snipsTr[i],
+          kind: items[i].kind,
+          url: items[i].url,
+          titleEn: items[i].title,
+        ));
+      }
+
+      if (mounted) setState(() => _fda = translated);
+    } catch (_) {}
   }
 
   Future<void> _fetchPubmed(String eng) async {
@@ -1249,38 +1512,60 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
       final sr = await http.get(Uri.parse(
         'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi'
         '?db=pubmed&term=${Uri.encodeComponent('$eng children special needs')}'
-        '&retmax=6&retmode=json&sort=relevance',
+        '&retmax=$_fetchMax&retmode=json&sort=pub_date',
       ));
       final ids =
           ((jsonDecode(sr.body) as Map)['esearchresult']?['idlist'] as List?)
                   ?.cast<String>() ??
               [];
       if (ids.isEmpty) return;
-      final sumR = await http.get(Uri.parse(
-        'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi'
-        '?db=pubmed&id=${ids.join(',')}&retmode=json',
-      ));
-      final result = (jsonDecode(sumR.body) as Map)['result'] as Map? ?? {};
-      final items = ids.map((id) {
-        final d = result[id] as Map? ?? {};
-        final authors = ((d['authors'] as List?) ?? [])
-            .take(2)
-            .map((a) => (a as Map)['name']?.toString() ?? '')
-            .where((n) => n.isNotEmpty)
-            .join(', ');
-        return _PubMedItem(
-          pmid: id,
-          title: d['title']?.toString() ?? '—',
-          authors: authors,
-          journal:
-              d['fulljournalname']?.toString() ?? d['source']?.toString() ?? '',
-          year: (d['pubdate']?.toString() ?? '')
-              .padRight(4)
-              .substring(0, 4)
-              .trim(),
-        );
-      }).toList();
-      if (mounted) setState(() => _pubmed = items);
+
+      // esummary tek seferde ~20 id ile daha güvenilir; batch'lere böl.
+      final items = <_PubMedItem>[];
+      for (var i = 0; i < ids.length; i += 20) {
+        final batch = ids.sublist(i, (i + 20).clamp(0, ids.length));
+        final sumR = await http.get(Uri.parse(
+          'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi'
+          '?db=pubmed&id=${batch.join(',')}&retmode=json',
+        ));
+        final result = (jsonDecode(sumR.body) as Map)['result'] as Map? ?? {};
+        for (final id in batch) {
+          final d = result[id] as Map? ?? {};
+          final authors = ((d['authors'] as List?) ?? [])
+              .take(2)
+              .map((a) => (a as Map)['name']?.toString() ?? '')
+              .where((n) => n.isNotEmpty)
+              .join(', ');
+          items.add(_PubMedItem(
+            pmid: id,
+            title: d['title']?.toString() ?? '—',
+            authors: authors,
+            journal: d['fulljournalname']?.toString() ??
+                d['source']?.toString() ??
+                '',
+            year: (d['pubdate']?.toString() ?? '')
+                .padRight(4)
+                .substring(0, 4)
+                .trim(),
+          ));
+        }
+      }
+
+      // Başlıkları toplu Türkçe'ye çevir (İngilizce başlığı da sakla).
+      final titlesTr =
+          await _translateMany(items.map((e) => e.title).toList());
+      final translated = <_PubMedItem>[];
+      for (var i = 0; i < items.length; i++) {
+        translated.add(_PubMedItem(
+          pmid: items[i].pmid,
+          title: titlesTr[i],
+          titleEn: items[i].title,
+          authors: items[i].authors,
+          journal: items[i].journal,
+          year: items[i].year,
+        ));
+      }
+      if (mounted) setState(() => _pubmed = translated);
     } catch (_) {}
   }
 
@@ -1288,7 +1573,8 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
     try {
       final r = await http.get(Uri.parse(
         'https://clinicaltrials.gov/api/v2/studies'
-        '?query.term=${Uri.encodeComponent(eng)}&pageSize=6&format=json',
+        '?query.term=${Uri.encodeComponent(eng)}&pageSize=$_fetchMax'
+        '&sort=${Uri.encodeComponent('LastUpdatePostDate:desc')}&format=json',
       ));
       final studies = ((jsonDecode(r.body) as Map)['studies'] as List?) ?? [];
       final items = studies.map((s) {
@@ -1310,7 +1596,24 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
           sponsor: (sp['leadSponsor'] as Map?)?['name']?.toString() ?? '',
         );
       }).toList();
-      if (mounted) setState(() => _trials = items);
+
+      // Başlık ve koşulları toplu Türkçe'ye çevir.
+      final titlesTr = await _translateMany(items.map((e) => e.title).toList());
+      final condsTr =
+          await _translateMany(items.map((e) => e.conditions).toList());
+      final translated = <_TrialItem>[];
+      for (var i = 0; i < items.length; i++) {
+        translated.add(_TrialItem(
+          nctId: items[i].nctId,
+          title: titlesTr[i],
+          titleEn: items[i].title,
+          status: items[i].status,
+          phase: items[i].phase,
+          conditions: condsTr[i],
+          sponsor: items[i].sponsor,
+        ));
+      }
+      if (mounted) setState(() => _trials = translated);
     } catch (_) {}
   }
 
@@ -1319,14 +1622,33 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
     setState(() {
       _pubmed = [];
       _trials = [];
+      _fda = [];
       _searched = false;
       _translatedQ = '';
+      _pubmedPage = 0;
+      _trialsPage = 0;
+      _fdaPage = 0;
+      _expanded = null;
     });
+  }
+
+  List<T> _pageSlice<T>(List<T> all, int page) {
+    if (all.isEmpty) return const [];
+    final start = page * _pageSize;
+    if (start >= all.length) return const [];
+    final end = (start + _pageSize).clamp(0, all.length);
+    return all.sublist(start, end);
+  }
+
+  int _pageCount(int total) {
+    if (total <= 0) return 0;
+    return (total / _pageSize).ceil();
   }
 
   @override
   Widget build(BuildContext context) {
-    final hasAny = _pubmed.isNotEmpty || _trials.isNotEmpty;
+    final hasAny =
+        _pubmed.isNotEmpty || _trials.isNotEmpty || _fda.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1400,7 +1722,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
             SizedBox(width: 4),
             Expanded(
               child: Text(
-                'PubMed / NCBI · ClinicalTrials.gov · Türkçe→İngilizce otomatik çeviri',
+                'PubMed · ClinicalTrials.gov · FDA.gov · Türkçe sonuçlar',
                 style: TextStyle(fontSize: 10, color: MetoColors.mutedFg),
               ),
             ),
@@ -1426,7 +1748,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                       color: MetoColors.mutedFg),
                 ),
                 Text(
-                  'PubMed · ClinicalTrials.gov',
+                  'PubMed · ClinicalTrials.gov · FDA.gov',
                   style: TextStyle(fontSize: 10, color: MetoColors.mutedFg),
                 ),
               ],
@@ -1477,10 +1799,13 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
             children: [
               Expanded(
                   child: _tabButton('pubmed', '📄 PubMed (${_pubmed.length})')),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Expanded(
                   child: _tabButton(
-                      'trials', '🧪 Klinik Çalışmalar (${_trials.length})')),
+                      'trials', '🧪 Klinik (${_trials.length})')),
+              const SizedBox(width: 6),
+              Expanded(
+                  child: _tabButton('fda', '🏛️ FDA (${_fda.length})')),
             ],
           ),
           const SizedBox(height: 12),
@@ -1497,8 +1822,19 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                       ),
                     ),
                   ]
-                : _pubmed.map(_pubmedCard))
-          else
+                : [
+                    ..._pageSlice(_pubmed, _pubmedPage).map(_pubmedCard),
+                    _buildPagination(
+                      page: _pubmedPage,
+                      pageCount: _pageCount(_pubmed.length),
+                      total: _pubmed.length,
+                      onChanged: (p) => setState(() {
+                        _pubmedPage = p;
+                        _expanded = null;
+                      }),
+                    ),
+                  ])
+          else if (_tab == 'trials')
             ...(_trials.isEmpty
                 ? [
                     const Padding(
@@ -1511,9 +1847,169 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                       ),
                     ),
                   ]
-                : _trials.map(_trialCard)),
+                : [
+                    ..._pageSlice(_trials, _trialsPage).map(_trialCard),
+                    _buildPagination(
+                      page: _trialsPage,
+                      pageCount: _pageCount(_trials.length),
+                      total: _trials.length,
+                      onChanged: (p) => setState(() {
+                        _trialsPage = p;
+                        _expanded = null;
+                      }),
+                    ),
+                  ])
+          else
+            ...(_fda.isEmpty
+                ? [
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Text(
+                        "FDA'de sonuç bulunamadı.",
+                        textAlign: TextAlign.center,
+                        style:
+                            TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+                      ),
+                    ),
+                  ]
+                : [
+                    ..._pageSlice(_fda, _fdaPage).map(_fdaCard),
+                    _buildPagination(
+                      page: _fdaPage,
+                      pageCount: _pageCount(_fda.length),
+                      total: _fda.length,
+                      onChanged: (p) => setState(() {
+                        _fdaPage = p;
+                        _expanded = null;
+                      }),
+                    ),
+                  ]),
         ],
       ],
+    );
+  }
+
+  Widget _buildPagination({
+    required int page,
+    required int pageCount,
+    required int total,
+    required ValueChanged<int> onChanged,
+  }) {
+    if (pageCount <= 1) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 4, bottom: 8),
+        child: Text(
+          '$total sonuç',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
+        ),
+      );
+    }
+
+    // Çok sayfa olursa ortadaki aralığı göster (ör. 1 … 4 5 6 … 10).
+    final pages = <int>[];
+    if (pageCount <= 7) {
+      pages.addAll(List.generate(pageCount, (i) => i));
+    } else {
+      pages.add(0);
+      final start = (page - 1).clamp(1, pageCount - 4);
+      final end = (page + 1).clamp(3, pageCount - 2);
+      if (start > 1) pages.add(-1); // ellipsis
+      for (var i = start; i <= end; i++) {
+        if (!pages.contains(i)) pages.add(i);
+      }
+      if (end < pageCount - 2) pages.add(-1); // ellipsis
+      if (!pages.contains(pageCount - 1)) pages.add(pageCount - 1);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 8),
+      child: Column(
+        children: [
+          Text(
+            'Sayfa ${page + 1} / $pageCount · $total sonuç',
+            style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _pageNavBtn(
+                icon: Icons.chevron_left,
+                enabled: page > 0,
+                onTap: () => onChanged(page - 1),
+              ),
+              const SizedBox(width: 4),
+              ...pages.map((p) {
+                if (p < 0) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 4),
+                    child: Text('…',
+                        style: TextStyle(
+                            fontSize: 12, color: MetoColors.mutedFg)),
+                  );
+                }
+                final active = p == page;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Material(
+                    color: active ? MetoColors.primary : MetoColors.muted,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      onTap: () => onChanged(p),
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: Center(
+                          child: Text(
+                            '${p + 1}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: active ? Colors.white : MetoColors.mutedFg,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(width: 4),
+              _pageNavBtn(
+                icon: Icons.chevron_right,
+                enabled: page < pageCount - 1,
+                onTap: () => onChanged(page + 1),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pageNavBtn({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: enabled ? MetoColors.muted : MetoColors.muted.withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox(
+          width: 32,
+          height: 32,
+          child: Icon(
+            icon,
+            size: 18,
+            color: enabled ? MetoColors.foreground : MetoColors.mutedFg,
+          ),
+        ),
+      ),
     );
   }
 
@@ -1523,15 +2019,20 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
       color: active ? MetoColors.primary : MetoColors.muted,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        onTap: () => setState(() => _tab = id),
+        onTap: () => setState(() {
+          _tab = id;
+          _expanded = null;
+        }),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
           child: Text(
             label,
             textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w800,
               color: active ? Colors.white : MetoColors.mutedFg,
             ),
@@ -1609,6 +2110,26 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
           ),
           if (open) ...[
             const Divider(height: 16),
+            if (r.titleEn.isNotEmpty && r.titleEn != r.title) ...[
+              Text(
+                'Orijinal başlık (EN):',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: MetoColors.mutedFg.withValues(alpha: 0.8),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                r.titleEn,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  color: MetoColors.mutedFg,
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             InkWell(
               onTap: () => launchUrl(
                 Uri.parse('https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/'),
@@ -1683,6 +2204,95 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
       ),
     );
   }
+
+  Widget _fdaCard(_FdaItem f) {
+    final open = _expanded == f.id;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: MetoColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: MetoColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _expanded = open ? null : f.id),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0A3161).withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    f.kind,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0A3161),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  f.title,
+                  maxLines: open ? 6 : 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: MetoColors.foreground,
+                  ),
+                ),
+                if (f.snippet.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    f.snippet,
+                    maxLines: open ? 12 : 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      height: 1.35,
+                      color: MetoColors.mutedFg,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (open) ...[
+            const Divider(height: 16),
+            InkWell(
+              onTap: () => launchUrl(
+                Uri.parse(_fdaSearchUrl()),
+                mode: LaunchMode.externalApplication,
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.open_in_new, size: 12, color: MetoColors.primary),
+                  SizedBox(width: 6),
+                  Text(
+                    'fda.gov/search · Aç',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: MetoColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 // ─── Models & data ───────────────────────────────────────────────────────────
@@ -1741,12 +2351,14 @@ class _PubMedItem {
     required this.authors,
     required this.journal,
     required this.year,
+    this.titleEn = '',
   });
   final String pmid;
   final String title;
   final String authors;
   final String journal;
   final String year;
+  final String titleEn;
 }
 
 class _TrialItem {
@@ -1757,6 +2369,7 @@ class _TrialItem {
     required this.phase,
     required this.conditions,
     required this.sponsor,
+    this.titleEn = '',
   });
   final String nctId;
   final String title;
@@ -1764,6 +2377,24 @@ class _TrialItem {
   final String phase;
   final String conditions;
   final String sponsor;
+  final String titleEn;
+}
+
+class _FdaItem {
+  const _FdaItem({
+    required this.id,
+    required this.title,
+    required this.snippet,
+    required this.kind,
+    required this.url,
+    this.titleEn = '',
+  });
+  final String id;
+  final String title;
+  final String snippet;
+  final String kind;
+  final String url;
+  final String titleEn;
 }
 
 const kDiseases = <DiseaseInfo>[
