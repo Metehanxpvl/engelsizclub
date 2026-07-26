@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 
 import 'admin_config.dart';
 import 'bildirim_store.dart';
@@ -25,6 +26,7 @@ import 'pages/ilanlar_page.dart';
 import 'pages/kartlar_page.dart';
 import 'pages/merkezler_page.dart';
 import 'payment_config.dart';
+import 'presence_store.dart';
 import 'profil_foto_store.dart';
 import 'sohbet_store.dart';
 import 'user_cloud_store.dart';
@@ -97,23 +99,27 @@ class _MainShellState extends State<MainShell> {
   final _kartYil = TextEditingController();
   final _kartCvv = TextEditingController();
 
+  /// Logoya basınca ana sayfayı sıfırdan kurmak için artan sayaç.
+  int _homeRefreshToken = 0;
+
   // Mesajlarım sekmesi
   List<SohbetOzet> _sohbetOzetleri = const [];
   List<AppBildirim> _bildirimlerInbox = const [];
-  DateTime? _sohbetSonOkuma;
+  Map<String, bool> _peerOnline = const {};
   Timer? _sohbetTimer;
+  RealtimeChannel? _inboxChannel;
 
-  bool get _yeniMesajVar {
-    if (_sohbetOzetleri.isEmpty) return false;
-    final son = _sohbetOzetleri.first.lastTime;
-    final okuma = _sohbetSonOkuma;
-    return okuma == null || son.isAfter(okuma);
-  }
+  int get _sohbetUnreadCount =>
+      _sohbetOzetleri.fold<int>(0, (s, o) => s + o.unreadCount);
+
+  bool get _yeniMesajVar => _sohbetUnreadCount > 0;
 
   int get _mesajUnreadCount {
-    final bildirim = _bildirimlerInbox.where((b) => !b.read).length;
-    final sohbet = _yeniMesajVar ? 1 : 0;
-    return (bildirim + sohbet).clamp(0, 99);
+    // Mesaj bildirimleri sohbet sayacına yansıdığı için burada yalnız
+    // mesaj dışı (teklif vb.) bildirimler eklenir.
+    final digerBildirim =
+        _bildirimlerInbox.where((b) => !b.read && !b.isMesaj).length;
+    return (digerBildirim + _sohbetUnreadCount).clamp(0, 99);
   }
 
   int get _teklifBildirimUnread =>
@@ -122,9 +128,6 @@ class _MainShellState extends State<MainShell> {
   List<AppBildirim> _tekliflerForIlan(int ilanId) => _bildirimlerInbox
       .where((b) => b.isTeklif && b.ilanId == ilanId)
       .toList();
-
-  String get _sohbetOkumaKey =>
-      'sohbet_son_okuma_${widget.user.email.trim().toLowerCase()}';
 
   static const List<_KrediPaket> _krediPaketleri = [
     (
@@ -156,7 +159,6 @@ class _MainShellState extends State<MainShell> {
   String get _krediPrefsKey =>
       krediPrefsKeyFor(widget.user.email, fallback: widget.user.name);
 
-  String get _welcomeGiftKey => '${_krediPrefsKey}_welcome_gift';
   String get _welcomeDismissKey => '${_krediPrefsKey}_welcome_dismissed';
 
   @override
@@ -169,15 +171,26 @@ class _MainShellState extends State<MainShell> {
     _loadUserCloud();
     _loadIlanlarVeFoto();
     _loadSohbetOzetleri();
+    startPresenceHeartbeat();
+    _inboxChannel = subscribeInboxRealtime(
+      myEmail: widget.user.email,
+      onChange: () {
+        if (mounted) unawaited(_loadSohbetOzetleri());
+      },
+    );
+    // Realtime yedek poll (ağ kopması / publication eksikse)
     _sohbetTimer = Timer.periodic(
-      const Duration(seconds: 10),
+      const Duration(seconds: 30),
       (_) => _loadSohbetOzetleri(),
     );
   }
 
   @override
   void dispose() {
+    stopPresenceHeartbeat();
     _sohbetTimer?.cancel();
+    unawaited(unsubscribeRealtime(_inboxChannel));
+    _inboxChannel = null;
     _odemeGonderen.dispose();
     _odemeNot.dispose();
     _kartAd.dispose();
@@ -189,39 +202,121 @@ class _MainShellState extends State<MainShell> {
   }
 
   Future<void> _loadSohbetOzetleri() async {
-    final prefs = await SharedPreferences.getInstance();
-    final okumaRaw = prefs.getString(_sohbetOkumaKey);
+    unawaited(touchMyPresence());
     final results = await Future.wait([
       loadSohbetOzetleri(widget.user.email),
       loadBildirimler(),
     ]);
     if (!mounted) return;
+    final ozetler = results[0] as List<SohbetOzet>;
+    final bildirimler = results[1] as List<AppBildirim>;
+    final merged = _mergeUnreadFromBildirim(ozetler, bildirimler);
+    final online = await loadPresenceOnlineMap(
+      merged.map((o) => o.peerEmail),
+    );
+    if (!mounted) return;
     setState(() {
-      _sohbetOzetleri = results[0] as List<SohbetOzet>;
-      _bildirimlerInbox = results[1] as List<AppBildirim>;
-      _sohbetSonOkuma =
-          okumaRaw == null ? null : DateTime.tryParse(okumaRaw);
+      _sohbetOzetleri = merged;
+      _bildirimlerInbox = bildirimler;
+      _peerOnline = online;
     });
   }
 
-  Future<void> _markSohbetOkundu() async {
-    final now = DateTime.now().toUtc();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_sohbetOkumaKey, now.toIso8601String());
-    if (mounted) setState(() => _sohbetSonOkuma = now);
+  /// Okunmamış teklif/mesaj bildirimleri de sohbeti okunmadı sayar.
+  List<SohbetOzet> _mergeUnreadFromBildirim(
+    List<SohbetOzet> ozetler,
+    List<AppBildirim> bildirimler,
+  ) {
+    final byKey = <String, int>{};
+    for (final b in bildirimler) {
+      if (b.read) continue;
+      final key = b.sohbetKey;
+      if (key == null || key.isEmpty) continue;
+      byKey[key] = (byKey[key] ?? 0) + 1;
+    }
+    if (byKey.isEmpty) return ozetler;
+    return [
+      for (final o in ozetler)
+        if ((byKey[o.sohbetKey] ?? 0) > o.unreadCount)
+          SohbetOzet(
+            sohbetKey: o.sohbetKey,
+            peerEmail: o.peerEmail,
+            lastMsg: o.lastMsg,
+            lastTime: o.lastTime,
+            unreadCount: byKey[o.sohbetKey]!,
+            lastFromPeer: true,
+          )
+        else
+          o,
+    ];
+  }
+
+  Future<void> _markSohbetThreadOkundu(SohbetOzet o) async {
+    await markSohbetMesajlariOkundu(o.sohbetKey);
+    // Aynı sohbete ait mesaj bildirimlerini de okundu yap
+    final related = _bildirimlerInbox
+        .where((b) => !b.read && b.sohbetKey == o.sohbetKey)
+        .toList();
+    for (final b in related) {
+      await markBildirimOkundu(b.id);
+    }
+    if (!mounted || related.isEmpty) return;
+    final ids = related.map((b) => b.id).toSet();
+    setState(() {
+      _bildirimlerInbox = [
+        for (final x in _bildirimlerInbox)
+          if (ids.contains(x.id))
+            AppBildirim(
+              id: x.id,
+              ownerEmail: x.ownerEmail,
+              actorEmail: x.actorEmail,
+              actorName: x.actorName,
+              type: x.type,
+              title: x.title,
+              body: x.body,
+              ilanId: x.ilanId,
+              sohbetKey: x.sohbetKey,
+              read: true,
+              createdAt: x.createdAt,
+            )
+          else
+            x,
+      ];
+    });
   }
 
   void _openSohbet(SohbetOzet o) {
     final display = o.peerEmail.contains('↔')
         ? o.peerEmail
         : o.peerEmail.split('@').first;
+    final peerKey = o.peerEmail.trim().toLowerCase();
     final kisi = SohbetKisi(
       ad: display.isEmpty ? o.peerEmail : display,
       avatar: (display.isNotEmpty ? display.substring(0, 1) : '?').toUpperCase(),
       avatarColor: MetoColors.primary,
-      isOnline: true,
+      isOnline: _peerOnline[peerKey] == true,
       peerEmail: o.peerEmail,
     );
+    // Sohbet açılır açılmaz okundu — badge anında düşsün
+    if (o.hasUnread) {
+      setState(() {
+        _sohbetOzetleri = [
+          for (final x in _sohbetOzetleri)
+            if (x.sohbetKey == o.sohbetKey)
+              SohbetOzet(
+                sohbetKey: x.sohbetKey,
+                peerEmail: x.peerEmail,
+                lastMsg: x.lastMsg,
+                lastTime: x.lastTime,
+                unreadCount: 0,
+                lastFromPeer: x.lastFromPeer,
+              )
+            else
+              x,
+        ];
+      });
+      _markSohbetThreadOkundu(o);
+    }
     Navigator.of(context)
         .push(
       MaterialPageRoute<void>(
@@ -233,7 +328,6 @@ class _MainShellState extends State<MainShell> {
       ),
     )
         .then((_) {
-      _markSohbetOkundu();
       _loadSohbetOzetleri();
     });
   }
@@ -242,11 +336,11 @@ class _MainShellState extends State<MainShell> {
     final onay = await showDialog<bool>(
       context: context,
       builder: (dCtx) => AlertDialog(
-        title: const Text('Teklifi sil'),
+        title: const Text('Bildirimi sil'),
         content: Text(
           b.body.isNotEmpty
               ? '"${b.body}" bildirimini silmek istiyor musunuz?'
-              : 'Bu teklif bildirimini silmek istiyor musunuz?',
+              : 'Bu bildirimi silmek istiyor musunuz?',
         ),
         actions: [
           TextButton(
@@ -272,7 +366,7 @@ class _MainShellState extends State<MainShell> {
             _bildirimlerInbox.where((x) => x.id != b.id).toList();
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Teklif bildirimi silindi')),
+        const SnackBar(content: Text('Bildirim silindi')),
       );
       return true;
     } catch (e) {
@@ -376,7 +470,8 @@ class _MainShellState extends State<MainShell> {
       ad: name.isEmpty ? b.actorEmail : name,
       avatar: (name.isNotEmpty ? name.substring(0, 1) : '?').toUpperCase(),
       avatarColor: MetoColors.primary,
-      isOnline: true,
+      isOnline:
+          _peerOnline[b.actorEmail.trim().toLowerCase()] == true,
       peerEmail: b.actorEmail,
       ilanId: b.ilanId,
     );
@@ -391,7 +486,9 @@ class _MainShellState extends State<MainShell> {
       ),
     )
         .then((_) {
-      _markSohbetOkundu();
+      if (b.sohbetKey != null && b.sohbetKey!.isNotEmpty) {
+        markSohbetMesajlariOkundu(b.sohbetKey!);
+      }
       _loadSohbetOzetleri();
     });
   }
@@ -479,7 +576,7 @@ class _MainShellState extends State<MainShell> {
                         const Padding(
                           padding: EdgeInsets.fromLTRB(4, 4, 4, 8),
                           child: Text(
-                            'TEKLİF BİLDİRİMLERİ',
+                            'BİLDİRİMLER',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
@@ -521,9 +618,13 @@ class _MainShellState extends State<MainShell> {
                                 leading: CircleAvatar(
                                   backgroundColor: b.read
                                       ? MetoColors.muted
-                                      : const Color(0xFFEF4444),
+                                      : (b.isMesaj
+                                          ? MetoColors.primary
+                                          : const Color(0xFFEF4444)),
                                   child: Icon(
-                                    Icons.campaign_outlined,
+                                    b.isMesaj
+                                        ? Icons.chat_bubble_outline
+                                        : Icons.campaign_outlined,
                                     color: b.read
                                         ? MetoColors.mutedFg
                                         : Colors.white,
@@ -605,79 +706,166 @@ class _MainShellState extends State<MainShell> {
                           ),
                           confirmDismiss: (_) => _confirmDeleteSohbet(o),
                           child: Material(
-                            color: MetoColors.card,
+                            color: o.hasUnread
+                                ? const Color(0xFFE8F5EF)
+                                : MetoColors.card,
                             borderRadius: BorderRadius.circular(14),
-                            child: ListTile(
+                            child: InkWell(
                               onTap: () => _openSohbet(o),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                side: BorderSide(
-                                  color: (_sohbetSonOkuma == null ||
-                                          o.lastTime
-                                              .isAfter(_sohbetSonOkuma!))
-                                      ? MetoColors.primary
-                                          .withValues(alpha: 0.35)
-                                      : MetoColors.border,
-                                ),
-                              ),
-                              leading: CircleAvatar(
-                                backgroundColor:
-                                    (_sohbetSonOkuma == null ||
-                                            o.lastTime
-                                                .isAfter(_sohbetSonOkuma!))
-                                        ? const Color(0xFFEF4444)
-                                        : MetoColors.primary,
-                                child: Text(
-                                  o.peerEmail.isNotEmpty
-                                      ? o.peerEmail
-                                          .substring(0, 1)
-                                          .toUpperCase()
-                                      : '?',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
+                              borderRadius: BorderRadius.circular(14),
+                              child: Container(
+                                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: o.hasUnread
+                                        ? MetoColors.primary
+                                        : MetoColors.border,
+                                    width: o.hasUnread ? 2 : 1,
                                   ),
                                 ),
-                              ),
-                              title: Text(
-                                o.peerEmail.contains('↔')
-                                    ? o.peerEmail
-                                    : o.peerEmail.split('@').first,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  color: MetoColors.foreground,
-                                ),
-                              ),
-                              subtitle: Text(
-                                o.lastMsg,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: (_sohbetSonOkuma == null ||
-                                          o.lastTime
-                                              .isAfter(_sohbetSonOkuma!))
-                                      ? FontWeight.w700
-                                      : FontWeight.w400,
-                                  color: (_sohbetSonOkuma == null ||
-                                          o.lastTime
-                                              .isAfter(_sohbetSonOkuma!))
-                                      ? MetoColors.foreground
-                                      : MetoColors.mutedFg,
-                                ),
-                              ),
-                              trailing: Text(
-                                '${o.lastTime.toLocal().hour.toString().padLeft(2, '0')}:${o.lastTime.toLocal().minute.toString().padLeft(2, '0')}',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: MetoColors.mutedFg,
+                                child: Row(
+                                  children: [
+                                    Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
+                                        CircleAvatar(
+                                          backgroundColor: o.hasUnread
+                                              ? MetoColors.primary
+                                              : MetoColors.primary
+                                                  .withValues(alpha: 0.75),
+                                          child: Text(
+                                            o.peerEmail.isNotEmpty
+                                                ? o.peerEmail
+                                                    .substring(0, 1)
+                                                    .toUpperCase()
+                                                : '?',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ),
+                                        Positioned(
+                                          right: -1,
+                                          bottom: -1,
+                                          child: Container(
+                                            width: 12,
+                                            height: 12,
+                                            decoration: BoxDecoration(
+                                              color: (_peerOnline[o.peerEmail
+                                                          .trim()
+                                                          .toLowerCase()] ==
+                                                      true)
+                                                  ? const Color(0xFF22C55E)
+                                                  : const Color(0xFFEF4444),
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: Colors.white,
+                                                width: 2,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            o.peerEmail.contains('↔')
+                                                ? o.peerEmail
+                                                : o.peerEmail.split('@').first,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: o.hasUnread
+                                                  ? FontWeight.w900
+                                                  : FontWeight.w500,
+                                              color: o.hasUnread
+                                                  ? const Color(0xFF111827)
+                                                  : MetoColors.mutedFg,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            o.lastMsg,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: o.hasUnread
+                                                  ? FontWeight.w800
+                                                  : FontWeight.w400,
+                                              color: o.hasUnread
+                                                  ? const Color(0xFF111827)
+                                                  : MetoColors.mutedFg,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          '${o.lastTime.toLocal().hour.toString().padLeft(2, '0')}:${o.lastTime.toLocal().minute.toString().padLeft(2, '0')}',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: o.hasUnread
+                                                ? FontWeight.w800
+                                                : FontWeight.w400,
+                                            color: o.hasUnread
+                                                ? MetoColors.primary
+                                                : MetoColors.mutedFg,
+                                          ),
+                                        ),
+                                        if (o.hasUnread) ...[
+                                          const SizedBox(height: 6),
+                                          Container(
+                                            constraints: const BoxConstraints(
+                                              minWidth: 20,
+                                              minHeight: 20,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: MetoColors.primary,
+                                              borderRadius:
+                                                  BorderRadius.circular(99),
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: Text(
+                                              o.unreadCount > 99
+                                                  ? '99+'
+                                                  : '${o.unreadCount.clamp(1, 99)}',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                       ],
                     ],
                   ),
@@ -763,37 +951,17 @@ class _MainShellState extends State<MainShell> {
 
   Future<void> _loadKredi() async {
     final prefs = await SharedPreferences.getInstance();
-    final key = _krediPrefsKey;
-
-    // Uzman/bakıcı ilk kez: 10 hediye kredi tanımla
-    if (_isProf && !prefs.containsKey(_welcomeGiftKey)) {
-      await prefs.setInt(key, 10);
-      await prefs.setBool(_welcomeGiftKey, true);
-      if (mounted) {
-        setState(() {
-          _userKredi = 10;
-          _krediHosBonusGosterildi = prefs.getBool(_welcomeDismissKey) ?? false;
-        });
-      }
-    } else if (prefs.containsKey(key)) {
-      final saved = prefs.getInt(key);
-      if (saved != null && mounted) {
-        setState(() {
-          _userKredi = saved;
-          _krediHosBonusGosterildi =
-              _isProf ? (prefs.getBool(_welcomeDismissKey) ?? false) : true;
-        });
-      }
-    } else {
-      final start = _isProf ? 10 : 3;
-      await prefs.setInt(key, start);
-      if (_isProf) await prefs.setBool(_welcomeGiftKey, true);
-      if (mounted) {
-        setState(() {
-          _userKredi = start;
-          _krediHosBonusGosterildi = !_isProf;
-        });
-      }
+    final snap = await loadUserKredi(
+      email: widget.user.email,
+      userType: widget.user.userType,
+    );
+    if (mounted) {
+      setState(() {
+        _userKredi = snap.balance;
+        _krediHosBonusGosterildi = _isProf
+            ? (prefs.getBool(_welcomeDismissKey) ?? false)
+            : true;
+      });
     }
 
     // Onaylanmış ödeme bildirimlerini krediye çevir (Armut tarzı).
@@ -812,8 +980,11 @@ class _MainShellState extends State<MainShell> {
   }
 
   Future<void> _saveKredi() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_krediPrefsKey, _userKredi);
+    await saveUserKredi(
+      email: widget.user.email,
+      balance: _userKredi,
+      welcomeGiftGiven: _isProf ? true : null,
+    );
   }
 
   void _resetKredi() {
@@ -1006,11 +1177,29 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget get _body {
+    // Harita sekmesi Offstage ile canlı tutulur — her girişte yeniden
+    // konum/merkez araması tetiklenmesin.
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Offstage(
+          offstage: _activeTab != MetoTab.merkezler,
+          child: TickerMode(
+            enabled: _activeTab == MetoTab.merkezler,
+            child: const MerkezlerPage(),
+          ),
+        ),
+        if (_activeTab != MetoTab.merkezler) _bodyWithoutMerkezler,
+      ],
+    );
+  }
+
+  Widget get _bodyWithoutMerkezler {
     switch (_activeTab) {
       case MetoTab.home:
-        return const HomePage();
+        return HomePage(key: ValueKey('home_$_homeRefreshToken'));
       case MetoTab.merkezler:
-        return const MerkezlerPage();
+        return const SizedBox.shrink();
       case MetoTab.ilanlar:
         return IlanlarPage(
           userKredi: _userKredi,
@@ -1044,6 +1233,27 @@ class _MainShellState extends State<MainShell> {
       case MetoTab.kartlar:
         return const KartlarPage();
     }
+  }
+
+  /// Logo / uygulama adı → ana sayfaya dön ve içeriği yenile.
+  void _goHomeAndRefresh() {
+    // Açık detay sayfaları varsa kapat
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    setState(() {
+      _activeTab = MetoTab.home;
+      _homeRefreshToken++;
+      _showProfilPanel = false;
+      _showCocukProfil = false;
+      _showIlanlarim = false;
+      _showKullaniciProfil = false;
+      _showKaydedilenler = false;
+      _showBildirimler = false;
+      _profilDragY = 0;
+      _resetKredi();
+    });
+    _loadUserCloud();
+    _loadIlanlarVeFoto();
+    _loadSohbetOzetleri();
   }
 
   void _openProfilPanel() {
@@ -1085,6 +1295,7 @@ class _MainShellState extends State<MainShell> {
                     _teklifBildirimUnread + (_yeniMesajVar ? 1 : 0),
                 onAvatarTap: _openProfilPanel,
                 onMenuTap: _openProfilPanel,
+                onHomeTap: _goHomeAndRefresh,
               ),
               Expanded(child: _body),
               _BottomNav(
@@ -1103,7 +1314,6 @@ class _MainShellState extends State<MainShell> {
                     });
                   }
                   if (t == MetoTab.mesajlar) {
-                    _markSohbetOkundu();
                     _loadSohbetOzetleri();
                   }
                 },
@@ -1315,7 +1525,7 @@ class _MainShellState extends State<MainShell> {
       ...myUzmanIlanlar(email).map((i) => (
             kind: 'uzman',
             id: i.id,
-            kategori: 'Uzman',
+            kategori: 'Uzman Arıyorum',
             emoji: '🏃',
             title: i.title,
             konum: '${i.district.isEmpty ? '' : '${i.district}, '}${i.city}',
@@ -1324,7 +1534,7 @@ class _MainShellState extends State<MainShell> {
       ...myBakiciIlanlar(email).map((i) => (
             kind: 'bakici',
             id: i.id,
-            kategori: 'Bakıcı',
+            kategori: 'Bakıcı Arıyorum',
             emoji: '🤝',
             title: i.title,
             konum: '${i.district.isEmpty ? '' : '${i.district}, '}${i.city}',
@@ -4268,6 +4478,7 @@ class _BrandBar extends StatelessWidget {
     required this.avatarColor,
     required this.onAvatarTap,
     required this.onMenuTap,
+    required this.onHomeTap,
     this.photoBytes,
     this.notificationBadge = 0,
   });
@@ -4276,6 +4487,7 @@ class _BrandBar extends StatelessWidget {
   final Color avatarColor;
   final VoidCallback onAvatarTap;
   final VoidCallback onMenuTap;
+  final VoidCallback onHomeTap;
   final Uint8List? photoBytes;
   final int notificationBadge;
 
@@ -4294,45 +4506,62 @@ class _BrandBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x33000000),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Transform.translate(
-              offset: const Offset(0, 3),
-              child: Transform.scale(
-                scale: 1.5,
-                child: Image.asset(
-                  'src/imports/119686.png',
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              'Engelsiz Club',
-              style: GoogleFonts.nunito(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-                height: 1.25,
-                letterSpacing: -0.4,
+            child: InkWell(
+              onTap: onHomeTap,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x33000000),
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Transform.translate(
+                        offset: const Offset(0, 3),
+                        child: Transform.scale(
+                          scale: 1.5,
+                          child: Image.asset(
+                            'src/imports/119686.png',
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        'Engelsiz Club',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.nunito(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          height: 1.25,
+                          letterSpacing: -0.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
+          const SizedBox(width: 8),
           GestureDetector(
             onTap: onAvatarTap,
             child: Stack(

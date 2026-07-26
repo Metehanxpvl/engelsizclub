@@ -221,8 +221,44 @@ class IkincielIlani {
   final String posted;
   final int views;
   final String emoji;
-  final List<Color> photos;
+  final List<IlanPhoto> photos;
   final IlanPoster poster;
+}
+
+/// 2. el ilan görseli — gerçek foto (data URL) veya örnek renk kutusu.
+class IlanPhoto {
+  const IlanPhoto.swatch(this.color) : dataUrl = null;
+  const IlanPhoto.data(this.dataUrl) : color = null;
+
+  final Color? color;
+  final String? dataUrl;
+
+  bool get hasImage {
+    final d = dataUrl;
+    return d != null &&
+        d.isNotEmpty &&
+        (d.startsWith('data:') || d.startsWith('http'));
+  }
+
+  Color get swatchColor => color ?? const Color(0xFFDCE8F5);
+
+  dynamic toJson() {
+    if (hasImage) return dataUrl;
+    return swatchColor.toARGB32();
+  }
+
+  factory IlanPhoto.fromJson(dynamic e) {
+    if (e is String) {
+      final s = e.trim();
+      if (s.startsWith('data:') || s.startsWith('http')) {
+        return IlanPhoto.data(s);
+      }
+      final n = int.tryParse(s);
+      if (n != null) return IlanPhoto.swatch(Color(n));
+    }
+    if (e is num) return IlanPhoto.swatch(Color(e.toInt()));
+    return const IlanPhoto.swatch(Color(0xFFDCE8F5));
+  }
 }
 
 // ─── Theme helpers ─────────────────────────────────────────────────────────
@@ -803,9 +839,9 @@ const ikincielIlanlar = <IkincielIlani>[
     views: 43,
     emoji: '🦽',
     photos: [
-      Color(0xFFDCE8F5),
-      Color(0xFFC8DDF0),
-      Color(0xFFB8D3ED),
+      IlanPhoto.swatch(Color(0xFFDCE8F5)),
+      IlanPhoto.swatch(Color(0xFFC8DDF0)),
+      IlanPhoto.swatch(Color(0xFFB8D3ED)),
     ],
     poster: IlanPoster(
       name: 'Tuba A.',
@@ -851,7 +887,10 @@ const ikincielIlanlar = <IkincielIlani>[
     posted: '3 saat önce',
     views: 29,
     emoji: '🎡',
-    photos: [Color(0xFFE8F0DC), Color(0xFFD8E8C8)],
+    photos: [
+      IlanPhoto.swatch(Color(0xFFE8F0DC)),
+      IlanPhoto.swatch(Color(0xFFD8E8C8)),
+    ],
     poster: IlanPoster(
       name: 'Berk D.',
       avatar: 'BD',
@@ -898,10 +937,10 @@ const ikincielIlanlar = <IkincielIlani>[
     views: 55,
     emoji: '🚲',
     photos: [
-      Color(0xFFF5E8DC),
-      Color(0xFFF0D8C8),
-      Color(0xFFEDD0BA),
-      Color(0xFFE8C8AA),
+      IlanPhoto.swatch(Color(0xFFF5E8DC)),
+      IlanPhoto.swatch(Color(0xFFF0D8C8)),
+      IlanPhoto.swatch(Color(0xFFEDD0BA)),
+      IlanPhoto.swatch(Color(0xFFE8C8AA)),
     ],
     poster: IlanPoster(
       name: 'Nesrin K.',
@@ -956,7 +995,10 @@ const ikincielIlanlar = <IkincielIlani>[
     posted: '1 gün önce',
     views: 88,
     emoji: '📱',
-    photos: [Color(0xFFDCE5F5), Color(0xFFCCD8F0)],
+    photos: [
+      IlanPhoto.swatch(Color(0xFFDCE5F5)),
+      IlanPhoto.swatch(Color(0xFFCCD8F0)),
+    ],
     poster: IlanPoster(
       name: 'İpek Y.',
       avatar: 'İY',
@@ -993,7 +1035,10 @@ const ikincielIlanlar = <IkincielIlani>[
     posted: '4 saat önce',
     views: 31,
     emoji: '🦯',
-    photos: [Color(0xFFE8F5EE), Color(0xFFD8EDE4)],
+    photos: [
+      IlanPhoto.swatch(Color(0xFFE8F5EE)),
+      IlanPhoto.swatch(Color(0xFFD8EDE4)),
+    ],
     poster: IlanPoster(
       name: 'Orhan S.',
       avatar: 'OS',

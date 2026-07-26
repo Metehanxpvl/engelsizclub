@@ -66,7 +66,20 @@ Map<String, dynamic> _bakiciToJson(BakiciIlani i) => {
       'ownerEmail': ilanOwnerById[i.id] ?? '',
     };
 
-Map<String, dynamic> _ikincielToJson(IkincielIlani i) => {
+/// Web localStorage (~5MB) dolmasın diye data-URL fotoğrafları önbelleğe yazma.
+dynamic _photoToLocalJson(IlanPhoto p) {
+  final url = p.dataUrl;
+  if (url != null && url.startsWith('data:')) {
+    return p.swatchColor.toARGB32();
+  }
+  return p.toJson();
+}
+
+Map<String, dynamic> _ikincielToJson(
+  IkincielIlani i, {
+  bool forLocalCache = false,
+}) =>
+    {
       'kind': 'ikinciel',
       'id': i.id,
       'title': i.title,
@@ -81,7 +94,9 @@ Map<String, dynamic> _ikincielToJson(IkincielIlani i) => {
       'posted': i.posted,
       'views': i.views,
       'emoji': i.emoji,
-      'photos': i.photos.map((c) => c.toARGB32()).toList(),
+      'photos': forLocalCache
+          ? i.photos.map(_photoToLocalJson).toList()
+          : i.photos.map((p) => p.toJson()).toList(),
       'posterName': i.poster.name,
       'posterAvatar': i.poster.avatar,
       'ownerEmail': ilanOwnerById[i.id] ?? '',
@@ -142,10 +157,10 @@ BakiciIlani _bakiciFromJson(Map<String, dynamic> j) => BakiciIlani(
 
 IkincielIlani _ikincielFromJson(Map<String, dynamic> j) {
   final rawPhotos = j['photos'];
-  final photoVals = <Color>[];
+  final photoVals = <IlanPhoto>[];
   if (rawPhotos is List) {
     for (final e in rawPhotos) {
-      if (e is num) photoVals.add(Color(e.toInt()));
+      photoVals.add(IlanPhoto.fromJson(e));
     }
   }
   return IkincielIlani(
@@ -153,7 +168,7 @@ IkincielIlani _ikincielFromJson(Map<String, dynamic> j) {
     title: j['title']?.toString() ?? '',
     category: (j['category'] ?? 'Diğer').toString(),
     city: j['city']?.toString() ?? '',
-    district: j['district']?.toString() ?? '',
+    district: (j['district'] ?? '').toString(),
     condition: (j['condition'] ?? 'İyi').toString(),
     brand: (j['brand'] ?? '—').toString(),
     note: (j['note'] ?? '—').toString(),
@@ -162,7 +177,9 @@ IkincielIlani _ikincielFromJson(Map<String, dynamic> j) {
     posted: (j['posted'] ?? 'Az önce').toString(),
     views: (j['views'] as num?)?.toInt() ?? 0,
     emoji: (j['emoji'] ?? '📦').toString(),
-    photos: photoVals.isEmpty ? const [Color(0xFFDCE8F5)] : photoVals,
+    photos: photoVals.isEmpty
+        ? const [IlanPhoto.swatch(Color(0xFFDCE8F5))]
+        : photoVals,
     poster: _posterFrom(j),
   );
 }
@@ -214,15 +231,31 @@ Future<void> _cacheAllLocally() async {
   final payload = <Map<String, dynamic>>[
     ...runtimeUzmanIlanlar.map(_uzmanToJson),
     ...runtimeBakiciIlanlar.map(_bakiciToJson),
-    ...runtimeIkincielIlanlar.map(_ikincielToJson),
+    ...runtimeIkincielIlanlar.map((i) => _ikincielToJson(i, forLocalCache: true)),
   ];
-  await prefs.setString('shared_ilanlar_cache', jsonEncode(payload));
+  final encoded = jsonEncode(payload);
+  try {
+    await prefs.setString('shared_ilanlar_cache', encoded);
+  } catch (_) {
+    // QuotaExceeded / ön bellek dolu — eski cache'i temizle, sessizce geç.
+    // Asıl kaynak Supabase; fotoğraflar zaten bulutta.
+    try {
+      await prefs.remove('shared_ilanlar_cache');
+    } catch (_) {}
+  }
 }
 
 Future<bool> _loadFromLocalCache() async {
   final prefs = await SharedPreferences.getInstance();
   final raw = prefs.getString('shared_ilanlar_cache');
   if (raw == null || raw.isEmpty) return false;
+  // Eski sürümlerde base64 fotoğraflar localStorage'ı şişirmiş olabilir.
+  if (raw.length > 1200000) {
+    try {
+      await prefs.remove('shared_ilanlar_cache');
+    } catch (_) {}
+    return false;
+  }
   try {
     final list = (jsonDecode(raw) as List)
         .whereType<Map>()
@@ -293,9 +326,15 @@ Future<void> persistUserIlanlar(String email) async {
         .map(_bakiciToJson),
     ...runtimeIkincielIlanlar
         .where((i) => (ilanOwnerById[i.id] ?? '') == email.toLowerCase())
-        .map(_ikincielToJson),
+        .map((i) => _ikincielToJson(i, forLocalCache: true)),
   ];
-  await prefs.setString(ilanPrefsKey(email), jsonEncode(mine));
+  try {
+    await prefs.setString(ilanPrefsKey(email), jsonEncode(mine));
+  } catch (_) {
+    try {
+      await prefs.remove(ilanPrefsKey(email));
+    } catch (_) {}
+  }
 }
 
 Future<void> publishIlanToCloud({
@@ -319,7 +358,7 @@ Future<void> publishIlanToCloud({
   String condition = 'İyi',
   String brand = '—',
   String emoji = '📦',
-  List<Color> photos = const [],
+  List<IlanPhoto> photos = const [],
   bool urgent = false,
 }) async {
   final user = Supabase.instance.client.auth.currentUser;
@@ -351,7 +390,7 @@ Future<void> publishIlanToCloud({
     'condition': condition,
     'brand': brand,
     'emoji': emoji,
-    'photos': photos.map((c) => c.toARGB32()).toList(),
+    'photos': photos.map((p) => p.toJson()).toList(),
     'urgent': urgent,
     'views': 0,
     'offers': 0,
@@ -363,7 +402,11 @@ Future<void> publishIlanToCloud({
 
   try {
     await Supabase.instance.client.from('ilanlar').insert(payload);
-    await loadAllIlanlar(preferEmail: resolvedEmail);
+    try {
+      await loadAllIlanlar(preferEmail: resolvedEmail);
+    } catch (_) {
+      // Ön bellek / ağ yenilemesi başarısız olsa da ilan buluta yazıldı.
+    }
     return;
   } catch (e) {
     // Supabase yoksa yerel düş — yine de cihazlar arası paylaşılmaz.
@@ -438,7 +481,9 @@ Future<void> publishIlanToCloud({
             posted: 'Az önce',
             views: 0,
             emoji: emoji,
-            photos: photos.isEmpty ? const [Color(0xFFDCE8F5)] : photos,
+            photos: photos.isEmpty
+                ? const [IlanPhoto.swatch(Color(0xFFDCE8F5))]
+                : photos,
             poster: poster,
           ),
         );

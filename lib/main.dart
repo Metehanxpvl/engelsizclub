@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,14 +9,14 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 
+import 'firebase_options.dart';
+import 'google_auth_service.dart';
 import 'kredi_store.dart';
 import 'main_shell.dart';
 import 'meto_theme.dart';
 import 'services/app_catalog_service.dart';
 
 export 'meto_theme.dart';
-
-const _googleOAuthRedirect = 'io.supabase.engelsizclub://login-callback/';
 
 String _initialsFromName(String name) {
   final parts = name.trim().split(RegExp(r'\s+'));
@@ -106,12 +108,32 @@ Future<User?> finalizePendingGoogleRole(User user) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Supabase.initialize(
-    url: 'https://qycrkqwqrysypvqaipqn.supabase.co',
-    anonKey: 'sb_publishable_N7UfnXDF97YsuDTsFTq9zQ_lhnNtMgF',
-  );
-  // Dinamik katalog: diskten yükle + arka planda Supabase sync (kota dostu)
-  await AppCatalogService.instance.bootstrap();
+
+  // Mobilde tek bir init hatası boş beyaz ekrana düşmesin.
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e, st) {
+    debugPrint('Firebase init failed: $e\n$st');
+  }
+
+  try {
+    await Supabase.initialize(
+      url: 'https://qycrkqwqrysypvqaipqn.supabase.co',
+      anonKey: 'sb_publishable_N7UfnXDF97YsuDTsFTq9zQ_lhnNtMgF',
+    );
+  } catch (e, st) {
+    debugPrint('Supabase init failed: $e\n$st');
+  }
+
+  try {
+    // Dinamik katalog: diskten yükle + arka planda Supabase sync (kota dostu)
+    await AppCatalogService.instance.bootstrap();
+  } catch (e, st) {
+    debugPrint('Catalog bootstrap failed: $e\n$st');
+  }
+
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -137,31 +159,55 @@ class _MetoCareAppState extends State<MetoCareApp> {
   @override
   void initState() {
     super.initState();
-    _restoreSession();
-    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
-      final session = data.session;
-      if (session == null) {
-        if (mounted) setState(() => _user = null);
-        return;
-      }
-      try {
-        final user = await finalizePendingGoogleRole(session.user);
-        if (!mounted) return;
-        if (user == null) {
-          setState(() => _user = null);
+    try {
+      _restoreSession();
+      _authSub =
+          Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
+        final session = data.session;
+        if (session == null) {
+          if (mounted) setState(() => _user = null);
           return;
         }
-        setState(() => _user = authUserFromSupabase(user));
-      } catch (e) {
-        if (!mounted) return;
-        setState(() => _user = null);
-        final msg = e is StateError ? e.message : 'Google giriş başarısız.';
-        _messengerKey.currentState?.showSnackBar(SnackBar(content: Text(msg)));
-      }
-    });
+        try {
+          final user = await finalizePendingGoogleRole(session.user);
+          if (!mounted) return;
+          if (user == null) {
+            setState(() => _user = null);
+            return;
+          }
+          setState(() => _user = authUserFromSupabase(user));
+        } catch (e) {
+          if (!mounted) return;
+          setState(() => _user = null);
+          final msg = e is StateError ? e.message : 'Google giriş başarısız.';
+          _messengerKey.currentState
+              ?.showSnackBar(SnackBar(content: Text(msg)));
+        }
+      });
+    } catch (e, st) {
+      debugPrint('Auth bootstrap failed: $e\n$st');
+      if (mounted) setState(() => _booting = false);
+    }
   }
 
   Future<void> _restoreSession() async {
+    try {
+      // Firebase redirect dönüşü (popup engellendiğinde)
+      final redirected = await GoogleAuthService.completeRedirectIfAny();
+      if (redirected?.user != null) {
+        final user = await finalizePendingGoogleRole(redirected!.user!);
+        if (mounted) {
+          setState(() {
+            _user = user == null ? null : authUserFromSupabase(user);
+            _booting = false;
+          });
+        }
+        return;
+      }
+    } catch (_) {
+      // Redirect yok / başarısız → normal oturum kontrolüne devam
+    }
+
     final session = Supabase.instance.client.auth.currentSession;
     if (session == null) {
       if (mounted) setState(() => _booting = false);
@@ -366,26 +412,27 @@ class _AuthScreenState extends State<AuthScreen> {
     });
     try {
       await savePendingGoogleRole(role);
-      final ok = await Supabase.instance.client.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: kIsWeb ? Uri.base.origin : _googleOAuthRedirect,
-        scopes: 'email profile openid',
-        authScreenLaunchMode:
-            kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication,
-        queryParams: const {
-          'access_type': 'online',
-          'prompt': 'select_account',
-        },
-      );
-      if (!ok) {
-        await clearPendingGoogleRole();
-        if (mounted) {
-          setState(() => _step = 'signin');
-          _snack('Google girişi başlatılamadı. Lütfen tekrar deneyin.');
-        }
+
+      // Firebase popup/redirect → Google idToken → Supabase.
+      // Web'de Supabase OAuth kullanılmaz (*.supabase.co görünmesin diye).
+      final res = await GoogleAuthService.signIn();
+      final user = res?.user ?? Supabase.instance.client.auth.currentUser;
+      if (user == null) {
+        // İptal veya redirect (sayfa yenilenecek)
+        if (mounted) setState(() => _step = 'signin');
         return;
       }
-      // Tarayıcı açıldı; dönüşte onAuthStateChange rolü bağlar.
+
+      final finalized = await finalizePendingGoogleRole(user);
+      if (finalized == null) {
+        throw StateError('Google oturumu tamamlanamadı.');
+      }
+      final authUser = authUserFromSupabase(
+        finalized,
+        fallbackUserType: role,
+      );
+      widget.onLogin?.call(authUser);
+      _snack('Hoş geldin, ${authUser.name}!');
       if (mounted) setState(() => _step = 'signin');
     } catch (e) {
       await clearPendingGoogleRole();
@@ -404,12 +451,28 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   String _googleErrorMessage(Object error) {
-    final raw = error is AuthException ? error.message : error.toString();
+    final raw = error is AuthException
+        ? error.message
+        : (error is firebase_auth.FirebaseAuthException
+            ? (error.message ?? error.code)
+            : error.toString());
     final lower = raw.toLowerCase();
+    if (lower.contains('popup-closed') ||
+        lower.contains('cancelled') ||
+        lower.contains('canceled')) {
+      return 'Google girişi iptal edildi.';
+    }
     if (lower.contains('provider is not enabled') ||
-        lower.contains('unsupported provider')) {
-      return 'Google girişi henüz etkin değil. Yönetici Supabase üzerinden '
-          'Google sağlayıcısını açmalı.';
+        lower.contains('unsupported provider') ||
+        lower.contains('operation-not-allowed')) {
+      return 'Google girişi henüz etkin değil. Firebase Authentication ve '
+          'Supabase Google sağlayıcısını açın.';
+    }
+    if (lower.contains('unacceptable audience') ||
+        lower.contains('unexpected_audience')) {
+      return 'Google Client ID Supabase ile uyuşmuyor. Supabase → '
+          'Authentication → Providers → Google → Client IDs alanına '
+          'Firebase Web client ID\'yi ekleyin.';
     }
     if (lower.contains('redirect') && lower.contains('not allowed') ||
         lower.contains('invalid redirect')) {
@@ -862,13 +925,23 @@ class _SignInStep extends StatelessWidget {
             ),
           ],
         ),
-        if (girisHesapTip != null) ...[
-          const SizedBox(height: 16),
-          _GoogleSignInButton(
-            enabled: !girisLoading,
-            label: 'Google ile ${_roleLabel(girisHesapTip)} olarak giriş',
-            onPressed: () => onGoogleSignIn(girisHesapTip),
+        const SizedBox(height: 16),
+        _GoogleSignInButton(
+          enabled: !girisLoading && girisHesapTip != null,
+          label: girisHesapTip == null
+              ? 'Google ile giriş (önce hesap türü seçin)'
+              : 'Google ile ${_roleLabel(girisHesapTip)} olarak giriş',
+          onPressed: () => onGoogleSignIn(girisHesapTip),
+        ),
+        if (girisHesapTip == null) ...[
+          const SizedBox(height: 10),
+          const Text(
+            'Google butonu için önce Aile, Uzman veya Bakıcı seçin.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
           ),
+        ],
+        if (girisHesapTip != null) ...[
           const SizedBox(height: 16),
           const _OrDivider(label: 'veya e-posta ile'),
           const SizedBox(height: 16),
@@ -931,13 +1004,6 @@ class _SignInStep extends StatelessWidget {
             ),
             textAlign: TextAlign.center,
           ),
-        ] else ...[
-          const SizedBox(height: 20),
-          const Text(
-            'Devam etmek için lütfen hesap türünüzü seçin.\nArdından Google veya e-posta ile giriş yapabilirsiniz.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
-          ),
         ],
       ],
     );
@@ -995,10 +1061,18 @@ class _SignInStep extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        _GoogleSignInButton(
+          enabled: !kayitLoading && kayitTip != null,
+          label: kayitTip == null
+              ? 'Google ile üye ol (önce hesap türü seçin)'
+              : 'Google ile ${_roleLabel(kayitTip)} olarak üye ol',
+          onPressed: () => onGoogleSignIn(kayitTip),
+        ),
         if (kayitTip == null) ...[
-          const SizedBox(height: 20),
+          const SizedBox(height: 10),
           const Text(
-            'Devam etmek için lütfen hesap türünüzü seçin.\nArdından Google veya e-posta ile üye olabilirsiniz.',
+            'Google ile üye olmak için önce Aile, Uzman veya Bakıcı seçin.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
           ),
@@ -1023,12 +1097,6 @@ class _SignInStep extends StatelessWidget {
             ),
           ),
         ],
-        const SizedBox(height: 16),
-        _GoogleSignInButton(
-          enabled: !kayitLoading,
-          label: 'Google ile ${_roleLabel(kayitTip)} olarak üye ol',
-          onPressed: () => onGoogleSignIn(kayitTip),
-        ),
         const SizedBox(height: 8),
         Text(
           'Google ile devam ederseniz ${_roleLabel(kayitTip)} rolüyle hesap '

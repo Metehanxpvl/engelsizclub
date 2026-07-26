@@ -21,8 +21,14 @@ class CentersNominatimService {
   static const _contactEmail = 'sakir.caykara@gmail.com';
 
   static const _queries = <String>[
+    'özel eğitim ve rehabilitasyon merkezi',
+    'özel eğitim rehabilitasyon merkezi',
+    'özel eğitim merkezi',
     'rehabilitasyon merkezi',
     'fizik tedavi',
+    'fizyoterapi çocuk',
+    'dil ve konuşma terapisi',
+    'ergoterapi',
   ];
 
   static final Map<String, List<MetoCenter>> _cache = {};
@@ -167,6 +173,10 @@ class CentersNominatimService {
     final haystack = _normalize('$name $displayName');
     const terms = [
       'ozel egitim',
+      'egitim ve rehabilitasyon',
+      'egitim rehabilitasyon',
+      'ozel rehabilitasyon',
+      'rehabilitasyon merkezi',
       'rehabilitasyon',
       'fizik tedavi',
       'fizyoterapi',
@@ -175,6 +185,7 @@ class CentersNominatimService {
       'konusma terap',
       'duyu butunleme',
       'aba terapi',
+      'oerm',
     ];
     return terms.any(haystack.contains);
   }
@@ -182,7 +193,11 @@ class CentersNominatimService {
   static String _categoryFor(String name) {
     final normalized = _normalize(name);
     if (normalized.contains('ozel egitim') ||
-        normalized.contains('aba')) {
+        normalized.contains('egitim ve rehabilitasyon') ||
+        normalized.contains('egitim rehabilitasyon') ||
+        normalized.contains('ozel rehabilitasyon') ||
+        normalized.contains('aba') ||
+        normalized.contains('oerm')) {
       return 'Özel Eğitim & Rehabilitasyon';
     }
     if (normalized.contains('dil') ||
@@ -219,12 +234,15 @@ class CentersNominatimService {
   static String _normalize(String value) {
     return value
         .toLowerCase()
+        .replaceAll('İ', 'i')
+        .replaceAll('I', 'i')
         .replaceAll('ı', 'i')
         .replaceAll('ş', 's')
         .replaceAll('ğ', 'g')
         .replaceAll('ü', 'u')
         .replaceAll('ö', 'o')
         .replaceAll('ç', 'c')
+        .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }
 }

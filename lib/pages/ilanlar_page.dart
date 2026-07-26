@@ -1,6 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../admin_config.dart';
 import '../bildirim_store.dart';
@@ -9,6 +13,7 @@ import '../data/ilanlar_data.dart';
 import '../data/turkish_cities_data.dart';
 import '../ilan_store.dart';
 import '../meto_theme.dart';
+import '../presence_store.dart';
 import '../services/catalog_adapters.dart';
 import '../sohbet_store.dart';
 import '../teklif_store.dart';
@@ -61,6 +66,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
 
   UzmanIlani? _selectedUzman;
   BakiciIlani? _selectedBakici;
+  IkincielIlani? _selectedIkinciel;
   ({IlanPoster poster, String ctaLabel, String peerEmail, int? ilanId, bool free})?
       _selectedPoster;
   SohbetKisi? _pendingSohbet;
@@ -83,7 +89,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
       ad: poster.name,
       avatar: poster.avatar,
       avatarColor: poster.avatarColor,
-      isOnline: peer.isNotEmpty,
+      isOnline: false,
       sonGorus: peer.isEmpty ? 'Örnek / demo ilan' : null,
       peerEmail: peer,
       ilanId: ilanId,
@@ -186,7 +192,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
               ad: o.peerEmail.split('@').first,
               avatar: initials,
               avatarColor: MetoColors.primary,
-              isOnline: true,
+              isOnline: false,
               peerEmail: o.peerEmail,
             ),
             lastMsg: o.lastMsg,
@@ -315,9 +321,17 @@ class _IlanlarPageState extends State<IlanlarPage> {
     }
     setState(() => _pendingSohbet = kisi);
     _showKrediModal(
-      onTeklifVerildi: () async {
+      onSpendAsync: () async {
         final k = _pendingSohbet;
-        if (k == null) return;
+        if (k == null) return false;
+        if (widget.userKredi <= 0) return false;
+        // Önce mesaj + bildirim; başarılı olursa kredi düş.
+        await notifyIlanSahibiTeklif(
+          ownerEmail: k.peerEmail,
+          actorName: widget.userName,
+          ilanId: k.ilanId,
+        );
+        widget.onKrediHarca();
         if (k.ilanId != null) {
           await markTeklifVerildi(
             email: widget.userEmail,
@@ -329,12 +343,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
             });
           }
         }
-        await notifyIlanSahibiTeklif(
-          ownerEmail: k.peerEmail,
-          actorName: widget.userName,
-          ilanId: k.ilanId,
-        );
-        if (!mounted) return;
+        if (!mounted) return true;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -342,6 +351,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
             ),
           ),
         );
+        return true;
       },
       onUnlocked: () {
         if (_pendingSohbet == null) return;
@@ -367,6 +377,27 @@ class _IlanlarPageState extends State<IlanlarPage> {
   }
 
   Future<void> _completeFreeTeklif(SohbetKisi k) async {
+    try {
+      await notifyIlanSahibiTeklif(
+        ownerEmail: k.peerEmail,
+        actorName: widget.userName,
+        ilanId: k.ilanId,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().contains('bildirimler') ||
+                    e.toString().contains('sohbet_mesajlari') ||
+                    e.toString().contains('schema cache')
+                ? 'Teklif iletilemedi. Supabase SQL dosyalarını çalıştırın.'
+                : 'Teklif iletilemedi: $e',
+          ),
+        ),
+      );
+      return;
+    }
     if (k.ilanId != null) {
       await markTeklifVerildi(email: widget.userEmail, ilanId: k.ilanId!);
       if (mounted) {
@@ -375,11 +406,6 @@ class _IlanlarPageState extends State<IlanlarPage> {
         });
       }
     }
-    await notifyIlanSahibiTeklif(
-      ownerEmail: k.peerEmail,
-      actorName: widget.userName,
-      ilanId: k.ilanId,
-    );
     if (!mounted) return;
     setState(() {
       if (!_activeSohbetler.any((c) =>
@@ -447,7 +473,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
 
   void _showKrediModal({
     VoidCallback? onUnlocked,
-    Future<void> Function()? onTeklifVerildi,
+    Future<bool> Function()? onSpendAsync,
   }) {
     showModalBottomSheet<void>(
       context: context,
@@ -455,10 +481,10 @@ class _IlanlarPageState extends State<IlanlarPage> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => _KrediSheet(
         credits: widget.userKredi,
-        onSpend: () {
+        onSpend: () async {
+          if (onSpendAsync != null) return onSpendAsync();
           if (widget.userKredi <= 0) return false;
           widget.onKrediHarca();
-          onTeklifVerildi?.call();
           return true;
         },
         onUnlocked: () {
@@ -506,6 +532,88 @@ class _IlanlarPageState extends State<IlanlarPage> {
             Expanded(child: _buildList()),
           ],
         ),
+        if (_selectedBakici != null)
+          _BakiciDrawer(
+            ilan: _selectedBakici!,
+            alreadyOffered: _teklifVerildiMi(_selectedBakici!.id),
+            onClose: () => setState(() => _selectedBakici = null),
+            onProfile: () {
+              final ilan = _selectedBakici!;
+              setState(() {
+                _selectedBakici = null;
+                _selectedPoster = (
+                  poster: ilan.poster,
+                  ctaLabel: _teklifVerildiMi(ilan.id)
+                      ? 'Teklif Verildi — Mesaja Git'
+                      : '1 Kredi Harca — Teklif Ver',
+                  peerEmail: ilanOwnerById[ilan.id] ?? '',
+                  ilanId: ilan.id,
+                  free: false,
+                );
+              });
+            },
+            onKrediTap: () {
+              final ilan = _selectedBakici!;
+              setState(() => _selectedBakici = null);
+              _openTeklif(_kisiFromPoster(poster: ilan.poster, ilanId: ilan.id));
+            },
+          ),
+        if (_selectedIkinciel != null)
+          _IkincielDrawer(
+            ilan: _selectedIkinciel!,
+            alreadyOffered: _teklifVerildiMi(_selectedIkinciel!.id),
+            onClose: () => setState(() => _selectedIkinciel = null),
+            onProfile: () {
+              final ilan = _selectedIkinciel!;
+              setState(() {
+                _selectedIkinciel = null;
+                _selectedPoster = (
+                  poster: ilan.poster,
+                  ctaLabel: _teklifVerildiMi(ilan.id)
+                      ? 'Teklif Verildi — Mesaja Git'
+                      : 'Ücretsiz İletişim',
+                  peerEmail: ilanOwnerById[ilan.id] ?? '',
+                  ilanId: ilan.id,
+                  free: true,
+                );
+              });
+            },
+            onKrediTap: () {
+              final ilan = _selectedIkinciel!;
+              setState(() => _selectedIkinciel = null);
+              _openTeklif(
+                _kisiFromPoster(poster: ilan.poster, ilanId: ilan.id),
+                free: true,
+              );
+            },
+          ),
+        if (_selectedUzman != null)
+          _UzmanDrawer(
+            ilan: _selectedUzman!,
+            alreadyOffered: _teklifVerildiMi(_selectedUzman!.id),
+            onClose: () => setState(() => _selectedUzman = null),
+            onProfile: () {
+              final ilan = _selectedUzman!;
+              setState(() {
+                _selectedUzman = null;
+                _selectedPoster = (
+                  poster: ilan.poster,
+                  ctaLabel: _teklifVerildiMi(ilan.id)
+                      ? 'Teklif Verildi — Mesaja Git'
+                      : '1 Kredi Harca — Teklif Ver',
+                  peerEmail: ilanOwnerById[ilan.id] ?? '',
+                  ilanId: ilan.id,
+                  free: false,
+                );
+              });
+            },
+            onKrediTap: () {
+              final ilan = _selectedUzman!;
+              setState(() => _selectedUzman = null);
+              _openTeklif(_kisiFromPoster(poster: ilan.poster, ilanId: ilan.id));
+            },
+          ),
+        // Profil en üstte — satıcıya basınca diğer panellerin altında kalmasın.
         if (_selectedPoster != null)
           _ProfilDrawer(
             poster: _selectedPoster!.poster,
@@ -527,33 +635,11 @@ class _IlanlarPageState extends State<IlanlarPage> {
                         ad: p.name,
                         avatar: p.avatar,
                         avatarColor: p.avatarColor,
-                        isOnline: peer.isNotEmpty,
+                        isOnline: false,
                         peerEmail: peer,
                       ),
                 free: free,
               );
-            },
-          ),
-        if (_selectedBakici != null)
-          _BakiciDrawer(
-            ilan: _selectedBakici!,
-            alreadyOffered: _teklifVerildiMi(_selectedBakici!.id),
-            onClose: () => setState(() => _selectedBakici = null),
-            onKrediTap: () {
-              final ilan = _selectedBakici!;
-              setState(() => _selectedBakici = null);
-              _openTeklif(_kisiFromPoster(poster: ilan.poster, ilanId: ilan.id));
-            },
-          ),
-        if (_selectedUzman != null)
-          _UzmanDrawer(
-            ilan: _selectedUzman!,
-            alreadyOffered: _teklifVerildiMi(_selectedUzman!.id),
-            onClose: () => setState(() => _selectedUzman = null),
-            onKrediTap: () {
-              final ilan = _selectedUzman!;
-              setState(() => _selectedUzman = null);
-              _openTeklif(_kisiFromPoster(poster: ilan.poster, ilanId: ilan.id));
             },
           ),
       ],
@@ -578,7 +664,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
                   ),
                 ),
                 Text(
-                  'Uzman · Bakıcı · 2. El Malzeme',
+                  'Uzman / bakıcı arayan ilanlar · 2. el',
                   style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
                 ),
               ],
@@ -631,8 +717,8 @@ class _IlanlarPageState extends State<IlanlarPage> {
 
   Widget _buildCategoryTabs() {
     final tabs = [
-      (IlanKategori.uzmanlar, 'Uzmanlar', '🏃', _filteredUzman.length),
-      (IlanKategori.bakici, 'Bakıcı', '🤝', _filteredBakici.length),
+      (IlanKategori.uzmanlar, 'Uzman Ara', '🏃', _filteredUzman.length),
+      (IlanKategori.bakici, 'Bakıcı Ara', '🤝', _filteredBakici.length),
       (IlanKategori.ikinciel, '2. El Aletler', '♻️', _allIkinciel.length),
     ];
 
@@ -813,73 +899,137 @@ class _IlanlarPageState extends State<IlanlarPage> {
     final renk = uzmanRenkFor(ilan.uzmanlik);
     final avgR = avgRating(ilan.poster.reviews);
     final km = uzmanKm[ilan.id];
+    void openDetail() => setState(() {
+          _selectedPoster = null;
+          _selectedUzman = ilan;
+        });
+    void openPoster() => setState(() {
+          _selectedUzman = null;
+          _selectedBakici = null;
+          _selectedIkinciel = null;
+          _selectedPoster = (
+            poster: ilan.poster,
+            ctaLabel: _teklifVerildiMi(ilan.id)
+                ? 'Teklif Verildi — Mesaja Git'
+                : '1 Kredi Harca — Teklif Ver',
+            peerEmail: ilanOwnerById[ilan.id] ?? '',
+            ilanId: ilan.id,
+            free: false,
+          );
+        });
 
     return _IlanCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _AvatarButton(
-                label: ilan.poster.avatar,
-                color: ilan.poster.avatarColor,
-                onTap: () => setState(() => _selectedUzman = ilan),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (ilan.urgent)
-                          const Padding(
-                            padding: EdgeInsets.only(top: 2, right: 4),
-                            child: Icon(Icons.auto_awesome,
-                                size: 14, color: Colors.red),
-                          ),
-                        Expanded(
-                          child: Text(
-                            ilan.title,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: MetoColors.foreground,
+          InkWell(
+            onTap: openDetail,
+            borderRadius: BorderRadius.circular(8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _AvatarButton(
+                  label: ilan.poster.avatar,
+                  color: ilan.poster.avatarColor,
+                  onTap: openPoster,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (ilan.urgent)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 2, right: 4),
+                              child: Icon(Icons.auto_awesome,
+                                  size: 14, color: Colors.red),
+                            ),
+                          Expanded(
+                            child: Text(
+                              ilan.title,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: MetoColors.foreground,
+                              ),
                             ),
                           ),
+                          _favButton(FavoriIlanRef(
+                            kind: 'uzman',
+                            id: ilan.id,
+                            title: ilan.title,
+                            konum:
+                                '${ilan.district.isEmpty ? '' : '${ilan.district}, '}${ilan.city}',
+                            fiyat: ilan.budget,
+                          )),
+                          _adminIlanDeleteBtn(
+                            kind: 'uzman',
+                            id: ilan.id,
+                            title: ilan.title,
+                          ),
+                          _Badge(
+                            text: '${renk.emoji} ${ilan.uzmanlik}',
+                            bg: renk.bg,
+                            fg: renk.color,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: openPoster,
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        ilan.poster.name,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: MetoColors.primary,
                         ),
-                        _favButton(FavoriIlanRef(
-                          kind: 'uzman',
-                          id: ilan.id,
-                          title: ilan.title,
-                          konum:
-                              '${ilan.district.isEmpty ? '' : '${ilan.district}, '}${ilan.city}',
-                          fiyat: ilan.budget,
-                        )),
-                        _adminIlanDeleteBtn(
-                          kind: 'uzman',
-                          id: ilan.id,
-                          title: ilan.title,
-                        ),
-                        _Badge(
-                          text: '${renk.emoji} ${ilan.uzmanlik}',
-                          bg: renk.bg,
-                          fg: renk.color,
-                        ),
-                      ],
+                      ),
                     ),
-                    const SizedBox(height: 4),
-                    _RatingRow(
-                      rating: avgR,
-                      suffix: '(${ilan.poster.reviewCount} yorum)',
-                      onTap: () => setState(() => _selectedUzman = ilan),
+                    StarRow(rating: avgR, size: 10),
+                    const SizedBox(width: 4),
+                    Text(
+                      avgR.toStringAsFixed(1),
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w700),
                     ),
+                    Text(
+                      ' (${ilan.poster.reviewCount})',
+                      style: const TextStyle(
+                          fontSize: 12, color: MetoColors.mutedFg),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Profil',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: MetoColors.primary,
+                      ),
+                    ),
+                    const Icon(Icons.keyboard_arrow_up,
+                        size: 18, color: MetoColors.primary),
                   ],
                 ),
               ),
-            ],
+            ),
           ),
           const SizedBox(height: 8),
           _MetaRow(items: [
@@ -891,23 +1041,27 @@ class _IlanlarPageState extends State<IlanlarPage> {
           const SizedBox(height: 8),
           _Chip(text: ilan.tani),
           const SizedBox(height: 8),
-          Text(
-            ilan.note,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                fontSize: 12, color: MetoColors.mutedFg, height: 1.4),
+          GestureDetector(
+            onTap: openDetail,
+            child: Text(
+              ilan.note,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontSize: 12, color: MetoColors.mutedFg, height: 1.4),
+            ),
           ),
           const SizedBox(height: 8),
           _CardFooter(
             price: ilan.budget,
             subtitle: '${ilan.offers} teklif · ${ilan.posted}',
-            onProfile: () => setState(() => _selectedUzman = ilan),
+            onProfile: openDetail,
             onAction: () =>
                 _openTeklif(_kisiFromPoster(poster: ilan.poster, ilanId: ilan.id)),
             actionLabel:
                 _teklifVerildiMi(ilan.id) ? 'Teklif Verildi' : 'Teklif Ver',
             alreadyOffered: _teklifVerildiMi(ilan.id),
+            profileLabel: 'Detay',
           ),
         ],
       ),
@@ -917,73 +1071,137 @@ class _IlanlarPageState extends State<IlanlarPage> {
   Widget _buildBakiciCard(BakiciIlani ilan) {
     final avgR = avgRating(ilan.poster.reviews);
     final km = bakiciKm[ilan.id];
+    void openDetail() => setState(() {
+          _selectedPoster = null;
+          _selectedBakici = ilan;
+        });
+    void openPoster() => setState(() {
+          _selectedUzman = null;
+          _selectedBakici = null;
+          _selectedIkinciel = null;
+          _selectedPoster = (
+            poster: ilan.poster,
+            ctaLabel: _teklifVerildiMi(ilan.id)
+                ? 'Teklif Verildi — Mesaja Git'
+                : '1 Kredi Harca — Teklif Ver',
+            peerEmail: ilanOwnerById[ilan.id] ?? '',
+            ilanId: ilan.id,
+            free: false,
+          );
+        });
 
     return _IlanCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _AvatarButton(
-                label: ilan.poster.avatar,
-                color: ilan.poster.avatarColor,
-                onTap: () => setState(() => _selectedBakici = ilan),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (ilan.urgent)
-                          const Padding(
-                            padding: EdgeInsets.only(top: 2, right: 4),
-                            child: Icon(Icons.auto_awesome,
-                                size: 14, color: Colors.red),
-                          ),
-                        Expanded(
-                          child: Text(
-                            ilan.title,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: MetoColors.foreground,
+          InkWell(
+            onTap: openDetail,
+            borderRadius: BorderRadius.circular(8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _AvatarButton(
+                  label: ilan.poster.avatar,
+                  color: ilan.poster.avatarColor,
+                  onTap: openPoster,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (ilan.urgent)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 2, right: 4),
+                              child: Icon(Icons.auto_awesome,
+                                  size: 14, color: Colors.red),
+                            ),
+                          Expanded(
+                            child: Text(
+                              ilan.title,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: MetoColors.foreground,
+                              ),
                             ),
                           ),
+                          _favButton(FavoriIlanRef(
+                            kind: 'bakici',
+                            id: ilan.id,
+                            title: ilan.title,
+                            konum:
+                                '${ilan.district.isEmpty ? '' : '${ilan.district}, '}${ilan.city}',
+                            fiyat: ilan.budget,
+                          )),
+                          _adminIlanDeleteBtn(
+                            kind: 'bakici',
+                            id: ilan.id,
+                            title: ilan.title,
+                          ),
+                          const _Badge(
+                            text: '🤝 Bakıcı Aranıyor',
+                            bg: Color(0xFFEFF6FF),
+                            fg: Color(0xFF1D4ED8),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: openPoster,
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        ilan.poster.name,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: MetoColors.primary,
                         ),
-                        _favButton(FavoriIlanRef(
-                          kind: 'bakici',
-                          id: ilan.id,
-                          title: ilan.title,
-                          konum:
-                              '${ilan.district.isEmpty ? '' : '${ilan.district}, '}${ilan.city}',
-                          fiyat: ilan.budget,
-                        )),
-                        _adminIlanDeleteBtn(
-                          kind: 'bakici',
-                          id: ilan.id,
-                          title: ilan.title,
-                        ),
-                        const _Badge(
-                          text: '🤝 Bakıcı',
-                          bg: Color(0xFFEFF6FF),
-                          fg: Color(0xFF1D4ED8),
-                        ),
-                      ],
+                      ),
                     ),
-                    const SizedBox(height: 4),
-                    _RatingRow(
-                      rating: avgR,
-                      suffix: '(${ilan.poster.reviewCount} yorum)',
-                      onTap: () => setState(() => _selectedBakici = ilan),
+                    StarRow(rating: avgR, size: 10),
+                    const SizedBox(width: 4),
+                    Text(
+                      avgR.toStringAsFixed(1),
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w700),
                     ),
+                    Text(
+                      ' (${ilan.poster.reviewCount})',
+                      style: const TextStyle(
+                          fontSize: 12, color: MetoColors.mutedFg),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Profil',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: MetoColors.primary,
+                      ),
+                    ),
+                    const Icon(Icons.keyboard_arrow_up,
+                        size: 18, color: MetoColors.primary),
                   ],
                 ),
               ),
-            ],
+            ),
           ),
           const SizedBox(height: 8),
           _MetaRow(items: [
@@ -1004,23 +1222,27 @@ class _IlanlarPageState extends State<IlanlarPage> {
           Text('📅 ${ilan.hours}',
               style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg)),
           const SizedBox(height: 4),
-          Text(
-            ilan.note,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                fontSize: 12, color: MetoColors.mutedFg, height: 1.4),
+          GestureDetector(
+            onTap: openDetail,
+            child: Text(
+              ilan.note,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontSize: 12, color: MetoColors.mutedFg, height: 1.4),
+            ),
           ),
           const SizedBox(height: 8),
           _CardFooter(
             price: ilan.budget,
             subtitle: ilan.posted,
-            onProfile: () => setState(() => _selectedBakici = ilan),
+            onProfile: openDetail,
             onAction: () =>
                 _openTeklif(_kisiFromPoster(poster: ilan.poster, ilanId: ilan.id)),
             actionLabel:
                 _teklifVerildiMi(ilan.id) ? 'Teklif Verildi' : 'Teklif Ver',
             alreadyOffered: _teklifVerildiMi(ilan.id),
+            profileLabel: 'Detay',
           ),
         ],
       ),
@@ -1029,94 +1251,129 @@ class _IlanlarPageState extends State<IlanlarPage> {
 
   Widget _buildIkincielCard(IkincielIlani ilan) {
     final avgR = avgRating(ilan.poster.reviews);
+    void openDetail() => setState(() => _selectedIkinciel = ilan);
+    void openPoster() {
+      setState(() {
+        _selectedIkinciel = null;
+        _selectedPoster = (
+          poster: ilan.poster,
+          ctaLabel: _teklifVerildiMi(ilan.id)
+              ? 'Teklif Verildi — Mesaja Git'
+              : 'Ücretsiz İletişim',
+          peerEmail: ilanOwnerById[ilan.id] ?? '',
+          ilanId: ilan.id,
+          free: true,
+        );
+      });
+    }
 
     return _IlanCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (ilan.photos.isNotEmpty)
-            _PhotoStrip(photos: ilan.photos, emoji: ilan.emoji),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            _PhotoStrip(
+              photos: ilan.photos,
+              emoji: ilan.emoji,
+              onTap: openDetail,
+            ),
+          InkWell(
+            onTap: openDetail,
+            borderRadius: BorderRadius.circular(8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        ilan.title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: MetoColors.foreground,
+                        ),
+                      ),
+                      Text(
+                        '${ilan.brand} · ${ilan.category}',
+                        style: const TextStyle(
+                            fontSize: 12, color: MetoColors.mutedFg),
+                      ),
+                    ],
+                  ),
+                ),
+                _favButton(FavoriIlanRef(
+                  kind: 'ikinciel',
+                  id: ilan.id,
+                  title: ilan.title,
+                  konum:
+                      '${ilan.district.isEmpty ? '' : '${ilan.district}, '}${ilan.city}',
+                  fiyat: ilan.price,
+                )),
+                _adminIlanDeleteBtn(
+                  kind: 'ikinciel',
+                  id: ilan.id,
+                  title: ilan.title,
+                ),
+                _Badge(
+                  text: ilan.condition,
+                  bg: const Color(0xFFF0FDF4),
+                  fg: const Color(0xFF15803D),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: openPoster,
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+                child: Row(
                   children: [
-                    Text(
-                      ilan.title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: MetoColors.foreground,
+                    _SmallAvatar(
+                        label: ilan.poster.avatar,
+                        color: ilan.poster.avatarColor),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        ilan.poster.name,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: MetoColors.primary,
+                        ),
                       ),
                     ),
+                    StarRow(rating: avgR, size: 10),
+                    const SizedBox(width: 4),
                     Text(
-                      '${ilan.brand} · ${ilan.category}',
+                      avgR.toStringAsFixed(1),
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      ' (${ilan.poster.reviewCount})',
                       style: const TextStyle(
                           fontSize: 12, color: MetoColors.mutedFg),
                     ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Profil',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: MetoColors.primary,
+                      ),
+                    ),
+                    const Icon(Icons.keyboard_arrow_up,
+                        size: 18, color: MetoColors.primary),
                   ],
                 ),
               ),
-              _favButton(FavoriIlanRef(
-                kind: 'ikinciel',
-                id: ilan.id,
-                title: ilan.title,
-                konum:
-                    '${ilan.district.isEmpty ? '' : '${ilan.district}, '}${ilan.city}',
-                fiyat: ilan.price,
-              )),
-              _adminIlanDeleteBtn(
-                kind: 'ikinciel',
-                id: ilan.id,
-                title: ilan.title,
-              ),
-              _Badge(
-                text: ilan.condition,
-                bg: const Color(0xFFF0FDF4),
-                fg: const Color(0xFF15803D),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          InkWell(
-            onTap: () => setState(() => _selectedPoster = (
-                  poster: ilan.poster,
-                  ctaLabel: _teklifVerildiMi(ilan.id)
-                      ? 'Teklif Verildi — Mesaja Git'
-                      : 'Ücretsiz İletişim',
-                  peerEmail: ilanOwnerById[ilan.id] ?? '',
-                  ilanId: ilan.id,
-                  free: true,
-                )),
-            child: Row(
-              children: [
-                _SmallAvatar(
-                    label: ilan.poster.avatar, color: ilan.poster.avatarColor),
-                const SizedBox(width: 8),
-                Text(
-                  ilan.poster.name,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: MetoColors.foreground,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                StarRow(rating: avgR, size: 10),
-                const SizedBox(width: 4),
-                Text(
-                  avgR.toStringAsFixed(1),
-                  style: const TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w700),
-                ),
-                Text(
-                  ' (${ilan.poster.reviewCount})',
-                  style:
-                      const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
-                ),
-              ],
             ),
           ),
           const SizedBox(height: 8),
@@ -1126,12 +1383,15 @@ class _IlanlarPageState extends State<IlanlarPage> {
             ilan.posted,
           ]),
           const SizedBox(height: 8),
-          Text(
-            ilan.note,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                fontSize: 12, color: MetoColors.mutedFg, height: 1.4),
+          GestureDetector(
+            onTap: openDetail,
+            child: Text(
+              ilan.note,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontSize: 12, color: MetoColors.mutedFg, height: 1.4),
+            ),
           ),
           const SizedBox(height: 8),
           _CardFooter(
@@ -1139,15 +1399,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
             subtitle: ilan.originalPrice,
             subtitleStrike: true,
             priceLarge: true,
-            onProfile: () => setState(() => _selectedPoster = (
-                  poster: ilan.poster,
-                  ctaLabel: _teklifVerildiMi(ilan.id)
-                      ? 'Teklif Verildi — Mesaja Git'
-                      : 'Ücretsiz İletişim',
-                  peerEmail: ilanOwnerById[ilan.id] ?? '',
-                  ilanId: ilan.id,
-                  free: true,
-                )),
+            onProfile: openDetail,
             onAction: () => _openTeklif(
                   _kisiFromPoster(poster: ilan.poster, ilanId: ilan.id),
                   free: true,
@@ -1155,6 +1407,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
             actionLabel:
                 _teklifVerildiMi(ilan.id) ? 'Teklif Verildi' : 'İletişim',
             alreadyOffered: _teklifVerildiMi(ilan.id),
+            profileLabel: 'Detay',
           ),
         ],
       ),
@@ -1220,39 +1473,6 @@ class StarRow extends StatelessWidget {
           color: filled ? MetoColors.accentGold : const Color(0xFFE5E0D8),
         );
       }),
-    );
-  }
-}
-
-class _RatingRow extends StatelessWidget {
-  const _RatingRow({
-    required this.rating,
-    required this.suffix,
-    this.onTap,
-  });
-
-  final double rating;
-  final String suffix;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Row(
-        children: [
-          StarRow(rating: rating, size: 11),
-          const SizedBox(width: 4),
-          Text(
-            rating.toStringAsFixed(1),
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-          ),
-          Text(
-            ' $suffix',
-            style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -1483,6 +1703,7 @@ class _CardFooter extends StatelessWidget {
     this.subtitleStrike = false,
     this.priceLarge = false,
     this.alreadyOffered = false,
+    this.profileLabel = 'Profil',
   });
 
   final String price;
@@ -1493,6 +1714,7 @@ class _CardFooter extends StatelessWidget {
   final bool subtitleStrike;
   final bool priceLarge;
   final bool alreadyOffered;
+  final String profileLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -1532,8 +1754,8 @@ class _CardFooter extends StatelessWidget {
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          child: const Text('Profil',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+          child: Text(profileLabel,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
         ),
         const SizedBox(width: 8),
         FilledButton.icon(
@@ -1561,40 +1783,70 @@ class _CardFooter extends StatelessWidget {
 }
 
 class _PhotoStrip extends StatelessWidget {
-  const _PhotoStrip({required this.photos, required this.emoji});
+  const _PhotoStrip({
+    required this.photos,
+    required this.emoji,
+    this.onTap,
+  });
 
-  final List<Color> photos;
+  final List<IlanPhoto> photos;
   final String emoji;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: photos.asMap().entries.map((e) {
-          final i = e.key;
-          final bg = e.value;
-          return Expanded(
-            child: Container(
-              height: i == 0 ? 110 : 52,
-              margin: EdgeInsets.only(right: i < photos.length - 1 ? 4 : 0),
-              decoration: BoxDecoration(
-                color: bg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                emoji,
-                style: TextStyle(
-                  fontSize: i == 0 ? 36 : 20,
-                  color: Colors.black.withValues(alpha: i == 0 ? 1 : 0.5),
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Row(
+          children: photos.asMap().entries.map((e) {
+            final i = e.key;
+            final photo = e.value;
+            final bytes = _photoBytes(photo);
+            return Expanded(
+              child: Container(
+                height: i == 0 ? 110 : 52,
+                margin: EdgeInsets.only(right: i < photos.length - 1 ? 4 : 0),
+                decoration: BoxDecoration(
+                  color: photo.swatchColor,
+                  borderRadius: BorderRadius.circular(12),
+                  image: bytes == null
+                      ? null
+                      : DecorationImage(
+                          image: MemoryImage(bytes),
+                          fit: BoxFit.cover,
+                        ),
                 ),
+                alignment: Alignment.center,
+                child: bytes != null
+                    ? null
+                    : Text(
+                        emoji,
+                        style: TextStyle(
+                          fontSize: i == 0 ? 36 : 20,
+                          color:
+                              Colors.black.withValues(alpha: i == 0 ? 1 : 0.5),
+                        ),
+                      ),
               ),
-            ),
-          );
-        }).toList(),
+            );
+          }).toList(),
+        ),
       ),
     );
+  }
+
+  static Uint8List? _photoBytes(IlanPhoto photo) {
+    if (!photo.hasImage) return null;
+    try {
+      var raw = photo.dataUrl!;
+      if (raw.contains(',')) raw = raw.split(',').last;
+      return Uint8List.fromList(base64Decode(raw));
+    } catch (_) {
+      return null;
+    }
   }
 }
 
@@ -1636,7 +1888,7 @@ class _KrediSheet extends StatefulWidget {
   });
 
   final int credits;
-  final bool Function() onSpend;
+  final Future<bool> Function() onSpend;
   final VoidCallback onUnlocked;
   final VoidCallback onClose;
 
@@ -1646,6 +1898,7 @@ class _KrediSheet extends StatefulWidget {
 
 class _KrediSheetState extends State<_KrediSheet> {
   bool _unlocked = false;
+  bool _busy = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1779,18 +2032,64 @@ class _KrediSheetState extends State<_KrediSheet> {
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: widget.credits > 0
-                ? () {
-                    if (widget.onSpend()) setState(() => _unlocked = true);
+            onPressed: widget.credits > 0 && !_busy
+                ? () async {
+                    setState(() => _busy = true);
+                    try {
+                      final ok = await widget.onSpend();
+                      if (!mounted) return;
+                      if (ok) {
+                        setState(() {
+                          _unlocked = true;
+                          _busy = false;
+                        });
+                      } else {
+                        setState(() => _busy = false);
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Teklif gönderilemedi. Tekrar deneyin.',
+                            ),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (!mounted) return;
+                      setState(() => _busy = false);
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            e.toString().contains('bildirimler') ||
+                                    e.toString().contains('sohbet_mesajlari') ||
+                                    e.toString().contains('schema cache')
+                                ? 'Teklif iletilemedi. Supabase SQL dosyalarını çalıştırın.'
+                                : 'Teklif iletilemedi: $e',
+                          ),
+                        ),
+                      );
+                    }
                   }
                 : null,
             style: _primaryBtn,
-            icon: const Icon(Icons.monetization_on, size: 20),
-            label: const Text('1 Kredi Harca — Teklif Ver',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            icon: _busy
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.monetization_on, size: 20),
+            label: Text(
+              _busy ? 'Gönderiliyor…' : '1 Kredi Harca — Teklif Ver',
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+            ),
           ),
           TextButton(
-              onPressed: widget.onClose,
+              onPressed: _busy ? null : widget.onClose,
               child: const Text('Vazgeç',
                   style: TextStyle(fontWeight: FontWeight.w700))),
         ],
@@ -1855,48 +2154,109 @@ class _SheetShell extends StatelessWidget {
   }
 }
 
-class _DrawerShell extends StatelessWidget {
+class _DrawerShell extends StatefulWidget {
   const _DrawerShell(
       {required this.onClose, required this.footer, required this.child});
   final VoidCallback onClose;
   final Widget footer;
   final Widget child;
+
+  @override
+  State<_DrawerShell> createState() => _DrawerShellState();
+}
+
+class _DrawerShellState extends State<_DrawerShell> {
+  double _dragY = 0;
+
+  void _onVerticalDragUpdate(DragUpdateDetails d) {
+    final next = (_dragY + d.delta.dy).clamp(0.0, 600.0);
+    if (next != _dragY) setState(() => _dragY = next);
+  }
+
+  void _onVerticalDragEnd(DragEndDetails d) {
+    final shouldClose =
+        _dragY > 120 || (d.primaryVelocity != null && d.primaryVelocity! > 700);
+    if (shouldClose) {
+      widget.onClose();
+      return;
+    }
+    setState(() => _dragY = 0);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final maxH = MediaQuery.sizeOf(context).height * 0.92;
+    final dim = (1 - (_dragY / 320).clamp(0.0, 0.65));
     return Positioned.fill(
       child: Material(
-        color: Colors.black54,
-        child: GestureDetector(
-          onTap: onClose,
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: GestureDetector(
-              onTap: () {},
-              child: Container(
-                constraints: BoxConstraints(
-                    maxHeight: MediaQuery.sizeOf(context).height * 0.92),
-                decoration: const BoxDecoration(
-                  color: MetoColors.card,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(top: 12, bottom: 8),
-                      decoration: BoxDecoration(
-                          color: MetoColors.muted,
-                          borderRadius: BorderRadius.circular(999)),
+        color: Colors.black.withValues(alpha: 0.54 * dim),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: widget.onClose,
+                child: const SizedBox.expand(),
+              ),
+            ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Transform.translate(
+                offset: Offset(0, _dragY),
+                child: GestureDetector(
+                  onVerticalDragUpdate: _onVerticalDragUpdate,
+                  onVerticalDragEnd: _onVerticalDragEnd,
+                  child: Container(
+                    constraints: BoxConstraints(maxHeight: maxH),
+                    decoration: const BoxDecoration(
+                      color: MetoColors.card,
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(24)),
                     ),
-                    Flexible(child: SingleChildScrollView(child: child)),
-                    footer,
-                  ],
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onVerticalDragUpdate: _onVerticalDragUpdate,
+                          onVerticalDragEnd: _onVerticalDragEnd,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 8, 4, 4),
+                            child: Row(
+                              children: [
+                                const Spacer(),
+                                Container(
+                                  width: 40,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: MetoColors.muted,
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Align(
+                                    alignment: Alignment.centerRight,
+                                    child: IconButton(
+                                      tooltip: 'Kapat',
+                                      onPressed: widget.onClose,
+                                      icon: const Icon(Icons.close, size: 20),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Flexible(
+                            child: SingleChildScrollView(child: widget.child)),
+                        widget.footer,
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -2204,11 +2564,13 @@ class _UzmanDrawer extends StatefulWidget {
     required this.ilan,
     required this.onClose,
     required this.onKrediTap,
+    required this.onProfile,
     this.alreadyOffered = false,
   });
   final UzmanIlani ilan;
   final VoidCallback onClose;
   final VoidCallback onKrediTap;
+  final VoidCallback onProfile;
   final bool alreadyOffered;
   @override
   State<_UzmanDrawer> createState() => _UzmanDrawerState();
@@ -2232,6 +2594,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
     final renk = uzmanRenkFor(widget.ilan.uzmanlik);
     final cv = uzmanCvFor(widget.ilan.uzmanlik);
     final avgR = avgRating(_reviews);
+    final ilan = widget.ilan;
 
     return _DrawerShell(
       onClose: widget.onClose,
@@ -2251,33 +2614,117 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Text(
+              ilan.title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: MetoColors.foreground,
+              ),
+            ),
+            const SizedBox(height: 6),
+            _Badge(
+              text: '${renk.emoji} ${ilan.uzmanlik}',
+              bg: renk.bg,
+              fg: renk.color,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              ilan.budget,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                color: renk.color,
+              ),
+            ),
+            const SizedBox(height: 10),
+            _MetaRow(items: [
+              '📍 ${ilan.district}, ${ilan.city}',
+              '📅 ${ilan.frequency}',
+              '👁 ${ilan.views}',
+              ilan.posted,
+            ]),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
               children: [
-                _AvatarButton(
-                    label: widget.ilan.poster.avatar,
-                    color: widget.ilan.poster.avatarColor),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(widget.ilan.poster.name,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w800, fontSize: 16)),
-                      _Badge(
-                          text: '${renk.emoji} ${widget.ilan.uzmanlik}',
-                          bg: renk.bg,
-                          fg: renk.color),
-                      Row(children: [
-                        StarRow(rating: avgR, size: 12),
-                        Text(
-                            ' ${avgR.toStringAsFixed(1)} (${_reviews.length} yorum)',
-                            style: const TextStyle(fontSize: 12)),
-                      ]),
-                    ],
-                  ),
-                ),
+                _Chip(text: ilan.tani),
+                _Chip(text: ilan.age),
               ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: MetoColors.muted,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'İlan açıklaması',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    ilan.note,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: MetoColors.mutedFg,
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            InkWell(
+              onTap: widget.onProfile,
+              borderRadius: BorderRadius.circular(12),
+              child: Row(
+                children: [
+                  _AvatarButton(
+                    label: ilan.poster.avatar,
+                    color: ilan.poster.avatarColor,
+                    onTap: widget.onProfile,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          ilan.poster.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                            color: MetoColors.primary,
+                          ),
+                        ),
+                        Row(children: [
+                          StarRow(rating: avgR, size: 12),
+                          Text(
+                            ' ${avgR.toStringAsFixed(1)} (${_reviews.length} yorum)',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ]),
+                        const Text(
+                          'İlan sahibi profilini gör',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: MetoColors.mutedFg,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.keyboard_arrow_up,
+                      color: MetoColors.primary),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
             Row(
@@ -2364,11 +2811,13 @@ class _BakiciDrawer extends StatefulWidget {
     required this.ilan,
     required this.onClose,
     required this.onKrediTap,
+    required this.onProfile,
     this.alreadyOffered = false,
   });
   final BakiciIlani ilan;
   final VoidCallback onClose;
   final VoidCallback onKrediTap;
+  final VoidCallback onProfile;
   final bool alreadyOffered;
   @override
   State<_BakiciDrawer> createState() => _BakiciDrawerState();
@@ -2391,6 +2840,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
   Widget build(BuildContext context) {
     final cv = bakiciCvFor(widget.ilan.poster);
     final avgR = avgRating(_reviews);
+    final ilan = widget.ilan;
 
     return _DrawerShell(
       onClose: widget.onClose,
@@ -2409,32 +2859,117 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Text(
+              ilan.title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: MetoColors.foreground,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const _Badge(
+              text: '🤝 Bakıcı Aranıyor',
+              bg: Color(0xFFEFF6FF),
+              fg: Color(0xFF1D4ED8),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              ilan.budget,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                color: MetoColors.primary,
+              ),
+            ),
+            const SizedBox(height: 10),
+            _MetaRow(items: [
+              '📍 ${ilan.district}, ${ilan.city}',
+              '📅 ${ilan.hours}',
+              '👁 ${ilan.views}',
+              ilan.posted,
+            ]),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
               children: [
-                _AvatarButton(
-                    label: widget.ilan.poster.avatar,
-                    color: widget.ilan.poster.avatarColor),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(widget.ilan.poster.name,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w800, fontSize: 16)),
-                      Row(children: [
-                        StarRow(rating: avgR, size: 12),
-                        Text(
-                            ' ${avgR.toStringAsFixed(1)} (${_reviews.length} yorum)',
-                            style: const TextStyle(fontSize: 12)),
-                      ]),
-                      Text('${widget.ilan.city} · ${widget.ilan.district}',
-                          style: const TextStyle(
-                              fontSize: 12, color: MetoColors.mutedFg)),
-                    ],
-                  ),
-                ),
+                _Chip(text: ilan.tani),
+                _Chip(text: ilan.age),
               ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: MetoColors.muted,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'İlan açıklaması',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    ilan.note,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: MetoColors.mutedFg,
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            InkWell(
+              onTap: widget.onProfile,
+              borderRadius: BorderRadius.circular(12),
+              child: Row(
+                children: [
+                  _AvatarButton(
+                    label: ilan.poster.avatar,
+                    color: ilan.poster.avatarColor,
+                    onTap: widget.onProfile,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          ilan.poster.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                            color: MetoColors.primary,
+                          ),
+                        ),
+                        Row(children: [
+                          StarRow(rating: avgR, size: 12),
+                          Text(
+                            ' ${avgR.toStringAsFixed(1)} (${_reviews.length} yorum)',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ]),
+                        const Text(
+                          'İlan sahibi profilini gör',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: MetoColors.mutedFg,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.keyboard_arrow_up,
+                      color: MetoColors.primary),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
             Row(
@@ -2463,30 +2998,6 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
               Text(widget.ilan.poster.bio,
                   style: const TextStyle(
                       fontSize: 14, color: MetoColors.mutedFg, height: 1.5)),
-              Container(
-                margin: const EdgeInsets.only(top: 16),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                    color: MetoColors.muted,
-                    borderRadius: BorderRadius.circular(16)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('İlan Detayları',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w800, fontSize: 12)),
-                    Text('📅 ${widget.ilan.hours}',
-                        style: const TextStyle(
-                            fontSize: 12, color: MetoColors.mutedFg)),
-                    Text('💰 ${widget.ilan.budget}',
-                        style: const TextStyle(
-                            fontSize: 12, color: MetoColors.mutedFg)),
-                    Text('🧒 ${widget.ilan.tani} · ${widget.ilan.age}',
-                        style: const TextStyle(
-                            fontSize: 12, color: MetoColors.mutedFg)),
-                  ],
-                ),
-              ),
               const SizedBox(height: 16),
               _RatingBreakdown(reviews: _reviews),
               const SizedBox(height: 12),
@@ -2528,6 +3039,243 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                   body: cv.sertifikalar.map((s) => '✓ $s').join('\n')),
               _CvBlock(title: 'Hakkında', body: widget.ilan.poster.bio),
             ],
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IkincielDrawer extends StatefulWidget {
+  const _IkincielDrawer({
+    required this.ilan,
+    required this.onClose,
+    required this.onKrediTap,
+    required this.onProfile,
+    this.alreadyOffered = false,
+  });
+
+  final IkincielIlani ilan;
+  final VoidCallback onClose;
+  final VoidCallback onKrediTap;
+  final VoidCallback onProfile;
+  final bool alreadyOffered;
+
+  @override
+  State<_IkincielDrawer> createState() => _IkincielDrawerState();
+}
+
+class _IkincielDrawerState extends State<_IkincielDrawer> {
+  int _photoIndex = 0;
+
+  Uint8List? _bytes(IlanPhoto photo) {
+    if (!photo.hasImage) return null;
+    try {
+      var raw = photo.dataUrl!;
+      if (raw.contains(',')) raw = raw.split(',').last;
+      return Uint8List.fromList(base64Decode(raw));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ilan = widget.ilan;
+    final photos = ilan.photos.isEmpty
+        ? const [IlanPhoto.swatch(Color(0xFFDCE8F5))]
+        : ilan.photos;
+    final idx = _photoIndex.clamp(0, photos.length - 1);
+    final current = photos[idx];
+    final bytes = _bytes(current);
+
+    return _DrawerShell(
+      onClose: widget.onClose,
+      footer: _DrawerFooter(
+        label: widget.alreadyOffered
+            ? 'Teklif Verildi — Mesaja Git'
+            : 'Ücretsiz İletişim',
+        alreadyOffered: widget.alreadyOffered,
+        onTap: () {
+          widget.onClose();
+          widget.onKrediTap();
+        },
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: AspectRatio(
+                aspectRatio: 4 / 3,
+                child: Container(
+                  color: current.swatchColor,
+                  alignment: Alignment.center,
+                  child: bytes != null
+                      ? Image.memory(bytes, fit: BoxFit.cover, width: double.infinity, height: double.infinity)
+                      : Text(ilan.emoji, style: const TextStyle(fontSize: 64)),
+                ),
+              ),
+            ),
+            if (photos.length > 1) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 56,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: photos.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, i) {
+                    final p = photos[i];
+                    final b = _bytes(p);
+                    final selected = i == idx;
+                    return GestureDetector(
+                      onTap: () => setState(() => _photoIndex = i),
+                      child: Container(
+                        width: 56,
+                        decoration: BoxDecoration(
+                          color: p.swatchColor,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: selected
+                                ? MetoColors.primary
+                                : MetoColors.border,
+                            width: selected ? 2 : 1,
+                          ),
+                          image: b == null
+                              ? null
+                              : DecorationImage(
+                                  image: MemoryImage(b),
+                                  fit: BoxFit.cover,
+                                ),
+                        ),
+                        alignment: Alignment.center,
+                        child: b != null
+                            ? null
+                            : Text(ilan.emoji,
+                                style: const TextStyle(fontSize: 18)),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    ilan.title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: MetoColors.foreground,
+                    ),
+                  ),
+                ),
+                _Badge(
+                  text: ilan.condition,
+                  bg: const Color(0xFFF0FDF4),
+                  fg: const Color(0xFF15803D),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${ilan.brand} · ${ilan.category}',
+              style: const TextStyle(fontSize: 13, color: MetoColors.mutedFg),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              ilan.price,
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: MetoColors.primary,
+              ),
+            ),
+            if (ilan.originalPrice.trim().isNotEmpty)
+              Text(
+                ilan.originalPrice,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: MetoColors.mutedFg,
+                  decoration: TextDecoration.lineThrough,
+                ),
+              ),
+            const SizedBox(height: 12),
+            _MetaRow(items: [
+              '📍 ${ilan.district}, ${ilan.city}',
+              '👁 ${ilan.views}',
+              ilan.posted,
+            ]),
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: MetoColors.muted,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'İlan açıklaması',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    ilan.note,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: MetoColors.mutedFg,
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            InkWell(
+              onTap: widget.onProfile,
+              borderRadius: BorderRadius.circular(12),
+              child: Row(
+                children: [
+                  _SmallAvatar(
+                    label: ilan.poster.avatar,
+                    color: ilan.poster.avatarColor,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          ilan.poster.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const Text(
+                          'Satıcı profilini gör',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: MetoColors.mutedFg,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, color: MetoColors.mutedFg),
+                ],
+              ),
+            ),
             const SizedBox(height: 16),
           ],
         ),
@@ -2629,8 +3377,10 @@ class _SohbetPageState extends State<SohbetPage> {
   final _scroll = ScrollController();
   bool _loading = true;
   bool _sending = false;
+  bool _peerOnline = false;
   String? _error;
   Timer? _poll;
+  RealtimeChannel? _realtime;
 
   String get _me => widget.myEmail.trim().toLowerCase();
   String get _peer => widget.kisi.peerEmail.trim().toLowerCase();
@@ -2651,13 +3401,45 @@ class _SohbetPageState extends State<SohbetPage> {
   @override
   void initState() {
     super.initState();
+    _peerOnline = widget.kisi.isOnline;
     _load(initial: true);
-    _poll = Timer.periodic(const Duration(seconds: 3), (_) => _load());
+    unawaited(_refreshPeerOnline());
+    unawaited(touchMyPresence());
+    if (_key.isNotEmpty) {
+      _realtime = subscribeSohbetMesajlari(
+        sohbetKey: _key,
+        onChange: () {
+          if (mounted) unawaited(_load());
+        },
+      );
+    }
+    // Presence + Realtime yedek
+    _poll = Timer.periodic(const Duration(seconds: 15), (_) {
+      unawaited(_refreshPeerOnline());
+      unawaited(touchMyPresence());
+    });
+  }
+
+  Future<void> _refreshPeerOnline() async {
+    if (_peer.isEmpty || !_peer.contains('@')) {
+      if (mounted && _peerOnline) setState(() => _peerOnline = false);
+      return;
+    }
+    final online = await isEmailOnline(_peer);
+    if (!mounted || online == _peerOnline) return;
+    setState(() => _peerOnline = online);
+  }
+
+  Future<void> _markIncomingRead() async {
+    if (!_canSend) return;
+    await markSohbetMesajlariOkundu(_key);
   }
 
   @override
   void dispose() {
     _poll?.cancel();
+    unawaited(unsubscribeRealtime(_realtime));
+    _realtime = null;
     _draft.dispose();
     _scroll.dispose();
     super.dispose();
@@ -2686,6 +3468,8 @@ class _SohbetPageState extends State<SohbetPage> {
       final list = await loadSohbetMesajlari(_key);
       if (!mounted) return;
       final grew = list.length > _messages.length;
+      final hasUnreadIncoming =
+          list.any((m) => m.receiverEmail == _me && !m.isRead);
       setState(() {
         _messages
           ..clear()
@@ -2693,6 +3477,9 @@ class _SohbetPageState extends State<SohbetPage> {
         _loading = false;
         _error = null;
       });
+      if (initial || hasUnreadIncoming) {
+        await _markIncomingRead();
+      }
       if (initial || grew) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!_scroll.hasClients) return;
@@ -2717,6 +3504,17 @@ class _SohbetPageState extends State<SohbetPage> {
     setState(() => _sending = true);
     try {
       final msg = await sendSohbetMesaj(peerEmail: _peer, body: text);
+      // Mesaj kaydı başarılıysa karşı tarafa uygulama içi bildirim.
+      try {
+        await notifySohbetMesaj(
+          peerEmail: _peer,
+          messageBody: text,
+          actorName: _me.split('@').first,
+          ilanId: widget.kisi.ilanId,
+        );
+      } catch (_) {
+        // Mesaj gitti; bildirim tablosu yoksa sessiz geç
+      }
       if (!mounted) return;
       _draft.clear();
       setState(() {
@@ -2901,18 +3699,19 @@ class _SohbetPageState extends State<SohbetPage> {
               children: [
                 _SmallAvatar(
                     label: widget.kisi.avatar, color: widget.kisi.avatarColor),
-                if (widget.kisi.isOnline)
-                  Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                              color: Colors.green,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                  color: MetoColors.card, width: 2)))),
+                Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                            color: _peerOnline
+                                ? const Color(0xFF22C55E)
+                                : const Color(0xFFEF4444),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                                color: MetoColors.card, width: 2)))),
               ],
             ),
             const SizedBox(width: 10),
@@ -2926,16 +3725,15 @@ class _SohbetPageState extends State<SohbetPage> {
                   Text(
                     _peer.isEmpty
                         ? 'Örnek ilan'
-                        : (widget.kisi.isOnline
-                            ? 'Çevrimiçi · gerçek sohbet'
-                            : (_peer)),
+                        : (_peerOnline ? 'Çevrimiçi' : 'Çevrimdışı'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                         fontSize: 11,
-                        color: widget.kisi.isOnline
-                            ? Colors.green
-                            : MetoColors.mutedFg),
+                        fontWeight: FontWeight.w700,
+                        color: _peerOnline
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFFDC2626)),
                   ),
                 ],
               ),
@@ -3145,15 +3943,22 @@ class _YeniIlanForm extends StatefulWidget {
 }
 
 class _YeniIlanFormState extends State<_YeniIlanForm> {
-  String _formKategori = 'Uzman';
+  String _formKategori = 'Uzman Arıyorum';
   String _formUzmanlik = CatalogAdapters.uzmanlikSecenekleri().first;
-  final List<Color> _formPhotos = [];
+  final List<IlanPhoto> _formPhotos = [];
   final _formBaslik = TextEditingController();
   final _formButce = TextEditingController();
   final _formAciklama = TextEditingController();
   String _aciklamaUyari = '';
   String? _formIl;
   String? _formIlce;
+  bool _pickingPhoto = false;
+
+  bool get _isIkinciel => _formKategori == '2. El Alet';
+  bool get _isUzmanArama =>
+      _formKategori == 'Uzman Arıyorum' || _formKategori == 'Uzman';
+  bool get _isBakiciArama =>
+      _formKategori == 'Bakıcı Arıyorum' || _formKategori == 'Bakıcı';
 
   List<String> get _ilceOptions {
     final city = _formIl;
@@ -3186,7 +3991,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
     if (city == null || city.isEmpty) eksik.add('İl');
     if (district == null || district.isEmpty) eksik.add('İlçe');
     if (butce.isEmpty) {
-      eksik.add(_formKategori == '2. El Alet' ? 'Fiyat' : 'Bütçe');
+      eksik.add(_isIkinciel ? 'Fiyat' : 'Bütçe');
     }
     if (eksik.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -3214,6 +4019,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
     try {
       late final IlanKategori kategori;
       switch (_formKategori) {
+        case 'Uzman Arıyorum':
         case 'Uzman':
           kategori = IlanKategori.uzmanlar;
           await publishIlanToCloud(
@@ -3229,6 +4035,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             ownerEmail: email,
           );
           break;
+        case 'Bakıcı Arıyorum':
         case 'Bakıcı':
           kategori = IlanKategori.bakici;
           await publishIlanToCloud(
@@ -3253,8 +4060,8 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             note: note,
             price: butce,
             photos: _formPhotos.isEmpty
-                ? const [Color(0xFFDCE8F5)]
-                : List<Color>.from(_formPhotos),
+                ? const [IlanPhoto.swatch(Color(0xFFDCE8F5))]
+                : List<IlanPhoto>.from(_formPhotos),
             posterName: name,
             posterAvatar: avatar,
             ownerEmail: email,
@@ -3265,12 +4072,13 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString();
+      final lower = msg.toLowerCase();
       if (msg.contains('Ortak görünüm')) {
         // Yerel kayıt oldu; yine de yayınlandı say.
         widget.onPublished(
-          _formKategori == 'Uzman'
+          _isUzmanArama
               ? IlanKategori.uzmanlar
-              : _formKategori == 'Bakıcı'
+              : _isBakiciArama
                   ? IlanKategori.bakici
                   : IlanKategori.ikinciel,
         );
@@ -3281,6 +4089,19 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               'Supabase ilanlar tablosunu oluşturun.',
             ),
             duration: Duration(seconds: 5),
+          ),
+        );
+      } else if (lower.contains('quota') ||
+          lower.contains('ön bellek') ||
+          lower.contains('localstorage') ||
+          lower.contains('exceeded')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Tarayıcı önbelleği dolu. Daha az/küçük fotoğrafla tekrar deneyin '
+              'veya site verilerini temizleyip yenileyin.',
+            ),
+            duration: Duration(seconds: 6),
           ),
         );
       } else {
@@ -3307,6 +4128,106 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
           text: cleaned,
           selection: TextSelection.collapsed(offset: cleaned.length));
     });
+  }
+
+  Uint8List? _decodePhoto(IlanPhoto photo) {
+    if (!photo.hasImage) return null;
+    try {
+      var raw = photo.dataUrl!;
+      if (raw.contains(',')) raw = raw.split(',').last;
+      return Uint8List.fromList(base64Decode(raw));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _pickProductPhoto() async {
+    if (_formPhotos.length >= 4 || _pickingPhoto) return;
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: MetoColors.card,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Text(
+                  'Ürün fotoğrafı ekle',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined,
+                    color: MetoColors.primary),
+                title: const Text('Galeriden seç'),
+                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined,
+                    color: MetoColors.primary),
+                title: const Text('Kamerayla çek'),
+                onTap: () => Navigator.pop(ctx, ImageSource.camera),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Vazgeç'),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+
+    setState(() => _pickingPhoto = true);
+    try {
+      // Web önbellek kotası için agresif küçültme (max ~4 foto).
+      final file = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 720,
+        maxHeight: 720,
+        imageQuality: 45,
+      );
+      if (file == null || !mounted) return;
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) {
+        throw StateError('Boş görsel seçildi.');
+      }
+      var mime = 'image/jpeg';
+      final encoded = base64Encode(bytes);
+      if (encoded.length > 180000) {
+        throw StateError(
+          'Fotoğraf çok büyük. Daha küçük / daha az fotoğraf ekleyin.',
+        );
+      }
+      final dataUrl = 'data:$mime;base64,$encoded';
+      if (!mounted) return;
+      setState(() => _formPhotos.add(IlanPhoto.data(dataUrl)));
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString().toLowerCase();
+      final friendly = msg.contains('büyük') || msg.contains('boş')
+          ? e.toString().replaceFirst('Bad state: ', '')
+          : (msg.contains('quota') ||
+                  msg.contains('ön bellek') ||
+                  msg.contains('localstorage') ||
+                  msg.contains('exceeded'))
+              ? 'Tarayıcı önbelleği dolu. Daha az / daha küçük fotoğraf deneyin.'
+              : 'Fotoğraf eklenemedi. Galeri/kamera iznini kontrol edin.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendly)),
+      );
+    } finally {
+      if (mounted) setState(() => _pickingPhoto = false);
+    }
   }
 
   Widget _formField(String label, String hint, TextEditingController c) {
@@ -3363,7 +4284,11 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                     OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
                 fillColor: MetoColors.card),
-            items: ['Uzman', 'Bakıcı', '2. El Alet']
+            items: const [
+              'Uzman Arıyorum',
+              'Bakıcı Arıyorum',
+              '2. El Alet',
+            ]
                 .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                 .toList(),
             onChanged: (v) => setState(() {
@@ -3371,7 +4296,29 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               _formPhotos.clear();
             }),
           ),
-          if (_formKategori == 'Uzman') ...[
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFBFDBFE)),
+            ),
+            child: Text(
+              _isIkinciel
+                  ? '2. el ürün satışı için ilan oluşturursunuz. Hesap rolünüz değişmez.'
+                  : _isBakiciArama
+                      ? 'Bu ilan “bakıcı arıyorum” ilanıdır. Aile hesabınız bakıcı olmaz; bakıcılar size teklif verir.'
+                      : 'Bu ilan “uzman arıyorum” ilanıdır. Aile hesabınız uzman olmaz; uzmanlar size teklif verir.',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF1D4ED8),
+                height: 1.35,
+              ),
+            ),
+          ),
+          if (_isUzmanArama) ...[
             const SizedBox(height: 16),
             const Text('UZMANLIK ALANI',
                 style: TextStyle(
@@ -3452,12 +4399,12 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
           ),
           const SizedBox(height: 16),
           _formField(
-            _formKategori == '2. El Alet' ? 'Fiyat' : 'Bütçe',
-            _formKategori == '2. El Alet' ? '₺2.000' : '₺300–500/seans',
+            _isIkinciel ? 'Fiyat' : 'Bütçe',
+            _isIkinciel ? '₺2.000' : '₺300–500/seans',
             _formButce,
           ),
-          if (_formKategori == '2. El Alet') ...[
-            const Text('FOTOĞRAFLAR',
+          if (_isIkinciel) ...[
+            const Text('ÜRÜN FOTOĞRAFLARI',
                 style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -3467,68 +4414,92 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                ..._formPhotos.asMap().entries.map((e) => Stack(
-                      children: [
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                              color: e.value,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: MetoColors.border)),
-                          child: const Center(
-                              child:
-                                  Text('📷', style: TextStyle(fontSize: 24))),
+                ..._formPhotos.asMap().entries.map((e) {
+                  final bytes = _decodePhoto(e.value);
+                  return Stack(
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: e.value.swatchColor,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: MetoColors.border),
+                          image: bytes == null
+                              ? null
+                              : DecorationImage(
+                                  image: MemoryImage(bytes),
+                                  fit: BoxFit.cover,
+                                ),
                         ),
-                        if (e.key == 0)
-                          const Positioned(
-                              left: 4,
-                              bottom: 4,
-                              child: Text('Kapak',
-                                  style: TextStyle(
-                                      fontSize: 9,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700))),
-                        Positioned(
-                          top: 2,
-                          right: 2,
-                          child: GestureDetector(
-                            onTap: () =>
-                                setState(() => _formPhotos.removeAt(e.key)),
-                            child: Container(
-                              width: 20,
-                              height: 20,
-                              decoration: BoxDecoration(
-                                  color: Colors.black54,
-                                  shape: BoxShape.circle),
-                              child: const Icon(Icons.close,
-                                  size: 12, color: Colors.white),
-                            ),
+                        child: bytes != null
+                            ? null
+                            : const Center(
+                                child: Icon(Icons.image_outlined,
+                                    color: MetoColors.mutedFg),
+                              ),
+                      ),
+                      if (e.key == 0)
+                        const Positioned(
+                            left: 4,
+                            bottom: 4,
+                            child: Text('Kapak',
+                                style: TextStyle(
+                                    fontSize: 9,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700))),
+                      Positioned(
+                        top: 2,
+                        right: 2,
+                        child: GestureDetector(
+                          onTap: () =>
+                              setState(() => _formPhotos.removeAt(e.key)),
+                          child: Container(
+                            width: 20,
+                            height: 20,
+                            decoration: const BoxDecoration(
+                                color: Colors.black54,
+                                shape: BoxShape.circle),
+                            child: const Icon(Icons.close,
+                                size: 12, color: Colors.white),
                           ),
                         ),
-                      ],
-                    )),
+                      ),
+                    ],
+                  );
+                }),
                 if (_formPhotos.length < 6)
                   InkWell(
-                    onTap: () => setState(() => _formPhotos.add(formPhotoColors[
-                        _formPhotos.length % formPhotoColors.length])),
+                    onTap: _pickingPhoto ? null : _pickProductPhoto,
                     child: Container(
                       width: 80,
                       height: 80,
                       decoration: BoxDecoration(
                         color: MetoColors.muted,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: MetoColors.border, style: BorderStyle.solid),
+                        border: Border.all(color: MetoColors.border),
                       ),
-                      child: const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.add),
-                            Text('Ekle',
-                                style: TextStyle(
-                                    fontSize: 10, fontWeight: FontWeight.w700))
-                          ]),
+                      child: _pickingPhoto
+                          ? const Center(
+                              child: SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: MetoColors.primary,
+                                ),
+                              ),
+                            )
+                          : const Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_a_photo_outlined),
+                                SizedBox(height: 4),
+                                Text('Ekle',
+                                    style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700))
+                              ]),
                     ),
                   ),
               ],
@@ -3536,8 +4507,10 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             if (_formPhotos.isEmpty)
               const Padding(
                 padding: EdgeInsets.only(top: 8),
-                child: Text('⚠ Fotoğraf eklemek satışı hızlandırır',
-                    style: TextStyle(fontSize: 12, color: Color(0xFFD97706))),
+                child: Text(
+                  'Galeri veya kameradan ürün fotoğrafı ekleyin — satış hızlanır',
+                  style: TextStyle(fontSize: 12, color: Color(0xFFD97706)),
+                ),
               ),
             const SizedBox(height: 16),
           ],

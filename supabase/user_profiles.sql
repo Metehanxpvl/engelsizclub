@@ -13,6 +13,8 @@ create table if not exists public.user_profiles (
     "mesajlar": true,
     "duyurular": true
   }'::jsonb,
+  kredi int not null default 0,
+  kredi_welcome_gift boolean not null default false,
   updated_at timestamptz not null default now()
 );
 
@@ -47,3 +49,9 @@ create policy "user_profiles_delete_own"
   using (owner_id = auth.uid());
 
 notify pgrst, 'reload schema';
+
+-- Mevcut tablolara kredi kolonları (yoksa ekle)
+alter table public.user_profiles
+  add column if not exists kredi int not null default 0;
+alter table public.user_profiles
+  add column if not exists kredi_welcome_gift boolean not null default false;

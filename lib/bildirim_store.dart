@@ -30,6 +30,7 @@ class AppBildirim {
   final DateTime createdAt;
 
   bool get isTeklif => type == 'teklif';
+  bool get isMesaj => type == 'mesaj';
 
   factory AppBildirim.fromJson(Map<String, dynamic> json) => AppBildirim(
         id: (json['id'] as num?)?.toInt() ?? 0,
@@ -48,6 +49,7 @@ class AppBildirim {
 }
 
 /// İlan sahibine teklif bildirimi gönderir + sohbete ilk mesajı yazar.
+/// Başarısız olursa hata fırlatır (sessizce yutmaz).
 Future<void> notifyIlanSahibiTeklif({
   required String ownerEmail,
   required String actorName,
@@ -57,8 +59,12 @@ Future<void> notifyIlanSahibiTeklif({
   final user = client.auth.currentUser;
   final actorEmail = (user?.email ?? '').trim().toLowerCase();
   final owner = ownerEmail.trim().toLowerCase();
-  if (user == null || actorEmail.isEmpty || owner.isEmpty) return;
-  if (owner == actorEmail) return;
+  if (user == null || actorEmail.isEmpty || owner.isEmpty) {
+    throw StateError('Teklif göndermek için giriş yapın.');
+  }
+  if (owner == actorEmail) {
+    throw StateError('Kendi ilanınıza teklif veremezsiniz.');
+  }
 
   final name = actorName.trim().isEmpty
       ? actorEmail.split('@').first
@@ -66,31 +72,58 @@ Future<void> notifyIlanSahibiTeklif({
   final key = sohbetKeyFor(actorEmail, owner);
   final ilanLabel = ilanId == null ? 'ilanınıza' : '#$ilanId nolu ilanınıza';
 
-  // Sohbete otomatik teklif mesajı
-  try {
-    await sendSohbetMesaj(
-      peerEmail: owner,
-      body: 'Merhaba! $ilanLabel teklif verdim. Görüşmek isterim.',
-    );
-  } catch (_) {
-    // Sohbet tablosu yoksa yine de bildirim dene
-  }
+  // Sohbete otomatik teklif mesajı (ayrı mesaj bildirimi yok — teklif bildirimi yeterli)
+  await sendSohbetMesaj(
+    peerEmail: owner,
+    body: 'Merhaba! $ilanLabel teklif verdim. Görüşmek isterim.',
+  );
 
-  try {
-    await client.from('bildirimler').insert({
-      'owner_email': owner,
-      'actor_email': actorEmail,
-      'actor_name': name,
-      'type': 'teklif',
-      'title': 'Yeni teklif',
-      'body': '$name $ilanLabel teklif verdi.',
-      'ilan_id': ilanId,
-      'sohbet_key': key,
-      'read': false,
-    });
-  } catch (_) {
-    // Tablo yoksa sessizce geç
-  }
+  await client.from('bildirimler').insert({
+    'owner_email': owner,
+    'actor_email': actorEmail,
+    'actor_name': name,
+    'type': 'teklif',
+    'title': 'Yeni teklif',
+    'body': '$name $ilanLabel teklif verdi.',
+    'ilan_id': ilanId,
+    'sohbet_key': key,
+    'read': false,
+  });
+}
+
+/// Karşı tarafa yeni sohbet mesajı bildirimi.
+Future<void> notifySohbetMesaj({
+  required String peerEmail,
+  required String messageBody,
+  String? actorName,
+  int? ilanId,
+}) async {
+  final client = Supabase.instance.client;
+  final user = client.auth.currentUser;
+  final actorEmail = (user?.email ?? '').trim().toLowerCase();
+  final owner = peerEmail.trim().toLowerCase();
+  if (user == null || actorEmail.isEmpty || owner.isEmpty) return;
+  if (owner == actorEmail) return;
+
+  final name = (actorName ?? '').trim().isEmpty
+      ? actorEmail.split('@').first
+      : actorName!.trim();
+  final raw = messageBody.trim();
+  if (raw.isEmpty) return;
+  final preview = raw.length > 90 ? '${raw.substring(0, 90)}…' : raw;
+  final key = sohbetKeyFor(actorEmail, owner);
+
+  await client.from('bildirimler').insert({
+    'owner_email': owner,
+    'actor_email': actorEmail,
+    'actor_name': name,
+    'type': 'mesaj',
+    'title': 'Yeni mesaj',
+    'body': '$name: $preview',
+    'ilan_id': ilanId,
+    'sohbet_key': key,
+    'read': false,
+  });
 }
 
 Future<List<AppBildirim>> loadBildirimler() async {

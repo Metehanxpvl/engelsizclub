@@ -49,12 +49,8 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
   @override
   void initState() {
     super.initState();
-    // Önce konum; ardından yakın merkezleri gerçek konumdan çek
-    _detectLocation().then((_) {
-      if (_locStatus != _LocStatus.ok) {
-        _refreshCenters();
-      }
-    });
+    // Otomatik GPS / ağ araması YOK.
+    // Merkezler yalnız: il-ilçe seçimi veya “Konumumu Bul” ile yüklenir.
   }
 
   @override
@@ -76,10 +72,57 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     return (lat: _cityInfo.lat, lng: _cityInfo.lng);
   }
 
+  static String _normTr(String s) {
+    return s
+        .toLowerCase()
+        .replaceAll('İ', 'i')
+        .replaceAll('I', 'i')
+        .replaceAll('ı', 'i')
+        .replaceAll('ö', 'o')
+        .replaceAll('ü', 'u')
+        .replaceAll('ş', 's')
+        .replaceAll('ğ', 'g')
+        .replaceAll('ç', 'c')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  /// Seçilen ile ait mi? (yanlış şehirdeki sonuçları ele)
+  bool _matchesSelectedCity(MetoCenter c, {double? focusLat, double? focusLng}) {
+    final selected = _normTr(_selectedCity);
+    final stamped = _normTr(c.city);
+    final addr = _normTr('${c.address} ${c.ilce} ${c.name}');
+
+    // Adreste başka büyük şehir açıkça geçiyorsa ve seçilen şehir yoksa ele
+    for (final other in kCityNames) {
+      final nOther = _normTr(other);
+      if (nOther == selected || nOther.length < 5) continue;
+      if (addr.contains(nOther) && !addr.contains(selected) && stamped != selected) {
+        return false;
+      }
+    }
+
+    if (stamped == selected || addr.contains(selected)) return true;
+
+    // Şehir yazısı yoksa koordinatla doğrula (seçilen il merkezine yakın olmalı)
+    final lat = focusLat ?? _cityInfo.lat;
+    final lng = focusLng ?? _cityInfo.lng;
+    final maxKm = _selectedIlce == kAllIlceler ? 70.0 : 28.0;
+    return geoDistanceKm(lat, lng, c.lat, c.lng) <= maxKm;
+  }
+
   List<MetoCenter> get _sourceCenters {
-    // Canlı OSM sonuçları varsa onları kullan; yoksa yerel yedek.
-    if (_liveCenters.isNotEmpty) return _liveCenters;
-    return kCenters.where((c) => c.city == _selectedCity).toList();
+    final lat = _focusLat ?? _cityInfo.lat;
+    final lng = _focusLng ?? _cityInfo.lng;
+    if (_liveCenters.isNotEmpty) {
+      final filtered = _liveCenters
+          .where((c) => _matchesSelectedCity(c, focusLat: lat, focusLng: lng))
+          .toList();
+      if (filtered.isNotEmpty) return filtered;
+    }
+    return kCenters
+        .where((c) => _normTr(c.city) == _normTr(_selectedCity))
+        .toList();
   }
 
   bool _matchesCategory(MetoCenter c) {
@@ -90,35 +133,33 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       ...c.services,
       c.name,
     ].join(' ').toLowerCase();
-    // Filtre kısa anahtar kelimesiyle eşle (İ/i sorununu azalt).
     final key = switch (_filter) {
       'Fizik Tedavi' => 'fizik',
-      'Özel Eğitim' => 'özel eğitim',
+      'Özel Eğitim' => 'ozel egitim',
       'Dil Terapisi' => 'dil',
-      'Nöroloji' => 'nöro',
+      'Nöroloji' => 'noro',
       _ => f,
     };
-    final keyAlt = key
-        .replaceAll('ı', 'i')
-        .replaceAll('ö', 'o')
-        .replaceAll('ü', 'u')
-        .replaceAll('ş', 's')
-        .replaceAll('ğ', 'g')
-        .replaceAll('ç', 'c');
-    final hayNorm = hay
-        .replaceAll('ı', 'i')
-        .replaceAll('ö', 'o')
-        .replaceAll('ü', 'u')
-        .replaceAll('ş', 's')
-        .replaceAll('ğ', 'g')
-        .replaceAll('ç', 'c');
-    return hay.contains(key) || hayNorm.contains(keyAlt);
+    final keyAlt = _normTr(key);
+    final hayNorm = _normTr(hay);
+    if (hay.contains(key) || hayNorm.contains(keyAlt)) return true;
+    if (_filter == 'Özel Eğitim') {
+      return hayNorm.contains('rehabilitasyon') ||
+          hayNorm.contains('egitim ve rehabilitasyon') ||
+          hayNorm.contains('egitim rehabilitasyon') ||
+          hayNorm.contains('oerm') ||
+          hayNorm.contains('ozel egitim');
+    }
+    return false;
   }
 
   /// Seçilen il/ilçe için merkezleri döndürür.
   ({List<_CenterWithDist> items, String? note}) get _listing {
     final origin = _mapCenter;
     final q = _searchController.text.trim().toLowerCase();
+    final maxKm = _locStatus == _LocStatus.ok
+        ? 45.0
+        : (_selectedIlce == kAllIlceler ? 70.0 : 28.0);
 
     bool matchesSearch(MetoCenter c) =>
         q.isEmpty ||
@@ -133,16 +174,21 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
               distKm: geoDistanceKm(origin.lat, origin.lng, c.lat, c.lng),
             ),
           )
+          .where((e) => e.distKm <= maxKm + 8)
           .toList();
       list.sort((a, b) => a.distKm.compareTo(b.distKm));
       return list;
     }
 
-    final pool = _sourceCenters.where(_matchesCategory).where(matchesSearch);
+    // Her zaman seçilen ile kilitle
+    final pool = _sourceCenters
+        .where((c) => _matchesSelectedCity(c))
+        .where(_matchesCategory)
+        .where(matchesSearch);
 
-    // 1) Seçilen ilçe (esnek eşleşme)
     if (_selectedIlce != kAllIlceler) {
-      final exact = pool.where((c) => CentersOsmService.matchesIlce(c, _selectedIlce));
+      final exact =
+          pool.where((c) => CentersOsmService.matchesIlce(c, _selectedIlce));
       if (exact.isNotEmpty) {
         return (items: build(exact), note: _dataNote);
       }
@@ -151,21 +197,24 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
         return (
           items: build(cityWide),
           note:
-              '$_selectedIlce için birebir kayıt bulunamadı — $_selectedCity genelindeki merkezler (mesafeye göre) gösteriliyor.',
+              '$_selectedIlce için birebir kayıt bulunamadı — $_selectedCity genelindeki merkezler gösteriliyor.',
         );
       }
     } else if (pool.isNotEmpty) {
       return (items: build(pool), note: _dataNote);
     }
 
-    // 2) Yerel yedek + en yakınlar
-    final fallback = kCenters.where(_matchesCategory).where(matchesSearch);
-    final nearest = build(fallback).take(12).toList();
+    // Yedek: yalnız seçilen ilin kayıtlı merkezleri (başka şehir ASLA)
+    final fallback = kCenters
+        .where((c) => _normTr(c.city) == _normTr(_selectedCity))
+        .where(_matchesCategory)
+        .where(matchesSearch);
+    final nearest = build(fallback);
     if (nearest.isNotEmpty) {
       return (
         items: nearest,
         note:
-            '$_selectedCity için canlı harita sonucu bulunamadı — kayıtlı yedek merkezler gösteriliyor.',
+            '$_selectedCity için canlı sonuç sınırlı — kayıtlı $_selectedCity merkezleri gösteriliyor.',
       );
     }
 
@@ -202,11 +251,11 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       }
     }
 
-    // Konum açıksa kullanıcı konumundan ara
-    final searchLat =
-        (_locStatus == _LocStatus.ok && _userLat != null) ? _userLat! : focusLat;
-    final searchLng =
-        (_locStatus == _LocStatus.ok && _userLng != null) ? _userLng! : focusLng;
+    // GPS yalnız “Konumumu bul” sonrası kullanılır; yoksa seçilen il/ilçe.
+    final useGps =
+        _locStatus == _LocStatus.ok && _userLat != null && _userLng != null;
+    final searchLat = useGps ? _userLat! : focusLat;
+    final searchLng = useGps ? _userLng! : focusLng;
 
     var live = <MetoCenter>[];
     var sourceLabel = '';
@@ -218,7 +267,9 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
           latitude: searchLat,
           longitude: searchLng,
           city: _selectedCity,
-          radiusKm: 40,
+          radiusKm: useGps
+              ? 40
+              : (_selectedIlce == kAllIlceler ? 45 : 18),
         );
         if (live.isNotEmpty) {
           sourceLabel = 'Google Places';
@@ -234,7 +285,9 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
         lat: searchLat,
         lng: searchLng,
         city: _selectedCity,
-        radiusKm: 50,
+        radiusKm: useGps
+            ? 50
+            : (_selectedIlce == kAllIlceler ? 55 : 20),
       );
       if (live.isNotEmpty) {
         sourceLabel = GooglePlacesConfig.isConfigured
@@ -243,10 +296,48 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       }
     }
 
+    // Yanlış şehir / uzak sonuçları at (Ankara seçip İstanbul gelmesin)
+    final radiusLimit = useGps
+        ? 50.0
+        : (_selectedIlce == kAllIlceler ? 70.0 : 28.0);
+    live = live
+        .where((c) {
+          final near = geoDistanceKm(searchLat, searchLng, c.lat, c.lng) <=
+              radiusLimit + 5;
+          return near &&
+              _matchesSelectedCity(c, focusLat: searchLat, focusLng: searchLng);
+        })
+        .toList();
+
+    // Yerel katalogdaki seçili il merkezlerini de ekle (özel eğitim eksik kalmasın)
+    final localCity = kCenters
+        .where((c) => _normTr(c.city) == _normTr(_selectedCity))
+        .where((c) {
+          if (_selectedIlce == kAllIlceler) return true;
+          return CentersOsmService.matchesIlce(c, _selectedIlce) ||
+              geoDistanceKm(searchLat, searchLng, c.lat, c.lng) <= radiusLimit;
+        });
+    final merged = <String, MetoCenter>{};
+    for (final c in [...live, ...localCity]) {
+      final key =
+          '${_normTr(c.name)}|${c.lat.toStringAsFixed(4)}|${c.lng.toStringAsFixed(4)}';
+      merged.putIfAbsent(key, () => c);
+    }
+    live = merged.values.toList()
+      ..sort((a, b) {
+        final da = geoDistanceKm(searchLat, searchLng, a.lat, a.lng);
+        final db = geoDistanceKm(searchLat, searchLng, b.lat, b.lng);
+        return da.compareTo(db);
+      });
+    if (live.isNotEmpty && sourceLabel.isEmpty) {
+      sourceLabel = 'Kayıtlı katalog';
+    } else if (localCity.isNotEmpty && sourceLabel.isNotEmpty) {
+      sourceLabel = '$sourceLabel + katalog';
+    }
+
     if (!mounted) return;
     setState(() {
-      // Konum açıksa harita kullanıcının olduğu yere odaklansın
-      if (_locStatus == _LocStatus.ok && _userLat != null && _userLng != null) {
+      if (useGps) {
         _focusLat = _userLat;
         _focusLng = _userLng;
       } else {
@@ -256,15 +347,19 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       _liveCenters = live;
       _centersLoading = false;
       if (live.isEmpty) {
-        _centersError = GooglePlacesConfig.isConfigured
-            ? 'Bu bölgede merkez bulunamadı. Konum izni verip “Konumumu bul”a basın veya ili değiştirin.'
-            : 'Google Places API anahtarı yok ve OSM sonuç vermedi. '
-                'lib/services/google_places_config.dart içine anahtar ekleyin.';
+        _centersError = useGps
+            ? 'Yakınınızda merkez bulunamadı. İl/ilçe seçerek tekrar deneyin.'
+            : '$_selectedCity${_selectedIlce == kAllIlceler ? '' : ' / $_selectedIlce'} için merkez bulunamadı. Başka ilçe deneyin.';
         _dataNote = null;
       } else {
         _centersError = null;
+        final region = useGps
+            ? 'Konumunuza göre'
+            : (_selectedIlce == kAllIlceler
+                ? _selectedCity
+                : '$_selectedCity / $_selectedIlce');
         _dataNote =
-            '$sourceLabel · ${live.length} merkez · mesafeye göre sıralı';
+            '$sourceLabel · $region · ${live.length} merkez · mesafeye göre sıralı';
       }
     });
     final mapLat = _focusLat ?? focusLat;
@@ -272,7 +367,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     _moveMap(
       mapLat,
       mapLng,
-      zoom: _locStatus == _LocStatus.ok
+      zoom: useGps
           ? 12.5
           : (_selectedIlce == kAllIlceler ? 11 : 13),
     );
@@ -330,6 +425,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
   }
 
   void _onCityChanged(String city) {
+    final info = kTurkishCities[city]!;
     setState(() {
       _selectedCity = city;
       _selectedIlce = kAllIlceler;
@@ -337,8 +433,11 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       _userLat = null;
       _userLng = null;
       _liveCenters = const [];
+      _focusLat = info.lat;
+      _focusLng = info.lng;
+      _centersError = null;
+      _dataNote = null;
     });
-    final info = kTurkishCities[city]!;
     _moveMap(info.lat, info.lng, zoom: 11);
     _refreshCenters();
   }
@@ -346,7 +445,11 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
   void _onIlceChanged(String ilce) {
     setState(() {
       _selectedIlce = ilce;
-      // İlçe değişince kullanıcı konumunu koru ama odak ilçeye kayar.
+      // İlçe seçimi GPS’i kapatır — arama bu ilçeye göre yapılır.
+      _locStatus = _LocStatus.idle;
+      _userLat = null;
+      _userLng = null;
+      _liveCenters = const [];
     });
     _refreshCenters();
   }
@@ -398,7 +501,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Yakındaki Merkezler',
+                            'Merkezler',
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
@@ -409,8 +512,10 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                           const SizedBox(height: 2),
                           Text(
                             _locStatus == _LocStatus.ok
-                                ? '📍 Konumunuza göre sıralandı'
-                                : '$_selectedCity · $_selectedIlce',
+                                ? 'Konumunuza göre sıralandı'
+                                : _liveCenters.isEmpty && !_centersLoading
+                                    ? 'İl/ilçe seçin veya Konumumu Bul’a basın'
+                                    : '$_selectedCity · $_selectedIlce',
                             style: const TextStyle(
                               fontSize: 12,
                               color: MetoColors.mutedFg,
@@ -536,10 +641,10 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                         color: Colors.white.withValues(alpha: 0.55),
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: const Column(
+                      child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          SizedBox(
+                          const SizedBox(
                             width: 22,
                             height: 22,
                             child: CircularProgressIndicator(
@@ -547,10 +652,14 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                               color: MetoColors.primary,
                             ),
                           ),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Text(
-                            'Yakındaki merkezler Google Places ile aranıyor…',
-                            style: TextStyle(
+                            _locStatus == _LocStatus.ok
+                                ? 'Konumunuza göre merkezler aranıyor…'
+                                : (_selectedIlce == kAllIlceler
+                                    ? '$_selectedCity merkezleri aranıyor…'
+                                    : '$_selectedIlce / $_selectedCity aranıyor…'),
+                            style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                               color: MetoColors.mutedFg,

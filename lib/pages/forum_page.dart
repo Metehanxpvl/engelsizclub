@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../admin_config.dart';
 import '../data/forum_data.dart';
 import '../forum_store.dart';
 import '../meto_theme.dart';
+import '../sohbet_store.dart';
 
 /// Figma Make `ForumTab` — Flutter portu.
 class ForumPage extends StatefulWidget {
@@ -38,6 +42,7 @@ class _ForumPageState extends State<ForumPage> {
   List<ForumPost> _cloudPosts = const [];
   List<ForumComment> _postComments = const [];
   bool _commentsLoading = false;
+  RealtimeChannel? _forumChannel;
 
   final _searchController = TextEditingController();
   final _titleController = TextEditingController();
@@ -70,10 +75,36 @@ class _ForumPageState extends State<ForumPage> {
       _uzmanMeslek = 'Aile';
     }
     _loadPosts();
+    _forumChannel = Supabase.instance.client.channel('forum-feed');
+    _forumChannel!
+      ..onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'forum_posts',
+        callback: (_) {
+          if (mounted) unawaited(_loadPosts());
+        },
+      )
+      ..onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'forum_comments',
+        callback: (_) {
+          if (!mounted) return;
+          if (_selectedPost != null) {
+            unawaited(_openPost(_selectedPost!));
+          } else {
+            unawaited(_loadPosts());
+          }
+        },
+      )
+      ..subscribe();
   }
 
   @override
   void dispose() {
+    unawaited(unsubscribeRealtime(_forumChannel));
+    _forumChannel = null;
     _searchController.dispose();
     _titleController.dispose();
     _contentController.dispose();

@@ -26,8 +26,11 @@ class CentersOsmService {
 
   /// Arama anahtar kelimeleri (Photon / Nominatim).
   static const _searchQueries = <String>[
+    'özel eğitim ve rehabilitasyon merkezi',
     'özel eğitim rehabilitasyon merkezi',
+    'özel eğitim ve rehabilitasyon',
     'özel eğitim merkezi',
+    'özel rehabilitasyon merkezi',
     'rehabilitasyon merkezi',
     'fizyoterapi merkezi çocuk',
     'dil ve konuşma terapisi',
@@ -120,7 +123,7 @@ class CentersOsmService {
     double radiusKm = 45,
   }) async {
     final cacheKey =
-        '${city.toLowerCase()}_${lat.toStringAsFixed(2)}_${lng.toStringAsFixed(2)}_${radiusKm.round()}';
+        'v2_${city.toLowerCase()}_${lat.toStringAsFixed(2)}_${lng.toStringAsFixed(2)}_${radiusKm.round()}';
     final cached = _centersCache[cacheKey];
     if (cached != null) return List<MetoCenter>.from(cached);
 
@@ -285,13 +288,14 @@ class CentersOsmService {
     final query = '''
 [out:json][timeout:40];
 (
-  nwr["name"~"özel eğitim|ozel egitim|özel egitim|rehabilitasyon|fizyoterapi|fizik tedavi|ergoterapi|dil ve konuşma|dil terapi|konuşma terapi|çocuk gelişim|cocuk gelisim|aba terapi|duyu bütünleme|duyu butunleme|özel rehabilitasyon",i](around:$radiusM,$lat,$lng);
+  nwr["name"~"özel eğitim|ozel egitim|özel egitim|eğitim ve rehabilitasyon|egitim ve rehabilitasyon|eğitim rehabilitasyon|rehabilitasyon merkezi|rehabilitasyon|fizyoterapi|fizik tedavi|ergoterapi|dil ve konuşma|dil terapi|konuşma terapi|çocuk gelişim|cocuk gelisim|aba terapi|duyu bütünleme|duyu butunleme|özel rehabilitasyon|oerm",i](around:$radiusM,$lat,$lng);
   nwr["healthcare"="rehabilitation"](around:$radiusM,$lat,$lng);
   nwr["healthcare"="physiotherapist"](around:$radiusM,$lat,$lng);
   nwr["healthcare"="speech_therapist"](around:$radiusM,$lat,$lng);
   nwr["healthcare"="occupational_therapist"](around:$radiusM,$lat,$lng);
   nwr["amenity"="clinic"]["name"~"özel|rehab|fizyo|terapi|eğitim|egitim|dil|ergo",i](around:$radiusM,$lat,$lng);
-  nwr["amenity"="school"]["name"~"özel eğitim|rehabilitasyon|ozel egitim",i](around:$radiusM,$lat,$lng);
+  nwr["amenity"="school"]["name"~"özel eğitim|rehabilitasyon|ozel egitim|eğitim ve rehabilitasyon",i](around:$radiusM,$lat,$lng);
+  nwr["amenity"="special_school"](around:$radiusM,$lat,$lng);
   nwr["office"="therapist"](around:$radiusM,$lat,$lng);
   nwr["social_facility:for"~"child|disabled|mental_health",i](around:$radiusM,$lat,$lng);
 );
@@ -410,6 +414,8 @@ out center tags 120;
 
     const positives = [
       'ozel egitim',
+      'egitim ve rehabilitasyon',
+      'egitim rehabilitasyon',
       'rehabilitasyon',
       'fizyoterapi',
       'fizik tedavi',
@@ -421,6 +427,8 @@ out center tags 120;
       'aba',
       'cocuk gelisim',
       'ozel rehabilitasyon',
+      'oerm',
+      'special school',
       'speech',
       'occupational',
       'physiotherapist',
@@ -482,27 +490,31 @@ out center tags 120;
   }
 
   static String _categoryFromName(String name) {
-    final n = name.toLowerCase();
-    if (n.contains('özel eğitim') ||
-        n.contains('ozel egitim') ||
-        n.contains('aba')) {
+    final n = _norm(name);
+    if (n.contains('ozel egitim') ||
+        n.contains('egitim ve rehabilitasyon') ||
+        n.contains('egitim rehabilitasyon') ||
+        n.contains('ozel rehabilitasyon') ||
+        n.contains('aba') ||
+        n.contains('oerm')) {
       return 'Özel Eğitim & Rehabilitasyon';
     }
-    if (n.contains('dil') || n.contains('konuşma') || n.contains('konusma')) {
+    if (n.contains('dil') || n.contains('konusma')) {
       return 'Dil & Konuşma Terapisi';
     }
     if (n.contains('ergo') || n.contains('duyu')) {
       return 'Ergoterapi';
     }
-    if (n.contains('nöro') || n.contains('noro')) {
+    if (n.contains('noro')) {
       return 'Çocuk Nörolojisi';
     }
-    if (n.contains('fizyo') ||
-        n.contains('fizik') ||
-        n.contains('rehabilitasyon')) {
+    if (n.contains('fizyo') || n.contains('fizik')) {
       return 'Fizik Tedavi & Rehabilitasyon';
     }
-    if (n.contains('gelişim') || n.contains('gelisim')) {
+    if (n.contains('rehabilitasyon')) {
+      return 'Özel Eğitim & Rehabilitasyon';
+    }
+    if (n.contains('gelisim')) {
       return 'Çocuk Gelişimi';
     }
     return 'Özel Eğitim & Rehabilitasyon';

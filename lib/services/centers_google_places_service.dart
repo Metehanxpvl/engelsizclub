@@ -14,19 +14,30 @@ class CentersGooglePlacesService {
 
   static const _nearbyUrl =
       'https://maps.googleapis.com/maps/api/place/nearbysearch/json';
+  static const _textUrl =
+      'https://maps.googleapis.com/maps/api/place/textsearch/json';
   static const _detailsUrl =
       'https://maps.googleapis.com/maps/api/place/details/json';
 
-  /// Nearby Search anahtar kelimeleri.
+  /// Nearby + Text Search anahtar kelimeleri (MEB “Özel Eğitim ve Rehabilitasyon Merkezi”).
   static const _keywords = <String>[
+    'özel eğitim ve rehabilitasyon merkezi',
     'özel eğitim rehabilitasyon merkezi',
+    'özel eğitim ve rehabilitasyon',
     'özel eğitim merkezi',
-    'rehabilitasyon merkezi',
+    'özel rehabilitasyon merkezi',
+    'rehabilitasyon merkezi çocuk',
     'fizik tedavi merkezi',
     'fizyoterapi',
     'dil ve konuşma terapisi',
     'ergoterapi',
     'duyu bütünleme',
+    'ABA terapi merkezi',
+  ];
+
+  static const _textSearchQueries = <String>[
+    'özel eğitim ve rehabilitasyon merkezi',
+    'özel eğitim rehabilitasyon merkezi',
   ];
 
   static final Map<String, List<MetoCenter>> _cache = {};
@@ -52,12 +63,22 @@ class CentersGooglePlacesService {
 
     final radiusM = (radiusKm.clamp(1, 50) * 1000).round();
     final cacheKey =
-        '${latitude.toStringAsFixed(3)},${longitude.toStringAsFixed(3)}|$radiusM|$city';
+        'v2|${latitude.toStringAsFixed(3)},${longitude.toStringAsFixed(3)}|$radiusM|$city';
     final cached = _cache[cacheKey];
     if (cached != null) return List<MetoCenter>.from(cached);
 
     final byKey = <String, MetoCenter>{};
     var nextId = 900000;
+
+    Future<void> ingest(List<MetoCenter> batch) async {
+      for (final c in batch) {
+        final dedupeKey =
+            '${c.name.toLowerCase()}|${c.lat.toStringAsFixed(5)}|${c.lng.toStringAsFixed(5)}';
+        if (byKey.containsKey(dedupeKey)) continue;
+        byKey[dedupeKey] = c;
+        nextId = math.max(nextId, c.id + 1);
+      }
+    }
 
     for (final keyword in _keywords) {
       try {
@@ -69,15 +90,29 @@ class CentersGooglePlacesService {
           city: city,
           startId: nextId,
         );
-        for (final c in batch) {
-          final dedupeKey =
-              '${c.name.toLowerCase()}|${c.lat.toStringAsFixed(5)}|${c.lng.toStringAsFixed(5)}';
-          if (byKey.containsKey(dedupeKey)) continue;
-          byKey[dedupeKey] = c;
-          nextId = math.max(nextId, c.id + 1);
-        }
+        await ingest(batch);
       } catch (e) {
         debugPrint('Places Nearby "$keyword" hata: $e');
+      }
+    }
+
+    // Text Search: resmi ad + şehir (başka ile kaçmasın)
+    for (final q in _textSearchQueries) {
+      try {
+        final batch = await _textSearch(
+          lat: latitude,
+          lng: longitude,
+          radiusM: radiusM,
+          query: '$q $city Türkiye',
+          city: city,
+          startId: nextId,
+        );
+        await ingest(batch.where((c) {
+          final d = _haversineKm(latitude, longitude, c.lat, c.lng);
+          return d <= radiusKm + 8;
+        }).toList());
+      } catch (e) {
+        debugPrint('Places TextSearch "$q" hata: $e');
       }
     }
 
@@ -124,6 +159,49 @@ class CentersGooglePlacesService {
     return enriched;
   }
 
+  static Future<List<MetoCenter>> _textSearch({
+    required double lat,
+    required double lng,
+    required int radiusM,
+    required String query,
+    required String city,
+    required int startId,
+  }) async {
+    final uri = Uri.parse(_textUrl).replace(queryParameters: {
+      'query': query,
+      'location': '$lat,$lng',
+      'radius': '$radiusM',
+      'language': 'tr',
+      'region': 'tr',
+      'key': GooglePlacesConfig.apiKey,
+    });
+
+    final res = await http
+        .get(uri, headers: const {'Accept': 'application/json'})
+        .timeout(const Duration(seconds: 15));
+
+    if (res.statusCode != 200) {
+      throw StateError('HTTP ${res.statusCode}');
+    }
+
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    final status = body['status']?.toString() ?? '';
+    if (status != 'OK' && status != 'ZERO_RESULTS') {
+      final msg = body['error_message']?.toString() ?? status;
+      throw StateError('Places API: $msg');
+    }
+
+    return _parsePlaceResults(
+      (body['results'] as List?) ?? const [],
+      city: city,
+      startId: startId,
+      keyword: query,
+      originLat: lat,
+      originLng: lng,
+      radiusKm: radiusM / 1000.0,
+    );
+  }
+
   static Future<List<MetoCenter>> _nearbySearch({
     required double lat,
     required double lng,
@@ -155,7 +233,26 @@ class CentersGooglePlacesService {
       throw StateError('Places API: $msg');
     }
 
-    final results = (body['results'] as List?) ?? const [];
+    return _parsePlaceResults(
+      (body['results'] as List?) ?? const [],
+      city: city,
+      startId: startId,
+      keyword: keyword,
+      originLat: lat,
+      originLng: lng,
+      radiusKm: radiusM / 1000.0 + 8,
+    );
+  }
+
+  static List<MetoCenter> _parsePlaceResults(
+    List results, {
+    required String city,
+    required int startId,
+    required String keyword,
+    required double originLat,
+    required double originLng,
+    required double radiusKm,
+  }) {
     final out = <MetoCenter>[];
     var id = startId;
 
@@ -164,6 +261,7 @@ class CentersGooglePlacesService {
       final m = Map<String, dynamic>.from(raw);
       final name = (m['name']?.toString() ?? '').trim();
       if (name.isEmpty) continue;
+      if (!_isRelevantName(name, keyword)) continue;
 
       final geo = m['geometry'] as Map?;
       final loc = geo?['location'] as Map?;
@@ -171,6 +269,9 @@ class CentersGooglePlacesService {
       final plat = (loc['lat'] as num?)?.toDouble();
       final plng = (loc['lng'] as num?)?.toDouble();
       if (plat == null || plng == null) continue;
+
+      final dist = _haversineKm(originLat, originLng, plat, plng);
+      if (dist > radiusKm) continue;
 
       final placeId = m['place_id']?.toString() ?? '';
       final vicinity = (m['vicinity']?.toString() ??
@@ -208,6 +309,57 @@ class CentersGooglePlacesService {
       ));
     }
     return out;
+  }
+
+  static bool _isRelevantName(String name, String keyword) {
+    final n = _norm(name);
+    final k = _norm(keyword);
+    const positives = [
+      'ozel egitim',
+      'egitim ve rehabilitasyon',
+      'egitim rehabilitasyon',
+      'ozel rehabilitasyon',
+      'rehabilitasyon',
+      'fizik tedavi',
+      'fizyoterapi',
+      'ergoterapi',
+      'dil ve konusma',
+      'konusma terapi',
+      'duyu butunleme',
+      'aba',
+      'oerm',
+    ];
+    if (positives.any(n.contains)) return true;
+    // Anahtar kelime sonucu ama alakasız POI (otel vb.) ele.
+    const negatives = [
+      'otel',
+      'hotel',
+      'restoran',
+      'market',
+      'eczane',
+      'banka',
+      'cami',
+    ];
+    if (negatives.any(n.contains)) return false;
+    return k.contains('egitim') ||
+        k.contains('rehabilitasyon') ||
+        k.contains('fizyo') ||
+        k.contains('terapi');
+  }
+
+  static String _norm(String s) {
+    return s
+        .toLowerCase()
+        .replaceAll('İ', 'i')
+        .replaceAll('I', 'i')
+        .replaceAll('ı', 'i')
+        .replaceAll('ö', 'o')
+        .replaceAll('ü', 'u')
+        .replaceAll('ş', 's')
+        .replaceAll('ğ', 'g')
+        .replaceAll('ç', 'c')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   static Future<({String phone, String hours, String address})?> _placeDetails(
@@ -250,15 +402,16 @@ class CentersGooglePlacesService {
     required List<String> types,
     required String keyword,
   }) {
-    final hay =
-        '${name.toLowerCase()} ${types.join(' ')} ${keyword.toLowerCase()}';
-    final n = hay
-        .replaceAll('ı', 'i')
-        .replaceAll('ö', 'o')
-        .replaceAll('ü', 'u')
-        .replaceAll('ş', 's')
-        .replaceAll('ğ', 'g')
-        .replaceAll('ç', 'c');
+    final n = _norm('$name ${types.join(' ')} $keyword');
+    if (n.contains('ozel egitim') ||
+        n.contains('egitim ve rehabilitasyon') ||
+        n.contains('egitim rehabilitasyon') ||
+        n.contains('ozel rehabilitasyon') ||
+        n.contains('aba') ||
+        n.contains('otizm') ||
+        n.contains('oerm')) {
+      return 'Özel Eğitim';
+    }
     if (n.contains('fizik') ||
         n.contains('fizyo') ||
         n.contains('physiotherap')) {
@@ -270,16 +423,14 @@ class CentersGooglePlacesService {
         n.contains('language')) {
       return 'Dil Terapisi';
     }
-    if (n.contains('ozel egitim') ||
-        n.contains('aba') ||
-        n.contains('otizm')) {
-      return 'Özel Eğitim';
-    }
     if (n.contains('ergo') || n.contains('duyu')) {
       return 'Ergoterapi';
     }
     if (n.contains('norolo') || n.contains('neuro')) {
       return 'Nöroloji';
+    }
+    if (n.contains('rehabilitasyon')) {
+      return 'Özel Eğitim';
     }
     return 'Rehabilitasyon';
   }

@@ -8,13 +8,21 @@ create table if not exists public.sohbet_mesajlari (
   sender_id uuid references auth.users (id) on delete set null,
   receiver_email text not null,
   body text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  read_at timestamptz
 );
+
+-- Mevcut tablolara kolon ekle
+alter table public.sohbet_mesajlari
+  add column if not exists read_at timestamptz;
 
 create index if not exists sohbet_mesajlari_key_idx
   on public.sohbet_mesajlari (sohbet_key, created_at);
 create index if not exists sohbet_mesajlari_receiver_idx
   on public.sohbet_mesajlari (receiver_email, created_at desc);
+create index if not exists sohbet_mesajlari_unread_idx
+  on public.sohbet_mesajlari (receiver_email, created_at desc)
+  where read_at is null;
 
 alter table public.sohbet_mesajlari enable row level security;
 
@@ -48,6 +56,18 @@ create policy "sohbet_delete_participant"
   using (
     lower(sender_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
     or lower(receiver_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+-- Alıcı gelen mesajı okundu işaretleyebilir
+drop policy if exists "sohbet_update_receiver_read" on public.sohbet_mesajlari;
+create policy "sohbet_update_receiver_read"
+  on public.sohbet_mesajlari for update
+  to authenticated
+  using (
+    lower(receiver_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  )
+  with check (
+    lower(receiver_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
   );
 
 -- Realtime (yoksa hata vermemesi için)
