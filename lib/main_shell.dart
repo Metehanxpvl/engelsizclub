@@ -1,21 +1,44 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'admin_config.dart';
+import 'bildirim_store.dart';
 import 'home_page.dart';
+import 'cocuk_profil_store.dart';
+import 'data/centers_data.dart' show kAllIlceler;
+import 'data/ilanlar_data.dart' show SohbetKisi;
+import 'data/turkish_cities_data.dart';
+import 'ilan_store.dart';
+import 'kredi_odeme_store.dart';
+import 'kredi_store.dart';
+import 'kullanici_profil_store.dart';
 import 'meto_theme.dart';
 import 'pages/forum_page.dart';
 import 'pages/haklar_page.dart';
 import 'pages/ilanlar_page.dart';
 import 'pages/kartlar_page.dart';
 import 'pages/merkezler_page.dart';
+import 'payment_config.dart';
+import 'profil_foto_store.dart';
+import 'sohbet_store.dart';
+import 'user_cloud_store.dart';
 
-enum MetoTab { home, merkezler, ilanlar, forum, haklar, kartlar }
+enum MetoTab { home, merkezler, ilanlar, forum, mesajlar, haklar, kartlar }
 
-enum _KrediStep { paket, odeme, basarili }
+enum _KrediStep { paket, odeme, beklemede }
+
+enum _OdemeYontemi { kart, havale }
 
 const _krediIban = 'TR9700015000158007329403071';
 const _krediIbanGosterim = 'TR97 0001 5000 1580 0732 9403 071';
 const _krediAliciAd = 'Şakir Çaykara';
+const _krediBanka = 'VakıfBank';
 
 typedef _KrediPaket = ({
   int adet,
@@ -44,6 +67,18 @@ class _MainShellState extends State<MainShell> {
   MetoTab _activeTab = MetoTab.home;
   bool _showProfilPanel = false;
   bool _krediSatin = false;
+  bool _showCocukProfil = false;
+  bool _showIlanlarim = false;
+  bool _showKullaniciProfil = false;
+  bool _showKaydedilenler = false;
+  bool _showBildirimler = false;
+  /// Profil panelini aşağı kaydırarak kapatırken biriken dikey ofset.
+  double _profilDragY = 0;
+  CocukProfil _cocukProfil = const CocukProfil();
+  KullaniciProfil _kullaniciProfil = const KullaniciProfil();
+  List<FavoriIlanRef> _favoriler = const [];
+  BildirimAyarlari _bildirimler = const BildirimAyarlari();
+  String? _profilFoto;
   late int _userKredi;
   bool _krediHosBonusGosterildi = false;
   int _ilanlarUnread = 0;
@@ -51,6 +86,45 @@ class _MainShellState extends State<MainShell> {
   _KrediStep _krediStep = _KrediStep.paket;
   _KrediPaket? _seciliPaket;
   bool _odemeYukleniyor = false;
+  _OdemeYontemi _odemeYontemi = _OdemeYontemi.kart;
+  KrediOdemeBildirimi? _sonOdemeBildirimi;
+  List<KrediOdemeBildirimi> _odemeGecmisi = const [];
+  final _odemeGonderen = TextEditingController();
+  final _odemeNot = TextEditingController();
+  final _kartAd = TextEditingController();
+  final _kartNo = TextEditingController();
+  final _kartAy = TextEditingController();
+  final _kartYil = TextEditingController();
+  final _kartCvv = TextEditingController();
+
+  // Mesajlarım sekmesi
+  List<SohbetOzet> _sohbetOzetleri = const [];
+  List<AppBildirim> _bildirimlerInbox = const [];
+  DateTime? _sohbetSonOkuma;
+  Timer? _sohbetTimer;
+
+  bool get _yeniMesajVar {
+    if (_sohbetOzetleri.isEmpty) return false;
+    final son = _sohbetOzetleri.first.lastTime;
+    final okuma = _sohbetSonOkuma;
+    return okuma == null || son.isAfter(okuma);
+  }
+
+  int get _mesajUnreadCount {
+    final bildirim = _bildirimlerInbox.where((b) => !b.read).length;
+    final sohbet = _yeniMesajVar ? 1 : 0;
+    return (bildirim + sohbet).clamp(0, 99);
+  }
+
+  int get _teklifBildirimUnread =>
+      _bildirimlerInbox.where((b) => !b.read && b.isTeklif).length;
+
+  List<AppBildirim> _tekliflerForIlan(int ilanId) => _bildirimlerInbox
+      .where((b) => b.isTeklif && b.ilanId == ilanId)
+      .toList();
+
+  String get _sohbetOkumaKey =>
+      'sohbet_son_okuma_${widget.user.email.trim().toLowerCase()}';
 
   static const List<_KrediPaket> _krediPaketleri = [
     (
@@ -79,10 +153,667 @@ class _MainShellState extends State<MainShell> {
   bool get _isProf =>
       widget.user.userType == 'uzman' || widget.user.userType == 'bakici';
 
+  String get _krediPrefsKey =>
+      krediPrefsKeyFor(widget.user.email, fallback: widget.user.name);
+
+  String get _welcomeGiftKey => '${_krediPrefsKey}_welcome_gift';
+  String get _welcomeDismissKey => '${_krediPrefsKey}_welcome_dismissed';
+
   @override
   void initState() {
     super.initState();
+    // Uzman / bakıcı: 10 hediye · Aile: 3
     _userKredi = _isProf ? 10 : 3;
+    _odemeGonderen.text = widget.user.name;
+    _loadKredi();
+    _loadUserCloud();
+    _loadIlanlarVeFoto();
+    _loadSohbetOzetleri();
+    _sohbetTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _loadSohbetOzetleri(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _sohbetTimer?.cancel();
+    _odemeGonderen.dispose();
+    _odemeNot.dispose();
+    _kartAd.dispose();
+    _kartNo.dispose();
+    _kartAy.dispose();
+    _kartYil.dispose();
+    _kartCvv.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSohbetOzetleri() async {
+    final prefs = await SharedPreferences.getInstance();
+    final okumaRaw = prefs.getString(_sohbetOkumaKey);
+    final results = await Future.wait([
+      loadSohbetOzetleri(widget.user.email),
+      loadBildirimler(),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _sohbetOzetleri = results[0] as List<SohbetOzet>;
+      _bildirimlerInbox = results[1] as List<AppBildirim>;
+      _sohbetSonOkuma =
+          okumaRaw == null ? null : DateTime.tryParse(okumaRaw);
+    });
+  }
+
+  Future<void> _markSohbetOkundu() async {
+    final now = DateTime.now().toUtc();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_sohbetOkumaKey, now.toIso8601String());
+    if (mounted) setState(() => _sohbetSonOkuma = now);
+  }
+
+  void _openSohbet(SohbetOzet o) {
+    final display = o.peerEmail.contains('↔')
+        ? o.peerEmail
+        : o.peerEmail.split('@').first;
+    final kisi = SohbetKisi(
+      ad: display.isEmpty ? o.peerEmail : display,
+      avatar: (display.isNotEmpty ? display.substring(0, 1) : '?').toUpperCase(),
+      avatarColor: MetoColors.primary,
+      isOnline: true,
+      peerEmail: o.peerEmail,
+    );
+    Navigator.of(context)
+        .push(
+      MaterialPageRoute<void>(
+        builder: (_) => SohbetPage(
+          kisi: kisi,
+          myEmail: widget.user.email,
+          sohbetKey: o.sohbetKey,
+        ),
+      ),
+    )
+        .then((_) {
+      _markSohbetOkundu();
+      _loadSohbetOzetleri();
+    });
+  }
+
+  Future<bool> _confirmDeleteBildirim(AppBildirim b) async {
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('Teklifi sil'),
+        content: Text(
+          b.body.isNotEmpty
+              ? '"${b.body}" bildirimini silmek istiyor musunuz?'
+              : 'Bu teklif bildirimini silmek istiyor musunuz?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dCtx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+            ),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (onay != true) return false;
+    try {
+      await deleteBildirim(b.id);
+      if (!mounted) return true;
+      setState(() {
+        _bildirimlerInbox =
+            _bildirimlerInbox.where((x) => x.id != b.id).toList();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Teklif bildirimi silindi')),
+      );
+      return true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString().contains('policy') ||
+                      e.toString().contains('42501')
+                  ? 'Silme yetkisi yok. bildirimler_delete.sql çalıştırın.'
+                  : 'Silinemedi: $e',
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<bool> _confirmDeleteSohbet(SohbetOzet o) async {
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('Sohbeti sil'),
+        content: Text(
+          '${o.peerEmail.split('@').first} ile olan tüm mesajlar silinecek.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dCtx, true),
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444)),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (onay != true) return false;
+    try {
+      await deleteSohbet(o.sohbetKey);
+      if (!mounted) return true;
+      setState(() {
+        _sohbetOzetleri =
+            _sohbetOzetleri.where((x) => x.sohbetKey != o.sohbetKey).toList();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sohbet silindi')),
+      );
+      return true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString().contains('policy') || e.toString().contains('42501')
+                  ? 'Silme yetkisi yok. sohbet_mesajlari_delete.sql çalıştırın.'
+                  : 'Silinemedi: $e',
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<void> _openBildirim(AppBildirim b) async {
+    if (!b.read) {
+      await markBildirimOkundu(b.id);
+      if (mounted) {
+        setState(() {
+          _bildirimlerInbox = [
+            for (final x in _bildirimlerInbox)
+              if (x.id == b.id)
+                AppBildirim(
+                  id: x.id,
+                  ownerEmail: x.ownerEmail,
+                  actorEmail: x.actorEmail,
+                  actorName: x.actorName,
+                  type: x.type,
+                  title: x.title,
+                  body: x.body,
+                  ilanId: x.ilanId,
+                  sohbetKey: x.sohbetKey,
+                  read: true,
+                  createdAt: x.createdAt,
+                )
+              else
+                x,
+          ];
+        });
+      }
+    }
+    final name = b.actorName.isNotEmpty
+        ? b.actorName
+        : b.actorEmail.split('@').first;
+    final kisi = SohbetKisi(
+      ad: name.isEmpty ? b.actorEmail : name,
+      avatar: (name.isNotEmpty ? name.substring(0, 1) : '?').toUpperCase(),
+      avatarColor: MetoColors.primary,
+      isOnline: true,
+      peerEmail: b.actorEmail,
+      ilanId: b.ilanId,
+    );
+    if (!mounted) return;
+    Navigator.of(context)
+        .push(
+      MaterialPageRoute<void>(
+        builder: (_) => SohbetPage(
+          kisi: kisi,
+          myEmail: widget.user.email,
+        ),
+      ),
+    )
+        .then((_) {
+      _markSohbetOkundu();
+      _loadSohbetOzetleri();
+    });
+  }
+
+  Widget _buildMesajlarPage() {
+    final list = _sohbetOzetleri;
+    final bildirimler = _bildirimlerInbox;
+    final unreadBildirim = bildirimler.where((b) => !b.read).length;
+    final empty = list.isEmpty && bildirimler.isEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Mesajlarım',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: MetoColors.foreground,
+                  ),
+                ),
+              ),
+              if (isAppAdmin(widget.user.email))
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: MetoColors.primary,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: const Text(
+                    'Admin',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              if (unreadBildirim > 0)
+                TextButton(
+                  onPressed: () async {
+                    await markAllBildirimlerOkundu();
+                    await _loadSohbetOzetleri();
+                  },
+                  child: const Text('Tümünü okundu'),
+                ),
+              IconButton(
+                tooltip: 'Yenile',
+                onPressed: _loadSohbetOzetleri,
+                icon: const Icon(Icons.refresh, color: MetoColors.primary),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: empty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Text(
+                      'Henüz mesajınız yok.\nBir ilana teklif vererek sohbet başlatabilirsiniz.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: MetoColors.mutedFg,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                )
+              : RefreshIndicator(
+                  color: MetoColors.primary,
+                  onRefresh: _loadSohbetOzetleri,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+                    children: [
+                      if (bildirimler.isNotEmpty) ...[
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(4, 4, 4, 8),
+                          child: Text(
+                            'TEKLİF BİLDİRİMLERİ',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.6,
+                              color: MetoColors.mutedFg,
+                            ),
+                          ),
+                        ),
+                        for (final b in bildirimler) ...[
+                          Dismissible(
+                            key: ValueKey('bildirim_${b.id}'),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 20),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEF4444),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: const Icon(Icons.delete_outline,
+                                  color: Colors.white),
+                            ),
+                            confirmDismiss: (_) => _confirmDeleteBildirim(b),
+                            child: Material(
+                              color: b.read
+                                  ? MetoColors.card
+                                  : const Color(0xFFFFF7ED),
+                              borderRadius: BorderRadius.circular(14),
+                              child: ListTile(
+                                onTap: () => _openBildirim(b),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  side: BorderSide(
+                                    color: b.read
+                                        ? MetoColors.border
+                                        : const Color(0xFFFDBA74),
+                                  ),
+                                ),
+                                leading: CircleAvatar(
+                                  backgroundColor: b.read
+                                      ? MetoColors.muted
+                                      : const Color(0xFFEF4444),
+                                  child: Icon(
+                                    Icons.campaign_outlined,
+                                    color: b.read
+                                        ? MetoColors.mutedFg
+                                        : Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                                title: Text(
+                                  b.title,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: MetoColors.foreground,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  b.body,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: MetoColors.mutedFg,
+                                  ),
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '${b.createdAt.toLocal().hour.toString().padLeft(2, '0')}:${b.createdAt.toLocal().minute.toString().padLeft(2, '0')}',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: MetoColors.mutedFg,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Sil',
+                                      onPressed: () =>
+                                          _confirmDeleteBildirim(b),
+                                      icon: const Icon(
+                                        Icons.delete_outline,
+                                        size: 20,
+                                        color: MetoColors.mutedFg,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                        ],
+                        const SizedBox(height: 8),
+                      ],
+                      if (list.isNotEmpty)
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(4, 4, 4, 8),
+                          child: Text(
+                            'SOHBETLER',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.6,
+                              color: MetoColors.mutedFg,
+                            ),
+                          ),
+                        ),
+                      for (final o in list) ...[
+                        Dismissible(
+                          key: ValueKey(o.sohbetKey),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 20),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(Icons.delete_outline,
+                                color: Colors.white),
+                          ),
+                          confirmDismiss: (_) => _confirmDeleteSohbet(o),
+                          child: Material(
+                            color: MetoColors.card,
+                            borderRadius: BorderRadius.circular(14),
+                            child: ListTile(
+                              onTap: () => _openSohbet(o),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                side: BorderSide(
+                                  color: (_sohbetSonOkuma == null ||
+                                          o.lastTime
+                                              .isAfter(_sohbetSonOkuma!))
+                                      ? MetoColors.primary
+                                          .withValues(alpha: 0.35)
+                                      : MetoColors.border,
+                                ),
+                              ),
+                              leading: CircleAvatar(
+                                backgroundColor:
+                                    (_sohbetSonOkuma == null ||
+                                            o.lastTime
+                                                .isAfter(_sohbetSonOkuma!))
+                                        ? const Color(0xFFEF4444)
+                                        : MetoColors.primary,
+                                child: Text(
+                                  o.peerEmail.isNotEmpty
+                                      ? o.peerEmail
+                                          .substring(0, 1)
+                                          .toUpperCase()
+                                      : '?',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                              title: Text(
+                                o.peerEmail.contains('↔')
+                                    ? o.peerEmail
+                                    : o.peerEmail.split('@').first,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: MetoColors.foreground,
+                                ),
+                              ),
+                              subtitle: Text(
+                                o.lastMsg,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: (_sohbetSonOkuma == null ||
+                                          o.lastTime
+                                              .isAfter(_sohbetSonOkuma!))
+                                      ? FontWeight.w700
+                                      : FontWeight.w400,
+                                  color: (_sohbetSonOkuma == null ||
+                                          o.lastTime
+                                              .isAfter(_sohbetSonOkuma!))
+                                      ? MetoColors.foreground
+                                      : MetoColors.mutedFg,
+                                ),
+                              ),
+                              trailing: Text(
+                                '${o.lastTime.toLocal().hour.toString().padLeft(2, '0')}:${o.lastTime.toLocal().minute.toString().padLeft(2, '0')}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: MetoColors.mutedFg,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                      ],
+                    ],
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _loadUserCloud() async {
+    final cloud = await loadUserCloudProfile(widget.user.email);
+    if (!mounted) return;
+    setState(() {
+      _kullaniciProfil = cloud.profil;
+      _cocukProfil = cloud.cocuk;
+      _profilFoto = cloud.photoData;
+      _favoriler = cloud.favorites;
+      _bildirimler = cloud.notifications;
+    });
+  }
+
+  Future<void> _loadIlanlarVeFoto() async {
+    await loadAllIlanlar(preferEmail: widget.user.email);
+    // Foto _loadUserCloud ile gelir; burada sadece ilanları yenile.
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  Future<void> _persistIlanlar() async {
+    await loadAllIlanlar(preferEmail: widget.user.email);
+    if (mounted) setState(() {});
+  }
+
+  Uint8List? get _profilFotoBytes {
+    final raw = _profilFoto;
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      var data = raw;
+      if (data.contains(',')) data = data.split(',').last;
+      return Uint8List.fromList(base64Decode(data));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _pickProfilFoto() async {
+    final file = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 320,
+      maxHeight: 320,
+      imageQuality: 55,
+    );
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    // ~200KB üstü ise daha agresif küçült (web localStorage / bulut limiti).
+    var mime = file.mimeType ?? 'image/jpeg';
+    var encoded = base64Encode(bytes);
+    if (encoded.length > 220000 && mime != 'image/jpeg') {
+      mime = 'image/jpeg';
+    }
+    final dataUrl = 'data:$mime;base64,$encoded';
+    await upsertUserCloudProfile(
+      email: widget.user.email,
+      photoData: dataUrl,
+    );
+    await saveProfilFoto(widget.user.email, dataUrl);
+    if (!mounted) return;
+    setState(() => _profilFoto = dataUrl);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Profil fotoğrafı kaydedildi ✅')),
+    );
+  }
+
+  Future<void> _removeProfilFoto() async {
+    await upsertUserCloudProfile(
+      email: widget.user.email,
+      clearPhoto: true,
+    );
+    await clearProfilFoto(widget.user.email);
+    if (!mounted) return;
+    setState(() => _profilFoto = null);
+  }
+
+  Future<void> _loadKredi() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = _krediPrefsKey;
+
+    // Uzman/bakıcı ilk kez: 10 hediye kredi tanımla
+    if (_isProf && !prefs.containsKey(_welcomeGiftKey)) {
+      await prefs.setInt(key, 10);
+      await prefs.setBool(_welcomeGiftKey, true);
+      if (mounted) {
+        setState(() {
+          _userKredi = 10;
+          _krediHosBonusGosterildi = prefs.getBool(_welcomeDismissKey) ?? false;
+        });
+      }
+    } else if (prefs.containsKey(key)) {
+      final saved = prefs.getInt(key);
+      if (saved != null && mounted) {
+        setState(() {
+          _userKredi = saved;
+          _krediHosBonusGosterildi =
+              _isProf ? (prefs.getBool(_welcomeDismissKey) ?? false) : true;
+        });
+      }
+    } else {
+      final start = _isProf ? 10 : 3;
+      await prefs.setInt(key, start);
+      if (_isProf) await prefs.setBool(_welcomeGiftKey, true);
+      if (mounted) {
+        setState(() {
+          _userKredi = start;
+          _krediHosBonusGosterildi = !_isProf;
+        });
+      }
+    }
+
+    // Onaylanmış ödeme bildirimlerini krediye çevir (Armut tarzı).
+    final claimed = await claimApprovedKrediOdemeleri();
+    if (claimed > 0 && mounted) {
+      setState(() => _userKredi += claimed);
+      await _saveKredi();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$claimed kredi ödemeniz onaylandı ✅')),
+        );
+      }
+    }
+    final gecmis = await loadKrediOdemeleri();
+    if (mounted) setState(() => _odemeGecmisi = gecmis);
+  }
+
+  Future<void> _saveKredi() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_krediPrefsKey, _userKredi);
   }
 
   void _resetKredi() {
@@ -90,20 +821,164 @@ class _MainShellState extends State<MainShell> {
     _krediStep = _KrediStep.paket;
     _seciliPaket = null;
     _odemeYukleniyor = false;
+    _sonOdemeBildirimi = null;
+    _odemeYontemi = _OdemeYontemi.kart;
+    _odemeNot.clear();
+    _kartNo.clear();
+    _kartAy.clear();
+    _kartYil.clear();
+    _kartCvv.clear();
   }
 
-  void _handleOde() {
+  String _formatKartNo(String raw) {
+    final digits = raw.replaceAll(RegExp(r'\D'), '');
+    final buf = StringBuffer();
+    for (var i = 0; i < digits.length && i < 16; i++) {
+      if (i > 0 && i % 4 == 0) buf.write(' ');
+      buf.write(digits[i]);
+    }
+    return buf.toString();
+  }
+
+  bool _kartFormGecerli() {
+    final no = _kartNo.text.replaceAll(RegExp(r'\D'), '');
+    final ad = _kartAd.text.trim();
+    final ay = int.tryParse(_kartAy.text.trim()) ?? 0;
+    final yil = int.tryParse(_kartYil.text.trim()) ?? 0;
+    final cvv = _kartCvv.text.trim();
+    if (ad.length < 3) return false;
+    if (no.length != 16) return false;
+    if (ay < 1 || ay > 12) return false;
+    if (yil < 26 || yil > 99) return false;
+    if (cvv.length < 3 || cvv.length > 4) return false;
+    return true;
+  }
+
+  Future<void> _handleKartOdeme() async {
     final paket = _seciliPaket;
     if (paket == null) return;
+    if (!_kartFormGecerli()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Kart bilgilerini eksiksiz ve doğru girin'),
+        ),
+      );
+      return;
+    }
+
+    // Kart verisi hiçbir yere yazılmaz; alanlar temizlenir.
+    final kartSahibi = _kartAd.text.trim();
+    _kartNo.clear();
+    _kartAy.clear();
+    _kartYil.clear();
+    _kartCvv.clear();
+
+    if (!PaymentConfig.kartTahsilatHazir) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Kartlı ödeme henüz bağlanmadı'),
+          content: const Text(
+            'Karttan para çekip IBAN hesabınıza yatırmak için '
+            'iyzico veya PayTR üye işyeri hesabı gerekir.\n\n'
+            '• Kullanıcı kartını güvenli ödeme sayfasında girer\n'
+            '• Tutar sizin VakıfBank IBAN’ınıza yatırılır\n'
+            '• Ödeme onayınca kredi otomatik yüklenir\n\n'
+            'Şimdilik havale/EFT ile devam edebilirsiniz. '
+            'iyzico API anahtarlarını verdiğinizde kartlı tahsilatı bağlarız.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                setState(() => _odemeYontemi = _OdemeYontemi.havale);
+              },
+              child: const Text('Havale’ye geç'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Tamam'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Anahtarlar hazır olduğunda burada iyzico Checkout çağrılacak.
     setState(() => _odemeYukleniyor = true);
-    Future<void>.delayed(const Duration(milliseconds: 1200), () {
+    try {
+      final bildirim = await submitKrediOdemeBildirimi(
+        email: widget.user.email,
+        paketAdet: paket.adet,
+        paketFiyat: paket.fiyat,
+        gonderenAd: kartSahibi,
+        notText: 'Kart ile ödeme (bekleyen entegrasyon)',
+      );
+      final gecmis = await loadKrediOdemeleri();
       if (!mounted) return;
       setState(() {
-        _userKredi += paket.adet;
+        _sonOdemeBildirimi = bildirim;
+        _odemeGecmisi = gecmis;
         _odemeYukleniyor = false;
-        _krediStep = _KrediStep.basarili;
+        _krediStep = _KrediStep.beklemede;
       });
-    });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _odemeYukleniyor = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ödeme başlatılamadı: $e')),
+      );
+    }
+  }
+
+  Future<void> _handleOdemeBildirimi() async {
+    final paket = _seciliPaket;
+    if (paket == null) return;
+    final ad = _odemeGonderen.text.trim();
+    if (ad.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Havale yapan kişinin adını yazın')),
+      );
+      return;
+    }
+
+    setState(() => _odemeYukleniyor = true);
+    try {
+      final bildirim = await submitKrediOdemeBildirimi(
+        email: widget.user.email,
+        paketAdet: paket.adet,
+        paketFiyat: paket.fiyat,
+        gonderenAd: ad,
+        notText: _odemeNot.text,
+      );
+      final gecmis = await loadKrediOdemeleri();
+      if (!mounted) return;
+      setState(() {
+        _sonOdemeBildirimi = bildirim;
+        _odemeGecmisi = gecmis;
+        _odemeYukleniyor = false;
+        _krediStep = _KrediStep.beklemede;
+        // Kredi EKLENMEZ — onay sonrası yüklenir.
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _odemeYukleniyor = false);
+      final msg = e.toString();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            msg.contains('kredi_odemeleri') ||
+                    msg.contains('PGRST') ||
+                    msg.contains('schema cache')
+                ? 'Ödeme tablosu henüz yok. Supabase’de kredi_odemeleri.sql çalıştırın.'
+                : 'Bildirim gönderilemedi: $e',
+          ),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
   }
 
   Future<void> _copyIban() async {
@@ -111,6 +986,16 @@ class _MainShellState extends State<MainShell> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('IBAN panoya kopyalandı')),
+    );
+  }
+
+  Future<void> _copyAciklama() async {
+    final ref = _sonOdemeBildirimi?.referansKodu ?? '';
+    final text = 'EngelsizClub $ref ${widget.user.email}'.trim();
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Havale açıklaması kopyalandı')),
     );
   }
 
@@ -129,8 +1014,11 @@ class _MainShellState extends State<MainShell> {
       case MetoTab.ilanlar:
         return IlanlarPage(
           userKredi: _userKredi,
+          userEmail: widget.user.email,
+          userName: widget.user.name,
           onKrediHarca: () => setState(() {
             _userKredi = (_userKredi - 1).clamp(0, 9999);
+            _saveKredi();
           }),
           onUnreadChange: (n) {
             if (_ilanlarUnread == n) return;
@@ -141,9 +1029,16 @@ class _MainShellState extends State<MainShell> {
             _showProfilPanel = true;
             _krediSatin = true;
           }),
+          onIlanlarChanged: _persistIlanlar,
         );
       case MetoTab.forum:
-        return const ForumPage();
+        return ForumPage(
+          userName: widget.user.name,
+          userEmail: widget.user.email,
+          userType: widget.user.userType ?? 'aile',
+        );
+      case MetoTab.mesajlar:
+        return _buildMesajlarPage();
       case MetoTab.haklar:
         return const HaklarPage();
       case MetoTab.kartlar:
@@ -151,93 +1046,250 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
+  void _openProfilPanel() {
+    _loadUserCloud();
+    _loadSohbetOzetleri();
+    setState(() {
+      _profilDragY = 0;
+      _resetKredi();
+      _showProfilPanel = true;
+    });
+  }
+
+  void _closeProfilPanel() {
+    setState(() {
+      _showProfilPanel = false;
+      _showCocukProfil = false;
+      _showIlanlarim = false;
+      _showKullaniciProfil = false;
+      _showKaydedilenler = false;
+      _showBildirimler = false;
+      _profilDragY = 0;
+      _resetKredi();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: MetoColors.background,
-      body: SafeArea(
-        bottom: false,
-        child: Stack(
-          children: [
-            Column(
-              children: [
-                _StatusBar(
-                  initials: _initials,
-                  avatarColor: widget.user.avatarColor,
-                  onAvatarTap: () => setState(() {
-                    _resetKredi();
-                    _showProfilPanel = true;
-                  }),
-                ),
-                Expanded(child: _body),
-                _BottomNav(
-                  active: _activeTab,
-                  ilanlarUnread: _ilanlarUnread,
-                  onSelect: (t) => setState(() {
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              _BrandBar(
+                initials: _initials,
+                avatarColor: widget.user.avatarColor,
+                photoBytes: _profilFotoBytes,
+                notificationBadge:
+                    _teklifBildirimUnread + (_yeniMesajVar ? 1 : 0),
+                onAvatarTap: _openProfilPanel,
+                onMenuTap: _openProfilPanel,
+              ),
+              Expanded(child: _body),
+              _BottomNav(
+                active: _activeTab,
+                ilanlarUnread: _ilanlarUnread,
+                mesajlarUnread: _mesajUnreadCount,
+                onSelect: (t) {
+                  setState(() {
                     _activeTab = t;
                     if (t == MetoTab.ilanlar) _ilanlarUnread = 0;
-                  }),
-                ),
-              ],
-            ),
-            if (_showProfilPanel) _buildProfilOverlay(),
-          ],
-        ),
+                  });
+                  if (t == MetoTab.ilanlar) {
+                    loadAllIlanlar(preferEmail: widget.user.email)
+                        .then((_) {
+                      if (mounted) setState(() {});
+                    });
+                  }
+                  if (t == MetoTab.mesajlar) {
+                    _markSohbetOkundu();
+                    _loadSohbetOzetleri();
+                  }
+                },
+              ),
+            ],
+          ),
+          if (_showProfilPanel) _buildProfilOverlay(),
+        ],
       ),
     );
   }
 
   Widget _buildProfilOverlay() {
+    final screenH = MediaQuery.sizeOf(context).height;
+    final dragProgress = (_profilDragY / 280).clamp(0.0, 1.0);
+    final scrimAlpha = 0.4 * (1 - dragProgress);
+
+    void onDragUpdate(DragUpdateDetails d) {
+      final next = (_profilDragY + d.delta.dy).clamp(0.0, screenH * 0.85);
+      if (next == _profilDragY) return;
+      setState(() => _profilDragY = next);
+    }
+
+    void onDragEnd(DragEndDetails d) {
+      final fling = d.primaryVelocity ?? 0;
+      if (_profilDragY > 110 || fling > 700) {
+        _closeProfilPanel();
+      } else {
+        setState(() => _profilDragY = 0);
+      }
+    }
+
     return Positioned.fill(
       child: Material(
         color: Colors.transparent,
         child: Stack(
           children: [
             GestureDetector(
-              onTap: () => setState(() {
-                _showProfilPanel = false;
-                _resetKredi();
-              }),
-              child: Container(color: Colors.black.withValues(alpha: 0.4)),
+              onTap: _closeProfilPanel,
+              child: Container(color: Colors.black.withValues(alpha: scrimAlpha)),
             ),
             Align(
               alignment: Alignment.bottomCenter,
-              child: Container(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(context).height * 0.9,
-                ),
-                decoration: const BoxDecoration(
-                  color: MetoColors.card,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Color(0x33000000),
-                      blurRadius: 24,
-                      offset: Offset(0, -4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(height: 12),
-                    Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: MetoColors.muted,
-                        borderRadius: BorderRadius.circular(99),
+              child: Transform.translate(
+                offset: Offset(0, _profilDragY),
+                child: Container(
+                  constraints: BoxConstraints(maxHeight: screenH * 0.9),
+                  decoration: const BoxDecoration(
+                    color: MetoColors.card,
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(28)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x33000000),
+                        blurRadius: 24,
+                        offset: Offset(0, -4),
                       ),
-                    ),
-                    Flexible(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
-                        child: _krediSatin
-                            ? _buildKrediSatin()
-                            : _buildProfilMenu(),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onVerticalDragUpdate: onDragUpdate,
+                        onVerticalDragEnd: onDragEnd,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(0, 10, 0, 6),
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 5,
+                                decoration: BoxDecoration(
+                                  color: MetoColors.mutedFg
+                                      .withValues(alpha: 0.35),
+                                  borderRadius: BorderRadius.circular(99),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Aşağı kaydırarak kapat',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: MetoColors.mutedFg
+                                      .withValues(alpha: 0.7),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                      Flexible(
+                        child: NotificationListener<ScrollNotification>(
+                          onNotification: (n) {
+                            if (n is OverscrollNotification &&
+                                n.overscroll < 0 &&
+                                n.metrics.pixels <= 0) {
+                              setState(() {
+                                _profilDragY = (_profilDragY - n.overscroll)
+                                    .clamp(0.0, screenH * 0.85);
+                              });
+                              return false;
+                            }
+                            if (n is ScrollEndNotification &&
+                                _profilDragY > 0) {
+                              onDragEnd(DragEndDetails(
+                                primaryVelocity:
+                                    n.dragDetails?.primaryVelocity,
+                              ));
+                            }
+                            return false;
+                          },
+                          child: SingleChildScrollView(
+                            padding:
+                                const EdgeInsets.fromLTRB(20, 8, 20, 28),
+                            child: _krediSatin
+                                ? _buildKrediSatin()
+                                : _showCocukProfil
+                                    ? _CocukProfilForm(
+                                        initial: _cocukProfil,
+                                        onBack: () => setState(
+                                            () => _showCocukProfil = false),
+                                        onSaved: (p) async {
+                                          await upsertUserCloudProfile(
+                                            email: widget.user.email,
+                                            cocuk: p,
+                                          );
+                                          if (!mounted) return;
+                                          setState(() {
+                                            _cocukProfil = p;
+                                            _showCocukProfil = false;
+                                          });
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                  'Çocuk profili kaydedildi ✅'),
+                                            ),
+                                          );
+                                        },
+                                      )
+                                    : _showIlanlarim
+                                        ? _buildIlanlarim()
+                                        : _showKullaniciProfil
+                                            ? _KullaniciProfilForm(
+                                                initial: _kullaniciProfil,
+                                                role: widget.user.userType ??
+                                                    'aile',
+                                                email: widget.user.email,
+                                                onBack: () => setState(() =>
+                                                    _showKullaniciProfil =
+                                                        false),
+                                                onSaved: (profil) async {
+                                                  await upsertUserCloudProfile(
+                                                    email: widget.user.email,
+                                                    profil: profil,
+                                                  );
+                                                  if (!mounted) return;
+                                                  setState(() {
+                                                    _kullaniciProfil = profil;
+                                                    _showKullaniciProfil =
+                                                        false;
+                                                  });
+                                                  ScaffoldMessenger.of(
+                                                          context)
+                                                      .showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        'Profiliniz kaydedildi ✅',
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              )
+                                            : _showKaydedilenler
+                                                ? _buildKaydedilenler()
+                                                : _showBildirimler
+                                                    ? _buildBildirimler()
+                                                    : _buildProfilMenu(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -246,12 +1298,693 @@ class _MainShellState extends State<MainShell> {
       ),
     );
   }
+  int get _ilanlarimCount => myIlanCount(widget.user.email);
+
+  Widget _buildIlanlarim() {
+    final email = widget.user.email;
+    // Sadece bu kullanıcının ilanları.
+    final entries = <({
+      String kind,
+      int id,
+      String kategori,
+      String emoji,
+      String title,
+      String konum,
+      String fiyat,
+    })>[
+      ...myUzmanIlanlar(email).map((i) => (
+            kind: 'uzman',
+            id: i.id,
+            kategori: 'Uzman',
+            emoji: '🏃',
+            title: i.title,
+            konum: '${i.district.isEmpty ? '' : '${i.district}, '}${i.city}',
+            fiyat: i.budget,
+          )),
+      ...myBakiciIlanlar(email).map((i) => (
+            kind: 'bakici',
+            id: i.id,
+            kategori: 'Bakıcı',
+            emoji: '🤝',
+            title: i.title,
+            konum: '${i.district.isEmpty ? '' : '${i.district}, '}${i.city}',
+            fiyat: i.budget,
+          )),
+      ...myIkincielIlanlar(email).map((i) => (
+            kind: 'ikinciel',
+            id: i.id,
+            kategori: '2. El',
+            emoji: '♻️',
+            title: i.title,
+            konum: '${i.district.isEmpty ? '' : '${i.district}, '}${i.city}',
+            fiyat: i.price,
+          )),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 16, bottom: 16),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: () => setState(() => _showIlanlarim = false),
+                style: IconButton.styleFrom(backgroundColor: MetoColors.muted),
+                icon: const Icon(Icons.arrow_back, size: 18),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'İlanlarım (${entries.length})',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: MetoColors.foreground,
+                  ),
+                ),
+              ),
+              if (_teklifBildirimUnread > 0)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    '$_teklifBildirimUnread teklif',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (_bildirimlerInbox.any((b) => b.isTeklif)) ...[
+          const Text(
+            'TEKLİF BİLDİRİMLERİ',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+              color: MetoColors.mutedFg,
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final b in _bildirimlerInbox.where((x) => x.isTeklif)) ...[
+            Dismissible(
+              key: ValueKey('ilan_bildirim_${b.id}'),
+              direction: DismissDirection.endToStart,
+              background: Container(
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.delete_outline, color: Colors.white),
+              ),
+              confirmDismiss: (_) => _confirmDeleteBildirim(b),
+              child: Material(
+                color:
+                    b.read ? MetoColors.background : const Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(14),
+                child: ListTile(
+                  dense: true,
+                  onTap: () {
+                    setState(() {
+                      _showIlanlarim = false;
+                      _showProfilPanel = false;
+                      _activeTab = MetoTab.mesajlar;
+                    });
+                    _openBildirim(b);
+                  },
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: BorderSide(
+                      color: b.read
+                          ? MetoColors.border
+                          : const Color(0xFFFDBA74),
+                    ),
+                  ),
+                  leading: CircleAvatar(
+                    radius: 16,
+                    backgroundColor:
+                        b.read ? MetoColors.muted : const Color(0xFFEF4444),
+                    child: Text(
+                      b.actorName.isNotEmpty
+                          ? b.actorName.substring(0, 1).toUpperCase()
+                          : '!',
+                      style: TextStyle(
+                        color: b.read ? MetoColors.mutedFg : Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    b.body,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: b.read ? FontWeight.w500 : FontWeight.w800,
+                      color: MetoColors.foreground,
+                    ),
+                  ),
+                  trailing: IconButton(
+                    tooltip: 'Sil',
+                    onPressed: () => _confirmDeleteBildirim(b),
+                    icon: Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: b.read
+                          ? MetoColors.mutedFg
+                          : const Color(0xFFEF4444),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+          ],
+          const SizedBox(height: 12),
+          const Text(
+            'İLANLARIM',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+              color: MetoColors.mutedFg,
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (entries.isEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+            decoration: BoxDecoration(
+              color: MetoColors.muted,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                const Text('📋', style: TextStyle(fontSize: 32)),
+                const SizedBox(height: 12),
+                const Text(
+                  'Henüz ilanınız yok',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: MetoColors.foreground,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'İlanlar sekmesinden "İlan Ver" ile ücretsiz ilan yayınlayabilirsiniz.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: MetoColors.mutedFg,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () => setState(() {
+                    _showIlanlarim = false;
+                    _showProfilPanel = false;
+                    _activeTab = MetoTab.ilanlar;
+                  }),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: MetoColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text(
+                    'İlan Ver',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ...entries.map((e) {
+            final teklifler = _tekliflerForIlan(e.id);
+            final yeniTeklif = teklifler.where((t) => !t.read).length;
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: yeniTeklif > 0
+                    ? const Color(0xFFFFF7ED)
+                    : MetoColors.background,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: yeniTeklif > 0
+                      ? const Color(0xFFFDBA74)
+                      : MetoColors.border,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Text(e.emoji, style: const TextStyle(fontSize: 20)),
+                      if (yeniTeklif > 0)
+                        Positioned(
+                          right: -8,
+                          top: -6,
+                          child: Container(
+                            constraints: const BoxConstraints(minWidth: 16),
+                            height: 16,
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: Text(
+                              '$yeniTeklif',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            _chip(
+                              e.kategori,
+                              MetoColors.selectedBg,
+                              MetoColors.primary,
+                            ),
+                            const SizedBox(width: 6),
+                            _chip(
+                              'Aktif',
+                              const Color(0xFFF0FDF4),
+                              const Color(0xFF15803D),
+                            ),
+                            if (yeniTeklif > 0) ...[
+                              const SizedBox(width: 6),
+                              _chip(
+                                '$yeniTeklif yeni teklif',
+                                const Color(0xFFFEE2E2),
+                                const Color(0xFFDC2626),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          e.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: MetoColors.foreground,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${e.konum} · ${e.fiyat}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: MetoColors.mutedFg,
+                          ),
+                        ),
+                        if (teklifler.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            teklifler.first.body,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: yeniTeklif > 0
+                                  ? FontWeight.w700
+                                  : FontWeight.w400,
+                              color: yeniTeklif > 0
+                                  ? const Color(0xFFC2410C)
+                                  : MetoColors.mutedFg,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (teklifler.isNotEmpty)
+                    IconButton(
+                      tooltip: 'Teklifleri gör',
+                      onPressed: () {
+                        final b = teklifler.first;
+                        setState(() {
+                          _showIlanlarim = false;
+                          _showProfilPanel = false;
+                          _activeTab = MetoTab.mesajlar;
+                        });
+                        _openBildirim(b);
+                      },
+                      icon: const Icon(
+                        Icons.chat_bubble_outline,
+                        color: MetoColors.primary,
+                        size: 18,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  IconButton(
+                    tooltip: 'İlanı sil',
+                    onPressed: () async {
+                      final ok = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('İlanı sil'),
+                          content: Text(
+                            '"${e.title}" ilanını silmek istediğinize emin misiniz?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Vazgeç'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFFDC2626),
+                              ),
+                              child: const Text('Sil'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (ok != true) return;
+                      await deleteUserIlan(
+                        email: widget.user.email,
+                        kind: e.kind,
+                        id: e.id,
+                      );
+                      if (!mounted) return;
+                      setState(() {});
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('İlan silindi')),
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: Color(0xFFDC2626),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _buildKaydedilenler() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 16, bottom: 16),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: () => setState(() => _showKaydedilenler = false),
+                style: IconButton.styleFrom(backgroundColor: MetoColors.muted),
+                icon: const Icon(Icons.arrow_back, size: 18),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Kaydedilenler (${_favoriler.length})',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: MetoColors.foreground,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_favoriler.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: MetoColors.muted,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Column(
+              children: [
+                Text('❤️', style: TextStyle(fontSize: 28)),
+                SizedBox(height: 8),
+                Text(
+                  'Henüz favori ilan yok',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: MetoColors.foreground,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'İlanlar sekmesinde beğendiğiniz ilanı kalp ile kaydedin.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+                ),
+              ],
+            ),
+          )
+        else
+          ..._favoriler.map((f) {
+            final emoji = switch (f.kind) {
+              'bakici' => '🤝',
+              'ikinciel' => '♻️',
+              _ => '🏃',
+            };
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: MetoColors.card,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: MetoColors.border),
+              ),
+              child: Row(
+                children: [
+                  Text(emoji, style: const TextStyle(fontSize: 22)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          f.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: MetoColors.foreground,
+                          ),
+                        ),
+                        if (f.konum.isNotEmpty || f.fiyat.isNotEmpty)
+                          Text(
+                            [
+                              if (f.konum.isNotEmpty) f.konum,
+                              if (f.fiyat.isNotEmpty) f.fiyat,
+                            ].join(' · '),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: MetoColors.mutedFg,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Favoriden çıkar',
+                    onPressed: () async {
+                      final next =
+                          _favoriler.where((e) => e.key != f.key).toList();
+                      await upsertUserCloudProfile(
+                        email: widget.user.email,
+                        favorites: next,
+                      );
+                      if (!mounted) return;
+                      setState(() => _favoriler = next);
+                    },
+                    icon: const Icon(
+                      Icons.favorite,
+                      size: 18,
+                      color: Color(0xFFDC2626),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _buildBildirimler() {
+    Widget toggleRow({
+      required String emoji,
+      required String title,
+      required String sub,
+      required bool value,
+      required ValueChanged<bool> onChanged,
+    }) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: MetoColors.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: MetoColors.border),
+        ),
+        child: Row(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 20)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: MetoColors.foreground,
+                    ),
+                  ),
+                  Text(
+                    sub,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: MetoColors.mutedFg,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch.adaptive(
+              value: value,
+              activeThumbColor: MetoColors.primary,
+              onChanged: onChanged,
+            ),
+          ],
+        ),
+      );
+    }
+
+    Future<void> save(BildirimAyarlari next) async {
+      await upsertUserCloudProfile(
+        email: widget.user.email,
+        notifications: next,
+      );
+      if (!mounted) return;
+      setState(() => _bildirimler = next);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 16, bottom: 16),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: () => setState(() => _showBildirimler = false),
+                style: IconButton.styleFrom(backgroundColor: MetoColors.muted),
+                icon: const Icon(Icons.arrow_back, size: 18),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Bildirimler',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: MetoColors.foreground,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: MetoColors.selectedBg,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Text(
+            _bildirimler.acikSayisi == 0
+                ? 'Tüm bildirimler kapalı. İsterseniz aşağıdan açabilirsiniz.'
+                : 'Tercihleriniz hesabınıza kaydedilir; çıkış yapınca da korunur.',
+            style: const TextStyle(fontSize: 12, color: MetoColors.foreground),
+          ),
+        ),
+        toggleRow(
+          emoji: '📋',
+          title: 'Yeni ilanlar',
+          sub: 'İlginizi çekebilecek ilan bildirimleri',
+          value: _bildirimler.ilanlar,
+          onChanged: (v) => save(_bildirimler.copyWith(ilanlar: v)),
+        ),
+        toggleRow(
+          emoji: '💬',
+          title: 'Mesajlar',
+          sub: 'Teklif ve sohbet bildirimleri',
+          value: _bildirimler.mesajlar,
+          onChanged: (v) => save(_bildirimler.copyWith(mesajlar: v)),
+        ),
+        toggleRow(
+          emoji: '📣',
+          title: 'Duyurular',
+          sub: 'Kampanya ve platform haberleri',
+          value: _bildirimler.duyurular,
+          onChanged: (v) => save(_bildirimler.copyWith(duyurular: v)),
+        ),
+      ],
+    );
+  }
 
   Widget _buildProfilMenu() {
-    final tip =
-        widget.user.userType == 'uzman' || widget.user.userType == 'bakici'
-            ? '💼 Uzman'
-            : '👨‍👩‍👧 Aile';
+    final tip = switch (widget.user.userType) {
+      'uzman' => '💼 Uzman',
+      'bakici' => '🤝 Bakıcı',
+      _ => '👨‍👩‍👧 Aile',
+    };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -259,28 +1992,62 @@ class _MainShellState extends State<MainShell> {
           padding: const EdgeInsets.only(top: 16, bottom: 20),
           child: Row(
             children: [
-              Container(
-                width: 64,
-                height: 64,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: widget.user.avatarColor,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x22000000),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
+              GestureDetector(
+                onTap: _pickProfilFoto,
+                onLongPress: _profilFoto != null ? _removeProfilFoto : null,
+                child: Stack(
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: widget.user.avatarColor,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x22000000),
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                        image: _profilFotoBytes != null
+                            ? DecorationImage(
+                                image: MemoryImage(_profilFotoBytes!),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                      ),
+                      child: _profilFotoBytes == null
+                          ? Text(
+                              _initials,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            )
+                          : null,
+                    ),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: MetoColors.primary,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: const Icon(
+                          Icons.camera_alt,
+                          size: 12,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
                   ],
-                ),
-                child: Text(
-                  _initials,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                  ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -289,7 +2056,9 @@ class _MainShellState extends State<MainShell> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.user.name,
+                      _kullaniciProfil.adSoyad.trim().isEmpty
+                          ? 'Profilinizi tamamlayın'
+                          : _kullaniciProfil.adSoyad.trim(),
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -303,6 +2072,16 @@ class _MainShellState extends State<MainShell> {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 12,
+                        color: MetoColors.mutedFg,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _profilFoto == null
+                          ? 'Fotoğraf eklemek için avatara dokun'
+                          : 'Değiştir: dokun · Kaldır: basılı tut',
+                      style: const TextStyle(
+                        fontSize: 11,
                         color: MetoColors.mutedFg,
                       ),
                     ),
@@ -378,8 +2157,11 @@ class _MainShellState extends State<MainShell> {
                   ),
                 ),
                 IconButton(
-                  onPressed: () =>
-                      setState(() => _krediHosBonusGosterildi = true),
+                  onPressed: () async {
+                    setState(() => _krediHosBonusGosterildi = true);
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool(_welcomeDismissKey, true);
+                  },
                   visualDensity: VisualDensity.compact,
                   style: IconButton.styleFrom(
                     backgroundColor: Colors.white.withValues(alpha: 0.2),
@@ -474,21 +2256,78 @@ class _MainShellState extends State<MainShell> {
           ),
         ),
         const SizedBox(height: 16),
-        ...[
-          ('👶', 'Çocuk Profilim', 'Tanı ve gelişim bilgileri'),
-          ('📋', 'İlanlarım', '2 aktif ilan'),
-          ('❤️', 'Kaydedilenler', '8 ilan favorilendi'),
-          ('🔔', 'Bildirimler', 'Açık'),
-          ('🔒', 'Gizlilik & Güvenlik', 'Ayarlarınız'),
-        ].map(
-          (item) => Padding(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _menuTile(
+            emoji: '👤',
+            label: 'Profilim & Özgeçmişim',
+            sub: _kullaniciProfil.menuSub,
+            onTap: () => setState(() => _showKullaniciProfil = true),
+          ),
+        ),
+        if (widget.user.userType == 'aile' || widget.user.userType == null)
+          Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: _menuTile(
-              emoji: item.$1,
-              label: item.$2,
-              sub: item.$3,
-              onTap: () {},
+              emoji: '👶',
+              label: 'Çocuk Profilim',
+              sub: _cocukProfil.menuSub,
+              onTap: () => setState(() => _showCocukProfil = true),
             ),
+          ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _menuTile(
+            emoji: '📋',
+            label: 'İlanlarım',
+            sub: _teklifBildirimUnread > 0
+                ? '$_teklifBildirimUnread yeni teklif'
+                : (_ilanlarimCount == 0
+                    ? 'Henüz ilanınız yok'
+                    : '$_ilanlarimCount aktif ilan'),
+            badge: _teklifBildirimUnread,
+            highlight: _teklifBildirimUnread > 0,
+            onTap: () {
+              _loadSohbetOzetleri();
+              setState(() => _showIlanlarim = true);
+            },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _menuTile(
+            emoji: '❤️',
+            label: 'Kaydedilenler',
+            sub: _favoriler.isEmpty
+                ? 'Henüz favori yok'
+                : '${_favoriler.length} ilan favorilendi',
+            onTap: () => setState(() => _showKaydedilenler = true),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _menuTile(
+            emoji: '🔔',
+            label: 'Bildirimler',
+            sub: _bildirimler.menuSub,
+            onTap: () => setState(() => _showBildirimler = true),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _menuTile(
+            emoji: '🔒',
+            label: 'Gizlilik & Güvenlik',
+            sub: 'Ayarlarınız',
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Hesabınız Supabase ile korunuyor. İletişim bilgileri ilanlarda gizlenir.',
+                  ),
+                ),
+              );
+            },
           ),
         ),
         Padding(
@@ -507,7 +2346,15 @@ class _MainShellState extends State<MainShell> {
           sub: null,
           danger: true,
           onTap: () {
-            setState(() => _showProfilPanel = false);
+            setState(() {
+              _showProfilPanel = false;
+              _showCocukProfil = false;
+              _showIlanlarim = false;
+              _showKullaniciProfil = false;
+              _showKaydedilenler = false;
+              _showBildirimler = false;
+            });
+            clearRuntimeIlanlar();
             widget.onLogout();
           },
         ),
@@ -547,8 +2394,8 @@ class _MainShellState extends State<MainShell> {
               Text(
                 switch (_krediStep) {
                   _KrediStep.paket => 'Kredi Yükle',
-                  _KrediStep.odeme => 'Havale / EFT',
-                  _KrediStep.basarili => 'Ödeme Başarılı',
+                  _KrediStep.odeme => 'Ödeme Bildirimi',
+                  _KrediStep.beklemede => 'İnceleniyor',
                 },
                 style: const TextStyle(
                   fontSize: 16,
@@ -556,7 +2403,7 @@ class _MainShellState extends State<MainShell> {
                   color: MetoColors.foreground,
                 ),
               ),
-              if (_krediStep != _KrediStep.basarili) ...[
+              if (_krediStep != _KrediStep.beklemede) ...[
                 const Spacer(),
                 Text(
                   _krediStep == _KrediStep.paket ? '1/2' : '2/2',
@@ -572,7 +2419,7 @@ class _MainShellState extends State<MainShell> {
         ),
         if (_krediStep == _KrediStep.paket) _buildKrediPaketStep(),
         if (_krediStep == _KrediStep.odeme) _buildKrediOdemeStep(),
-        if (_krediStep == _KrediStep.basarili) _buildKrediBasariliStep(),
+        if (_krediStep == _KrediStep.beklemede) _buildKrediBeklemedeStep(),
       ],
     );
   }
@@ -719,17 +2566,36 @@ class _MainShellState extends State<MainShell> {
             Text('🏦', style: TextStyle(fontSize: 14)),
             SizedBox(width: 6),
             Text(
-              'Havale / EFT ile güvenli ödeme',
+              'Havale / EFT · Ödeme bildirimi ile yükleme',
               style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
             ),
           ],
         ),
         const SizedBox(height: 8),
         const Text(
-          'Ödeme IBAN hesabına yapılır. Kredi satın alındıktan sonra iade edilmez.',
+          'Ödeme yaptıktan sonra bildirim gönderin. Krediniz onaydan sonra tanımlanır — anında eklenmez.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 11, color: MetoColors.mutedFg),
         ),
+        if (_odemeGecmisi.any((e) => e.isBeklemede)) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+            ),
+            child: Text(
+              '${_odemeGecmisi.where((e) => e.isBeklemede).length} ödeme bildiriminiz inceleniyor. Onaylanınca krediniz otomatik eklenir.',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF92400E),
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -737,6 +2603,15 @@ class _MainShellState extends State<MainShell> {
   Widget _buildKrediOdemeStep() {
     final paket = _seciliPaket;
     if (paket == null) return const SizedBox.shrink();
+    final dec = InputDecoration(
+      filled: true,
+      fillColor: MetoColors.muted,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -785,7 +2660,247 @@ class _MainShellState extends State<MainShell> {
             ],
           ),
         ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFECFDF5),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFA7F3D0)),
+          ),
+          child: const Text(
+            'Karttan çekilen tutar üye işyeri hesabınıza '
+            '(VakıfBank · $_krediIbanGosterim) yatırılır. '
+            'Kart numarası uygulamada saklanmaz.',
+            style: TextStyle(
+              fontSize: 12,
+              color: Color(0xFF065F46),
+              height: 1.4,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _odemeYontemChip(
+                selected: _odemeYontemi == _OdemeYontemi.kart,
+                icon: Icons.credit_card,
+                label: 'Kart ile öde',
+                onTap: () =>
+                    setState(() => _odemeYontemi = _OdemeYontemi.kart),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _odemeYontemChip(
+                selected: _odemeYontemi == _OdemeYontemi.havale,
+                icon: Icons.account_balance,
+                label: 'Havale / EFT',
+                onTap: () =>
+                    setState(() => _odemeYontemi = _OdemeYontemi.havale),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        if (_odemeYontemi == _OdemeYontemi.kart)
+          _buildKartOdemeForm(dec)
+        else
+          _buildHavaleOdemeForm(dec),
+      ],
+    );
+  }
+
+  Widget _odemeYontemChip({
+    required bool selected,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: selected
+          ? MetoColors.primary.withValues(alpha: 0.12)
+          : MetoColors.muted,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? MetoColors.primary : MetoColors.border,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon,
+                  size: 18,
+                  color: selected ? MetoColors.primary : MetoColors.mutedFg),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: selected ? MetoColors.primary : MetoColors.foreground,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildKartOdemeForm(InputDecoration dec) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'KART BİLGİLERİ',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.8,
+            color: MetoColors.mutedFg,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _kartAd,
+          textCapitalization: TextCapitalization.words,
+          decoration: dec.copyWith(hintText: 'Kart üzerindeki ad soyad'),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _kartNo,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(16),
+            TextInputFormatter.withFunction((oldValue, newValue) {
+              final formatted = _formatKartNo(newValue.text);
+              return TextEditingValue(
+                text: formatted,
+                selection: TextSelection.collapsed(offset: formatted.length),
+              );
+            }),
+          ],
+          decoration: dec.copyWith(hintText: 'Kart numarası'),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _kartAy,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(2),
+                ],
+                decoration: dec.copyWith(hintText: 'Ay (MM)'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _kartYil,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(2),
+                ],
+                decoration: dec.copyWith(hintText: 'Yıl (YY)'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _kartCvv,
+                keyboardType: TextInputType.number,
+                obscureText: true,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(4),
+                ],
+                decoration: dec.copyWith(hintText: 'CVV'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFF6FF),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFBFDBFE)),
+          ),
+          child: Text(
+            PaymentConfig.kartTahsilatHazir
+                ? 'Ödeme iyzico üzerinden güvenli şekilde alınır; tutar IBAN hesabınıza aktarılır.'
+                : 'Gerçek tahsilat için iyzico/PayTR bağlantısı gerekir. Anahtarlar eklenene kadar “Öde” size havale seçeneğini de gösterir.',
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF1E3A8A),
+              height: 1.4,
+            ),
+          ),
+        ),
         const SizedBox(height: 16),
+        FilledButton(
+          onPressed: _odemeYukleniyor ? null : _handleKartOdeme,
+          style: FilledButton.styleFrom(
+            backgroundColor: MetoColors.primary,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: MetoColors.primary.withValues(alpha: 0.4),
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: _odemeYukleniyor
+              ? const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(width: 10),
+                    Text('İşleniyor...',
+                        style: TextStyle(fontWeight: FontWeight.w800)),
+                  ],
+                )
+              : Text(
+                  'Kart ile ${_seciliPaket?.fiyat ?? ''} Öde',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Kart bilgileri cihazdan çıkmaz; sunucuya kaydedilmez.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 10, color: MetoColors.mutedFg),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHavaleOdemeForm(InputDecoration dec) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -797,7 +2912,7 @@ class _MainShellState extends State<MainShell> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'HAVALE / EFT BİLGİLERİ',
+                'HAVALE BİLGİLERİ',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
@@ -805,38 +2920,30 @@ class _MainShellState extends State<MainShell> {
                   color: MetoColors.mutedFg,
                 ),
               ),
-              const SizedBox(height: 14),
-              const Text(
-                'Alıcı Adı',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: MetoColors.mutedFg,
-                ),
-              ),
+              const SizedBox(height: 10),
+              const Text('Banka',
+                  style: TextStyle(fontSize: 12, color: MetoColors.mutedFg)),
+              const Text(_krediBanka,
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: MetoColors.foreground)),
+              const SizedBox(height: 8),
+              const Text('Alıcı',
+                  style: TextStyle(fontSize: 12, color: MetoColors.mutedFg)),
+              const Text(_krediAliciAd,
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: MetoColors.foreground)),
+              const SizedBox(height: 8),
+              const Text('IBAN',
+                  style: TextStyle(fontSize: 12, color: MetoColors.mutedFg)),
               const SizedBox(height: 4),
-              const Text(
-                _krediAliciAd,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: MetoColors.foreground,
-                ),
-              ),
-              const SizedBox(height: 14),
-              const Text(
-                'IBAN',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: MetoColors.mutedFg,
-                ),
-              ),
-              const SizedBox(height: 6),
               Container(
                 width: double.infinity,
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: MetoColors.muted,
                   borderRadius: BorderRadius.circular(12),
@@ -850,7 +2957,6 @@ class _MainShellState extends State<MainShell> {
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
                           color: MetoColors.foreground,
-                          letterSpacing: 0.3,
                         ),
                       ),
                     ),
@@ -867,25 +2973,39 @@ class _MainShellState extends State<MainShell> {
                   ],
                 ),
               ),
-              const SizedBox(height: 14),
-              const Text(
-                'Açıklama',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: MetoColors.mutedFg,
-                ),
-              ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               Text(
-                'EngelsizClub kredi · ${widget.user.email}',
+                'Açıklama: EngelsizClub · ${widget.user.email}',
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: MetoColors.foreground,
                 ),
               ),
             ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        const Text(
+          'ÖDEME BİLDİRİMİ',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.8,
+            color: MetoColors.mutedFg,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _odemeGonderen,
+          decoration: dec.copyWith(hintText: 'Havale yapan ad soyad'),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _odemeNot,
+          maxLines: 2,
+          decoration: dec.copyWith(
+            hintText: 'Opsiyonel not (dekont no, saat vb.)',
           ),
         ),
         const SizedBox(height: 12),
@@ -897,7 +3017,7 @@ class _MainShellState extends State<MainShell> {
             border: Border.all(color: const Color(0xFFFDE68A)),
           ),
           child: const Text(
-            'Lütfen seçtiğiniz paket tutarını yukarıdaki IBAN hesabına havale/EFT yapın. Açıklama kısmına e-posta adresinizi yazın.',
+            'Önce havale/EFT yapın, sonra bildirimi gönderin. Krediniz anında eklenmez; ekip onaylayınca hesabınıza yüklenir.',
             style: TextStyle(
               fontSize: 12,
               color: Color(0xFF92400E),
@@ -907,7 +3027,7 @@ class _MainShellState extends State<MainShell> {
         ),
         const SizedBox(height: 16),
         FilledButton(
-          onPressed: _odemeYukleniyor ? null : _handleOde,
+          onPressed: _odemeYukleniyor ? null : _handleOdemeBildirimi,
           style: FilledButton.styleFrom(
             backgroundColor: MetoColors.primary,
             foregroundColor: Colors.white,
@@ -931,19 +3051,19 @@ class _MainShellState extends State<MainShell> {
                     ),
                     SizedBox(width: 10),
                     Text(
-                      'Onaylanıyor...',
+                      'Bildirim gönderiliyor...',
                       style: TextStyle(fontWeight: FontWeight.w800),
                     ),
                   ],
                 )
-              : Text(
-                  'Ödemeyi Yaptım · ${paket.adet} Kredi Al',
-                  style: const TextStyle(fontWeight: FontWeight.w800),
+              : const Text(
+                  'Ödemeyi Yaptım · Bildirim Gönder',
+                  style: TextStyle(fontWeight: FontWeight.w800),
                 ),
         ),
         const SizedBox(height: 8),
         const Text(
-          'Ödeme hesabınıza ulaştıktan sonra krediniz tanımlanır.',
+          'Sahte bildirimler reddedilir. Ödeme görünmeden kredi tanımlanmaz.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 10, color: MetoColors.mutedFg),
         ),
@@ -951,28 +3071,28 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
-  Widget _buildKrediBasariliStep() {
+  Widget _buildKrediBeklemedeStep() {
     final paket = _seciliPaket;
-    if (paket == null) return const SizedBox.shrink();
+    final ref = _sonOdemeBildirimi?.referansKodu ?? '—';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 24),
+        const SizedBox(height: 12),
         Center(
           child: Container(
             width: 80,
             height: 80,
             alignment: Alignment.center,
             decoration: const BoxDecoration(
-              color: Color(0xFFDCFCE7),
+              color: Color(0xFFFFF7ED),
               shape: BoxShape.circle,
             ),
-            child: const Text('✅', style: TextStyle(fontSize: 36)),
+            child: const Text('⏳', style: TextStyle(fontSize: 36)),
           ),
         ),
         const SizedBox(height: 16),
         const Text(
-          'Ödeme Başarılı!',
+          'Ödeme bildiriminiz alındı',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 20,
@@ -980,43 +3100,73 @@ class _MainShellState extends State<MainShell> {
             color: MetoColors.foreground,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Text(
-          '${paket.adet} kredi hesabınıza eklendi.\nÖdemeniz $_krediAliciAd IBAN hesabına yönlendirildi.',
+          paket == null
+              ? 'Ekibimiz havale kaydını kontrol ediyor.'
+              : '${paket.adet} kredi / ${paket.fiyat} için bildiriminiz inceleniyor.\nOnaylanınca krediniz otomatik eklenir.',
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 14, color: MetoColors.mutedFg),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: MetoColors.muted,
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Column(
             children: [
               const Text(
-                'Yeni bakiyeniz',
-                style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
+                'Referans kodu',
+                style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
               ),
+              const SizedBox(height: 4),
               Text(
-                '🪙 $_userKredi kredi',
+                ref,
                 style: const TextStyle(
-                  fontSize: 20,
+                  fontSize: 22,
                   fontWeight: FontWeight.w800,
                   color: MetoColors.primary,
+                  letterSpacing: 1.2,
                 ),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: _copyAciklama,
+                icon: const Icon(Icons.copy, size: 16),
+                label: const Text('Açıklamayı kopyala'),
               ),
             ],
           ),
         ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFF6FF),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFBFDBFE)),
+          ),
+          child: const Text(
+            'Genelde birkaç saat içinde sonuçlanır. Uygulamayı yenilediğinizde onaylanmış krediler bakiyenize yansır.',
+            style: TextStyle(
+              fontSize: 12,
+              color: Color(0xFF1E3A8A),
+              height: 1.4,
+            ),
+          ),
+        ),
         const SizedBox(height: 20),
         FilledButton(
-          onPressed: () => setState(() {
-            _resetKredi();
-            _showProfilPanel = false;
-          }),
+          onPressed: () async {
+            await _loadKredi();
+            if (!mounted) return;
+            setState(() {
+              _resetKredi();
+              _showProfilPanel = false;
+            });
+          },
           style: FilledButton.styleFrom(
             backgroundColor: MetoColors.primary,
             foregroundColor: Colors.white,
@@ -1033,7 +3183,6 @@ class _MainShellState extends State<MainShell> {
       ],
     );
   }
-
   Widget _chip(String text, Color bg, Color fg) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -1059,6 +3208,7 @@ class _MainShellState extends State<MainShell> {
     required VoidCallback onTap,
     bool danger = false,
     bool highlight = false,
+    int badge = 0,
   }) {
     return Material(
       color: danger
@@ -1084,7 +3234,35 @@ class _MainShellState extends State<MainShell> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 20)),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Text(emoji, style: const TextStyle(fontSize: 20)),
+                  if (badge > 0)
+                    Positioned(
+                      right: -8,
+                      top: -6,
+                      child: Container(
+                        constraints: const BoxConstraints(minWidth: 16),
+                        height: 16,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          badge > 9 ? '9+' : '$badge',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -1121,6 +3299,601 @@ class _MainShellState extends State<MainShell> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _KullaniciProfilForm extends StatefulWidget {
+  const _KullaniciProfilForm({
+    required this.initial,
+    required this.role,
+    required this.email,
+    required this.onBack,
+    required this.onSaved,
+  });
+
+  final KullaniciProfil initial;
+  final String role;
+  final String email;
+  final VoidCallback onBack;
+  final ValueChanged<KullaniciProfil> onSaved;
+
+  @override
+  State<_KullaniciProfilForm> createState() => _KullaniciProfilFormState();
+}
+
+class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
+  late final TextEditingController _adSoyad;
+  late final TextEditingController _meslek;
+  late final TextEditingController _egitim;
+  late final TextEditingController _deneyim;
+  late final TextEditingController _uzmanliklar;
+  late final TextEditingController _sertifikalar;
+  late final TextEditingController _calismaSekli;
+  late final TextEditingController _hakkimda;
+  String? _sehir;
+  String? _ilce;
+  bool _saving = false;
+
+  bool get _isUzman => widget.role == 'uzman';
+  bool get _isBakici => widget.role == 'bakici';
+  bool get _isAile => !_isUzman && !_isBakici;
+
+  String get _roleLabel => _isUzman
+      ? 'Uzman'
+      : _isBakici
+          ? 'Bakıcı'
+          : 'Aile';
+
+  List<String> get _ilceler {
+    final city = _sehir;
+    if (city == null) return const [];
+    return kTurkishCities[city]
+            ?.ilceler
+            .where((item) => item != kAllIlceler)
+            .toList() ??
+        const [];
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.initial;
+    _adSoyad = TextEditingController(text: p.adSoyad);
+    _meslek = TextEditingController(text: p.meslek);
+    _egitim = TextEditingController(text: p.egitim);
+    _deneyim = TextEditingController(text: p.deneyimYili);
+    _uzmanliklar = TextEditingController(text: p.uzmanliklar);
+    _sertifikalar = TextEditingController(text: p.sertifikalar);
+    _calismaSekli = TextEditingController(text: p.calismaSekli);
+    _hakkimda = TextEditingController(text: p.hakkimda);
+    _sehir = p.sehir.isEmpty ? null : p.sehir;
+    _ilce = p.ilce.isEmpty ? null : p.ilce;
+  }
+
+  @override
+  void dispose() {
+    _adSoyad.dispose();
+    _meslek.dispose();
+    _egitim.dispose();
+    _deneyim.dispose();
+    _uzmanliklar.dispose();
+    _sertifikalar.dispose();
+    _calismaSekli.dispose();
+    _hakkimda.dispose();
+    super.dispose();
+  }
+
+  InputDecoration _dec(String hint) => InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: MetoColors.mutedFg, fontSize: 14),
+        filled: true,
+        fillColor: MetoColors.background,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: MetoColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: MetoColors.border),
+        ),
+      );
+
+  Widget _label(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(
+          text.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: MetoColors.mutedFg,
+            letterSpacing: 0.4,
+          ),
+        ),
+      );
+
+  Widget _field(
+    String label,
+    TextEditingController controller,
+    String hint, {
+    int maxLines = 1,
+    TextInputType? keyboardType,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _label(label),
+          TextField(
+            controller: controller,
+            maxLines: maxLines,
+            keyboardType: keyboardType,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: _dec(hint),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    if (_adSoyad.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lütfen ad ve soyadınızı girin')),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    widget.onSaved(KullaniciProfil(
+      adSoyad: _adSoyad.text.trim(),
+      sehir: _sehir ?? '',
+      ilce: _ilce ?? '',
+      meslek: _meslek.text.trim(),
+      egitim: _egitim.text.trim(),
+      deneyimYili: _deneyim.text.trim(),
+      uzmanliklar: _uzmanliklar.text.trim(),
+      sertifikalar: _sertifikalar.text.trim(),
+      calismaSekli: _calismaSekli.text.trim(),
+      hakkimda: _hakkimda.text.trim(),
+    ));
+    if (mounted) setState(() => _saving = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 16, bottom: 16),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: widget.onBack,
+                style: IconButton.styleFrom(backgroundColor: MetoColors.muted),
+                icon: const Icon(Icons.arrow_back, size: 18),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '$_roleLabel Profili & Özgeçmiş',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: MetoColors.foreground,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(12),
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: MetoColors.selectedBg,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            'Profiliniz başlangıçta boştur. Bilgileri siz doldurur ve istediğiniz zaman güncellersiniz.',
+            style: const TextStyle(
+              fontSize: 12,
+              color: MetoColors.primary,
+              height: 1.4,
+            ),
+          ),
+        ),
+        _field('Ad Soyad', _adSoyad, 'Adınız ve soyadınız'),
+        _label('E-posta'),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+          margin: const EdgeInsets.only(bottom: 14),
+          decoration: BoxDecoration(
+            color: MetoColors.muted,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            widget.email,
+            style: const TextStyle(fontSize: 14, color: MetoColors.mutedFg),
+          ),
+        ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _label('İl'),
+                  DropdownButtonFormField<String>(
+                    initialValue: _sehir,
+                    isExpanded: true,
+                    decoration: _dec('İl seçin'),
+                    items: kCityNames
+                        .map((city) =>
+                            DropdownMenuItem(value: city, child: Text(city)))
+                        .toList(),
+                    onChanged: (value) => setState(() {
+                      _sehir = value;
+                      _ilce = null;
+                    }),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _label('İlçe'),
+                  DropdownButtonFormField<String>(
+                    key: ValueKey('$_sehir-$_ilce'),
+                    initialValue: _ilce,
+                    isExpanded: true,
+                    decoration: _dec(_sehir == null ? 'Önce il' : 'İlçe seçin'),
+                    items: _ilceler
+                        .map((district) => DropdownMenuItem(
+                              value: district,
+                              child: Text(district),
+                            ))
+                        .toList(),
+                    onChanged: _sehir == null
+                        ? null
+                        : (value) => setState(() => _ilce = value),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        if (_isUzman) ...[
+          _field('Meslek / Uzmanlık Unvanı', _meslek,
+              'Örn. Fizyoterapist, Dil Terapisti'),
+          _field('Eğitim', _egitim, 'Okul, bölüm ve mezuniyet yılı'),
+          _field('Deneyim', _deneyim, 'Örn. 8 yıl'),
+          _field('Çalışma Alanları', _uzmanliklar,
+              'Tanılar, terapi ve uzmanlık alanları',
+              maxLines: 3),
+          _field('Sertifikalar', _sertifikalar, 'Sertifika ve eğitimleri yazın',
+              maxLines: 3),
+          _field('Çalışma Şekli', _calismaSekli,
+              'Evde, merkezde, online; uygun gün ve saatler'),
+        ] else if (_isBakici) ...[
+          _field('Mesleki Tanım', _meslek,
+              'Örn. Özel gereksinimli çocuk bakıcısı'),
+          _field('Eğitim', _egitim, 'Okul ve alınan eğitimler'),
+          _field('Deneyim', _deneyim, 'Örn. 5 yıl'),
+          _field('Deneyim Alanları', _uzmanliklar,
+              'Çalıştığınız yaş grupları ve tanılar',
+              maxLines: 3),
+          _field('Sertifikalar', _sertifikalar,
+              'İlk yardım ve bakım sertifikaları',
+              maxLines: 3),
+          _field('Çalışma Tercihi', _calismaSekli,
+              'Tam/yarı zamanlı, yatılı, uygun günler'),
+        ] else ...[
+          _field('Aile / Veli Bilgisi', _meslek,
+              'Örn. Anne, baba veya yasal vasi'),
+          _field('Aradığınız Destek', _uzmanliklar,
+              'Uzman, bakım veya eğitim ihtiyaçlarınız',
+              maxLines: 3),
+          _field(
+              'Tercihler', _calismaSekli, 'Uygun gün, saat ve çalışma şekli'),
+        ],
+        _field(
+          'Hakkımda',
+          _hakkimda,
+          _isAile
+              ? 'Ailenizi ve beklentilerinizi kısaca tanıtın'
+              : 'Kendinizi ve mesleki yaklaşımınızı tanıtın',
+          maxLines: 5,
+        ),
+        const SizedBox(height: 6),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          style: FilledButton.styleFrom(
+            backgroundColor: MetoColors.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: Text(
+            _saving ? 'Kaydediliyor...' : 'Profili Kaydet',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CocukProfilForm extends StatefulWidget {
+  const _CocukProfilForm({
+    required this.initial,
+    required this.onBack,
+    required this.onSaved,
+  });
+
+  final CocukProfil initial;
+  final VoidCallback onBack;
+  final ValueChanged<CocukProfil> onSaved;
+
+  @override
+  State<_CocukProfilForm> createState() => _CocukProfilFormState();
+}
+
+class _CocukProfilFormState extends State<_CocukProfilForm> {
+  late final TextEditingController _ad;
+  late final TextEditingController _dogum;
+  late final TextEditingController _not;
+  late final TextEditingController _terapi;
+  late String _cinsiyet;
+  late List<String> _tanilar;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.initial;
+    _ad = TextEditingController(text: p.ad);
+    _dogum = TextEditingController(text: p.dogumTarihi);
+    _not = TextEditingController(text: p.gelisimNotu);
+    _terapi = TextEditingController(text: p.terapiler);
+    _cinsiyet = p.cinsiyet;
+    _tanilar = List<String>.from(p.tanilar);
+  }
+
+  @override
+  void dispose() {
+    _ad.dispose();
+    _dogum.dispose();
+    _not.dispose();
+    _terapi.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final initial = DateTime.tryParse(_dogum.text) ??
+        DateTime(now.year - 5, now.month, now.day);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial.isAfter(now) ? now : initial,
+      firstDate: DateTime(now.year - 25),
+      lastDate: now,
+      helpText: 'Doğum tarihi',
+      cancelText: 'İptal',
+      confirmText: 'Seç',
+    );
+    if (picked == null) return;
+    setState(() {
+      _dogum.text =
+          '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+    });
+  }
+
+  Future<void> _save() async {
+    final ad = _ad.text.trim();
+    if (ad.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lütfen çocuğun adını girin')),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    final profil = CocukProfil(
+      ad: ad,
+      dogumTarihi: _dogum.text.trim(),
+      cinsiyet: _cinsiyet,
+      tanilar: List<String>.from(_tanilar),
+      gelisimNotu: _not.text.trim(),
+      terapiler: _terapi.text.trim(),
+    );
+    widget.onSaved(profil);
+    if (mounted) setState(() => _saving = false);
+  }
+
+  InputDecoration _dec(String hint) => InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: MetoColors.mutedFg, fontSize: 14),
+        filled: true,
+        fillColor: MetoColors.background,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: MetoColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: MetoColors.border),
+        ),
+      );
+
+  Widget _label(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(
+          text.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: MetoColors.mutedFg,
+            letterSpacing: 0.4,
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 16, bottom: 16),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: widget.onBack,
+                style: IconButton.styleFrom(backgroundColor: MetoColors.muted),
+                icon: const Icon(Icons.arrow_back, size: 18),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Çocuk Profilim',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: MetoColors.foreground,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: MetoColors.selectedBg,
+            borderRadius: BorderRadius.circular(12),
+            border:
+                Border.all(color: MetoColors.primary.withValues(alpha: 0.2)),
+          ),
+          child: const Text(
+            'Tanı ve gelişim bilgileri yalnızca sizin hesabınızda saklanır; ilan ve tekliflerde otomatik paylaşılmaz.',
+            style: TextStyle(
+              fontSize: 12,
+              color: MetoColors.primary,
+              height: 1.4,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        _label('Çocuk adı'),
+        TextField(
+          controller: _ad,
+          textCapitalization: TextCapitalization.words,
+          decoration: _dec('Örn. Elif'),
+        ),
+        const SizedBox(height: 14),
+        _label('Doğum tarihi'),
+        TextField(
+          controller: _dogum,
+          readOnly: true,
+          onTap: _pickDate,
+          decoration: _dec('Tarih seçin').copyWith(
+            suffixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
+          ),
+        ),
+        const SizedBox(height: 14),
+        _label('Cinsiyet'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: kCocukCinsiyetSecenekleri.map((c) {
+            final active = _cinsiyet == c;
+            return ChoiceChip(
+              label: Text(c),
+              selected: active,
+              onSelected: (_) => setState(() => _cinsiyet = c),
+              selectedColor: MetoColors.primary,
+              labelStyle: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: active ? Colors.white : MetoColors.foreground,
+              ),
+              backgroundColor: MetoColors.muted,
+              side: BorderSide.none,
+              showCheckmark: false,
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 14),
+        _label('Tanı(lar)'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: kCocukTaniSecenekleri.map((t) {
+            final active = _tanilar.contains(t);
+            return FilterChip(
+              label: Text(t),
+              selected: active,
+              onSelected: (v) => setState(() {
+                if (v) {
+                  _tanilar.add(t);
+                } else {
+                  _tanilar.remove(t);
+                }
+              }),
+              selectedColor: MetoColors.primary,
+              checkmarkColor: Colors.white,
+              labelStyle: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: active ? Colors.white : MetoColors.foreground,
+              ),
+              backgroundColor: MetoColors.muted,
+              side: BorderSide.none,
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 14),
+        _label('Devam eden terapiler'),
+        TextField(
+          controller: _terapi,
+          decoration: _dec('Örn. Fizyoterapi, ABA, dil terapisi'),
+        ),
+        const SizedBox(height: 14),
+        _label('Gelişim notları'),
+        TextField(
+          controller: _not,
+          maxLines: 4,
+          decoration: _dec('Gözlemleriniz, hedefler, önemli notlar...'),
+        ),
+        const SizedBox(height: 20),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          style: FilledButton.styleFrom(
+            backgroundColor: MetoColors.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: Text(
+            _saving ? 'Kaydediliyor...' : 'Kaydet',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1489,33 +4262,55 @@ class _IletisimSheetState extends State<_IletisimSheet> {
   }
 }
 
-class _StatusBar extends StatelessWidget {
-  const _StatusBar({
+class _BrandBar extends StatelessWidget {
+  const _BrandBar({
     required this.initials,
     required this.avatarColor,
     required this.onAvatarTap,
+    required this.onMenuTap,
+    this.photoBytes,
+    this.notificationBadge = 0,
   });
 
   final String initials;
   final Color avatarColor;
   final VoidCallback onAvatarTap;
+  final VoidCallback onMenuTap;
+  final Uint8List? photoBytes;
+  final int notificationBadge;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+    final topInset = MediaQuery.paddingOf(context).top;
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(16, topInset + 10, 12, 12),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF0D2B1F), Color(0xFF1A6B4A)],
+        ),
+      ),
       child: Row(
         children: [
           Container(
-            width: 20,
-            height: 20,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+              ],
             ),
             clipBehavior: Clip.antiAlias,
             child: Transform.translate(
-              offset: const Offset(0, 2),
+              offset: const Offset(0, 3),
               child: Transform.scale(
                 scale: 1.5,
                 child: Image.asset(
@@ -1525,46 +4320,84 @@ class _StatusBar extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 6),
-          const Text(
-            '9:41',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: MetoColors.foreground,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Engelsiz Club',
+              style: GoogleFonts.nunito(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+                height: 1.25,
+                letterSpacing: -0.4,
+              ),
             ),
           ),
-          const Spacer(),
-          const Text(
-            '●●●',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: MetoColors.foreground,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(width: 12),
           GestureDetector(
             onTap: onAvatarTap,
-            child: Container(
-              width: 28,
-              height: 28,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: avatarColor,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white70, width: 2),
-              ),
-              child: Text(
-                initials,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: avatarColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white70, width: 2),
+                    image: photoBytes != null
+                        ? DecorationImage(
+                            image: MemoryImage(photoBytes!),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
+                  ),
+                  child: photoBytes == null
+                      ? Text(
+                          initials,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        )
+                      : null,
                 ),
-              ),
+                if (notificationBadge > 0)
+                  Positioned(
+                    right: -4,
+                    top: -4,
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 16),
+                      height: 16,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444),
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      child: Text(
+                        notificationBadge > 9 ? '9+' : '$notificationBadge',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            onPressed: onMenuTap,
+            tooltip: 'Menü',
+            icon: const Icon(Icons.menu, color: Colors.white, size: 26),
+            visualDensity: VisualDensity.compact,
           ),
         ],
       ),
@@ -1577,17 +4410,20 @@ class _BottomNav extends StatelessWidget {
     required this.active,
     required this.onSelect,
     this.ilanlarUnread = 0,
+    this.mesajlarUnread = 0,
   });
 
   final MetoTab active;
   final ValueChanged<MetoTab> onSelect;
   final int ilanlarUnread;
+  final int mesajlarUnread;
 
   static const _items = [
-    (MetoTab.home, 'Anasayfa', Icons.home_outlined, Icons.home),
+    (MetoTab.home, 'Ana', Icons.home_outlined, Icons.home),
     (MetoTab.merkezler, 'Harita', Icons.place_outlined, Icons.place),
     (MetoTab.ilanlar, 'İlanlar', Icons.work_outline, Icons.work),
-    (MetoTab.forum, 'Forum', Icons.chat_bubble_outline, Icons.chat_bubble),
+    (MetoTab.forum, 'Forum', Icons.forum_outlined, Icons.forum),
+    (MetoTab.mesajlar, 'Mesaj', Icons.chat_bubble_outline, Icons.chat_bubble),
     (MetoTab.haklar, 'Haklar', Icons.balance_outlined, Icons.balance),
     (MetoTab.kartlar, 'Kartlar', Icons.grid_view_outlined, Icons.grid_view),
   ];
@@ -1607,21 +4443,24 @@ class _BottomNav extends StatelessWidget {
         ],
       ),
       padding: EdgeInsets.fromLTRB(
-        4,
+        2,
         6,
-        4,
+        2,
         8 + MediaQuery.paddingOf(context).bottom,
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           for (final item in _items)
-            _NavItem(
-              label: item.$2,
-              icon: active == item.$1 ? item.$4 : item.$3,
-              active: active == item.$1,
-              badge: item.$1 == MetoTab.ilanlar ? ilanlarUnread : 0,
-              onTap: () => onSelect(item.$1),
+            Expanded(
+              child: _NavItem(
+                label: item.$2,
+                icon: active == item.$1 ? item.$4 : item.$3,
+                active: active == item.$1,
+                badge: item.$1 == MetoTab.ilanlar
+                    ? ilanlarUnread
+                    : (item.$1 == MetoTab.mesajlar ? mesajlarUnread : 0),
+                onTap: () => onSelect(item.$1),
+              ),
             ),
         ],
       ),
@@ -1650,7 +4489,7 @@ class _NavItem extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: SizedBox(
-        width: 52,
+        width: double.infinity,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

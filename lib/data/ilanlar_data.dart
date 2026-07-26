@@ -75,6 +75,8 @@ class SohbetKisi {
     required this.avatarColor,
     required this.isOnline,
     this.sonGorus,
+    this.peerEmail = '',
+    this.ilanId,
   });
 
   final String ad;
@@ -82,6 +84,9 @@ class SohbetKisi {
   final Color avatarColor;
   final bool isOnline;
   final String? sonGorus;
+  /// Gerçek kullanıcı e-postası (ilan sahibi). Boşsa örnek/demo ilandır.
+  final String peerEmail;
+  final int? ilanId;
 }
 
 enum IlanKategori { uzmanlar, bakici, ikinciel }
@@ -250,7 +255,26 @@ const uzmanRenk = <String, UzmanRenk>{
     bg: Color(0xFFFDF0EC),
     emoji: '💬',
   ),
+  'Dil Konuşma Terapisti': UzmanRenk(
+    color: _e07,
+    bg: Color(0xFFFDF0EC),
+    emoji: '💬',
+  ),
+  'Psikolog': UzmanRenk(
+    color: _9c6,
+    bg: Color(0xFFF3E8FF),
+    emoji: '🧠',
+  ),
 };
+
+/// İlan verirken uzman alt kategorileri.
+const kUzmanlikSecenekleri = <String>[
+  'Fizyoterapist',
+  'Ergoterapist',
+  'Dil Konuşma Terapisti',
+  'Özel Eğitim Öğretmeni',
+  'Psikolog',
+];
 
 const uzmanKm = <int, int>{1: 3, 2: 12, 3: 28, 4: 45, 5: 180};
 const bakiciKm = <int, int>{10: 5, 11: 95, 12: 220, 13: 8};
@@ -1000,6 +1024,31 @@ const ikincielIlanlar = <IkincielIlani>[
     ),
   ),
 ];
+
+// ─── Runtime (kullanıcı tarafından eklenen) ilanlar ──────────────────────────
+// Uygulama açıkken paylaşılan ilanlar burada tutulur ve listelerin başına eklenir.
+final List<UzmanIlani> runtimeUzmanIlanlar = <UzmanIlani>[];
+final List<BakiciIlani> runtimeBakiciIlanlar = <BakiciIlani>[];
+final List<IkincielIlani> runtimeIkincielIlanlar = <IkincielIlani>[];
+
+int _ilanIdSeq = 1000;
+int nextIlanId() => ++_ilanIdSeq;
+
+void syncIlanIdSeq(int maxId) {
+  if (maxId > _ilanIdSeq) _ilanIdSeq = maxId;
+}
+
+/// İlanı paylaşan kullanıcıyı temsil eden basit profil.
+const selfIlanPoster = IlanPoster(
+  name: 'Siz',
+  avatar: 'SZ',
+  avatarColor: MetoColors.primary,
+  rating: 0,
+  reviewCount: 0,
+  bio: 'İlan sahibi',
+  tags: <String>[],
+  reviews: <IlanReview>[],
+);
 
 double avgRating(List<IlanReview> reviews) {
   if (reviews.isEmpty) return 0;

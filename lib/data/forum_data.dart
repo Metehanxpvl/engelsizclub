@@ -14,6 +14,9 @@ class ForumPost {
     required this.time,
     this.pinned = false,
     this.expert = false,
+    this.likedByMe = false,
+    this.meslek = '',
+    this.ownerEmail = '',
   });
 
   final int id;
@@ -28,93 +31,59 @@ class ForumPost {
   final String time;
   final bool pinned;
   final bool expert;
+  final bool likedByMe;
+  final String meslek;
+  final String ownerEmail;
+
+  ForumPost copyWith({
+    int? likes,
+    int? comments,
+    bool? likedByMe,
+  }) =>
+      ForumPost(
+        id: id,
+        author: author,
+        avatar: avatar,
+        avatarColor: avatarColor,
+        category: category,
+        title: title,
+        content: content,
+        likes: likes ?? this.likes,
+        comments: comments ?? this.comments,
+        time: time,
+        pinned: pinned,
+        expert: expert,
+        likedByMe: likedByMe ?? this.likedByMe,
+        meslek: meslek,
+        ownerEmail: ownerEmail,
+      );
 }
 
 class ForumComment {
   const ForumComment({
+    this.id = 0,
     required this.name,
     required this.text,
     required this.time,
     required this.color,
+    this.ownerEmail = '',
   });
 
+  final int id;
   final String name;
   final String text;
   final String time;
   final Color color;
+  final String ownerEmail;
 }
 
-const forumPosts = <ForumPost>[
-  ForumPost(
-    id: 1,
-    author: 'Ayşe K.',
-    avatar: 'AK',
-    avatarColor: Color(0xFF1A6B4A),
-    category: 'Otizm',
-    title: 'ABA terapisinde ilk 3 ayda neler değişti?',
-    content:
-        'Oğlumu 3 yaşında otizm tanısıyla aldık. ABA başladıktan 3 ay sonra göz teması kurmaya başladı. Deneyimlerimi paylaşmak istedim...',
-    likes: 47,
-    comments: 23,
-    time: '2 saat önce',
-  ),
-  ForumPost(
-    id: 2,
-    author: 'Dr. Mehmet Y.',
-    avatar: 'MY',
-    avatarColor: Color(0xFF6B9AC4),
-    category: 'Uzman',
-    title: 'Erken müdahalede altın dönem: 0-3 yaş',
-    content:
-        'Beyin plastisitesi en yüksek olduğu bu dönemde yapılan müdahaleler çocuğun gelişimine en büyük katkıyı sağlar. Bilimsel araştırmalar...',
-    likes: 134,
-    comments: 41,
-    time: '5 saat önce',
-    pinned: true,
-    expert: true,
-  ),
-  ForumPost(
-    id: 3,
-    author: 'Fatma S.',
-    avatar: 'FS',
-    avatarColor: Color(0xFFE07A5F),
-    category: 'Serebral Palsi',
-    title: "İstanbul'da iyi bir hidroterapi merkezi arıyorum",
-    content:
-        'Kızım için hidroterapi yapmayı düşünüyoruz. Deneyimi olan var mı? Özellikle Anadolu yakasında bir yer önerir misiniz?',
-    likes: 12,
-    comments: 18,
-    time: '1 gün önce',
-  ),
-  ForumPost(
-    id: 4,
-    author: 'Hasan A.',
-    avatar: 'HA',
-    avatarColor: Color(0xFF9C6DB3),
-    category: 'DEHB',
-    title: 'Okul ile nasıl iletişim kuruyorsunuz?',
-    content:
-        'Oğlumun öğretmeni sürekli şikayet ediyor ama destek sunmaya çalışmıyor. Haklarımız konusunda ne yapabiliriz?',
-    likes: 56,
-    comments: 34,
-    time: '2 gün önce',
-  ),
-];
+// Kullanıcının uygulama açıkken paylaştığı gönderiler burada tutulur.
+final List<ForumPost> runtimeForumPosts = <ForumPost>[];
 
-const sampleComments = <ForumComment>[
-  ForumComment(
-    name: 'Zeynep A.',
-    text: 'Bizim için de çok faydalı oldu, teşekkürler!',
-    time: '1 saat önce',
-    color: Color(0xFFF4A832),
-  ),
-  ForumComment(
-    name: 'Ali R.',
-    text: 'Hangi merkezde ABA terapisi aldınız?',
-    time: '3 saat önce',
-    color: Color(0xFF5BA882),
-  ),
-];
+int _forumIdSeq = 1000;
+int nextForumId() => ++_forumIdSeq;
+
+const forumPosts = <ForumPost>[];
 
 const forumCategories = [
   'Tümü',
@@ -122,7 +91,7 @@ const forumCategories = [
   'Serebral Palsi',
   'DEHB',
   'Uzman',
-  'İkinci El',
+  'Köşe Yazısı',
 ];
 
 const newPostCategories = [
@@ -131,15 +100,34 @@ const newPostCategories = [
   'Down Sendromu',
   'DEHB',
   'Genel',
-  'İkinci El Ürün',
+  'Uzman',
+];
+
+/// Uzman köşe yazısı meslekleri (Aile: aileler de köşe yazısı paylaşabilir)
+const uzmanMeslekler = [
+  'Doktor',
+  'Fizyoterapist',
+  'Ergoterapist',
+  'Özel Eğitim Öğretmeni',
+  'Dil Terapisti',
+  'Aile',
 ];
 
 const forumCategoryColors = <String, Color>{
   'Otizm': Color(0xFF5B8DD9),
   'Uzman': Color(0xFF1A6B4A),
+  'Köşe Yazısı': Color(0xFF0F766E),
   'Serebral Palsi': Color(0xFF1A6B4A),
   'DEHB': Color(0xFF6B9AC4),
+  'Doktor': Color(0xFF1D4ED8),
+  'Fizyoterapist': Color(0xFF0F766E),
+  'Ergoterapist': Color(0xFF7C3AED),
+  'Özel Eğitim Öğretmeni': Color(0xFFB45309),
+  'Dil Terapisti': Color(0xFFBE185D),
+  'Aile': Color(0xFFF4A832),
 };
 
 Color forumCategoryColor(String category) =>
     forumCategoryColors[category] ?? const Color(0xFF1A6B4A);
+
+bool isUzmanMeslek(String category) => uzmanMeslekler.contains(category);

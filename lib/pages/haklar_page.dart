@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../data/rights_data.dart';
 import '../meto_theme.dart';
+import '../services/app_catalog_service.dart';
+import '../services/catalog_adapters.dart';
 
 /// Figma Make `HaklarTab` + `RightsSihirbazi` — Flutter portu.
 class HaklarPage extends StatefulWidget {
@@ -16,13 +18,19 @@ class _HaklarPageState extends State<HaklarPage> {
   String _activeCategory = 'tümü';
   String? _expandedId;
 
+  List<RightItem> get _allRights => CatalogAdapters.rightsItems();
+
   List<RightItem> get _filtered => _activeCategory == 'tümü'
-      ? allRights
-      : allRights.where((r) => r.category == _activeCategory).toList();
+      ? _allRights
+      : _allRights.where((r) => r.category == _activeCategory).toList();
+
+  List<RightsCategory> get _categories => CatalogAdapters.rightsCategories();
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    return ListenableBuilder(
+      listenable: AppCatalogService.instance,
+      builder: (context, _) => Stack(
       children: [
         ColoredBox(
           color: MetoColors.background,
@@ -52,7 +60,8 @@ class _HaklarPageState extends State<HaklarPage> {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _WizardBanner(onStart: () => setState(() => _showWizard = true)),
+                child: _WizardBanner(
+                    onStart: () => setState(() => _showWizard = true)),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -60,10 +69,10 @@ class _HaklarPageState extends State<HaklarPage> {
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: rightsCategories.length,
+                  itemCount: _categories.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (context, i) {
-                    final cat = rightsCategories[i];
+                    final cat = _categories[i];
                     final active = cat.id == _activeCategory;
                     return GestureDetector(
                       onTap: () => setState(() => _activeCategory = cat.id),
@@ -78,7 +87,8 @@ class _HaklarPageState extends State<HaklarPage> {
                           boxShadow: active
                               ? [
                                   BoxShadow(
-                                    color: MetoColors.primary.withValues(alpha: 0.27),
+                                    color: MetoColors.primary
+                                        .withValues(alpha: 0.27),
                                     blurRadius: 8,
                                     offset: const Offset(0, 2),
                                   ),
@@ -123,6 +133,7 @@ class _HaklarPageState extends State<HaklarPage> {
         if (_showWizard)
           RightsSihirbazi(onClose: () => setState(() => _showWizard = false)),
       ],
+    ),
     );
   }
 }
@@ -157,7 +168,8 @@ class _WizardBanner extends StatelessWidget {
                       color: Colors.white.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: const Icon(Icons.auto_fix_high, color: Colors.white, size: 28),
+                    child: const Icon(Icons.auto_fix_high,
+                        color: Colors.white, size: 28),
                   ),
                   const SizedBox(width: 16),
                   const Expanded(
@@ -195,7 +207,8 @@ class _WizardBanner extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
                     border: Border(
-                      top: BorderSide(color: Colors.white.withValues(alpha: 0.20)),
+                      top: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.20)),
                     ),
                   ),
                   child: const Row(
@@ -259,7 +272,8 @@ class _RightCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     alignment: Alignment.center,
-                    child: Text(item.icon, style: const TextStyle(fontSize: 20)),
+                    child:
+                        Text(item.icon, style: const TextStyle(fontSize: 20)),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -307,18 +321,18 @@ class _RightCard extends StatelessWidget {
                 children: [
                   const SizedBox(height: 12),
                   ...item.desc.split('\n\n').map(
-                    (para) => Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Text(
-                        para,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: MetoColors.mutedFg,
-                          height: 1.5,
+                        (para) => Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Text(
+                            para,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: MetoColors.mutedFg,
+                              height: 1.5,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
                   const SizedBox(height: 6),
                   const Text(
                     'Başvuru Adımları:',
@@ -358,7 +372,8 @@ class _RightCard extends StatelessWidget {
                               item.steps[i],
                               style: TextStyle(
                                 fontSize: 12,
-                                color: MetoColors.foreground.withValues(alpha: 0.8),
+                                color: MetoColors.foreground
+                                    .withValues(alpha: 0.8),
                                 height: 1.4,
                               ),
                             ),
@@ -369,14 +384,16 @@ class _RightCard extends StatelessWidget {
                   }),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       color: item.bg,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.description_outlined, size: 12, color: item.color),
+                        Icon(Icons.description_outlined,
+                            size: 12, color: item.color),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -478,6 +495,7 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
         rate: _rate,
         age: _age,
         income: _income,
+        source: CatalogAdapters.rightsItems(),
       );
 
   void _reset() {
@@ -553,7 +571,8 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
                       return Expanded(
                         child: Container(
                           height: 6,
-                          margin: EdgeInsets.only(right: i < _stepCount - 1 ? 6 : 0),
+                          margin: EdgeInsets.only(
+                              right: i < _stepCount - 1 ? 6 : 0),
                           decoration: BoxDecoration(
                             color: i <= _stepIndex
                                 ? MetoColors.primary
@@ -605,7 +624,8 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
           ),
           child: Row(
             children: [
-              const Icon(Icons.check_circle, size: 16, color: MetoColors.primary),
+              const Icon(Icons.check_circle,
+                  size: 16, color: MetoColors.primary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -711,7 +731,8 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
           enabled: _yasGrubu.isNotEmpty,
           label: 'Devam',
           onPressed: () => setState(() {
-            _step = _yasGrubu == '18alti' ? _WizardStep.cozger : _WizardStep.rate;
+            _step =
+                _yasGrubu == '18alti' ? _WizardStep.cozger : _WizardStep.rate;
           }),
         ),
       ],
@@ -746,7 +767,8 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
           ),
           child: const Text(
             '18 yaş altında geleneksel engellilik oranı kaldırılmıştır. Yerine ÇÖZGER (Çocuklar İçin Özel Gereksinim Raporu) sistemi kullanılmaktadır.',
-            style: TextStyle(fontSize: 12, color: Color(0xFF6B21A8), height: 1.5),
+            style:
+                TextStyle(fontSize: 12, color: Color(0xFF6B21A8), height: 1.5),
           ),
         ),
         const SizedBox(height: 20),
@@ -1056,7 +1078,8 @@ class _RadioDot extends StatelessWidget {
       height: 24,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: selected ? color : MetoColors.muted, width: 2),
+        border:
+            Border.all(color: selected ? color : MetoColors.muted, width: 2),
         color: selected ? color : Colors.transparent,
       ),
       child: selected
