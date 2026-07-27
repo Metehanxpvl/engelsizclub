@@ -2101,7 +2101,8 @@ function IlanlarTab({ onUnreadChange, userKredi, onKrediHarca }: { onUnreadChang
 
   function handlePhotoAdd() {
     const colors = ["#dce8f5","#e8f0dc","#f5e8dc","#f0dce8","#dce5f0","#e8f5ee","#f5f0dc"];
-    if (formPhotos.length < 6) {
+    const maxPhotos = formKategori === "2. El Alet" ? 6 : 2;
+    if (formPhotos.length < maxPhotos) {
       setFormPhotos((p) => [...p, colors[p.length % colors.length]]);
     }
   }
@@ -2149,11 +2150,15 @@ function IlanlarTab({ onUnreadChange, userKredi, onKrediHarca }: { onUnreadChang
           </div>
         ))}
 
-        {/* Photo upload — only for 2. El */}
-        {formKategori === "2. El Alet" && (
+        {/* Photo upload — uzman / bakıcı max 2, 2. el max 6 */}
+        {(formKategori === "2. El Alet" || formKategori === "Uzman" || formKategori === "Bakıcı") && (
           <div>
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Fotoğraflar</label>
-            <p className="text-xs text-muted-foreground mt-0.5 mb-2">En fazla 6 fotoğraf ekleyebilirsiniz. İlk fotoğraf kapak olur.</p>
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide">
+              Fotoğraflar
+            </label>
+            <p className="text-xs text-muted-foreground mt-0.5 mb-2">
+              En fazla {formKategori === "2. El Alet" ? 6 : 2} fotoğraf ekleyebilirsiniz. İlk fotoğraf kapak olur.
+            </p>
             <div className="flex flex-wrap gap-2">
               {formPhotos.map((bg, i) => (
                 <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-border"
@@ -2170,7 +2175,7 @@ function IlanlarTab({ onUnreadChange, userKredi, onKrediHarca }: { onUnreadChang
                   </button>
                 </div>
               ))}
-              {formPhotos.length < 6 && (
+              {formPhotos.length < (formKategori === "2. El Alet" ? 6 : 2) && (
                 <button
                   onClick={handlePhotoAdd}
                   className="w-20 h-20 rounded-xl border-2 border-dashed border-border bg-muted flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-primary hover:text-primary transition-colors"
@@ -2182,7 +2187,10 @@ function IlanlarTab({ onUnreadChange, userKredi, onKrediHarca }: { onUnreadChang
             </div>
             {formPhotos.length === 0 && (
               <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
-                <AlertCircle size={11} /> Fotoğraf eklemek satışı hızlandırır
+                <AlertCircle size={11} />{" "}
+                {formKategori === "2. El Alet"
+                  ? "Fotoğraf eklemek satışı hızlandırır"
+                  : "İsteğe bağlı: en fazla 2 fotoğraf ekleyebilirsiniz"}
               </p>
             )}
           </div>

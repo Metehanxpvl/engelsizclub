@@ -922,6 +922,12 @@ class _IlanlarPageState extends State<IlanlarPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (ilan.photos.isNotEmpty)
+            _PhotoStrip(
+              photos: ilan.photos,
+              emoji: renk.emoji,
+              onTap: openDetail,
+            ),
           InkWell(
             onTap: openDetail,
             borderRadius: BorderRadius.circular(8),
@@ -1094,6 +1100,12 @@ class _IlanlarPageState extends State<IlanlarPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (ilan.photos.isNotEmpty)
+            _PhotoStrip(
+              photos: ilan.photos,
+              emoji: '🤝',
+              onTap: openDetail,
+            ),
           InkWell(
             onTap: openDetail,
             borderRadius: BorderRadius.circular(8),
@@ -2578,6 +2590,7 @@ class _UzmanDrawer extends StatefulWidget {
 
 class _UzmanDrawerState extends State<_UzmanDrawer> {
   int _tab = 0;
+  int _photoIndex = 0;
   late List<IlanReview> _reviews = List.of(widget.ilan.poster.reviews);
   bool _yorumYaz = false;
   int _myRating = 0;
@@ -2589,12 +2602,24 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
     super.dispose();
   }
 
+  Uint8List? _bytes(IlanPhoto photo) {
+    if (!photo.hasImage) return null;
+    try {
+      var raw = photo.dataUrl!;
+      if (raw.contains(',')) raw = raw.split(',').last;
+      return Uint8List.fromList(base64Decode(raw));
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final renk = uzmanRenkFor(widget.ilan.uzmanlik);
     final cv = uzmanCvFor(widget.ilan.uzmanlik);
     final avgR = avgRating(_reviews);
     final ilan = widget.ilan;
+    final photos = ilan.photos;
 
     return _DrawerShell(
       onClose: widget.onClose,
@@ -2614,6 +2639,69 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (photos.isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: AspectRatio(
+                  aspectRatio: 4 / 3,
+                  child: Builder(builder: (_) {
+                    final idx = _photoIndex.clamp(0, photos.length - 1);
+                    final current = photos[idx];
+                    final bytes = _bytes(current);
+                    return Container(
+                      color: current.swatchColor,
+                      alignment: Alignment.center,
+                      child: bytes != null
+                          ? Image.memory(bytes,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: double.infinity)
+                          : Text(renk.emoji,
+                              style: const TextStyle(fontSize: 64)),
+                    );
+                  }),
+                ),
+              ),
+              if (photos.length > 1) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 56,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: photos.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, i) {
+                      final p = photos[i];
+                      final b = _bytes(p);
+                      final selected = i == _photoIndex.clamp(0, photos.length - 1);
+                      return GestureDetector(
+                        onTap: () => setState(() => _photoIndex = i),
+                        child: Container(
+                          width: 56,
+                          decoration: BoxDecoration(
+                            color: p.swatchColor,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: selected
+                                  ? MetoColors.primary
+                                  : MetoColors.border,
+                              width: selected ? 2 : 1,
+                            ),
+                            image: b == null
+                                ? null
+                                : DecorationImage(
+                                    image: MemoryImage(b),
+                                    fit: BoxFit.cover,
+                                  ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+              const SizedBox(height: 14),
+            ],
             Text(
               ilan.title,
               style: const TextStyle(
@@ -2825,6 +2913,7 @@ class _BakiciDrawer extends StatefulWidget {
 
 class _BakiciDrawerState extends State<_BakiciDrawer> {
   int _tab = 0;
+  int _photoIndex = 0;
   late List<IlanReview> _reviews = List.of(widget.ilan.poster.reviews);
   bool _yorumYaz = false;
   int _myRating = 0;
@@ -2836,11 +2925,23 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
     super.dispose();
   }
 
+  Uint8List? _bytes(IlanPhoto photo) {
+    if (!photo.hasImage) return null;
+    try {
+      var raw = photo.dataUrl!;
+      if (raw.contains(',')) raw = raw.split(',').last;
+      return Uint8List.fromList(base64Decode(raw));
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cv = bakiciCvFor(widget.ilan.poster);
     final avgR = avgRating(_reviews);
     final ilan = widget.ilan;
+    final photos = ilan.photos;
 
     return _DrawerShell(
       onClose: widget.onClose,
@@ -2859,6 +2960,70 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (photos.isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: AspectRatio(
+                  aspectRatio: 4 / 3,
+                  child: Builder(builder: (_) {
+                    final idx = _photoIndex.clamp(0, photos.length - 1);
+                    final current = photos[idx];
+                    final bytes = _bytes(current);
+                    return Container(
+                      color: current.swatchColor,
+                      alignment: Alignment.center,
+                      child: bytes != null
+                          ? Image.memory(bytes,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: double.infinity)
+                          : const Text('🤝',
+                              style: TextStyle(fontSize: 64)),
+                    );
+                  }),
+                ),
+              ),
+              if (photos.length > 1) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 56,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: photos.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, i) {
+                      final p = photos[i];
+                      final b = _bytes(p);
+                      final selected =
+                          i == _photoIndex.clamp(0, photos.length - 1);
+                      return GestureDetector(
+                        onTap: () => setState(() => _photoIndex = i),
+                        child: Container(
+                          width: 56,
+                          decoration: BoxDecoration(
+                            color: p.swatchColor,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: selected
+                                  ? MetoColors.primary
+                                  : MetoColors.border,
+                              width: selected ? 2 : 1,
+                            ),
+                            image: b == null
+                                ? null
+                                : DecorationImage(
+                                    image: MemoryImage(b),
+                                    fit: BoxFit.cover,
+                                  ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+              const SizedBox(height: 14),
+            ],
             Text(
               ilan.title,
               style: const TextStyle(
@@ -3959,6 +4124,11 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
       _formKategori == 'Uzman Arıyorum' || _formKategori == 'Uzman';
   bool get _isBakiciArama =>
       _formKategori == 'Bakıcı Arıyorum' || _formKategori == 'Bakıcı';
+  bool get _isUzmanOrBakici => _isUzmanArama || _isBakiciArama;
+  /// Uzman / bakıcı: en fazla 2; 2. el: en fazla 4.
+  int get _maxPhotos =>
+      _isUzmanOrBakici ? kUzmanBakiciMaxPhotos : 4;
+  bool get _showPhotoPicker => _isIkinciel || _isUzmanOrBakici;
 
   List<String> get _ilceOptions {
     final city = _formIl;
@@ -4030,6 +4200,9 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             note: note,
             budget: butce,
             uzmanlik: _formUzmanlik,
+            photos: List<IlanPhoto>.from(
+              _formPhotos.take(kUzmanBakiciMaxPhotos),
+            ),
             posterName: name,
             posterAvatar: avatar,
             ownerEmail: email,
@@ -4045,6 +4218,9 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             district: districtName,
             note: note,
             budget: butce,
+            photos: List<IlanPhoto>.from(
+              _formPhotos.take(kUzmanBakiciMaxPhotos),
+            ),
             posterName: name,
             posterAvatar: avatar,
             ownerEmail: email,
@@ -4142,7 +4318,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
   }
 
   Future<void> _pickProductPhoto() async {
-    if (_formPhotos.length >= 4 || _pickingPhoto) return;
+    if (_formPhotos.length >= _maxPhotos || _pickingPhoto) return;
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -4156,11 +4332,12 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 child: Text(
-                  'Ürün fotoğrafı ekle',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                  _isIkinciel ? 'Ürün fotoğrafı ekle' : 'İlan fotoğrafı ekle',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 15),
                 ),
               ),
               ListTile(
@@ -4189,7 +4366,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
 
     setState(() => _pickingPhoto = true);
     try {
-      // Web önbellek kotası için agresif küçültme (max ~4 foto).
+      // Web önbellek kotası için agresif küçültme.
       final file = await ImagePicker().pickImage(
         source: source,
         maxWidth: 720,
@@ -4403,13 +4580,23 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             _isIkinciel ? '₺2.000' : '₺300–500/seans',
             _formButce,
           ),
-          if (_isIkinciel) ...[
-            const Text('ÜRÜN FOTOĞRAFLARI',
-                style: TextStyle(
+          if (_showPhotoPicker) ...[
+            Text(
+                _isIkinciel ? 'ÜRÜN FOTOĞRAFLARI' : 'FOTOĞRAFLAR',
+                style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: MetoColors.mutedFg)),
-            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 8),
+              child: Text(
+                _isUzmanOrBakici
+                    ? 'En fazla $kUzmanBakiciMaxPhotos fotoğraf ekleyebilirsiniz. İlk fotoğraf kapak olur.'
+                    : 'En fazla $_maxPhotos fotoğraf ekleyebilirsiniz. İlk fotoğraf kapak olur.',
+                style: const TextStyle(
+                    fontSize: 12, color: MetoColors.mutedFg),
+              ),
+            ),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -4468,7 +4655,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                     ],
                   );
                 }),
-                if (_formPhotos.length < 6)
+                if (_formPhotos.length < _maxPhotos)
                   InkWell(
                     onTap: _pickingPhoto ? null : _pickProductPhoto,
                     child: Container(
@@ -4505,11 +4692,14 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               ],
             ),
             if (_formPhotos.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 8),
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  'Galeri veya kameradan ürün fotoğrafı ekleyin — satış hızlanır',
-                  style: TextStyle(fontSize: 12, color: Color(0xFFD97706)),
+                  _isIkinciel
+                      ? 'Galeri veya kameradan ürün fotoğrafı ekleyin — satış hızlanır'
+                      : 'İsteğe bağlı: galeri veya kameradan en fazla $kUzmanBakiciMaxPhotos fotoğraf ekleyin',
+                  style: const TextStyle(
+                      fontSize: 12, color: Color(0xFFD97706)),
                 ),
               ),
             const SizedBox(height: 16),
