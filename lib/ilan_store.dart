@@ -26,7 +26,24 @@ String _relativePosted(DateTime? createdAt) {
   return '${createdAt.day}.${createdAt.month}.${createdAt.year}';
 }
 
-Map<String, dynamic> _uzmanToJson(UzmanIlani i) => {
+List<IlanPhoto> _photosFromJson(dynamic rawPhotos) {
+  final photoVals = <IlanPhoto>[];
+  if (rawPhotos is List) {
+    for (final e in rawPhotos) {
+      photoVals.add(IlanPhoto.fromJson(e));
+    }
+  }
+  return photoVals;
+}
+
+List<dynamic> _photosToJson(List<IlanPhoto> photos, {bool forLocalCache = false}) {
+  if (forLocalCache) {
+    return photos.map(_photoToLocalJson).toList();
+  }
+  return photos.map((p) => p.toJson()).toList();
+}
+
+Map<String, dynamic> _uzmanToJson(UzmanIlani i, {bool forLocalCache = false}) => {
       'kind': 'uzman',
       'id': i.id,
       'title': i.title,
@@ -42,12 +59,13 @@ Map<String, dynamic> _uzmanToJson(UzmanIlani i) => {
       'views': i.views,
       'offers': i.offers,
       'urgent': i.urgent,
+      'photos': _photosToJson(i.photos, forLocalCache: forLocalCache),
       'posterName': i.poster.name,
       'posterAvatar': i.poster.avatar,
       'ownerEmail': ilanOwnerById[i.id] ?? '',
     };
 
-Map<String, dynamic> _bakiciToJson(BakiciIlani i) => {
+Map<String, dynamic> _bakiciToJson(BakiciIlani i, {bool forLocalCache = false}) => {
       'kind': 'bakici',
       'id': i.id,
       'title': i.title,
@@ -61,6 +79,7 @@ Map<String, dynamic> _bakiciToJson(BakiciIlani i) => {
       'posted': i.posted,
       'views': i.views,
       'urgent': i.urgent,
+      'photos': _photosToJson(i.photos, forLocalCache: forLocalCache),
       'posterName': i.poster.name,
       'posterAvatar': i.poster.avatar,
       'ownerEmail': ilanOwnerById[i.id] ?? '',
@@ -121,48 +140,54 @@ IlanPoster _posterFrom(Map<String, dynamic> j) {
   );
 }
 
-UzmanIlani _uzmanFromJson(Map<String, dynamic> j) => UzmanIlani(
-      id: (j['id'] as num?)?.toInt() ?? nextIlanId(),
-      title: j['title']?.toString() ?? '',
-      uzmanlik: (j['uzmanlik'] ?? 'Uzman').toString(),
-      tani: (j['tani'] ?? 'Belirtilmedi').toString(),
-      city: j['city']?.toString() ?? '',
-      district: j['district']?.toString() ?? '',
-      age: (j['age'] ?? 'Belirtilmedi').toString(),
-      frequency: (j['frequency'] ?? 'Belirtilmedi').toString(),
-      note: (j['note'] ?? '—').toString(),
-      budget: (j['budget'] ?? '').toString(),
-      posted: (j['posted'] ?? 'Az önce').toString(),
-      views: (j['views'] as num?)?.toInt() ?? 0,
-      offers: (j['offers'] as num?)?.toInt() ?? 0,
-      urgent: j['urgent'] == true,
-      poster: _posterFrom(j),
-    );
+UzmanIlani _uzmanFromJson(Map<String, dynamic> j) {
+  final photos = _photosFromJson(j['photos']);
+  return UzmanIlani(
+    id: (j['id'] as num?)?.toInt() ?? nextIlanId(),
+    title: j['title']?.toString() ?? '',
+    uzmanlik: (j['uzmanlik'] ?? 'Uzman').toString(),
+    tani: (j['tani'] ?? 'Belirtilmedi').toString(),
+    city: j['city']?.toString() ?? '',
+    district: j['district']?.toString() ?? '',
+    age: (j['age'] ?? 'Belirtilmedi').toString(),
+    frequency: (j['frequency'] ?? 'Belirtilmedi').toString(),
+    note: (j['note'] ?? '—').toString(),
+    budget: (j['budget'] ?? '').toString(),
+    posted: (j['posted'] ?? 'Az önce').toString(),
+    views: (j['views'] as num?)?.toInt() ?? 0,
+    offers: (j['offers'] as num?)?.toInt() ?? 0,
+    urgent: j['urgent'] == true,
+    photos: photos.length > kUzmanBakiciMaxPhotos
+        ? photos.take(kUzmanBakiciMaxPhotos).toList()
+        : photos,
+    poster: _posterFrom(j),
+  );
+}
 
-BakiciIlani _bakiciFromJson(Map<String, dynamic> j) => BakiciIlani(
-      id: (j['id'] as num?)?.toInt() ?? nextIlanId(),
-      title: j['title']?.toString() ?? '',
-      city: j['city']?.toString() ?? '',
-      district: j['district']?.toString() ?? '',
-      tani: (j['tani'] ?? 'Belirtilmedi').toString(),
-      age: (j['age'] ?? 'Belirtilmedi').toString(),
-      hours: (j['hours'] ?? 'Belirtilmedi').toString(),
-      note: (j['note'] ?? '—').toString(),
-      budget: (j['budget'] ?? '').toString(),
-      posted: (j['posted'] ?? 'Az önce').toString(),
-      views: (j['views'] as num?)?.toInt() ?? 0,
-      urgent: j['urgent'] == true,
-      poster: _posterFrom(j),
-    );
+BakiciIlani _bakiciFromJson(Map<String, dynamic> j) {
+  final photos = _photosFromJson(j['photos']);
+  return BakiciIlani(
+    id: (j['id'] as num?)?.toInt() ?? nextIlanId(),
+    title: j['title']?.toString() ?? '',
+    city: j['city']?.toString() ?? '',
+    district: j['district']?.toString() ?? '',
+    tani: (j['tani'] ?? 'Belirtilmedi').toString(),
+    age: (j['age'] ?? 'Belirtilmedi').toString(),
+    hours: (j['hours'] ?? 'Belirtilmedi').toString(),
+    note: (j['note'] ?? '—').toString(),
+    budget: (j['budget'] ?? '').toString(),
+    posted: (j['posted'] ?? 'Az önce').toString(),
+    views: (j['views'] as num?)?.toInt() ?? 0,
+    urgent: j['urgent'] == true,
+    photos: photos.length > kUzmanBakiciMaxPhotos
+        ? photos.take(kUzmanBakiciMaxPhotos).toList()
+        : photos,
+    poster: _posterFrom(j),
+  );
+}
 
 IkincielIlani _ikincielFromJson(Map<String, dynamic> j) {
-  final rawPhotos = j['photos'];
-  final photoVals = <IlanPhoto>[];
-  if (rawPhotos is List) {
-    for (final e in rawPhotos) {
-      photoVals.add(IlanPhoto.fromJson(e));
-    }
-  }
+  final photoVals = _photosFromJson(j['photos']);
   return IkincielIlani(
     id: (j['id'] as num?)?.toInt() ?? nextIlanId(),
     title: j['title']?.toString() ?? '',
@@ -229,8 +254,8 @@ void _applyRows(List<Map<String, dynamic>> rows) {
 Future<void> _cacheAllLocally() async {
   final prefs = await SharedPreferences.getInstance();
   final payload = <Map<String, dynamic>>[
-    ...runtimeUzmanIlanlar.map(_uzmanToJson),
-    ...runtimeBakiciIlanlar.map(_bakiciToJson),
+    ...runtimeUzmanIlanlar.map((i) => _uzmanToJson(i, forLocalCache: true)),
+    ...runtimeBakiciIlanlar.map((i) => _bakiciToJson(i, forLocalCache: true)),
     ...runtimeIkincielIlanlar.map((i) => _ikincielToJson(i, forLocalCache: true)),
   ];
   final encoded = jsonEncode(payload);
@@ -320,10 +345,10 @@ Future<void> persistUserIlanlar(String email) async {
   final mine = <Map<String, dynamic>>[
     ...runtimeUzmanIlanlar
         .where((i) => (ilanOwnerById[i.id] ?? '') == email.toLowerCase())
-        .map(_uzmanToJson),
+        .map((i) => _uzmanToJson(i, forLocalCache: true)),
     ...runtimeBakiciIlanlar
         .where((i) => (ilanOwnerById[i.id] ?? '') == email.toLowerCase())
-        .map(_bakiciToJson),
+        .map((i) => _bakiciToJson(i, forLocalCache: true)),
     ...runtimeIkincielIlanlar
         .where((i) => (ilanOwnerById[i.id] ?? '') == email.toLowerCase())
         .map((i) => _ikincielToJson(i, forLocalCache: true)),
@@ -372,6 +397,13 @@ Future<void> publishIlanToCloud({
     throw StateError('İlan için e-posta bulunamadı. Tekrar giriş yapın.');
   }
 
+  // Uzman / bakıcı ilanlarında en fazla 2 fotoğraf.
+  final cappedPhotos = (kind == 'uzman' || kind == 'bakici')
+      ? (photos.length > kUzmanBakiciMaxPhotos
+          ? photos.take(kUzmanBakiciMaxPhotos).toList()
+          : photos)
+      : photos;
+
   final payload = <String, dynamic>{
     'kind': kind,
     'title': title,
@@ -390,7 +422,7 @@ Future<void> publishIlanToCloud({
     'condition': condition,
     'brand': brand,
     'emoji': emoji,
-    'photos': photos.map((p) => p.toJson()).toList(),
+    'photos': cappedPhotos.map((p) => p.toJson()).toList(),
     'urgent': urgent,
     'views': 0,
     'offers': 0,
@@ -440,6 +472,7 @@ Future<void> publishIlanToCloud({
             views: 0,
             offers: 0,
             urgent: urgent,
+            photos: cappedPhotos,
             poster: poster,
           ),
         );
@@ -460,6 +493,7 @@ Future<void> publishIlanToCloud({
             posted: 'Az önce',
             views: 0,
             urgent: urgent,
+            photos: cappedPhotos,
             poster: poster,
           ),
         );
@@ -481,9 +515,9 @@ Future<void> publishIlanToCloud({
             posted: 'Az önce',
             views: 0,
             emoji: emoji,
-            photos: photos.isEmpty
+            photos: cappedPhotos.isEmpty
                 ? const [IlanPhoto.swatch(Color(0xFFDCE8F5))]
-                : photos,
+                : cappedPhotos,
             poster: poster,
           ),
         );

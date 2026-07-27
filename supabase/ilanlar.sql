@@ -28,7 +28,12 @@ create table if not exists public.ilanlar (
   poster_avatar text not null,
   owner_email text not null,
   owner_id uuid references auth.users (id) on delete set null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- Uzman / bakıcı ilanlarında en fazla 2 fotoğraf
+  constraint ilanlar_photos_max_check check (
+    (kind in ('uzman', 'bakici') and jsonb_array_length(photos) <= 2)
+    or kind = 'ikinciel'
+  )
 );
 
 create index if not exists ilanlar_created_at_idx on public.ilanlar (created_at desc);
@@ -59,3 +64,12 @@ create policy "ilanlar_delete_own"
   using (owner_id = auth.uid());
 
 notify pgrst, 'reload schema';
+
+-- Mevcut tablolar için (tablo zaten varsa yukarıdaki CREATE atlanır):
+-- Uzman / bakıcı ilanlarında en fazla 2 fotoğraf kısıtı
+alter table public.ilanlar drop constraint if exists ilanlar_photos_max_check;
+alter table public.ilanlar
+  add constraint ilanlar_photos_max_check check (
+    (kind in ('uzman', 'bakici') and jsonb_array_length(photos) <= 2)
+    or kind = 'ikinciel'
+  );

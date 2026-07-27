@@ -138,6 +138,7 @@ class UzmanIlani {
     required this.offers,
     required this.urgent,
     required this.poster,
+    this.photos = const [],
   });
 
   final int id;
@@ -155,6 +156,8 @@ class UzmanIlani {
   final int offers;
   final bool urgent;
   final IlanPoster poster;
+  /// Uzman / bakıcı ilanlarında en fazla 2 fotoğraf.
+  final List<IlanPhoto> photos;
 }
 
 class BakiciIlani {
@@ -172,6 +175,7 @@ class BakiciIlani {
     required this.views,
     required this.urgent,
     required this.poster,
+    this.photos = const [],
   });
 
   final int id;
@@ -187,7 +191,12 @@ class BakiciIlani {
   final int views;
   final bool urgent;
   final IlanPoster poster;
+  /// Uzman / bakıcı ilanlarında en fazla 2 fotoğraf.
+  final List<IlanPhoto> photos;
 }
+
+/// Uzman ve bakıcı ilanları için izin verilen maksimum fotoğraf sayısı.
+const kUzmanBakiciMaxPhotos = 2;
 
 class IkincielIlani {
   const IkincielIlani({
