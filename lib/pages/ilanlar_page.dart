@@ -520,17 +520,33 @@ class _IlanlarPageState extends State<IlanlarPage> {
 
     return Stack(
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildHeader(),
-            if (_loadingFeed)
-              const LinearProgressIndicator(minHeight: 2),
-            _buildCategoryTabs(),
-            _buildCreditBar(),
-            if (_kategori != IlanKategori.ikinciel) _buildKmFilter(),
-            Expanded(child: _buildList()),
-          ],
+        ColoredBox(
+          color: MetoColors.background,
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              _buildHeader(),
+              if (_loadingFeed) const LinearProgressIndicator(minHeight: 2),
+              _buildCategoryTabs(),
+              _buildCreditBar(),
+              if (_kategori != IlanKategori.ikinciel) _buildKmFilter(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                child: Column(
+                  children: [
+                    if (_kategori == IlanKategori.uzmanlar)
+                      ..._filteredUzman.map(_buildUzmanCard),
+                    if (_kategori == IlanKategori.bakici)
+                      ..._filteredBakici.map(_buildBakiciCard),
+                    if (_kategori == IlanKategori.ikinciel)
+                      ..._allIkinciel.map(_buildIkincielCard),
+                    const SizedBox(height: 12),
+                    _buildStatsFooter(),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
         if (_selectedBakici != null)
           _BakiciDrawer(
@@ -876,22 +892,6 @@ class _IlanlarPageState extends State<IlanlarPage> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildList() {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-      children: [
-        if (_kategori == IlanKategori.uzmanlar)
-          ..._filteredUzman.map(_buildUzmanCard),
-        if (_kategori == IlanKategori.bakici)
-          ..._filteredBakici.map(_buildBakiciCard),
-        if (_kategori == IlanKategori.ikinciel)
-          ..._allIkinciel.map(_buildIkincielCard),
-        const SizedBox(height: 12),
-        _buildStatsFooter(),
-      ],
     );
   }
 

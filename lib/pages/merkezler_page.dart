@@ -485,8 +485,8 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     }
     return ColoredBox(
       color: MetoColors.background,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: ListView(
+        padding: EdgeInsets.zero,
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
@@ -690,12 +690,12 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
             ),
           ),
           const SizedBox(height: 12),
-          Expanded(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
             child: Builder(
               builder: (context) {
                 final listing = _listing;
-                return ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                return Column(
                   children: [
                     if (listing.note != null)
                       Container(
@@ -1206,7 +1206,11 @@ class _OpenStreetMapView extends StatelessWidget {
             initialCenter: LatLng(focus.lat, focus.lng),
             initialZoom: 12,
             interactionOptions: const InteractionOptions(
-              flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+              // Sayfa kaydırmasını engellemesin; yakınlaştırma pinch/çift dokunuşla.
+              flags: InteractiveFlag.pinchZoom |
+                  InteractiveFlag.doubleTapZoom |
+                  InteractiveFlag.doubleTapDragZoom |
+                  InteractiveFlag.scrollWheelZoom,
             ),
           ),
           children: [

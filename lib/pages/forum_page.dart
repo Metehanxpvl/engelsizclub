@@ -427,169 +427,179 @@ class _ForumPageState extends State<ForumPage> {
 
     return ColoredBox(
       color: MetoColors.background,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Topluluk',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: MetoColors.foreground,
-                        ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Aileler birbirini destekliyor',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: MetoColors.mutedFg,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                FilledButton(
-                  onPressed: () => setState(() => _newPost = true),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: MetoColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    '+ Paylaş',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Container(
-              decoration: BoxDecoration(
-                color: MetoColors.card,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: MetoColors.border),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: RefreshIndicator(
+        color: MetoColors.primary,
+        onRefresh: _loadPosts,
+        child: ListView(
+          padding: EdgeInsets.zero,
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
               child: Row(
                 children: [
-                  const Icon(Icons.search, size: 15, color: MetoColors.mutedFg),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (v) => setState(() => _searchQuery = v),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: MetoColors.foreground,
-                      ),
-                      decoration: const InputDecoration(
-                        hintText: 'Konularda ara...',
-                        hintStyle: TextStyle(
-                          fontSize: 14,
-                          color: MetoColors.mutedFg,
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Topluluk',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: MetoColors.foreground,
+                          ),
                         ),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(vertical: 8),
-                      ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Aileler birbirini destekliyor',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: MetoColors.mutedFg,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  if (_searchQuery.isNotEmpty)
-                    IconButton(
-                      icon: const Icon(Icons.close, size: 14),
-                      color: MetoColors.mutedFg,
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _searchQuery = '');
-                      },
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                  FilledButton(
+                    onPressed: () => setState(() => _newPost = true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: MetoColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
+                    child: const Text(
+                      '+ Paylaş',
+                      style:
+                          TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 36,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: forumCategories.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, i) {
-                final cat = forumCategories[i];
-                final active = cat == _activeCategory;
-                return GestureDetector(
-                  onTap: () => setState(() => _activeCategory = cat),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: active ? MetoColors.primary : MetoColors.muted,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      cat,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: active ? Colors.white : MetoColors.mutedFg,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (_loading) const LinearProgressIndicator(minHeight: 2),
-          Expanded(
-            child: _loading && filtered.isEmpty
-                ? const Center(
-                    child: CircularProgressIndicator(color: MetoColors.primary),
-                  )
-                : filtered.isEmpty
-                    ? _buildEmptyState()
-                    : RefreshIndicator(
-                        color: MetoColors.primary,
-                        onRefresh: _loadPosts,
-                        child: ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                          itemCount: filtered.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (context, i) => _PostCard(
-                            post: filtered[i],
-                            onTap: () => _openPost(filtered[i]),
-                            onLike: () => _toggleLike(filtered[i]),
-                            onDelete: _canModeratePost(filtered[i])
-                                ? () => _deletePost(filtered[i])
-                                : null,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: MetoColors.card,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: MetoColors.border),
+                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search,
+                        size: 15, color: MetoColors.mutedFg),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (v) => setState(() => _searchQuery = v),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: MetoColors.foreground,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Konularda ara...',
+                          hintStyle: TextStyle(
+                            fontSize: 14,
+                            color: MetoColors.mutedFg,
                           ),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(vertical: 8),
                         ),
                       ),
-          ),
-        ],
+                    ),
+                    if (_searchQuery.isNotEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 14),
+                        color: MetoColors.mutedFg,
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 36,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: forumCategories.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, i) {
+                  final cat = forumCategories[i];
+                  final active = cat == _activeCategory;
+                  return GestureDetector(
+                    onTap: () => setState(() => _activeCategory = cat),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: active ? MetoColors.primary : MetoColors.muted,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        cat,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: active ? Colors.white : MetoColors.mutedFg,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_loading) const LinearProgressIndicator(minHeight: 2),
+            if (_loading && filtered.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 80),
+                child: Center(
+                  child:
+                      CircularProgressIndicator(color: MetoColors.primary),
+                ),
+              )
+            else if (filtered.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48),
+                child: _buildEmptyState(),
+              )
+            else
+              ...filtered.map(
+                (post) => Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: _PostCard(
+                    post: post,
+                    onTap: () => _openPost(post),
+                    onLike: () => _toggleLike(post),
+                    onDelete: _canModeratePost(post)
+                        ? () => _deletePost(post)
+                        : null,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
