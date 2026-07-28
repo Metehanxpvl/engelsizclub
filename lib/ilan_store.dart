@@ -531,6 +531,64 @@ Future<void> publishIlanToCloud({
   }
 }
 
+Future<void> updateIlanInCloud({
+  required int id,
+  required String kind,
+  required String title,
+  required String city,
+  required String district,
+  required String note,
+  required String ownerEmail,
+  String budget = '',
+  String price = '',
+  String uzmanlik = 'Uzman',
+  List<IlanPhoto> photos = const [],
+}) async {
+  final user = Supabase.instance.client.auth.currentUser;
+  if (user == null) {
+    throw StateError('İlan düzenlemek için giriş yapmalısınız.');
+  }
+  if (id <= 0) throw StateError('Geçersiz ilan.');
+
+  final resolvedEmail = ownerEmail.trim().isNotEmpty
+      ? ownerEmail.trim().toLowerCase()
+      : (user.email ?? '').trim().toLowerCase();
+
+  final cappedPhotos = (kind == 'uzman' || kind == 'bakici')
+      ? (photos.length > kUzmanBakiciMaxPhotos
+          ? photos.take(kUzmanBakiciMaxPhotos).toList()
+          : photos)
+      : photos;
+
+  final payload = <String, dynamic>{
+    'title': title,
+    'city': city,
+    'district': district,
+    'note': note,
+    'budget': budget,
+    'price': price,
+    'uzmanlik': uzmanlik,
+    'photos': cappedPhotos.map((p) => p.toJson()).toList(),
+  };
+
+  final updated = await Supabase.instance.client
+      .from('ilanlar')
+      .update(payload)
+      .eq('id', id)
+      .eq('owner_id', user.id)
+      .select('id');
+  if (updated.isEmpty) {
+    throw StateError(
+      'İlan güncellenemedi (yetki yok). Supabase’de '
+      'ilanlar_update_own.sql çalıştırın.',
+    );
+  }
+
+  try {
+    await loadAllIlanlar(preferEmail: resolvedEmail);
+  } catch (_) {}
+}
+
 Future<void> deleteUserIlan({
   required String email,
   required String kind,

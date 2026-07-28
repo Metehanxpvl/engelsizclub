@@ -19,10 +19,7 @@ class DefaultFirebaseOptions {
     }
   }
 
-  /// Custom auth domain: popup/redirect engelsizclub.com üzerinden gider.
-  /// Google Cloud OAuth client'ta şu redirect URI'ler olmalı:
-  /// - https://engelsizclub.com/__/auth/handler
-  /// - https://www.engelsizclub.com/__/auth/handler
+  /// Google hesap seçicide "engelsizclub.com uygulamasına devam edin" görünür.
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyDbcRvVaEQSDQJ2y-0kHZUsxtW_O2Xb_bQ',
     appId: '1:59695056324:web:ea6c93f11bd19d395b9091',

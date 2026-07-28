@@ -35,6 +35,7 @@ class _ForumPageState extends State<ForumPage> {
 
   ForumPost? _selectedPost;
   bool _newPost = false;
+  ForumPost? _editingPost;
   String _searchQuery = '';
   String _activeCategory = 'Tümü';
   int _listPage = 0;
@@ -71,10 +72,55 @@ class _ForumPageState extends State<ForumPage> {
       (post.ownerEmail.isNotEmpty &&
           post.ownerEmail == widget.userEmail.trim().toLowerCase());
 
+  bool _isPostOwner(ForumPost post) =>
+      post.ownerEmail.isNotEmpty &&
+      post.ownerEmail == widget.userEmail.trim().toLowerCase();
+
   bool _canModerateComment(ForumComment c) =>
       _isAdmin ||
       (c.ownerEmail.isNotEmpty &&
           c.ownerEmail == widget.userEmail.trim().toLowerCase());
+
+  void _startEditPost(ForumPost post) {
+    _titleController.text = post.title;
+    _contentController.text = post.content;
+    setState(() {
+      _editingPost = post;
+      _selectedPost = null;
+      _newPost = true;
+      _formPhotos
+        ..clear()
+        ..addAll(post.photos.take(2));
+      _anon = false;
+      if (post.expert) {
+        _newPostCategory = 'Uzman';
+        _koseYazisi = true;
+        if (post.meslek.isNotEmpty && uzmanMeslekler.contains(post.meslek)) {
+          _uzmanMeslek = post.meslek;
+        }
+      } else {
+        _koseYazisi = false;
+        _newPostCategory = _postCategories.contains(post.category)
+            ? post.category
+            : _postCategories.first;
+      }
+    });
+  }
+
+  void _closePostForm() {
+    _titleController.clear();
+    _contentController.clear();
+    setState(() {
+      _newPost = false;
+      _editingPost = null;
+      _formPhotos.clear();
+      _anon = false;
+      _koseYazisi = _isProfUser;
+      if (_isProfUser) {
+        _newPostCategory = 'Uzman';
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -423,9 +469,9 @@ class _ForumPageState extends State<ForumPage> {
     try {
       final file = await ImagePicker().pickImage(
         source: source,
-        maxWidth: 720,
-        maxHeight: 720,
-        imageQuality: 45,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 75,
       );
       if (file == null || !mounted) return;
       final bytes = await file.readAsBytes();
@@ -434,7 +480,7 @@ class _ForumPageState extends State<ForumPage> {
       }
       const mime = 'image/jpeg';
       final encoded = base64Encode(bytes);
-      if (encoded.length > 180000) {
+      if (encoded.length > 500000) {
         throw StateError(
           'Fotoğraf çok büyük. Daha küçük bir fotoğraf seçin.',
         );
@@ -482,24 +528,45 @@ class _ForumPageState extends State<ForumPage> {
     final meslek = isExpert ? _uzmanMeslek : '';
 
     try {
-      final post = await publishForumPost(
-        title: title,
-        content: content,
-        category: category,
-        authorName: widget.userName,
-        authorEmail: widget.userEmail,
-        anon: isExpert ? false : _anon,
-        expert: isExpert,
-        meslek: meslek,
-        photos: _formPhotos,
-      );
+      final isEdit = _editingPost != null;
+      final ForumPost post;
+      if (isEdit) {
+        post = await updateForumPost(
+          postId: _editingPost!.id,
+          title: title,
+          content: content,
+          category: category,
+          expert: isExpert,
+          meslek: meslek,
+          photos: _formPhotos,
+        );
+      } else {
+        post = await publishForumPost(
+          title: title,
+          content: content,
+          category: category,
+          authorName: widget.userName,
+          authorEmail: widget.userEmail,
+          anon: isExpert ? false : _anon,
+          expert: isExpert,
+          meslek: meslek,
+          photos: _formPhotos,
+        );
+      }
       if (!mounted) return;
       _titleController.clear();
       _contentController.clear();
       setState(() {
-        _cloudPosts = [post, ..._cloudPosts];
+        if (isEdit) {
+          _cloudPosts = [
+            for (final p in _cloudPosts) p.id == post.id ? post : p,
+          ];
+        } else {
+          _cloudPosts = [post, ..._cloudPosts];
+        }
         _formPhotos.clear();
         _newPost = false;
+        _editingPost = null;
         _anon = false;
         _koseYazisi = _isProfUser;
         _activeCategory = isExpert ? 'Köşe Yazısı' : 'Tümü';
@@ -508,9 +575,11 @@ class _ForumPageState extends State<ForumPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            isExpert
-                ? 'Köşe yazınız paylaşıldı — herkes görebilir ✅'
-                : 'Gönderiniz paylaşıldı — herkes görebilir ✅',
+            isEdit
+                ? 'Gönderi güncellendi ✅'
+                : isExpert
+                    ? 'Köşe yazınız paylaşıldı — herkes görebilir ✅'
+                    : 'Gönderiniz paylaşıldı — herkes görebilir ✅',
           ),
         ),
       );
@@ -524,7 +593,9 @@ class _ForumPageState extends State<ForumPage> {
                     e.toString().contains('schema cache') ||
                     e.toString().contains('PGRST')
                 ? 'Forum tablosu yok. Supabase’de forum_posts.sql çalıştırın.'
-                : 'Paylaşılamadı: $e',
+                : (_editingPost != null
+                    ? 'Güncellenemedi: $e'
+                    : 'Paylaşılamadı: $e'),
           ),
         ),
       );
@@ -710,6 +781,9 @@ class _ForumPageState extends State<ForumPage> {
                     post: post,
                     onTap: () => _openPost(post),
                     onLike: () => _toggleLike(post),
+                    onEdit: _isPostOwner(post)
+                        ? () => _startEditPost(post)
+                        : null,
                     onDelete: _canModeratePost(post)
                         ? () => _deletePost(post)
                         : null,
@@ -965,7 +1039,7 @@ class _ForumPageState extends State<ForumPage> {
           ),
           if (post.photos.isNotEmpty) ...[
             const SizedBox(height: 12),
-            _ForumPhotoStrip(photos: post.photos, height: 260),
+            _ForumPhotoStrip(photos: post.photos, height: 280),
           ],
           const SizedBox(height: 16),
           Row(
@@ -1008,6 +1082,16 @@ class _ForumPageState extends State<ForumPage> {
               const SizedBox(width: 6),
               Text('${post.comments}', style: _metaStyle),
               const Spacer(),
+              if (_isPostOwner(post))
+                IconButton(
+                  tooltip: 'Düzenle',
+                  onPressed: () => _startEditPost(post),
+                  icon: const Icon(
+                    Icons.edit_outlined,
+                    color: MetoColors.primary,
+                    size: 20,
+                  ),
+                ),
               if (_canModeratePost(post))
                 IconButton(
                   tooltip: _isAdmin ? 'Admin: sil' : 'Sil',
@@ -1125,6 +1209,7 @@ class _ForumPageState extends State<ForumPage> {
 
   Widget _buildNewPost() {
     final expertMode = _newPostCategory == 'Uzman' || _koseYazisi;
+    final isEdit = _editingPost != null;
 
     return ColoredBox(
       color: MetoColors.background,
@@ -1134,11 +1219,13 @@ class _ForumPageState extends State<ForumPage> {
           Row(
             children: [
               IconButton(
-                onPressed: () => setState(() => _newPost = false),
+                onPressed: _closePostForm,
                 icon: const Icon(Icons.chevron_left, color: MetoColors.primary),
               ),
               Text(
-                expertMode ? 'Köşe Yazısı' : 'Yeni Gönderi',
+                isEdit
+                    ? 'Gönderiyi Düzenle'
+                    : (expertMode ? 'Köşe Yazısı' : 'Yeni Gönderi'),
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -1390,7 +1477,9 @@ class _ForumPageState extends State<ForumPage> {
                       ),
                     )
                   : Text(
-                      expertMode ? 'Köşe Yazısını Yayınla' : 'Paylaş',
+                      isEdit
+                          ? 'Kaydet'
+                          : (expertMode ? 'Köşe Yazısını Yayınla' : 'Paylaş'),
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -1437,12 +1526,14 @@ class _PostCard extends StatelessWidget {
     required this.post,
     required this.onTap,
     required this.onLike,
+    this.onEdit,
     this.onDelete,
   });
 
   final ForumPost post;
   final VoidCallback onTap;
   final VoidCallback onLike;
+  final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
   @override
@@ -1588,7 +1679,7 @@ class _PostCard extends StatelessWidget {
               ),
               if (post.photos.isNotEmpty) ...[
                 const SizedBox(height: 8),
-                _ForumPhotoStrip(photos: post.photos, height: 140, compact: true),
+                _ForumPhotoStrip(photos: post.photos, height: 200, compact: true),
               ],
               const SizedBox(height: 12),
               Row(
@@ -1634,21 +1725,36 @@ class _PostCard extends StatelessWidget {
                       size: 12, color: MetoColors.mutedFg),
                   const SizedBox(width: 4),
                   Text('${post.comments}', style: _ForumPageState._metaStyle),
-                  if (onDelete != null) ...[
+                  if (onEdit != null || onDelete != null) ...[
                     const Spacer(),
-                    IconButton(
-                      tooltip: 'Sil',
-                      onPressed: onDelete,
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        size: 18,
-                        color: Color(0xFFEF4444),
+                    if (onEdit != null)
+                      IconButton(
+                        tooltip: 'Düzenle',
+                        onPressed: onEdit,
+                        icon: const Icon(
+                          Icons.edit_outlined,
+                          size: 18,
+                          color: MetoColors.primary,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints:
+                            const BoxConstraints(minWidth: 32, minHeight: 32),
                       ),
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
-                      constraints:
-                          const BoxConstraints(minWidth: 32, minHeight: 32),
-                    ),
+                    if (onDelete != null)
+                      IconButton(
+                        tooltip: 'Sil',
+                        onPressed: onDelete,
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          size: 18,
+                          color: Color(0xFFEF4444),
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints:
+                            const BoxConstraints(minWidth: 32, minHeight: 32),
+                      ),
                   ],
                 ],
               ),
@@ -1689,15 +1795,27 @@ class _ForumPhotoStrip extends StatelessWidget {
       final bytes = _forumPhotoBytes(photos.first);
       return ClipRRect(
         borderRadius: BorderRadius.circular(compact ? 10 : 12),
-        child: bytes == null
-            ? Container(
-                height: height,
-                color: MetoColors.muted,
-                alignment: Alignment.center,
-                child: const Icon(Icons.broken_image_outlined,
-                    color: MetoColors.mutedFg),
-              )
-            : Image.memory(bytes, height: height, width: double.infinity, fit: BoxFit.cover),
+        child: ColoredBox(
+          color: MetoColors.muted,
+          child: bytes == null
+              ? SizedBox(
+                  height: height,
+                  child: const Center(
+                    child: Icon(Icons.broken_image_outlined,
+                        color: MetoColors.mutedFg),
+                  ),
+                )
+              : SizedBox(
+                  height: height,
+                  width: double.infinity,
+                  child: Image.memory(
+                    bytes,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: height,
+                  ),
+                ),
+        ),
       );
     }
 
@@ -1710,20 +1828,28 @@ class _ForumPhotoStrip extends StatelessWidget {
             Expanded(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(compact ? 10 : 12),
-                child: Builder(
-                  builder: (context) {
-                    final bytes = _forumPhotoBytes(photos[i]);
-                    if (bytes == null) {
-                      return Container(
+                child: ColoredBox(
+                  color: MetoColors.muted,
+                  child: Builder(
+                    builder: (context) {
+                      final bytes = _forumPhotoBytes(photos[i]);
+                      if (bytes == null) {
+                        return SizedBox(
+                          height: height,
+                          child: const Center(
+                            child: Icon(Icons.broken_image_outlined,
+                                color: MetoColors.mutedFg),
+                          ),
+                        );
+                      }
+                      return Image.memory(
+                        bytes,
                         height: height,
-                        color: MetoColors.muted,
-                        alignment: Alignment.center,
-                        child: const Icon(Icons.broken_image_outlined,
-                            color: MetoColors.mutedFg),
+                        width: double.infinity,
+                        fit: BoxFit.cover,
                       );
-                    }
-                    return Image.memory(bytes, height: height, fit: BoxFit.cover);
-                  },
+                    },
+                  ),
                 ),
               ),
             ),

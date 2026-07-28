@@ -62,4 +62,28 @@ create policy "bildirim_delete_own"
     lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
   );
 
+-- Gönderen mesaj bildirimini seçebilir (upsert için)
+drop policy if exists "bildirim_select_actor_mesaj" on public.bildirimler;
+create policy "bildirim_select_actor_mesaj"
+  on public.bildirimler for select
+  to authenticated
+  using (
+    type = 'mesaj'
+    and lower(actor_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+-- Gönderen mesaj bildirimini güncelleyebilir (aynı kişiden tek satır)
+drop policy if exists "bildirim_update_actor_mesaj" on public.bildirimler;
+create policy "bildirim_update_actor_mesaj"
+  on public.bildirimler for update
+  to authenticated
+  using (
+    type = 'mesaj'
+    and lower(actor_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  )
+  with check (
+    type = 'mesaj'
+    and lower(actor_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
 notify pgrst, 'reload schema';

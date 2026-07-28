@@ -105,14 +105,31 @@ Future<User?> finalizePendingGoogleRole(User user) async {
   return Supabase.instance.client.auth.currentUser ?? user;
 }
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // Mobilde tek bir init hatası boş beyaz ekrana düşmesin.
+Future<void> ensureFirebaseInitialized() async {
+  // Web'de Google girişi index.html Firebase JS ile yapılır.
+  // FlutterFire pigeon (initializeCore) webde channel-error veriyor.
+  if (kIsWeb) return;
+  if (Firebase.apps.isNotEmpty) return;
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+  } catch (e) {
+    if (Firebase.apps.isNotEmpty) return;
+    final msg = e.toString().toLowerCase();
+    if (msg.contains('duplicate-app') || msg.contains('already exists')) {
+      return;
+    }
+    rethrow;
+  }
+}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Google girişi Firebase Auth kullanır.
+  try {
+    await ensureFirebaseInitialized();
   } catch (e, st) {
     debugPrint('Firebase init failed: $e\n$st');
   }
@@ -367,7 +384,10 @@ class _AuthScreenState extends State<AuthScreen> {
       return;
     }
     if (email.isEmpty || password.isEmpty) {
-      _snack('E-posta ve şifre gerekli.');
+      _snack(
+        'E-posta ile giriş için e-posta ve şifre girin. '
+        'Google için üstteki Google butonuna basın.',
+      );
       return;
     }
     setState(() {
@@ -413,8 +433,18 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       await savePendingGoogleRole(role);
 
-      // Firebase popup/redirect → Google idToken → Supabase.
-      // Web'de Supabase OAuth kullanılmaz (*.supabase.co görünmesin diye).
+      // Web: yalnız JS Firebase popup. Mobil: FlutterFire.
+      if (!kIsWeb) {
+        try {
+          await ensureFirebaseInitialized();
+        } catch (e) {
+          throw StateError(
+            'Firebase başlatılamadı. Uygulamayı yeniden açın. ($e)',
+          );
+        }
+      }
+
+      // Firebase JS popup → Google idToken → Supabase (supabase.co görünmez).
       final res = await GoogleAuthService.signIn();
       final user = res?.user ?? Supabase.instance.client.auth.currentUser;
       if (user == null) {
@@ -465,21 +495,33 @@ class _AuthScreenState extends State<AuthScreen> {
     if (lower.contains('provider is not enabled') ||
         lower.contains('unsupported provider') ||
         lower.contains('operation-not-allowed')) {
-      return 'Google girişi henüz etkin değil. Firebase Authentication ve '
-          'Supabase Google sağlayıcısını açın.';
+      return 'Google girişi henüz etkin değil. Supabase → Authentication → '
+          'Providers → Google’ı açın.';
     }
     if (lower.contains('unacceptable audience') ||
         lower.contains('unexpected_audience')) {
       return 'Google Client ID Supabase ile uyuşmuyor. Supabase → '
-          'Authentication → Providers → Google → Client IDs alanına '
-          'Firebase Web client ID\'yi ekleyin.';
+          'Authentication → Providers → Google → Client IDs alanını kontrol edin.';
     }
     if (lower.contains('redirect') && lower.contains('not allowed') ||
         lower.contains('invalid redirect')) {
-      return 'Bu adres Supabase izin listesinde yok. Yönetici Redirect URL '
-          'ayarını güncellemeli.';
+      return 'Bu adres Supabase izin listesinde yok. Redirect URL olarak '
+          'https://engelsizclub.com/** ekleyin.';
     }
-    return 'Google girişi başarısız: $raw';
+    if (lower.contains('channel-error') ||
+        lower.contains('initializecore') ||
+        lower.contains('unable to establish connection')) {
+      return 'Google girişi şu an webde JS ile yapılıyor. '
+          'Sayfayı Ctrl+Shift+R ile yenileyip tekrar deneyin.';
+    }
+    // StateError / gerçek mesajı kullanıcıya göster
+    final cleaned = raw
+        .replaceFirst(RegExp(r'^Bad state:\s*', caseSensitive: false), '')
+        .replaceFirst(RegExp(r'^Exception:\s*', caseSensitive: false), '')
+        .trim();
+    return cleaned.isEmpty
+        ? 'Google girişi başarısız. Lütfen tekrar deneyin.'
+        : cleaned;
   }
 
   Future<void> _createAccount() async {
@@ -560,8 +602,8 @@ class _AuthScreenState extends State<AuthScreen> {
         }
         _snack(
           hediyeKredi > 0
-              ? 'Hesap oluşturuldu! Giriş yapınca $hediyeKredi hediye kredi hesabınızda olacak.'
-              : 'Hesap oluşturuldu! Aile rolünde kredi yok; 2. el ilanlara ücretsiz teklif verebilirsiniz.',
+              ? 'Hesap oluşturuldu! Giriş yapınca $hediyeKredi hediye puan hesabınızda olacak.'
+              : 'Hesap oluşturuldu! Aile rolünde hediye puan yok; 2. el ilanlara ücretsiz teklif verebilirsiniz.',
         );
         return;
       }
@@ -572,8 +614,8 @@ class _AuthScreenState extends State<AuthScreen> {
       widget.onLogin?.call(authUser);
       _snack(
         hediyeKredi > 0
-            ? 'Hoş geldin ${authUser.name}! $hediyeKredi hediye kredi hesabına tanımlandı.'
-            : 'Hoş geldin ${authUser.name}! Aile rolünde kredi yok; ilan verebilir, 2. el ilanlara teklif verebilirsiniz.',
+            ? 'Hoş geldin ${authUser.name}! $hediyeKredi hediye puan hesabına tanımlandı.'
+            : 'Hoş geldin ${authUser.name}! Aile rolünde hediye puan yok; ilan verebilir, 2. el ilanlara teklif verebilirsiniz.',
       );
       if (mounted) setState(() => _step = 'signin');
     } catch (e) {
@@ -960,7 +1002,7 @@ class _SignInStep extends StatelessWidget {
                         color: Colors.white,
                       ),
                     )
-                  : const Text('Giriş Yap'),
+                  : const Text('E-posta ile Giriş Yap'),
             ),
           ),
           const SizedBox(height: 12),
@@ -1064,7 +1106,7 @@ class _SignInStep extends StatelessWidget {
                   Border.all(color: MetoColors.primary.withValues(alpha: 0.25)),
             ),
             child: Text(
-              '🎁 Hoş geldin hediyesi: hesabınıza $kWelcomeKredi ücretsiz kredi tanımlanır.',
+              '🎁 Hoş geldin hediyesi: hesabınıza $kWelcomeKredi ücretsiz puan tanımlanır.',
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,

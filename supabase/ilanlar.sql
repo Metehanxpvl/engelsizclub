@@ -63,6 +63,14 @@ create policy "ilanlar_delete_own"
   to authenticated
   using (owner_id = auth.uid());
 
+-- Sadece kendi ilanını güncelleyebilir
+drop policy if exists "ilanlar_update_own" on public.ilanlar;
+create policy "ilanlar_update_own"
+  on public.ilanlar for update
+  to authenticated
+  using (owner_id = auth.uid())
+  with check (owner_id = auth.uid());
+
 notify pgrst, 'reload schema';
 
 -- Mevcut tablolar için (tablo zaten varsa yukarıdaki CREATE atlanır):

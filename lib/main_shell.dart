@@ -79,6 +79,9 @@ class _MainShellState extends State<MainShell> {
   String? _openIlanKind;
   int? _openIlanId;
   int _openIlanToken = 0;
+  String? _openEditIlanKind;
+  int? _openEditIlanId;
+  int _openEditIlanToken = 0;
   BildirimAyarlari _bildirimler = const BildirimAyarlari();
   String? _profilFoto;
   late int _userKredi;
@@ -123,21 +126,21 @@ class _MainShellState extends State<MainShell> {
     (
       adet: 1,
       fiyat: '₺49,90',
-      birim: '₺49,90/kredi',
-      desc: 'Tek teklif için',
+      birim: '₺49,90/puan',
+      desc: '1 teklif = 1 puan',
       popular: false,
     ),
     (
       adet: 5,
       fiyat: '₺199,90',
-      birim: '₺39,98/kredi',
+      birim: '₺39,98/puan',
       desc: 'En çok tercih edilen · %20 indirim',
       popular: true,
     ),
     (
       adet: 10,
       fiyat: '₺349,90',
-      birim: '₺34,99/kredi',
+      birim: '₺34,99/puan',
       desc: 'Avantajlı paket · %30 indirim',
       popular: false,
     ),
@@ -150,11 +153,14 @@ class _MainShellState extends State<MainShell> {
   bool get _isAileRole => !_isProf && !isAppAdmin(widget.user.email);
   bool get _canBuyKredi =>
       _isProf || _isAileRole || isAppAdmin(widget.user.email);
-  String get _krediBirimLabel => _isAileRole ? 'iyilik puanı' : 'kredi';
+  String get _krediBirimLabel => _isAileRole ? 'iyilik puanı' : 'puan';
   String get _krediBirimLabelCap =>
-      _isAileRole ? 'İyilik Puanı' : 'Kredi';
+      _isAileRole ? 'İyilik Puanı' : 'Puan';
   String get _krediYukleLabel =>
-      _isAileRole ? 'İyilik Puanı Yükle' : 'Kredi Yükle';
+      _isAileRole ? 'İyilik Puanı Yükle' : 'Puan Yükle';
+
+  String _paketFiyatLabel(_KrediPaket p) =>
+      StoreBillingService.instance.storePriceForAdet(p.adet) ?? p.fiyat;
 
   String get _krediPrefsKey =>
       krediPrefsKeyFor(widget.user.email, fallback: widget.user.name);
@@ -165,7 +171,7 @@ class _MainShellState extends State<MainShell> {
   void initState() {
     super.initState();
     _tabPageController = PageController(initialPage: MetoTab.home.index);
-    // Herkese rolüne göre başlangıç · Admin: 1000
+    // Herkese rolüne göre başlangıç · Admin: 10000
     _userKredi = startingKrediFor(widget.user.email, userType: widget.user.userType);
     _loadKredi();
     _loadUserCloud();
@@ -446,20 +452,33 @@ class _MainShellState extends State<MainShell> {
       );
       return true;
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              e.toString().contains('policy') ||
-                      e.toString().contains('42501')
-                  ? 'Silme yetkisi yok. bildirimler_delete.sql çalıştırın.'
-                  : 'Silinemedi: $e',
-            ),
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().contains('policy') || e.toString().contains('42501')
+                ? 'Silme yetkisi yok. bildirimler_delete.sql çalıştırın.'
+                : 'Silinemedi: $e',
           ),
-        );
-      }
+        ),
+      );
       return false;
     }
+  }
+
+  Widget _bildirimSwipeDeleteBg({required bool alignStart}) {
+    return Container(
+      alignment: alignStart ? Alignment.centerLeft : Alignment.centerRight,
+      padding: EdgeInsets.only(
+        left: alignStart ? 20 : 0,
+        right: alignStart ? 0 : 20,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEF4444),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Icon(Icons.delete_outline, color: Colors.white),
+    );
   }
 
   Future<bool> _confirmDeleteSohbet(SohbetOzet o) async {
@@ -732,17 +751,10 @@ class _MainShellState extends State<MainShell> {
                         for (final b in bildirimler) ...[
                           Dismissible(
                             key: ValueKey('bildirim_${b.id}'),
-                            direction: DismissDirection.endToStart,
-                            background: Container(
-                              alignment: Alignment.centerRight,
-                              padding: const EdgeInsets.only(right: 20),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEF4444),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: const Icon(Icons.delete_outline,
-                                  color: Colors.white),
-                            ),
+                            direction: DismissDirection.horizontal,
+                            background: _bildirimSwipeDeleteBg(alignStart: true),
+                            secondaryBackground:
+                                _bildirimSwipeDeleteBg(alignStart: false),
                             confirmDismiss: (_) => _confirmDeleteBildirim(b),
                             child: Material(
                               color: b.read
@@ -1152,7 +1164,7 @@ class _MainShellState extends State<MainShell> {
           content: Text(
             next == 'aile'
                 ? 'Rol: $label. İlan verebilirsiniz; teklif yalnız 2. el ilanlarda.'
-                : 'Rol: $label. Uzman ve bakıcı aynı kredi bakiyesini kullanır · $_userKredi kredi',
+                : 'Rol: $label. Uzman ve bakıcı aynı puan bakiyesini kullanır · $_userKredi puan',
           ),
         ),
       );
@@ -1194,7 +1206,7 @@ class _MainShellState extends State<MainShell> {
           Text(
             _role == 'aile'
                 ? 'İlan verebilirsiniz. Teklif yalnız 2. el ilanlarda.'
-                : 'Uzman & bakıcı aynı kredi bakiyesini paylaşır; teklifte 1 kredi düşer.',
+                : 'Uzman & bakıcı aynı puan bakiyesini paylaşır; teklifte 1 puan düşer.',
             style: TextStyle(
               fontSize: 11,
               color: MetoColors.mutedFg.withValues(alpha: 0.95),
@@ -1287,9 +1299,12 @@ class _MainShellState extends State<MainShell> {
     // konum/merkez araması tetiklenmesin. Sağa/sola kaydırarak sekmeler arası geçiş.
     return PageView(
       controller: _tabPageController,
-      physics: const BouncingScrollPhysics(
-        parent: AlwaysScrollableScrollPhysics(),
-      ),
+      // Mesajlar'da yatay kaydırma bildirim silmeye gitsin (sekme kaydırması kapalı).
+      physics: _activeTab == MetoTab.mesajlar
+          ? const NeverScrollableScrollPhysics()
+          : const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
       onPageChanged: _onTabPageChanged,
       children: [
         HomePage(key: ValueKey('home_$_homeRefreshToken')),
@@ -1313,6 +1328,9 @@ class _MainShellState extends State<MainShell> {
           openIlanKind: _openIlanKind,
           openIlanId: _openIlanId,
           openIlanToken: _openIlanToken,
+          openEditIlanKind: _openEditIlanKind,
+          openEditIlanId: _openEditIlanId,
+          openEditIlanToken: _openEditIlanToken,
         ),
         ForumPage(
           userName: widget.user.name,
@@ -1711,6 +1729,21 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
+  void _openEditIlanFromProfil(String kind, int id) {
+    setState(() {
+      _showIlanlarim = false;
+      _showKaydedilenler = false;
+      _showProfilPanel = false;
+      _activeTab = MetoTab.ilanlar;
+      _openEditIlanKind = kind;
+      _openEditIlanId = id;
+      _openEditIlanToken++;
+    });
+    if (_tabPageController.hasClients) {
+      _tabPageController.jumpToPage(MetoTab.ilanlar.index);
+    }
+  }
+
   Widget _buildIlanlarim() {
     final email = widget.user.email;
     // Sadece bu kullanıcının ilanları.
@@ -1809,16 +1842,9 @@ class _MainShellState extends State<MainShell> {
           for (final b in _bildirimlerInbox.where((x) => x.isTeklif)) ...[
             Dismissible(
               key: ValueKey('ilan_bildirim_${b.id}'),
-              direction: DismissDirection.endToStart,
-              background: Container(
-                alignment: Alignment.centerRight,
-                padding: const EdgeInsets.only(right: 16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEF4444),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(Icons.delete_outline, color: Colors.white),
-              ),
+              direction: DismissDirection.horizontal,
+              background: _bildirimSwipeDeleteBg(alignStart: true),
+              secondaryBackground: _bildirimSwipeDeleteBg(alignStart: false),
               confirmDismiss: (_) => _confirmDeleteBildirim(b),
               child: Material(
                 color:
@@ -2100,6 +2126,16 @@ class _MainShellState extends State<MainShell> {
                       ),
                       visualDensity: VisualDensity.compact,
                     ),
+                  IconButton(
+                    tooltip: 'İlanı düzenle',
+                    onPressed: () => _openEditIlanFromProfil(e.kind, e.id),
+                    icon: const Icon(
+                      Icons.edit_outlined,
+                      color: MetoColors.primary,
+                      size: 18,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
                   IconButton(
                     tooltip: 'İlanı sil',
                     onPressed: () async {
@@ -2577,7 +2613,7 @@ class _MainShellState extends State<MainShell> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Sisteme kayıt olduğunuz için hesabınıza $kWelcomeKredi ücretsiz kredi tanımlandı.',
+                        'Sisteme kayıt olduğunuz için hesabınıza $kWelcomeKredi ücretsiz puan tanımlandı.',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.white.withValues(alpha: 0.85),
@@ -2586,7 +2622,7 @@ class _MainShellState extends State<MainShell> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '1 kredi = 1 teklif = ₺49,90 değerinde',
+                        '1 teklif = 1 puan = ₺49,90',
                         style: TextStyle(
                           fontSize: 10,
                           color: Colors.white.withValues(alpha: 0.7),
@@ -2631,7 +2667,7 @@ class _MainShellState extends State<MainShell> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _isAileRole ? 'İyilik Puanım' : 'Mevcut Krediniz',
+                        _isAileRole ? 'İyilik Puanım' : 'Mevcut Puanım',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -2661,15 +2697,14 @@ class _MainShellState extends State<MainShell> {
                           ],
                         ),
                       ),
-                      Text(
-                        _isAileRole
-                            ? 'Uygulama geliştirme ve serebral palsili oğlumuzun fizik tedavi giderleri için destek'
-                            : '1 kredi = 1 teklif · Uzman & bakıcı ortak bakiye',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.white.withValues(alpha: 0.6),
+                      if (!_isAileRole)
+                        Text(
+                          '1 teklif = 1 puan = ₺49,90 · Uzman & bakıcı ortak bakiye',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white.withValues(alpha: 0.6),
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -2890,7 +2925,7 @@ class _MainShellState extends State<MainShell> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                _isAileRole ? 'Mevcut iyilik puanınız' : 'Mevcut krediniz',
+                _isAileRole ? 'Mevcut iyilik puanınız' : 'Mevcut puanınız',
                 style: const TextStyle(fontSize: 14, color: MetoColors.mutedFg),
               ),
               Text(
@@ -2904,25 +2939,6 @@ class _MainShellState extends State<MainShell> {
             ],
           ),
         ),
-        if (_isAileRole) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFECFDF5),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFA7F3D0)),
-            ),
-            child: const Text(
-              'Bu destek, uygulamanın geliştirilmesi ve serebral palsili oğlumuzun fizik tedavi giderleri içindir. Teşekkür ederiz.',
-              style: TextStyle(
-                fontSize: 12,
-                color: Color(0xFF065F46),
-                height: 1.4,
-              ),
-            ),
-          ),
-        ],
         const SizedBox(height: 20),
         const Text(
           'PAKET SEÇ',
@@ -3006,8 +3022,8 @@ class _MainShellState extends State<MainShell> {
                             ),
                             Text(
                               p.birim.replaceAll(
-                                '/kredi',
-                                _isAileRole ? '/iyilik puanı' : '/kredi',
+                                '/puan',
+                                _isAileRole ? '/iyilik puanı' : '/puan',
                               ),
                               style: TextStyle(
                                 fontSize: 10,
@@ -3020,7 +3036,7 @@ class _MainShellState extends State<MainShell> {
                         ),
                       ),
                       Text(
-                        p.fiyat,
+                        _paketFiyatLabel(p),
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
@@ -3039,12 +3055,6 @@ class _MainShellState extends State<MainShell> {
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
         ),
-        const SizedBox(height: 8),
-        Text(
-          StoreBillingService.instance.payoutExplanation,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
-        ),
       ],
     );
   }
@@ -3052,7 +3062,6 @@ class _MainShellState extends State<MainShell> {
   Widget _buildKrediOdemeStep() {
     final paket = _seciliPaket;
     if (paket == null) return const SizedBox.shrink();
-    final store = StoreBillingService.instance;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -3091,7 +3100,7 @@ class _MainShellState extends State<MainShell> {
                 ),
               ),
               Text(
-                paket.fiyat,
+                _paketFiyatLabel(paket),
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
@@ -3099,25 +3108,6 @@ class _MainShellState extends State<MainShell> {
                 ),
               ),
             ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFECFDF5),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFA7F3D0)),
-          ),
-          child: Text(
-            _isAileRole
-                ? 'Destek, uygulamanın geliştirilmesi ve serebral palsili oğlumuzun fizik tedavi giderleri içindir. ${store.payoutExplanation}'
-                : store.payoutExplanation,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Color(0xFF065F46),
-              height: 1.4,
-            ),
           ),
         ),
         const SizedBox(height: 14),
@@ -3181,20 +3171,6 @@ class _MainShellState extends State<MainShell> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: MetoColors.muted,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Text(
-            '${store.storeName} güvenli ödeme sayfası açılır. '
-            'Ödeme onaylanınca puan/kredi hesabınıza eklenir; '
-            'para mağaza üzerinden sizin geliştirici hesabınıza geçer.',
-            style: const TextStyle(fontSize: 13, height: 1.4),
-          ),
-        ),
-        const SizedBox(height: 16),
         FilledButton.icon(
           onPressed: _odemeYukleniyor ? null : _handleStoreOdeme,
           style: FilledButton.styleFrom(
@@ -3218,7 +3194,7 @@ class _MainShellState extends State<MainShell> {
           label: Text(
             _odemeYukleniyor
                 ? '${store.storeName} açılıyor…'
-                : '${store.storeName} ile ${_seciliPaket?.fiyat ?? ''} Öde',
+                : '${store.storeName} ile ${_seciliPaket == null ? '' : _paketFiyatLabel(_seciliPaket!)} Öde',
             style: const TextStyle(fontWeight: FontWeight.w800),
           ),
         ),

@@ -34,6 +34,9 @@ class IlanlarPage extends StatefulWidget {
     this.openIlanKind,
     this.openIlanId,
     this.openIlanToken = 0,
+    this.openEditIlanKind,
+    this.openEditIlanId,
+    this.openEditIlanToken = 0,
   });
 
   final int userKredi;
@@ -50,6 +53,11 @@ class IlanlarPage extends StatefulWidget {
   final String? openIlanKind;
   final int? openIlanId;
   final int openIlanToken;
+
+  /// İlanlarım’dan düzenleme (kind: uzman|bakici|ikinciel).
+  final String? openEditIlanKind;
+  final int? openEditIlanId;
+  final int openEditIlanToken;
 
   @override
   State<IlanlarPage> createState() => _IlanlarPageState();
@@ -74,6 +82,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
 
   IlanKategori _kategori = IlanKategori.uzmanlar;
   bool _showVerForm = false;
+  _IlanEditDraft? _editDraft;
   double _kmFilter = 500;
   String _filterIl = _kAllIller;
   String _filterIlce = kAllIlceler;
@@ -191,6 +200,107 @@ class _IlanlarPageState extends State<IlanlarPage> {
     );
   }
 
+  bool _isIlanOwner(int id) {
+    final me = widget.userEmail.trim().toLowerCase();
+    return me.isNotEmpty && (ilanOwnerById[id] ?? '') == me;
+  }
+
+  Widget _ownerIlanEditBtn({
+    required int id,
+    required VoidCallback onEdit,
+  }) {
+    if (!_isIlanOwner(id)) return const SizedBox.shrink();
+    return IconButton(
+      tooltip: 'Düzenle',
+      onPressed: onEdit,
+      icon: const Icon(Icons.edit_outlined, size: 18, color: MetoColors.primary),
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+    );
+  }
+
+  void _openEditUzman(UzmanIlani ilan) {
+    setState(() {
+      _editDraft = _IlanEditDraft(
+        id: ilan.id,
+        kind: 'uzman',
+        title: ilan.title,
+        city: ilan.city,
+        district: ilan.district,
+        note: ilan.note == '—' ? '' : ilan.note,
+        budgetOrPrice: ilan.budget,
+        uzmanlik: ilan.uzmanlik,
+        photos: List<IlanPhoto>.from(ilan.photos),
+      );
+      _showVerForm = true;
+    });
+  }
+
+  void _openEditBakici(BakiciIlani ilan) {
+    setState(() {
+      _editDraft = _IlanEditDraft(
+        id: ilan.id,
+        kind: 'bakici',
+        title: ilan.title,
+        city: ilan.city,
+        district: ilan.district,
+        note: ilan.note == '—' ? '' : ilan.note,
+        budgetOrPrice: ilan.budget,
+        photos: List<IlanPhoto>.from(ilan.photos),
+      );
+      _showVerForm = true;
+    });
+  }
+
+  void _openEditIkinciel(IkincielIlani ilan) {
+    setState(() {
+      _editDraft = _IlanEditDraft(
+        id: ilan.id,
+        kind: 'ikinciel',
+        title: ilan.title,
+        city: ilan.city,
+        district: ilan.district,
+        note: ilan.note == '—' ? '' : ilan.note,
+        budgetOrPrice: ilan.price,
+        photos: List<IlanPhoto>.from(ilan.photos),
+      );
+      _showVerForm = true;
+    });
+  }
+
+  void _tryOpenEditIlan() {
+    final kind = widget.openEditIlanKind?.trim().toLowerCase();
+    final id = widget.openEditIlanId;
+    if (kind == null || kind.isEmpty || id == null || id <= 0) return;
+    switch (kind) {
+      case 'uzman':
+        for (final i in runtimeUzmanIlanlar) {
+          if (i.id == id) {
+            _openEditUzman(i);
+            return;
+          }
+        }
+        break;
+      case 'bakici':
+        for (final i in runtimeBakiciIlanlar) {
+          if (i.id == id) {
+            _openEditBakici(i);
+            return;
+          }
+        }
+        break;
+      case 'ikinciel':
+        for (final i in runtimeIkincielIlanlar) {
+          if (i.id == id) {
+            _openEditIkinciel(i);
+            return;
+          }
+        }
+        break;
+    }
+  }
+
   Future<void> _syncSohbetListesi() async {
     final me = widget.userEmail.trim().toLowerCase();
     if (me.isEmpty) return;
@@ -234,6 +344,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
     _refreshFeed().then((_) {
       if (!mounted) return;
       _tryOpenPendingIlan();
+      _tryOpenEditIlan();
     });
   }
 
@@ -242,6 +353,9 @@ class _IlanlarPageState extends State<IlanlarPage> {
     super.didUpdateWidget(oldWidget);
     if (widget.openIlanToken != oldWidget.openIlanToken) {
       _tryOpenPendingIlan();
+    }
+    if (widget.openEditIlanToken != oldWidget.openEditIlanToken) {
+      _tryOpenEditIlan();
     }
   }
 
@@ -510,7 +624,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${k.ad} adlı ilan sahibine teklif bildirimi gönderildi · 1 kredi harcandı',
+              '${k.ad} adlı ilan sahibine teklif bildirimi gönderildi · 1 puan harcandı',
             ),
           ),
         );
@@ -661,20 +775,30 @@ class _IlanlarPageState extends State<IlanlarPage> {
   @override
   Widget build(BuildContext context) {
     if (_showVerForm) {
+      final editing = _editDraft != null;
       return _YeniIlanForm(
         userName: widget.userName,
         userEmail: widget.userEmail,
-        onBack: () => setState(() => _showVerForm = false),
+        editDraft: _editDraft,
+        onBack: () => setState(() {
+          _showVerForm = false;
+          _editDraft = null;
+        }),
         onPublished: (kategori) async {
           setState(() {
             _showVerForm = false;
+            _editDraft = null;
             _kategori = kategori;
           });
           final messenger = ScaffoldMessenger.of(context);
           await _refreshFeed();
           if (!mounted) return;
           messenger.showSnackBar(
-            const SnackBar(content: Text('İlanınız yayınlandı ✅')),
+            SnackBar(
+              content: Text(
+                editing ? 'İlan güncellendi ✅' : 'İlanınız yayınlandı ✅',
+              ),
+            ),
           );
         },
       );
@@ -976,7 +1100,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${widget.userKredi} krediniz var',
+                  '${widget.userKredi} puanınız var',
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
@@ -984,7 +1108,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
                   ),
                 ),
                 const Text(
-                  '1 kredi = uzman/bakıcı ilanına teklif',
+                  '1 puan = 1 teklif = ₺49,90',
                   style: TextStyle(fontSize: 12, color: Color(0xFFD97706)),
                 ),
               ],
@@ -1206,7 +1330,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
   String _paidCtaLabel(int? ilanId) {
     if (_teklifVerildiMi(ilanId)) return 'Teklif Verildi — Mesaja Git';
     if (!_canPaidTeklif) return 'Teklif için Uzman/Bakıcı rolü';
-    return '1 Kredi Harca — Teklif Ver';
+    return '1 Puan Harca — Teklif Ver';
   }
 
   Widget _buildUzmanCard(UzmanIlani ilan) {
@@ -1283,6 +1407,10 @@ class _IlanlarPageState extends State<IlanlarPage> {
                                 '${ilan.district.isEmpty ? '' : '${ilan.district}, '}${ilan.city}',
                             fiyat: ilan.budget,
                           )),
+                          _ownerIlanEditBtn(
+                            id: ilan.id,
+                            onEdit: () => _openEditUzman(ilan),
+                          ),
                           _adminIlanDeleteBtn(
                             kind: 'uzman',
                             id: ilan.id,
@@ -1463,6 +1591,10 @@ class _IlanlarPageState extends State<IlanlarPage> {
                                 '${ilan.district.isEmpty ? '' : '${ilan.district}, '}${ilan.city}',
                             fiyat: ilan.budget,
                           )),
+                          _ownerIlanEditBtn(
+                            id: ilan.id,
+                            onEdit: () => _openEditBakici(ilan),
+                          ),
                           _adminIlanDeleteBtn(
                             kind: 'bakici',
                             id: ilan.id,
@@ -1641,6 +1773,10 @@ class _IlanlarPageState extends State<IlanlarPage> {
                       '${ilan.district.isEmpty ? '' : '${ilan.district}, '}${ilan.city}',
                   fiyat: ilan.price,
                 )),
+                _ownerIlanEditBtn(
+                  id: ilan.id,
+                  onEdit: () => _openEditIkinciel(ilan),
+                ),
                 _adminIlanDeleteBtn(
                   kind: 'ikinciel',
                   id: ilan.id,
@@ -2092,7 +2228,7 @@ class _PhotoStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final height = photos.length == 1 ? 200.0 : 168.0;
+    final height = photos.length == 1 ? 220.0 : 180.0;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: GestureDetector(
@@ -2202,7 +2338,7 @@ class _KrediSheetState extends State<_KrediSheet> {
                       Text('Teklif Gönderildi!',
                           style: TextStyle(
                               fontWeight: FontWeight.w800, fontSize: 16)),
-                      Text('1 kredi harcandı · Sohbet hazır',
+                      Text('1 puan harcandı · Sohbet hazır',
                           style: TextStyle(
                               fontSize: 12, color: MetoColors.mutedFg)),
                     ],
@@ -2254,7 +2390,7 @@ class _KrediSheetState extends State<_KrediSheet> {
                     Text('İletişim Bilgisini Aç',
                         style: TextStyle(
                             fontSize: 18, fontWeight: FontWeight.w800)),
-                    Text('1 kredi harcayarak iletişim bilgisine ulaş',
+                    Text('1 puan harcayarak iletişim bilgisine ulaş',
                         style:
                             TextStyle(fontSize: 12, color: MetoColors.mutedFg)),
                   ],
@@ -2272,7 +2408,7 @@ class _KrediSheetState extends State<_KrediSheet> {
                     const Icon(Icons.monetization_on,
                         size: 14, color: Color(0xFFD97706)),
                     const SizedBox(width: 4),
-                    Text('${widget.credits} kredi',
+                    Text('${widget.credits} puan',
                         style: const TextStyle(
                             fontWeight: FontWeight.w800,
                             color: Color(0xFFB45309))),
@@ -2358,7 +2494,7 @@ class _KrediSheetState extends State<_KrediSheet> {
                   )
                 : const Icon(Icons.monetization_on, size: 20),
             label: Text(
-              _busy ? 'Gönderiliyor…' : '1 Kredi Harca — Teklif Ver',
+              _busy ? 'Gönderiliyor…' : '1 Puan Harca — Teklif Ver',
               style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
             ),
           ),
@@ -2840,7 +2976,7 @@ class _UzmanDrawer extends StatefulWidget {
     required this.onKrediTap,
     required this.onProfile,
     this.alreadyOffered = false,
-    this.ctaLabel = '1 Kredi Harca — Teklif Ver',
+    this.ctaLabel = '1 Puan Harca — Teklif Ver',
   });
   final UzmanIlani ilan;
   final VoidCallback onClose;
@@ -3165,7 +3301,7 @@ class _BakiciDrawer extends StatefulWidget {
     required this.onKrediTap,
     required this.onProfile,
     this.alreadyOffered = false,
-    this.ctaLabel = '1 Kredi Harca — Teklif Ver & Sohbet Aç',
+    this.ctaLabel = '1 Puan Harca — Teklif Ver & Sohbet Aç',
   });
   final BakiciIlani ilan;
   final VoidCallback onClose;
@@ -4358,17 +4494,43 @@ class _SohbetPageState extends State<SohbetPage> {
   }
 }
 
+class _IlanEditDraft {
+  const _IlanEditDraft({
+    required this.id,
+    required this.kind,
+    required this.title,
+    required this.city,
+    required this.district,
+    required this.note,
+    required this.budgetOrPrice,
+    this.uzmanlik = 'Uzman',
+    this.photos = const [],
+  });
+
+  final int id;
+  final String kind;
+  final String title;
+  final String city;
+  final String district;
+  final String note;
+  final String budgetOrPrice;
+  final String uzmanlik;
+  final List<IlanPhoto> photos;
+}
+
 class _YeniIlanForm extends StatefulWidget {
   const _YeniIlanForm({
     required this.onBack,
     required this.onPublished,
     this.userName = 'Siz',
     this.userEmail = '',
+    this.editDraft,
   });
   final VoidCallback onBack;
   final ValueChanged<IlanKategori> onPublished;
   final String userName;
   final String userEmail;
+  final _IlanEditDraft? editDraft;
   @override
   State<_YeniIlanForm> createState() => _YeniIlanFormState();
 }
@@ -4385,6 +4547,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
   String? _formIlce;
   bool _pickingPhoto = false;
 
+  bool get _isEditing => widget.editDraft != null;
   bool get _isIkinciel => _formKategori == '2. El Alet';
   bool get _isUzmanArama =>
       _formKategori == 'Uzman Arıyorum' || _formKategori == 'Uzman';
@@ -4402,6 +4565,28 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
     final info = kTurkishCities[city];
     if (info == null) return const [];
     return info.ilceler.where((i) => i != kAllIlceler).toList();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final d = widget.editDraft;
+    if (d == null) return;
+    _formKategori = switch (d.kind) {
+      'bakici' => 'Bakıcı Arıyorum',
+      'ikinciel' => '2. El Alet',
+      _ => 'Uzman Arıyorum',
+    };
+    _formBaslik.text = d.title;
+    _formButce.text = d.budgetOrPrice;
+    _formAciklama.text = d.note;
+    _formIl = d.city.isEmpty ? null : d.city;
+    _formIlce = d.district.isEmpty ? null : d.district;
+    if (d.uzmanlik.isNotEmpty) {
+      final opts = CatalogAdapters.uzmanlikSecenekleri();
+      _formUzmanlik = opts.contains(d.uzmanlik) ? d.uzmanlik : opts.first;
+    }
+    _formPhotos.addAll(d.photos);
   }
 
   @override
@@ -4450,6 +4635,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
     final districtName = district!;
     final note = aciklama.isEmpty ? '—' : aciklama;
     final email = widget.userEmail.trim();
+    final edit = widget.editDraft;
 
     setState(() => _publishing = true);
     try {
@@ -4458,56 +4644,105 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
         case 'Uzman Arıyorum':
         case 'Uzman':
           kategori = IlanKategori.uzmanlar;
-          await publishIlanToCloud(
-            kind: 'uzman',
-            title: baslik,
-            city: cityName,
-            district: districtName,
-            note: note,
-            budget: butce,
-            uzmanlik: _formUzmanlik,
-            photos: List<IlanPhoto>.from(
-              _formPhotos.take(kUzmanBakiciMaxPhotos),
-            ),
-            posterName: name,
-            posterAvatar: avatar,
-            ownerEmail: email,
-          );
+          if (edit != null) {
+            await updateIlanInCloud(
+              id: edit.id,
+              kind: 'uzman',
+              title: baslik,
+              city: cityName,
+              district: districtName,
+              note: note,
+              budget: butce,
+              uzmanlik: _formUzmanlik,
+              photos: List<IlanPhoto>.from(
+                _formPhotos.take(kUzmanBakiciMaxPhotos),
+              ),
+              ownerEmail: email,
+            );
+          } else {
+            await publishIlanToCloud(
+              kind: 'uzman',
+              title: baslik,
+              city: cityName,
+              district: districtName,
+              note: note,
+              budget: butce,
+              uzmanlik: _formUzmanlik,
+              photos: List<IlanPhoto>.from(
+                _formPhotos.take(kUzmanBakiciMaxPhotos),
+              ),
+              posterName: name,
+              posterAvatar: avatar,
+              ownerEmail: email,
+            );
+          }
           break;
         case 'Bakıcı Arıyorum':
         case 'Bakıcı':
           kategori = IlanKategori.bakici;
-          await publishIlanToCloud(
-            kind: 'bakici',
-            title: baslik,
-            city: cityName,
-            district: districtName,
-            note: note,
-            budget: butce,
-            photos: List<IlanPhoto>.from(
-              _formPhotos.take(kUzmanBakiciMaxPhotos),
-            ),
-            posterName: name,
-            posterAvatar: avatar,
-            ownerEmail: email,
-          );
+          if (edit != null) {
+            await updateIlanInCloud(
+              id: edit.id,
+              kind: 'bakici',
+              title: baslik,
+              city: cityName,
+              district: districtName,
+              note: note,
+              budget: butce,
+              photos: List<IlanPhoto>.from(
+                _formPhotos.take(kUzmanBakiciMaxPhotos),
+              ),
+              ownerEmail: email,
+            );
+          } else {
+            await publishIlanToCloud(
+              kind: 'bakici',
+              title: baslik,
+              city: cityName,
+              district: districtName,
+              note: note,
+              budget: butce,
+              photos: List<IlanPhoto>.from(
+                _formPhotos.take(kUzmanBakiciMaxPhotos),
+              ),
+              posterName: name,
+              posterAvatar: avatar,
+              ownerEmail: email,
+            );
+          }
           break;
         default:
           kategori = IlanKategori.ikinciel;
-          await publishIlanToCloud(
-            kind: 'ikinciel',
-            title: baslik,
-            city: cityName,
-            district: districtName,
-            note: note,
-            price: butce,
-            photos: _formPhotos.isEmpty
-                ? const [IlanPhoto.swatch(Color(0xFFDCE8F5))]
-                : List<IlanPhoto>.from(_formPhotos),
-            posterName: name,
-            posterAvatar: avatar,
-            ownerEmail: email,
-          );
+          if (edit != null) {
+            await updateIlanInCloud(
+              id: edit.id,
+              kind: 'ikinciel',
+              title: baslik,
+              city: cityName,
+              district: districtName,
+              note: note,
+              price: butce,
+              photos: _formPhotos.isEmpty
+                  ? const [IlanPhoto.swatch(Color(0xFFDCE8F5))]
+                  : List<IlanPhoto>.from(_formPhotos),
+              ownerEmail: email,
+            );
+          } else {
+            await publishIlanToCloud(
+              kind: 'ikinciel',
+              title: baslik,
+              city: cityName,
+              district: districtName,
+              note: note,
+              price: butce,
+              photos: _formPhotos.isEmpty
+                  ? const [IlanPhoto.swatch(Color(0xFFDCE8F5))]
+                  : List<IlanPhoto>.from(_formPhotos),
+              posterName: name,
+              posterAvatar: avatar,
+              ownerEmail: email,
+            );
+          }
       }
       if (!mounted) return;
       widget.onPublished(kategori);
@@ -4515,7 +4750,17 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
       if (!mounted) return;
       final msg = e.toString();
       final lower = msg.toLowerCase();
-      if (msg.contains('Ortak görünüm')) {
+      if (edit != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              msg.contains('ilanlar_update_own') || msg.contains('yetki')
+                  ? 'Güncelleme yetkisi yok. Supabase’de ilanlar_update_own.sql çalıştırın.'
+                  : 'İlan güncellenemedi: $e',
+            ),
+          ),
+        );
+      } else if (msg.contains('Ortak görünüm')) {
         // Yerel kayıt oldu; yine de yayınlandı say.
         widget.onPublished(
           _isUzmanArama
@@ -4564,7 +4809,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
         val.replaceAll(phoneRegex, '***').replaceAll(emailRegex, '***');
     setState(() {
       _aciklamaUyari = cleaned != val
-          ? 'İletişim bilgileri (telefon/e-posta) ilanda görünmez — kredi sistemi bu bilgileri korur.'
+          ? 'İletişim bilgileri (telefon/e-posta) ilanda görünmez — puan sistemi bu bilgileri korur.'
           : '';
       _formAciklama.value = TextEditingValue(
           text: cleaned,
@@ -4632,12 +4877,12 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
 
     setState(() => _pickingPhoto = true);
     try {
-      // Web önbellek kotası için agresif küçültme.
+      // Oranı koruyarak küçült — kırpma yok.
       final file = await ImagePicker().pickImage(
         source: source,
-        maxWidth: 720,
-        maxHeight: 720,
-        imageQuality: 45,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 75,
       );
       if (file == null || !mounted) return;
       final bytes = await file.readAsBytes();
@@ -4646,7 +4891,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
       }
       var mime = 'image/jpeg';
       final encoded = base64Encode(bytes);
-      if (encoded.length > 180000) {
+      if (encoded.length > 500000) {
         throw StateError(
           'Fotoğraf çok büyük. Daha küçük / daha az fotoğraf ekleyin.',
         );
@@ -4709,8 +4954,10 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             children: [
               IconButton(
                   onPressed: widget.onBack, icon: const Icon(Icons.arrow_back)),
-              const Text('Yeni İlan Ver',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              Text(
+                _isEditing ? 'İlanı Düzenle' : 'Yeni İlan Ver',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -4734,10 +4981,12 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             ]
                 .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                 .toList(),
-            onChanged: (v) => setState(() {
-              _formKategori = v!;
-              _formPhotos.clear();
-            }),
+            onChanged: _isEditing
+                ? null
+                : (v) => setState(() {
+                      _formKategori = v!;
+                      _formPhotos.clear();
+                    }),
           ),
           const SizedBox(height: 8),
           Container(
@@ -5015,7 +5264,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                 SizedBox(width: 8),
                 Expanded(
                     child: Text(
-                        'Telefon, e-posta ve adres bilgileri otomatik olarak engellenir. İletişim yalnızca kredi sistemi üzerinden kurulur.',
+                        'Telefon, e-posta ve adres bilgileri otomatik olarak engellenir. İletişim yalnızca puan sistemi üzerinden kurulur.',
                         style: TextStyle(
                             fontSize: 12,
                             color: MetoColors.mutedFg,
@@ -5040,7 +5289,11 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                     )
                   : const Icon(Icons.add),
               label: Text(
-                _publishing ? 'Yayınlanıyor…' : 'İlanı Yayınla — Ücretsiz',
+                _publishing
+                    ? (_isEditing ? 'Kaydediliyor…' : 'Yayınlanıyor…')
+                    : (_isEditing
+                        ? 'Değişiklikleri Kaydet'
+                        : 'İlanı Yayınla — Ücretsiz'),
                 style: const TextStyle(fontWeight: FontWeight.w800),
               ),
             ),

@@ -6,13 +6,16 @@ import 'admin_config.dart';
 const pendingGoogleRoleKey = 'pending_google_user_type';
 
 /// Yeni üye başlangıç kredisi (yalnız uzman / bakıcı).
-const int kWelcomeKredi = 50;
+const int kWelcomeKredi = 25;
+
+/// Aile rolü başlangıç iyilik puanı (yükledikçe artar).
+const int kAileStartKredi = 1;
 
 /// Admin başlangıç / hedef kredisi.
-const int kAdminKredi = 1000;
+const int kAdminKredi = 10000;
 
-/// Tek seferlik yükleme: admin 1000, uzman/bakıcı 50, aile 0.
-const int kKrediGrantVersion = 3;
+/// Tek seferlik yükleme: admin 10000, uzman/bakıcı 25, aile 1.
+const int kKrediGrantVersion = 5;
 
 String krediPrefsKeyFor(String email, {String fallback = 'anon'}) {
   final e = email.trim().toLowerCase();
@@ -27,11 +30,11 @@ bool isProfUserType(String? userType) {
   return t == 'uzman' || t == 'bakici';
 }
 
-/// Aile: 0 · Uzman/Bakıcı: 50 · Admin: 1000
+/// Aile: 1 · Uzman/Bakıcı: 25 · Admin: 10000
 int startingKrediFor(String email, {String? userType}) {
   if (isAppAdmin(email)) return kAdminKredi;
   if (isProfUserType(userType)) return kWelcomeKredi;
-  return 0;
+  return kAileStartKredi;
 }
 
 class KrediSnapshot {
@@ -69,8 +72,34 @@ Future<KrediSnapshot> loadUserKredi({
     final granted = prefs.getBool(grantKey) ?? false;
     final bal = current ?? 0;
 
-    // Aile rolü kredi kullanmaz — bakiyeyi şişirme, harcamayı da bozma.
+    // Admin: bu grant sürümünde hedef bakiyeye çek (10000).
+    if (isAppAdmin(email)) {
+      if (!granted || bal < target) {
+        final saved = await saveUserKredi(
+          email: email,
+          balance: target,
+          welcomeGiftGiven: true,
+        );
+        if (saved) await prefs.setBool(grantKey, true);
+        await prefs.setInt(key, target);
+        return finish(target);
+      }
+      await prefs.setBool(grantKey, true);
+      return finish(bal);
+    }
+
+    // Aile: bir kez 1 iyilik puanı; yükleme/harcama sonrası bakiye korunur.
     if (!isProf) {
+      if (!granted && bal < target) {
+        final saved = await saveUserKredi(
+          email: email,
+          balance: target,
+          welcomeGiftGiven: true,
+        );
+        if (saved) await prefs.setBool(grantKey, true);
+        await prefs.setInt(key, target);
+        return finish(target);
+      }
       await prefs.setBool(grantKey, true);
       return finish(bal, gift: true);
     }
@@ -140,9 +169,24 @@ Future<KrediSnapshot> loadUserKredi({
   final local = prefs.getInt(key);
   final giftLocal = prefs.getBool(giftKey) ?? false;
   final granted = prefs.getBool(grantKey) ?? false;
+  if (isAppAdmin(email)) {
+    if (!granted || (local ?? 0) < target) {
+      await prefs.setInt(key, target);
+      await prefs.setBool(giftKey, true);
+      await prefs.setBool(grantKey, true);
+      return KrediSnapshot(balance: target, welcomeGiftGiven: true);
+    }
+    return finish(local ?? target);
+  }
   if (!isProf) {
+    if (!granted && (local ?? 0) < target) {
+      await prefs.setInt(key, target);
+      await prefs.setBool(giftKey, true);
+      await prefs.setBool(grantKey, true);
+      return KrediSnapshot(balance: target, welcomeGiftGiven: true);
+    }
     await prefs.setBool(grantKey, true);
-    return finish(local ?? 0, gift: true);
+    return finish(local ?? target, gift: true);
   }
   if (giftLocal || granted) {
     return finish(local ?? 0, gift: true);

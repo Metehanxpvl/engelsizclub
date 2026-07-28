@@ -102,6 +102,100 @@
       setTimeout(function () { el.remove(); }, 300);
     });
   </script>
+  <!-- Firebase JS — FlutterFire pigeon kanalı için önce yüklenir -->
+  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-auth-compat.js"></script>
+  <script>
+    if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+      firebase.initializeApp({
+        apiKey: 'AIzaSyDbcRvVaEQSDQJ2y-0kHZUsxtW_O2Xb_bQ',
+        authDomain: 'engelsizclub.com',
+        projectId: 'engelsizclub-e5842',
+        storageBucket: 'engelsizclub-e5842.firebasestorage.app',
+        messagingSenderId: '59695056324',
+        appId: '1:59695056324:web:ea6c93f11bd19d395b9091',
+        measurementId: 'G-8YPB15NZPJ'
+      });
+    }
+    // Flutter → Google popup (supabase.co yok)
+    window.__engelsizGoogleSignIn = async function () {
+      if (typeof firebase === 'undefined' || !firebase.apps.length) {
+        return { error: 'Firebase yüklenemedi. Sayfayı yenileyin.' };
+      }
+      var auth = firebase.auth();
+      var provider = new firebase.auth.GoogleAuthProvider();
+      provider.addScope('openid');
+      provider.addScope('email');
+      provider.addScope('profile');
+      provider.setCustomParameters({ prompt: 'select_account' });
+      try {
+        // Eski oturum credential’ı boş bırakabiliyor — önce çıkış
+        try { await auth.signOut(); } catch (_) {}
+
+        var result = await auth.signInWithPopup(provider);
+        var oauth = null;
+        try {
+          oauth = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
+        } catch (_) {}
+
+        var idToken = null;
+        var accessToken = null;
+        if (oauth) {
+          idToken = oauth.idToken || null;
+          accessToken = oauth.accessToken || null;
+        }
+        // Bazı sürümlerde credential doğrudan result üzerinde
+        if (!idToken && result.credential) {
+          idToken = result.credential.idToken || idToken;
+          accessToken = result.credential.accessToken || accessToken;
+        }
+        // Firebase dahili tokenResponse (oauthIdToken)
+        var tr = result._tokenResponse || {};
+        if (!idToken) {
+          idToken = tr.oauthIdToken || tr.idToken || null;
+        }
+        if (!accessToken) {
+          accessToken = tr.oauthAccessToken || accessToken;
+        }
+
+        if (!idToken) {
+          return {
+            error: 'Google kimlik jetonu boş geldi. Firebase Console → Authentication → Sign-in method → Google’ı Enable yapın ve kaydedin.'
+          };
+        }
+        return {
+          idToken: String(idToken),
+          accessToken: accessToken ? String(accessToken) : null
+        };
+      } catch (e) {
+        var code = (e && e.code) ? String(e.code) : '';
+        var msg = (e && e.message) ? String(e.message) : String(e);
+        if (code.indexOf('popup-closed') >= 0 || code.indexOf('cancelled') >= 0) {
+          return { cancelled: true };
+        }
+        if (code.indexOf('popup-blocked') >= 0) {
+          await auth.signInWithRedirect(provider);
+          return { redirecting: true };
+        }
+        if (code.indexOf('operation-not-allowed') >= 0 || code.indexOf('auth/operation-not-allowed') >= 0) {
+          return {
+            error: 'Firebase’de Google girişi kapalı. Console → Authentication → Sign-in method → Google → Enable.'
+          };
+        }
+        if (code.indexOf('unauthorized-domain') >= 0) {
+          return {
+            error: 'Domain yetkisiz. Firebase → Authentication → Settings → Authorized domains: engelsizclub.com ekleyin.'
+          };
+        }
+        if (msg.toLowerCase().indexOf('redirect_uri') >= 0 || code.indexOf('invalid-login') >= 0) {
+          return {
+            error: 'Google redirect URI uyuşmuyor. Web client’a ekleyin: https://engelsizclub.com/__/auth/handler'
+          };
+        }
+        return { error: msg };
+      }
+    };
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

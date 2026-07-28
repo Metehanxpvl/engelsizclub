@@ -69,3 +69,16 @@ dist/
 **/secrets.dart
 lib/services/google_places_config.local.dart
 
+# Android release signing (yerel — GitHub'a gitmez)
+android/key.properties
+android/*.jks
+android/*.keystore
+android/.keystore_pass.txt
+android/upload-keystore.jks
+
+
+# Local Play artifacts
+*.aab
+*.apk
+engelsizclub-*-play.aab
+

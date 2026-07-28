@@ -132,8 +132,19 @@ class StoreBillingService {
       product = resp.productDetails.first;
       _products[id] = product;
     }
+    // Tüketilebilir ürün — puan yükleme (consumable).
     final param = PurchaseParam(productDetails: product);
-    return _iap.buyConsumable(purchaseParam: param);
+    return _iap.buyConsumable(
+      purchaseParam: param,
+      autoConsume: true,
+    );
+  }
+
+  /// Play / App Store’dan gelen güncel fiyat metni (yoksa null).
+  String? storePriceForAdet(int adet) {
+    final id = StoreProductIds.forAdet(adet);
+    if (id == null) return null;
+    return _products[id]?.price;
   }
 }
 

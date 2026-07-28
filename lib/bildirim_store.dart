@@ -99,6 +99,7 @@ Future<void> notifyIlanSahibiTeklif({
 }
 
 /// Karşı tarafa yeni sohbet mesajı bildirimi.
+/// Aynı kişiden gelen mesajlar üst üste binmez; son mesaj + saati güncellenir.
 Future<void> notifySohbetMesaj({
   required String peerEmail,
   required String messageBody,
@@ -119,8 +120,8 @@ Future<void> notifySohbetMesaj({
   if (raw.isEmpty) return;
   final preview = raw.length > 90 ? '${raw.substring(0, 90)}…' : raw;
   final key = sohbetKeyFor(actorEmail, owner);
-
-  await client.from('bildirimler').insert({
+  final nowIso = DateTime.now().toUtc().toIso8601String();
+  final payload = <String, dynamic>{
     'owner_email': owner,
     'actor_email': actorEmail,
     'actor_name': name,
@@ -130,7 +131,78 @@ Future<void> notifySohbetMesaj({
     'ilan_id': ilanId,
     'sohbet_key': key,
     'read': false,
-  });
+    'created_at': nowIso,
+  };
+
+  try {
+    // Aynı sohbetten okunmamış mesaj bildirimi varsa güncelle (üst üste ekleme).
+    final existing = await client
+        .from('bildirimler')
+        .select('id')
+        .eq('owner_email', owner)
+        .eq('actor_email', actorEmail)
+        .eq('type', 'mesaj')
+        .eq('read', false)
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    if (existing != null && (existing['id'] as num?) != null) {
+      await client
+          .from('bildirimler')
+          .update({
+            'actor_name': name,
+            'title': 'Yeni mesaj',
+            'body': '$name: $preview',
+            'ilan_id': ilanId,
+            'sohbet_key': key,
+            'read': false,
+            'created_at': nowIso,
+          })
+          .eq('id', (existing['id'] as num).toInt());
+      return;
+    }
+  } catch (_) {
+    // Politika / şema yoksa klasik insert'e düş.
+  }
+
+  await client.from('bildirimler').insert(payload);
+}
+
+/// Aynı kişiden biriken mesaj bildirimlerini tek satıra indir (en son saat kalır).
+List<AppBildirim> collapseMesajBildirimler(List<AppBildirim> list) {
+  final seenMesaj = <String>{};
+  final out = <AppBildirim>[];
+  final duplicateIds = <int>[];
+
+  for (final b in list) {
+    if (!b.isMesaj) {
+      out.add(b);
+      continue;
+    }
+    final key = (b.sohbetKey != null && b.sohbetKey!.isNotEmpty)
+        ? 'sk:${b.sohbetKey}'
+        : 'ae:${b.actorEmail}';
+    if (seenMesaj.contains(key)) {
+      if (b.id > 0) duplicateIds.add(b.id);
+      continue;
+    }
+    seenMesaj.add(key);
+    out.add(b);
+  }
+
+  // Eski kopyaları arka planda temizle (alıcı silme yetkisiyle).
+  if (duplicateIds.isNotEmpty) {
+    Future.microtask(() async {
+      for (final id in duplicateIds) {
+        try {
+          await deleteBildirim(id);
+        } catch (_) {}
+      }
+    });
+  }
+
+  return out;
 }
 
 /// Dilek / şikayet / öneri → admin hesabına bildirim.
@@ -211,10 +283,12 @@ Future<List<AppBildirim>> loadBildirimler() async {
         .eq('owner_email', me)
         .order('created_at', ascending: false)
         .limit(50);
-    return (rows as List)
-        .whereType<Map>()
-        .map((e) => AppBildirim.fromJson(Map<String, dynamic>.from(e)))
-        .toList();
+    return collapseMesajBildirimler(
+      (rows as List)
+          .whereType<Map>()
+          .map((e) => AppBildirim.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+    );
   } catch (_) {
     return const [];
   }

@@ -203,20 +203,6 @@ class _HomePageState extends State<HomePage> {
                           height: 1.375,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          _HeroChip(
-                            icon: Icons.people_alt_outlined,
-                            label: '4.200+ Aile',
-                          ),
-                          const SizedBox(width: 8),
-                          _HeroChip(
-                            icon: Icons.verified_outlined,
-                            label: 'Uzman Onaylı',
-                          ),
-                        ],
-                      ),
                     ],
                   ),
                 ),
@@ -920,39 +906,6 @@ class _HomePageState extends State<HomePage> {
 }
 
 // ─── Small widgets ───────────────────────────────────────────────────────────
-
-class _HeroChip extends StatelessWidget {
-  const _HeroChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.20),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: Colors.white),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: GoogleFonts.nunito(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _DiseaseCard extends StatelessWidget {
   const _DiseaseCard({required this.disease, required this.onTap});

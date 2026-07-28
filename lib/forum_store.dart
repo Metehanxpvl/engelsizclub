@@ -272,6 +272,65 @@ Future<({bool liked, int likes})> toggleForumLike(int postId) async {
   return (liked: true, likes: likes);
 }
 
+Future<ForumPost> updateForumPost({
+  required int postId,
+  required String title,
+  required String content,
+  required String category,
+  bool expert = false,
+  String meslek = '',
+  List<String> photos = const [],
+}) async {
+  final client = Supabase.instance.client;
+  final user = client.auth.currentUser;
+  if (user == null) {
+    throw StateError('Düzenlemek için giriş yapın.');
+  }
+  if (postId <= 0) throw StateError('Geçersiz gönderi.');
+
+  final payload = <String, dynamic>{
+    'category': category.trim(),
+    'title': title.trim(),
+    'content': content.trim(),
+    'expert': expert,
+    'meslek': meslek.trim(),
+    'photos': photos
+        .map((p) => p.trim())
+        .where((p) => p.isNotEmpty)
+        .take(2)
+        .toList(growable: false),
+  };
+
+  try {
+    final row = await client
+        .from('forum_posts')
+        .update(payload)
+        .eq('id', postId)
+        .eq('owner_id', user.id)
+        .select()
+        .maybeSingle();
+    if (row == null) {
+      throw StateError('Gönderi güncellenemedi (yetki yok veya bulunamadı).');
+    }
+    return forumPostFromRow(Map<String, dynamic>.from(row));
+  } catch (e) {
+    if (e is StateError) rethrow;
+    // photos sütunu yoksa photos olmadan dene
+    payload.remove('photos');
+    final row = await client
+        .from('forum_posts')
+        .update(payload)
+        .eq('id', postId)
+        .eq('owner_id', user.id)
+        .select()
+        .maybeSingle();
+    if (row == null) {
+      throw StateError('Gönderi güncellenemedi: $e');
+    }
+    return forumPostFromRow(Map<String, dynamic>.from(row));
+  }
+}
+
 Future<void> deleteForumPost(int postId) async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
