@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'admin_config.dart';
 import 'sohbet_store.dart';
 
 class AppBildirim {
@@ -31,6 +32,12 @@ class AppBildirim {
 
   bool get isTeklif => type == 'teklif';
   bool get isMesaj => type == 'mesaj';
+  bool get isGorus =>
+      type == 'gorus' ||
+      type == 'dilek' ||
+      type == 'sikayet' ||
+      type == 'oneri' ||
+      type == 'diger';
 
   factory AppBildirim.fromJson(Map<String, dynamic> json) => AppBildirim(
         id: (json['id'] as num?)?.toInt() ?? 0,
@@ -124,6 +131,72 @@ Future<void> notifySohbetMesaj({
     'sohbet_key': key,
     'read': false,
   });
+}
+
+/// Dilek / şikayet / öneri → admin hesabına bildirim.
+/// `gorusler` tablosu varsa arşivler; yoksa yalnız bildirim gider.
+Future<void> submitGorusToAdmin({
+  required String type,
+  required String subject,
+  required String message,
+  String? actorName,
+}) async {
+  final client = Supabase.instance.client;
+  final user = client.auth.currentUser;
+  final actorEmail = (user?.email ?? '').trim().toLowerCase();
+  if (user == null || actorEmail.isEmpty) {
+    throw StateError('Göndermek için giriş yapın.');
+  }
+
+  final sub = subject.trim();
+  final msg = message.trim();
+  if (sub.isEmpty || msg.isEmpty) {
+    throw StateError('Konu ve mesaj zorunlu.');
+  }
+
+  final name = (actorName ?? '').trim().isEmpty
+      ? actorEmail.split('@').first
+      : actorName!.trim();
+  final tip = type.trim().isEmpty ? 'dilek' : type.trim().toLowerCase();
+  final tipLabel = switch (tip) {
+    'sikayet' => 'Şikayet',
+    'oneri' => 'Öneri',
+    'diger' => 'Diğer',
+    _ => 'Dilek',
+  };
+
+  try {
+    await client.from('gorusler').insert({
+      'user_email': actorEmail,
+      'user_name': name,
+      'type': tip,
+      'subject': sub,
+      'message': msg,
+    });
+  } catch (_) {
+    // Tablo yoksa veya RLS engeli: bildirim yine gitsin.
+  }
+
+  final body = '$name · $actorEmail\n\n$msg';
+  final rows = <Map<String, dynamic>>[
+    for (final admin in kAppAdminEmails)
+      if (admin.trim().isNotEmpty)
+        {
+          'owner_email': admin.trim().toLowerCase(),
+          'actor_email': actorEmail,
+          'actor_name': name,
+          'type': 'gorus',
+          'title': '$tipLabel: $sub',
+          'body': body.length > 1800 ? '${body.substring(0, 1800)}…' : body,
+          'ilan_id': null,
+          'sohbet_key': null,
+          'read': false,
+        },
+  ];
+  if (rows.isEmpty) {
+    throw StateError('Admin hesabı tanımlı değil.');
+  }
+  await client.from('bildirimler').insert(rows);
 }
 
 Future<List<AppBildirim>> loadBildirimler() async {

@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'admin_config.dart';
 import 'bildirim_store.dart';
@@ -16,7 +18,6 @@ import 'data/centers_data.dart' show kAllIlceler;
 import 'data/ilanlar_data.dart' show SohbetKisi;
 import 'data/turkish_cities_data.dart';
 import 'ilan_store.dart';
-import 'kredi_odeme_store.dart';
 import 'kredi_store.dart';
 import 'kullanici_profil_store.dart';
 import 'meto_theme.dart';
@@ -25,22 +26,15 @@ import 'pages/haklar_page.dart';
 import 'pages/ilanlar_page.dart';
 import 'pages/kartlar_page.dart';
 import 'pages/merkezler_page.dart';
-import 'payment_config.dart';
 import 'presence_store.dart';
 import 'profil_foto_store.dart';
+import 'services/play_billing_service.dart';
 import 'sohbet_store.dart';
 import 'user_cloud_store.dart';
 
 enum MetoTab { home, merkezler, ilanlar, forum, mesajlar, haklar, kartlar }
 
-enum _KrediStep { paket, odeme, beklemede }
-
-enum _OdemeYontemi { kart, havale }
-
-const _krediIban = 'TR9700015000158007329403071';
-const _krediIbanGosterim = 'TR97 0001 5000 1580 0732 9403 071';
-const _krediAliciAd = 'Şakir Çaykara';
-const _krediBanka = 'VakıfBank';
+enum _KrediStep { paket, odeme }
 
 typedef _KrediPaket = ({
   int adet,
@@ -56,10 +50,12 @@ class MainShell extends StatefulWidget {
     super.key,
     required this.user,
     required this.onLogout,
+    this.onUserChanged,
   });
 
   final AuthUser user;
   final VoidCallback onLogout;
+  final ValueChanged<AuthUser>? onUserChanged;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -67,6 +63,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   MetoTab _activeTab = MetoTab.home;
+  late final PageController _tabPageController;
   bool _showProfilPanel = false;
   bool _krediSatin = false;
   bool _showCocukProfil = false;
@@ -79,6 +76,9 @@ class _MainShellState extends State<MainShell> {
   CocukProfil _cocukProfil = const CocukProfil();
   KullaniciProfil _kullaniciProfil = const KullaniciProfil();
   List<FavoriIlanRef> _favoriler = const [];
+  String? _openIlanKind;
+  int? _openIlanId;
+  int _openIlanToken = 0;
   BildirimAyarlari _bildirimler = const BildirimAyarlari();
   String? _profilFoto;
   late int _userKredi;
@@ -88,16 +88,6 @@ class _MainShellState extends State<MainShell> {
   _KrediStep _krediStep = _KrediStep.paket;
   _KrediPaket? _seciliPaket;
   bool _odemeYukleniyor = false;
-  _OdemeYontemi _odemeYontemi = _OdemeYontemi.kart;
-  KrediOdemeBildirimi? _sonOdemeBildirimi;
-  List<KrediOdemeBildirimi> _odemeGecmisi = const [];
-  final _odemeGonderen = TextEditingController();
-  final _odemeNot = TextEditingController();
-  final _kartAd = TextEditingController();
-  final _kartNo = TextEditingController();
-  final _kartAy = TextEditingController();
-  final _kartYil = TextEditingController();
-  final _kartCvv = TextEditingController();
 
   /// Logoya basınca ana sayfayı sıfırdan kurmak için artan sayaç.
   int _homeRefreshToken = 0;
@@ -153,8 +143,18 @@ class _MainShellState extends State<MainShell> {
     ),
   ];
 
-  bool get _isProf =>
-      widget.user.userType == 'uzman' || widget.user.userType == 'bakici';
+  String get _role =>
+      (widget.user.userType ?? 'aile').trim().toLowerCase();
+
+  bool get _isProf => _role == 'uzman' || _role == 'bakici';
+  bool get _isAileRole => !_isProf && !isAppAdmin(widget.user.email);
+  bool get _canBuyKredi =>
+      _isProf || _isAileRole || isAppAdmin(widget.user.email);
+  String get _krediBirimLabel => _isAileRole ? 'iyilik puanı' : 'kredi';
+  String get _krediBirimLabelCap =>
+      _isAileRole ? 'İyilik Puanı' : 'Kredi';
+  String get _krediYukleLabel =>
+      _isAileRole ? 'İyilik Puanı Yükle' : 'Kredi Yükle';
 
   String get _krediPrefsKey =>
       krediPrefsKeyFor(widget.user.email, fallback: widget.user.name);
@@ -164,9 +164,9 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
-    // Uzman / bakıcı: 10 hediye · Aile: 3
-    _userKredi = _isProf ? 10 : 3;
-    _odemeGonderen.text = widget.user.name;
+    _tabPageController = PageController(initialPage: MetoTab.home.index);
+    // Herkese rolüne göre başlangıç · Admin: 1000
+    _userKredi = startingKrediFor(widget.user.email, userType: widget.user.userType);
     _loadKredi();
     _loadUserCloud();
     _loadIlanlarVeFoto();
@@ -183,22 +183,98 @@ class _MainShellState extends State<MainShell> {
       const Duration(seconds: 30),
       (_) => _loadSohbetOzetleri(),
     );
+    unawaited(_initStoreBilling());
+  }
+
+  Future<void> _initStoreBilling() async {
+    await StoreBillingService.instance.init(
+      onPurchased: (purchase, adet) async {
+        if (!mounted) return;
+        setState(() => _userKredi += adet);
+        await _saveKredi();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${StoreBillingService.instance.storeName} ödemesi alındı · +$adet $_krediBirimLabel',
+            ),
+          ),
+        );
+        setState(() {
+          _krediStep = _KrediStep.paket;
+          _krediSatin = false;
+          _seciliPaket = null;
+        });
+      },
+      onError: (msg) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      },
+    );
   }
 
   @override
   void dispose() {
+    unawaited(StoreBillingService.instance.dispose());
     stopPresenceHeartbeat();
     _sohbetTimer?.cancel();
     unawaited(unsubscribeRealtime(_inboxChannel));
     _inboxChannel = null;
-    _odemeGonderen.dispose();
-    _odemeNot.dispose();
-    _kartAd.dispose();
-    _kartNo.dispose();
-    _kartAy.dispose();
-    _kartYil.dispose();
-    _kartCvv.dispose();
+    _tabPageController.dispose();
     super.dispose();
+  }
+
+  /// Alt menü / kaydırma / bildirimlerden sekme değiştir.
+  void _goToTab(MetoTab t, {bool animate = true}) {
+    final changed = _activeTab != t;
+    if (changed) {
+      setState(() {
+        _activeTab = t;
+        if (t == MetoTab.ilanlar) _ilanlarUnread = 0;
+      });
+    }
+    if (_tabPageController.hasClients) {
+      final current = _tabPageController.page?.round() ?? _activeTab.index;
+      if (current != t.index) {
+        if (animate) {
+          unawaited(
+            _tabPageController.animateToPage(
+              t.index,
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
+            ),
+          );
+        } else {
+          _tabPageController.jumpToPage(t.index);
+        }
+      }
+    }
+    if (t == MetoTab.ilanlar) {
+      loadAllIlanlar(preferEmail: widget.user.email).then((_) {
+        if (mounted) setState(() {});
+      });
+    }
+    if (t == MetoTab.mesajlar) {
+      _loadSohbetOzetleri();
+    }
+  }
+
+  void _onTabPageChanged(int index) {
+    if (index < 0 || index >= MetoTab.values.length) return;
+    final t = MetoTab.values[index];
+    if (_activeTab == t) return;
+    setState(() {
+      _activeTab = t;
+      if (t == MetoTab.ilanlar) _ilanlarUnread = 0;
+    });
+    if (t == MetoTab.ilanlar) {
+      loadAllIlanlar(preferEmail: widget.user.email).then((_) {
+        if (mounted) setState(() {});
+      });
+    }
+    if (t == MetoTab.mesajlar) {
+      _loadSohbetOzetleri();
+    }
   }
 
   Future<void> _loadSohbetOzetleri() async {
@@ -463,6 +539,74 @@ class _MainShellState extends State<MainShell> {
         });
       }
     }
+
+    if (b.isGorus) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(b.title),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  b.actorName.isNotEmpty
+                      ? '${b.actorName} · ${b.actorEmail}'
+                      : b.actorEmail,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: MetoColors.mutedFg,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  b.body,
+                  style: const TextStyle(fontSize: 14, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            if (b.actorEmail.isNotEmpty)
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  final name = b.actorName.isNotEmpty
+                      ? b.actorName
+                      : b.actorEmail.split('@').first;
+                  final kisi = SohbetKisi(
+                    ad: name.isEmpty ? b.actorEmail : name,
+                    avatar: (name.isNotEmpty ? name.substring(0, 1) : '?')
+                        .toUpperCase(),
+                    avatarColor: MetoColors.primary,
+                    isOnline:
+                        _peerOnline[b.actorEmail.trim().toLowerCase()] == true,
+                    peerEmail: b.actorEmail,
+                  );
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => SohbetPage(
+                        kisi: kisi,
+                        myEmail: widget.user.email,
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Yanıtla'),
+              ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Tamam'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     final name = b.actorName.isNotEmpty
         ? b.actorName
         : b.actorEmail.split('@').first;
@@ -620,11 +764,15 @@ class _MainShellState extends State<MainShell> {
                                       ? MetoColors.muted
                                       : (b.isMesaj
                                           ? MetoColors.primary
-                                          : const Color(0xFFEF4444)),
+                                          : b.isGorus
+                                              ? const Color(0xFF0EA5E9)
+                                              : const Color(0xFFEF4444)),
                                   child: Icon(
                                     b.isMesaj
                                         ? Icons.chat_bubble_outline
-                                        : Icons.campaign_outlined,
+                                        : b.isGorus
+                                            ? Icons.feedback_outlined
+                                            : Icons.campaign_outlined,
                                     color: b.read
                                         ? MetoColors.mutedFg
                                         : Colors.white,
@@ -964,27 +1112,161 @@ class _MainShellState extends State<MainShell> {
       });
     }
 
-    // Onaylanmış ödeme bildirimlerini krediye çevir (Armut tarzı).
-    final claimed = await claimApprovedKrediOdemeleri();
-    if (claimed > 0 && mounted) {
-      setState(() => _userKredi += claimed);
-      await _saveKredi();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$claimed kredi ödemeniz onaylandı ✅')),
-        );
+  }
+
+  bool _roleSwitching = false;
+
+  Future<void> _switchRole(String role) async {
+    final next = role.trim().toLowerCase();
+    if (next != 'aile' && next != 'uzman' && next != 'bakici') return;
+    if (next == _role || _roleSwitching) return;
+
+    setState(() => _roleSwitching = true);
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      final meta = <String, dynamic>{
+        ...?user?.userMetadata,
+        'user_type': next,
+      };
+      if (next == 'bakici') {
+        meta['uzmanlik'] = meta['uzmanlik'] ?? 'Bakıcı';
       }
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(data: meta),
+      );
+
+      final updated = widget.user.copyWith(userType: next);
+      widget.onUserChanged?.call(updated);
+
+      // Aynı e-posta = aynı kredi havuzu (uzman ↔ bakıcı bağlı)
+      await _loadKredi();
+
+      if (!mounted) return;
+      final label = switch (next) {
+        'uzman' => 'Uzman',
+        'bakici' => 'Bakıcı',
+        _ => 'Aile',
+      };
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            next == 'aile'
+                ? 'Rol: $label. İlan verebilirsiniz; teklif yalnız 2. el ilanlarda.'
+                : 'Rol: $label. Uzman ve bakıcı aynı kredi bakiyesini kullanır · $_userKredi kredi',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Rol değiştirilemedi: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _roleSwitching = false);
     }
-    final gecmis = await loadKrediOdemeleri();
-    if (mounted) setState(() => _odemeGecmisi = gecmis);
+  }
+
+  Widget _buildRoleSwitcher() {
+    const roles = <(String, String, String)>[
+      ('aile', '👨‍👩‍👧', 'Aile'),
+      ('uzman', '💼', 'Uzman'),
+      ('bakici', '🤝', 'Bakıcı'),
+    ];
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: MetoColors.muted,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: MetoColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Hesap rolü',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: MetoColors.mutedFg,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _role == 'aile'
+                ? 'İlan verebilirsiniz. Teklif yalnız 2. el ilanlarda.'
+                : 'Uzman & bakıcı aynı kredi bakiyesini paylaşır; teklifte 1 kredi düşer.',
+            style: TextStyle(
+              fontSize: 11,
+              color: MetoColors.mutedFg.withValues(alpha: 0.95),
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              for (final r in roles) ...[
+                if (r.$1 != roles.first.$1) const SizedBox(width: 8),
+                Expanded(
+                  child: Material(
+                    color: _role == r.$1
+                        ? MetoColors.primary
+                        : MetoColors.card,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      onTap: _roleSwitching ? null : () => _switchRole(r.$1),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                          horizontal: 4,
+                        ),
+                        child: Column(
+                          children: [
+                            Text(r.$2, style: const TextStyle(fontSize: 18)),
+                            const SizedBox(height: 4),
+                            Text(
+                              r.$3,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: _role == r.$1
+                                    ? Colors.white
+                                    : MetoColors.foreground,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (_roleSwitching) ...[
+            const SizedBox(height: 10),
+            const LinearProgressIndicator(minHeight: 2),
+          ],
+        ],
+      ),
+    );
   }
 
   Future<void> _saveKredi() async {
     await saveUserKredi(
       email: widget.user.email,
       balance: _userKredi,
-      welcomeGiftGiven: _isProf ? true : null,
+      welcomeGiftGiven: true,
     );
+  }
+
+  /// Teklif için 1 kredi düş (buluta yazar).
+  Future<bool> _harcaBirKredi() async {
+    final next = await spendOneKredi(email: widget.user.email);
+    if (next == null) return false;
+    if (mounted) setState(() => _userKredi = next);
+    return true;
   }
 
   void _resetKredi() {
@@ -992,182 +1274,6 @@ class _MainShellState extends State<MainShell> {
     _krediStep = _KrediStep.paket;
     _seciliPaket = null;
     _odemeYukleniyor = false;
-    _sonOdemeBildirimi = null;
-    _odemeYontemi = _OdemeYontemi.kart;
-    _odemeNot.clear();
-    _kartNo.clear();
-    _kartAy.clear();
-    _kartYil.clear();
-    _kartCvv.clear();
-  }
-
-  String _formatKartNo(String raw) {
-    final digits = raw.replaceAll(RegExp(r'\D'), '');
-    final buf = StringBuffer();
-    for (var i = 0; i < digits.length && i < 16; i++) {
-      if (i > 0 && i % 4 == 0) buf.write(' ');
-      buf.write(digits[i]);
-    }
-    return buf.toString();
-  }
-
-  bool _kartFormGecerli() {
-    final no = _kartNo.text.replaceAll(RegExp(r'\D'), '');
-    final ad = _kartAd.text.trim();
-    final ay = int.tryParse(_kartAy.text.trim()) ?? 0;
-    final yil = int.tryParse(_kartYil.text.trim()) ?? 0;
-    final cvv = _kartCvv.text.trim();
-    if (ad.length < 3) return false;
-    if (no.length != 16) return false;
-    if (ay < 1 || ay > 12) return false;
-    if (yil < 26 || yil > 99) return false;
-    if (cvv.length < 3 || cvv.length > 4) return false;
-    return true;
-  }
-
-  Future<void> _handleKartOdeme() async {
-    final paket = _seciliPaket;
-    if (paket == null) return;
-    if (!_kartFormGecerli()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Kart bilgilerini eksiksiz ve doğru girin'),
-        ),
-      );
-      return;
-    }
-
-    // Kart verisi hiçbir yere yazılmaz; alanlar temizlenir.
-    final kartSahibi = _kartAd.text.trim();
-    _kartNo.clear();
-    _kartAy.clear();
-    _kartYil.clear();
-    _kartCvv.clear();
-
-    if (!PaymentConfig.kartTahsilatHazir) {
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Kartlı ödeme henüz bağlanmadı'),
-          content: const Text(
-            'Karttan para çekip IBAN hesabınıza yatırmak için '
-            'iyzico veya PayTR üye işyeri hesabı gerekir.\n\n'
-            '• Kullanıcı kartını güvenli ödeme sayfasında girer\n'
-            '• Tutar sizin VakıfBank IBAN’ınıza yatırılır\n'
-            '• Ödeme onayınca kredi otomatik yüklenir\n\n'
-            'Şimdilik havale/EFT ile devam edebilirsiniz. '
-            'iyzico API anahtarlarını verdiğinizde kartlı tahsilatı bağlarız.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                setState(() => _odemeYontemi = _OdemeYontemi.havale);
-              },
-              child: const Text('Havale’ye geç'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Tamam'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
-    // Anahtarlar hazır olduğunda burada iyzico Checkout çağrılacak.
-    setState(() => _odemeYukleniyor = true);
-    try {
-      final bildirim = await submitKrediOdemeBildirimi(
-        email: widget.user.email,
-        paketAdet: paket.adet,
-        paketFiyat: paket.fiyat,
-        gonderenAd: kartSahibi,
-        notText: 'Kart ile ödeme (bekleyen entegrasyon)',
-      );
-      final gecmis = await loadKrediOdemeleri();
-      if (!mounted) return;
-      setState(() {
-        _sonOdemeBildirimi = bildirim;
-        _odemeGecmisi = gecmis;
-        _odemeYukleniyor = false;
-        _krediStep = _KrediStep.beklemede;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _odemeYukleniyor = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ödeme başlatılamadı: $e')),
-      );
-    }
-  }
-
-  Future<void> _handleOdemeBildirimi() async {
-    final paket = _seciliPaket;
-    if (paket == null) return;
-    final ad = _odemeGonderen.text.trim();
-    if (ad.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Havale yapan kişinin adını yazın')),
-      );
-      return;
-    }
-
-    setState(() => _odemeYukleniyor = true);
-    try {
-      final bildirim = await submitKrediOdemeBildirimi(
-        email: widget.user.email,
-        paketAdet: paket.adet,
-        paketFiyat: paket.fiyat,
-        gonderenAd: ad,
-        notText: _odemeNot.text,
-      );
-      final gecmis = await loadKrediOdemeleri();
-      if (!mounted) return;
-      setState(() {
-        _sonOdemeBildirimi = bildirim;
-        _odemeGecmisi = gecmis;
-        _odemeYukleniyor = false;
-        _krediStep = _KrediStep.beklemede;
-        // Kredi EKLENMEZ — onay sonrası yüklenir.
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _odemeYukleniyor = false);
-      final msg = e.toString();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            msg.contains('kredi_odemeleri') ||
-                    msg.contains('PGRST') ||
-                    msg.contains('schema cache')
-                ? 'Ödeme tablosu henüz yok. Supabase’de kredi_odemeleri.sql çalıştırın.'
-                : 'Bildirim gönderilemedi: $e',
-          ),
-          duration: const Duration(seconds: 5),
-        ),
-      );
-    }
-  }
-
-  Future<void> _copyIban() async {
-    await Clipboard.setData(const ClipboardData(text: _krediIban));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('IBAN panoya kopyalandı')),
-    );
-  }
-
-  Future<void> _copyAciklama() async {
-    final ref = _sonOdemeBildirimi?.referansKodu ?? '';
-    final text = 'EngelsizClub $ref ${widget.user.email}'.trim();
-    await Clipboard.setData(ClipboardData(text: text));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Havale açıklaması kopyalandı')),
-    );
   }
 
   String get _initials {
@@ -1177,38 +1283,23 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget get _body {
-    // Harita sekmesi Offstage ile canlı tutulur — her girişte yeniden
-    // konum/merkez araması tetiklenmesin.
-    return Stack(
-      fit: StackFit.expand,
+    // Harita sekmesi KeepAlive ile canlı tutulur — her girişte yeniden
+    // konum/merkez araması tetiklenmesin. Sağa/sola kaydırarak sekmeler arası geçiş.
+    return PageView(
+      controller: _tabPageController,
+      physics: const BouncingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      ),
+      onPageChanged: _onTabPageChanged,
       children: [
-        Offstage(
-          offstage: _activeTab != MetoTab.merkezler,
-          child: TickerMode(
-            enabled: _activeTab == MetoTab.merkezler,
-            child: const MerkezlerPage(),
-          ),
-        ),
-        if (_activeTab != MetoTab.merkezler) _bodyWithoutMerkezler,
-      ],
-    );
-  }
-
-  Widget get _bodyWithoutMerkezler {
-    switch (_activeTab) {
-      case MetoTab.home:
-        return HomePage(key: ValueKey('home_$_homeRefreshToken'));
-      case MetoTab.merkezler:
-        return const SizedBox.shrink();
-      case MetoTab.ilanlar:
-        return IlanlarPage(
+        HomePage(key: ValueKey('home_$_homeRefreshToken')),
+        const _KeepAliveTab(child: MerkezlerPage()),
+        IlanlarPage(
           userKredi: _userKredi,
           userEmail: widget.user.email,
           userName: widget.user.name,
-          onKrediHarca: () => setState(() {
-            _userKredi = (_userKredi - 1).clamp(0, 9999);
-            _saveKredi();
-          }),
+          userType: _role,
+          onKrediHarca: _harcaBirKredi,
           onUnreadChange: (n) {
             if (_ilanlarUnread == n) return;
             setState(() => _ilanlarUnread = n);
@@ -1219,20 +1310,20 @@ class _MainShellState extends State<MainShell> {
             _krediSatin = true;
           }),
           onIlanlarChanged: _persistIlanlar,
-        );
-      case MetoTab.forum:
-        return ForumPage(
+          openIlanKind: _openIlanKind,
+          openIlanId: _openIlanId,
+          openIlanToken: _openIlanToken,
+        ),
+        ForumPage(
           userName: widget.user.name,
           userEmail: widget.user.email,
-          userType: widget.user.userType ?? 'aile',
-        );
-      case MetoTab.mesajlar:
-        return _buildMesajlarPage();
-      case MetoTab.haklar:
-        return const HaklarPage();
-      case MetoTab.kartlar:
-        return const KartlarPage();
-    }
+          userType: _role,
+        ),
+        _buildMesajlarPage(),
+        const HaklarPage(),
+        const KartlarPage(),
+      ],
+    );
   }
 
   /// Logo / uygulama adı → ana sayfaya dön ve içeriği yenile.
@@ -1251,6 +1342,9 @@ class _MainShellState extends State<MainShell> {
       _profilDragY = 0;
       _resetKredi();
     });
+    if (_tabPageController.hasClients) {
+      _tabPageController.jumpToPage(MetoTab.home.index);
+    }
     _loadUserCloud();
     _loadIlanlarVeFoto();
     _loadSohbetOzetleri();
@@ -1264,6 +1358,113 @@ class _MainShellState extends State<MainShell> {
       _resetKredi();
       _showProfilPanel = true;
     });
+  }
+
+  Future<void> _openExternalUrl(String url) async {
+    final uri = Uri.parse(url);
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bağlantı açılamadı')),
+      );
+    }
+  }
+
+  void _showSosyalMedyaSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: MetoColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: MetoColors.border,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Sosyal medya hesaplarımız',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: MetoColors.foreground,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Takip etmek için bir hesap seçin',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: const BorderSide(color: MetoColors.border),
+                  ),
+                  leading: SvgPicture.asset(
+                    'assets/images/instagram.svg',
+                    width: 28,
+                    height: 28,
+                  ),
+                  title: const Text(
+                    'Instagram',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: const Text('@engelsizclub'),
+                  trailing: const Icon(Icons.open_in_new, size: 18),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _openExternalUrl(
+                      'https://www.instagram.com/engelsizclub',
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: const BorderSide(color: MetoColors.border),
+                  ),
+                  leading: SvgPicture.asset(
+                    'assets/images/facebook.svg',
+                    width: 28,
+                    height: 28,
+                  ),
+                  title: const Text(
+                    'Facebook',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: const Text('Engelsiz Club'),
+                  trailing: const Icon(Icons.open_in_new, size: 18),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _openExternalUrl(
+                      'https://www.facebook.com/share/1QAzdknz5M/',
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _closeProfilPanel() {
@@ -1302,21 +1503,7 @@ class _MainShellState extends State<MainShell> {
                 active: _activeTab,
                 ilanlarUnread: _ilanlarUnread,
                 mesajlarUnread: _mesajUnreadCount,
-                onSelect: (t) {
-                  setState(() {
-                    _activeTab = t;
-                    if (t == MetoTab.ilanlar) _ilanlarUnread = 0;
-                  });
-                  if (t == MetoTab.ilanlar) {
-                    loadAllIlanlar(preferEmail: widget.user.email)
-                        .then((_) {
-                      if (mounted) setState(() {});
-                    });
-                  }
-                  if (t == MetoTab.mesajlar) {
-                    _loadSohbetOzetleri();
-                  }
-                },
+                onSelect: (t) => _goToTab(t),
               ),
             ],
           ),
@@ -1462,8 +1649,7 @@ class _MainShellState extends State<MainShell> {
                                         : _showKullaniciProfil
                                             ? _KullaniciProfilForm(
                                                 initial: _kullaniciProfil,
-                                                role: widget.user.userType ??
-                                                    'aile',
+                                                role: _role,
                                                 email: widget.user.email,
                                                 onBack: () => setState(() =>
                                                     _showKullaniciProfil =
@@ -1509,6 +1695,21 @@ class _MainShellState extends State<MainShell> {
     );
   }
   int get _ilanlarimCount => myIlanCount(widget.user.email);
+
+  void _openIlanDetay({required String kind, required int id}) {
+    setState(() {
+      _showIlanlarim = false;
+      _showKaydedilenler = false;
+      _showProfilPanel = false;
+      _activeTab = MetoTab.ilanlar;
+      _openIlanKind = kind;
+      _openIlanId = id;
+      _openIlanToken++;
+    });
+    if (_tabPageController.hasClients) {
+      _tabPageController.jumpToPage(MetoTab.ilanlar.index);
+    }
+  }
 
   Widget _buildIlanlarim() {
     final email = widget.user.email;
@@ -1631,6 +1832,9 @@ class _MainShellState extends State<MainShell> {
                       _showProfilPanel = false;
                       _activeTab = MetoTab.mesajlar;
                     });
+                    if (_tabPageController.hasClients) {
+                      _tabPageController.jumpToPage(MetoTab.mesajlar.index);
+                    }
                     _openBildirim(b);
                   },
                   shape: RoundedRectangleBorder(
@@ -1725,11 +1929,16 @@ class _MainShellState extends State<MainShell> {
                 ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  onPressed: () => setState(() {
-                    _showIlanlarim = false;
-                    _showProfilPanel = false;
-                    _activeTab = MetoTab.ilanlar;
-                  }),
+                  onPressed: () {
+                    setState(() {
+                      _showIlanlarim = false;
+                      _showProfilPanel = false;
+                      _activeTab = MetoTab.ilanlar;
+                    });
+                    if (_tabPageController.hasClients) {
+                      _tabPageController.jumpToPage(MetoTab.ilanlar.index);
+                    }
+                  },
                   style: FilledButton.styleFrom(
                     backgroundColor: MetoColors.primary,
                     foregroundColor: Colors.white,
@@ -1750,7 +1959,12 @@ class _MainShellState extends State<MainShell> {
           ...entries.map((e) {
             final teklifler = _tekliflerForIlan(e.id);
             final yeniTeklif = teklifler.where((t) => !t.read).length;
-            return Container(
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => _openIlanDetay(kind: e.kind, id: e.id),
+                child: Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -1874,6 +2088,9 @@ class _MainShellState extends State<MainShell> {
                           _showProfilPanel = false;
                           _activeTab = MetoTab.mesajlar;
                         });
+                        if (_tabPageController.hasClients) {
+                          _tabPageController.jumpToPage(MetoTab.mesajlar.index);
+                        }
                         _openBildirim(b);
                       },
                       icon: const Icon(
@@ -1908,7 +2125,7 @@ class _MainShellState extends State<MainShell> {
                           ],
                         ),
                       );
-                      if (ok != true) return;
+                      if (ok != true || !mounted) return;
                       await deleteUserIlan(
                         email: widget.user.email,
                         kind: e.kind,
@@ -1916,18 +2133,21 @@ class _MainShellState extends State<MainShell> {
                       );
                       if (!mounted) return;
                       setState(() {});
+                      _persistIlanlar();
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('İlan silindi')),
                       );
                     },
                     icon: const Icon(
                       Icons.delete_outline,
-                      size: 18,
                       color: Color(0xFFDC2626),
+                      size: 18,
                     ),
                     visualDensity: VisualDensity.compact,
                   ),
                 ],
+              ),
+                ),
               ),
             );
           }),
@@ -1997,7 +2217,12 @@ class _MainShellState extends State<MainShell> {
               'ikinciel' => '♻️',
               _ => '🏃',
             };
-            return Container(
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => _openIlanDetay(kind: f.kind, id: f.id),
+                child: Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -2056,6 +2281,8 @@ class _MainShellState extends State<MainShell> {
                     ),
                   ),
                 ],
+              ),
+                ),
               ),
             );
           }),
@@ -2190,7 +2417,7 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _buildProfilMenu() {
-    final tip = switch (widget.user.userType) {
+    final tip = switch (_role) {
       'uzman' => '💼 Uzman',
       'bakici' => '🤝 Bakıcı',
       _ => '👨‍👩‍👧 Aile',
@@ -2313,6 +2540,8 @@ class _MainShellState extends State<MainShell> {
             ],
           ),
         ),
+        _buildRoleSwitcher(),
+        const SizedBox(height: 12),
         if (_isProf && !_krediHosBonusGosterildi) ...[
           Container(
             padding: const EdgeInsets.all(16),
@@ -2348,7 +2577,7 @@ class _MainShellState extends State<MainShell> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Sisteme kayıt olduğunuz için hesabınıza 10 ücretsiz kredi tanımlandı.',
+                        'Sisteme kayıt olduğunuz için hesabınıza $kWelcomeKredi ücretsiz kredi tanımlandı.',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.white.withValues(alpha: 0.85),
@@ -2386,86 +2615,91 @@ class _MainShellState extends State<MainShell> {
           ),
           const SizedBox(height: 12),
         ],
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [MetoColors.primary, MetoColors.primaryDark],
-            ),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Mevcut Krediniz',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white.withValues(alpha: 0.7),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: '$_userKredi ',
-                            style: const TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const TextSpan(
-                            text: 'kredi',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Text(
-                      '1 kredi = 1 teklif · ₺49,90 değerinde',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.white.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ],
-                ),
+        if (_canBuyKredi) ...[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [MetoColors.primary, MetoColors.primaryDark],
               ),
-              const Text('🪙', style: TextStyle(fontSize: 36)),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        FilledButton.icon(
-          onPressed: () => setState(() {
-            _krediStep = _KrediStep.paket;
-            _krediSatin = true;
-          }),
-          style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFFF59E0B),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _isAileRole ? 'İyilik Puanım' : 'Mevcut Krediniz',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.7),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: '$_userKredi ',
+                              style: const TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                            TextSpan(
+                              text: _krediBirimLabel,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        _isAileRole
+                            ? 'Uygulama geliştirme ve serebral palsili oğlumuzun fizik tedavi giderleri için destek'
+                            : '1 kredi = 1 teklif · Uzman & bakıcı ortak bakiye',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.white.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(_isAileRole ? '💚' : '🪙',
+                    style: const TextStyle(fontSize: 36)),
+              ],
+            ),
           ),
-          icon: const Icon(Icons.monetization_on_outlined, size: 18),
-          label: const Text(
-            'Kredi Yükle',
-            style: TextStyle(fontWeight: FontWeight.w800),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: () => setState(() {
+              _krediStep = _KrediStep.paket;
+              _krediSatin = true;
+            }),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFF59E0B),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            icon: const Icon(Icons.monetization_on_outlined, size: 18),
+            label: Text(
+              _krediYukleLabel,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
+          const SizedBox(height: 16),
+        ],
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: _menuTile(
@@ -2475,7 +2709,7 @@ class _MainShellState extends State<MainShell> {
             onTap: () => setState(() => _showKullaniciProfil = true),
           ),
         ),
-        if (widget.user.userType == 'aile' || widget.user.userType == null)
+        if (_role == 'aile')
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: _menuTile(
@@ -2521,6 +2755,15 @@ class _MainShellState extends State<MainShell> {
             label: 'Bildirimler',
             sub: _bildirimler.menuSub,
             onTap: () => setState(() => _showBildirimler = true),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _menuTile(
+            emoji: '🌐',
+            label: 'Sosyal medya hesaplarımız',
+            sub: 'Instagram · Facebook',
+            onTap: _showSosyalMedyaSheet,
           ),
         ),
         Padding(
@@ -2577,7 +2820,10 @@ class _MainShellState extends State<MainShell> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => const _IletisimSheet(),
+      builder: (_) => _IletisimSheet(
+        userName: widget.user.name,
+        userEmail: widget.user.email,
+      ),
     );
   }
 
@@ -2603,9 +2849,8 @@ class _MainShellState extends State<MainShell> {
               const SizedBox(width: 8),
               Text(
                 switch (_krediStep) {
-                  _KrediStep.paket => 'Kredi Yükle',
-                  _KrediStep.odeme => 'Ödeme Bildirimi',
-                  _KrediStep.beklemede => 'İnceleniyor',
+                  _KrediStep.paket => _krediYukleLabel,
+                  _KrediStep.odeme => 'Mağaza Ödemesi',
                 },
                 style: const TextStyle(
                   fontSize: 16,
@@ -2613,23 +2858,20 @@ class _MainShellState extends State<MainShell> {
                   color: MetoColors.foreground,
                 ),
               ),
-              if (_krediStep != _KrediStep.beklemede) ...[
-                const Spacer(),
-                Text(
-                  _krediStep == _KrediStep.paket ? '1/2' : '2/2',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: MetoColors.mutedFg,
-                  ),
+              const Spacer(),
+              Text(
+                _krediStep == _KrediStep.paket ? '1/2' : '2/2',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: MetoColors.mutedFg,
                 ),
-              ],
+              ),
             ],
           ),
         ),
         if (_krediStep == _KrediStep.paket) _buildKrediPaketStep(),
         if (_krediStep == _KrediStep.odeme) _buildKrediOdemeStep(),
-        if (_krediStep == _KrediStep.beklemede) _buildKrediBeklemedeStep(),
       ],
     );
   }
@@ -2647,12 +2889,12 @@ class _MainShellState extends State<MainShell> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Mevcut krediniz',
-                style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
+              Text(
+                _isAileRole ? 'Mevcut iyilik puanınız' : 'Mevcut krediniz',
+                style: const TextStyle(fontSize: 14, color: MetoColors.mutedFg),
               ),
               Text(
-                '🪙 $_userKredi kredi',
+                '${_isAileRole ? '💚' : '🪙'} $_userKredi $_krediBirimLabel',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -2662,6 +2904,25 @@ class _MainShellState extends State<MainShell> {
             ],
           ),
         ),
+        if (_isAileRole) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFECFDF5),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFA7F3D0)),
+            ),
+            child: const Text(
+              'Bu destek, uygulamanın geliştirilmesi ve serebral palsili oğlumuzun fizik tedavi giderleri içindir. Teşekkür ederiz.',
+              style: TextStyle(
+                fontSize: 12,
+                color: Color(0xFF065F46),
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 20),
         const Text(
           'PAKET SEÇ',
@@ -2705,7 +2966,7 @@ class _MainShellState extends State<MainShell> {
                             Row(
                               children: [
                                 Text(
-                                  '${p.adet} Kredi',
+                                  '${p.adet} $_krediBirimLabelCap',
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w800,
@@ -2744,7 +3005,10 @@ class _MainShellState extends State<MainShell> {
                               ),
                             ),
                             Text(
-                              p.birim,
+                              p.birim.replaceAll(
+                                '/kredi',
+                                _isAileRole ? '/iyilik puanı' : '/kredi',
+                              ),
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
@@ -2770,42 +3034,17 @@ class _MainShellState extends State<MainShell> {
             ),
           );
         }),
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('🏦', style: TextStyle(fontSize: 14)),
-            SizedBox(width: 6),
-            Text(
-              'Havale / EFT · Ödeme bildirimi ile yükleme',
-              style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
-            ),
-          ],
+        Text(
+          'Ödeme ${StoreBillingService.instance.storeName} üzerinden alınır',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Ödeme yaptıktan sonra bildirim gönderin. Krediniz onaydan sonra tanımlanır — anında eklenmez.',
+        Text(
+          StoreBillingService.instance.payoutExplanation,
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 11, color: MetoColors.mutedFg),
+          style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
         ),
-        if (_odemeGecmisi.any((e) => e.isBeklemede)) ...[
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFFBEB),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFFDE68A)),
-            ),
-            child: Text(
-              '${_odemeGecmisi.where((e) => e.isBeklemede).length} ödeme bildiriminiz inceleniyor. Onaylanınca krediniz otomatik eklenir.',
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF92400E),
-                height: 1.35,
-              ),
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -2813,15 +3052,7 @@ class _MainShellState extends State<MainShell> {
   Widget _buildKrediOdemeStep() {
     final paket = _seciliPaket;
     if (paket == null) return const SizedBox.shrink();
-    final dec = InputDecoration(
-      filled: true,
-      fillColor: MetoColors.muted,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-    );
+    final store = StoreBillingService.instance;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -2849,7 +3080,7 @@ class _MainShellState extends State<MainShell> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${paket.adet} Kredi',
+                      '${paket.adet} $_krediBirimLabelCap',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -2878,505 +3109,94 @@ class _MainShellState extends State<MainShell> {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFFA7F3D0)),
           ),
-          child: const Text(
-            'Karttan çekilen tutar üye işyeri hesabınıza '
-            '(VakıfBank · $_krediIbanGosterim) yatırılır. '
-            'Kart numarası uygulamada saklanmaz.',
-            style: TextStyle(
+          child: Text(
+            _isAileRole
+                ? 'Destek, uygulamanın geliştirilmesi ve serebral palsili oğlumuzun fizik tedavi giderleri içindir. ${store.payoutExplanation}'
+                : store.payoutExplanation,
+            style: const TextStyle(
               fontSize: 12,
               color: Color(0xFF065F46),
               height: 1.4,
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _odemeYontemChip(
-                selected: _odemeYontemi == _OdemeYontemi.kart,
-                icon: Icons.credit_card,
-                label: 'Kart ile öde',
-                onTap: () =>
-                    setState(() => _odemeYontemi = _OdemeYontemi.kart),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _odemeYontemChip(
-                selected: _odemeYontemi == _OdemeYontemi.havale,
-                icon: Icons.account_balance,
-                label: 'Havale / EFT',
-                onTap: () =>
-                    setState(() => _odemeYontemi = _OdemeYontemi.havale),
-              ),
-            ),
-          ],
-        ),
         const SizedBox(height: 14),
-        if (_odemeYontemi == _OdemeYontemi.kart)
-          _buildKartOdemeForm(dec)
-        else
-          _buildHavaleOdemeForm(dec),
+        _buildStoreOdemeForm(),
       ],
     );
   }
 
-  Widget _odemeYontemChip({
-    required bool selected,
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: selected
-          ? MetoColors.primary.withValues(alpha: 0.12)
-          : MetoColors.muted,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: selected ? MetoColors.primary : MetoColors.border,
-              width: selected ? 1.5 : 1,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon,
-                  size: 18,
-                  color: selected ? MetoColors.primary : MetoColors.mutedFg),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: selected ? MetoColors.primary : MetoColors.foreground,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildKartOdemeForm(InputDecoration dec) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text(
-          'KART BİLGİLERİ',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-            color: MetoColors.mutedFg,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _kartAd,
-          textCapitalization: TextCapitalization.words,
-          decoration: dec.copyWith(hintText: 'Kart üzerindeki ad soyad'),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _kartNo,
-          keyboardType: TextInputType.number,
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            LengthLimitingTextInputFormatter(16),
-            TextInputFormatter.withFunction((oldValue, newValue) {
-              final formatted = _formatKartNo(newValue.text);
-              return TextEditingValue(
-                text: formatted,
-                selection: TextSelection.collapsed(offset: formatted.length),
-              );
-            }),
-          ],
-          decoration: dec.copyWith(hintText: 'Kart numarası'),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _kartAy,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(2),
-                ],
-                decoration: dec.copyWith(hintText: 'Ay (MM)'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: _kartYil,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(2),
-                ],
-                decoration: dec.copyWith(hintText: 'Yıl (YY)'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: _kartCvv,
-                keyboardType: TextInputType.number,
-                obscureText: true,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(4),
-                ],
-                decoration: dec.copyWith(hintText: 'CVV'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFEFF6FF),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFBFDBFE)),
-          ),
-          child: Text(
-            PaymentConfig.kartTahsilatHazir
-                ? 'Ödeme iyzico üzerinden güvenli şekilde alınır; tutar IBAN hesabınıza aktarılır.'
-                : 'Gerçek tahsilat için iyzico/PayTR bağlantısı gerekir. Anahtarlar eklenene kadar “Öde” size havale seçeneğini de gösterir.',
-            style: const TextStyle(
-              fontSize: 12,
-              color: Color(0xFF1E3A8A),
-              height: 1.4,
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        FilledButton(
-          onPressed: _odemeYukleniyor ? null : _handleKartOdeme,
-          style: FilledButton.styleFrom(
-            backgroundColor: MetoColors.primary,
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: MetoColors.primary.withValues(alpha: 0.4),
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          child: _odemeYukleniyor
-              ? const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    ),
-                    SizedBox(width: 10),
-                    Text('İşleniyor...',
-                        style: TextStyle(fontWeight: FontWeight.w800)),
-                  ],
-                )
-              : Text(
-                  'Kart ile ${_seciliPaket?.fiyat ?? ''} Öde',
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Kart bilgileri cihazdan çıkmaz; sunucuya kaydedilmez.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 10, color: MetoColors.mutedFg),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildHavaleOdemeForm(InputDecoration dec) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: MetoColors.card,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: MetoColors.border, width: 1.5),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'HAVALE BİLGİLERİ',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8,
-                  color: MetoColors.mutedFg,
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text('Banka',
-                  style: TextStyle(fontSize: 12, color: MetoColors.mutedFg)),
-              const Text(_krediBanka,
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: MetoColors.foreground)),
-              const SizedBox(height: 8),
-              const Text('Alıcı',
-                  style: TextStyle(fontSize: 12, color: MetoColors.mutedFg)),
-              const Text(_krediAliciAd,
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: MetoColors.foreground)),
-              const SizedBox(height: 8),
-              const Text('IBAN',
-                  style: TextStyle(fontSize: 12, color: MetoColors.mutedFg)),
-              const SizedBox(height: 4),
-              Container(
-                width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: MetoColors.muted,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        _krediIbanGosterim,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: MetoColors.foreground,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: _copyIban,
-                      tooltip: 'Kopyala',
-                      style: IconButton.styleFrom(
-                        backgroundColor:
-                            MetoColors.primary.withValues(alpha: 0.12),
-                        foregroundColor: MetoColors.primary,
-                      ),
-                      icon: const Icon(Icons.copy_rounded, size: 18),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Açıklama: EngelsizClub · ${widget.user.email}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: MetoColors.foreground,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        const Text(
-          'ÖDEME BİLDİRİMİ',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-            color: MetoColors.mutedFg,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _odemeGonderen,
-          decoration: dec.copyWith(hintText: 'Havale yapan ad soyad'),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _odemeNot,
-          maxLines: 2,
-          decoration: dec.copyWith(
-            hintText: 'Opsiyonel not (dekont no, saat vb.)',
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFFBEB),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFFDE68A)),
-          ),
-          child: const Text(
-            'Önce havale/EFT yapın, sonra bildirimi gönderin. Krediniz anında eklenmez; ekip onaylayınca hesabınıza yüklenir.',
-            style: TextStyle(
-              fontSize: 12,
-              color: Color(0xFF92400E),
-              height: 1.4,
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        FilledButton(
-          onPressed: _odemeYukleniyor ? null : _handleOdemeBildirimi,
-          style: FilledButton.styleFrom(
-            backgroundColor: MetoColors.primary,
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: MetoColors.primary.withValues(alpha: 0.4),
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          child: _odemeYukleniyor
-              ? const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    ),
-                    SizedBox(width: 10),
-                    Text(
-                      'Bildirim gönderiliyor...',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ],
-                )
-              : const Text(
-                  'Ödemeyi Yaptım · Bildirim Gönder',
-                  style: TextStyle(fontWeight: FontWeight.w800),
-                ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Sahte bildirimler reddedilir. Ödeme görünmeden kredi tanımlanmaz.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 10, color: MetoColors.mutedFg),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildKrediBeklemedeStep() {
+  Future<void> _handleStoreOdeme() async {
     final paket = _seciliPaket;
-    final ref = _sonOdemeBildirimi?.referansKodu ?? '—';
+    if (paket == null) return;
+    final store = StoreBillingService.instance;
+    if (!store.isSupported) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Mağaza ödemesi'),
+          content: const Text(
+            'Ödeme yalnızca Android (Google Play) veya iPhone/iPad (App Store) '
+            'uygulamasında yapılır.\n\n'
+            'Play Console / App Store Connect’te kredi_1, kredi_5, kredi_10 '
+            'ürünlerini tanımlayın; mağaza, payınıza düşen tutarı hesabınıza yatırır.\n\n'
+            'Web tarayıcıda mağaza ödemesi desteklenmez.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Tamam'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    setState(() => _odemeYukleniyor = true);
+    try {
+      final ok = await store.buyKrediPaket(paket.adet);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Ürün bulunamadı. ${store.storeName}’da kredi_1 / kredi_5 / kredi_10 tanımlı mı kontrol edin.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${store.storeName} ödeme başlatılamadı: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _odemeYukleniyor = false);
+    }
+  }
+
+  Widget _buildStoreOdemeForm() {
+    final store = StoreBillingService.instance;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 12),
-        Center(
-          child: Container(
-            width: 80,
-            height: 80,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: Color(0xFFFFF7ED),
-              shape: BoxShape.circle,
-            ),
-            child: const Text('⏳', style: TextStyle(fontSize: 36)),
-          ),
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'Ödeme bildiriminiz alındı',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: MetoColors.foreground,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          paket == null
-              ? 'Ekibimiz havale kaydını kontrol ediyor.'
-              : '${paket.adet} kredi / ${paket.fiyat} için bildiriminiz inceleniyor.\nOnaylanınca krediniz otomatik eklenir.',
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 14, color: MetoColors.mutedFg),
-        ),
-        const SizedBox(height: 16),
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: MetoColors.muted,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
           ),
-          child: Column(
-            children: [
-              const Text(
-                'Referans kodu',
-                style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                ref,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: MetoColors.primary,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextButton.icon(
-                onPressed: _copyAciklama,
-                icon: const Icon(Icons.copy, size: 16),
-                label: const Text('Açıklamayı kopyala'),
-              ),
-            ],
+          child: Text(
+            '${store.storeName} güvenli ödeme sayfası açılır. '
+            'Ödeme onaylanınca puan/kredi hesabınıza eklenir; '
+            'para mağaza üzerinden sizin geliştirici hesabınıza geçer.',
+            style: const TextStyle(fontSize: 13, height: 1.4),
           ),
         ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFEFF6FF),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFBFDBFE)),
-          ),
-          child: const Text(
-            'Genelde birkaç saat içinde sonuçlanır. Uygulamayı yenilediğinizde onaylanmış krediler bakiyenize yansır.',
-            style: TextStyle(
-              fontSize: 12,
-              color: Color(0xFF1E3A8A),
-              height: 1.4,
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-        FilledButton(
-          onPressed: () async {
-            await _loadKredi();
-            if (!mounted) return;
-            setState(() {
-              _resetKredi();
-              _showProfilPanel = false;
-            });
-          },
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          onPressed: _odemeYukleniyor ? null : _handleStoreOdeme,
           style: FilledButton.styleFrom(
             backgroundColor: MetoColors.primary,
             foregroundColor: Colors.white,
@@ -3385,14 +3205,27 @@ class _MainShellState extends State<MainShell> {
               borderRadius: BorderRadius.circular(16),
             ),
           ),
-          child: const Text(
-            'Tamam',
-            style: TextStyle(fontWeight: FontWeight.w800),
+          icon: _odemeYukleniyor
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : Icon(store.isIos ? Icons.phone_iphone : Icons.shop),
+          label: Text(
+            _odemeYukleniyor
+                ? '${store.storeName} açılıyor…'
+                : '${store.storeName} ile ${_seciliPaket?.fiyat ?? ''} Öde',
+            style: const TextStyle(fontWeight: FontWeight.w800),
           ),
         ),
       ],
     );
   }
+
   Widget _chip(String text, Color bg, Color fg) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -4109,7 +3942,13 @@ class _CocukProfilFormState extends State<_CocukProfilForm> {
 }
 
 class _IletisimSheet extends StatefulWidget {
-  const _IletisimSheet();
+  const _IletisimSheet({
+    required this.userName,
+    required this.userEmail,
+  });
+
+  final String userName;
+  final String userEmail;
 
   @override
   State<_IletisimSheet> createState() => _IletisimSheetState();
@@ -4120,6 +3959,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
   final _subject = TextEditingController();
   final _message = TextEditingController();
   bool _sent = false;
+  bool _sending = false;
 
   static const _types = [
     ('dilek', 'Dilek', '🌟'),
@@ -4133,6 +3973,30 @@ class _IletisimSheetState extends State<_IletisimSheet> {
     _subject.dispose();
     _message.dispose();
     super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    try {
+      await submitGorusToAdmin(
+        type: _type,
+        subject: _subject.text,
+        message: _message.text,
+        actorName: widget.userName,
+      );
+      if (!mounted) return;
+      setState(() {
+        _sending = false;
+        _sent = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gönderilemedi: $e')),
+      );
+    }
   }
 
   @override
@@ -4441,10 +4305,11 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                         ),
                         const SizedBox(height: 16),
                         FilledButton(
-                          onPressed: _subject.text.trim().isEmpty ||
+                          onPressed: _sending ||
+                                  _subject.text.trim().isEmpty ||
                                   _message.text.trim().isEmpty
                               ? null
-                              : () => setState(() => _sent = true),
+                              : _submit,
                           style: FilledButton.styleFrom(
                             backgroundColor: MetoColors.primary,
                             foregroundColor: Colors.white,
@@ -4455,9 +4320,9 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                               borderRadius: BorderRadius.circular(16),
                             ),
                           ),
-                          child: const Text(
-                            'Gönder',
-                            style: TextStyle(fontWeight: FontWeight.w800),
+                          child: Text(
+                            _sending ? 'Gönderiliyor…' : 'Gönder',
+                            style: const TextStyle(fontWeight: FontWeight.w800),
                           ),
                         ),
                       ],
@@ -4631,6 +4496,27 @@ class _BrandBar extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _KeepAliveTab extends StatefulWidget {
+  const _KeepAliveTab({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeepAliveTab> createState() => _KeepAliveTabState();
+}
+
+class _KeepAliveTabState extends State<_KeepAliveTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }
 

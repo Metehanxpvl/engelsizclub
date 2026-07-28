@@ -1,46 +1,67 @@
-# Dinamik katalog (Supabase + cache)
+# Dinamik katalog (Supabase + GitHub) — Store sürümü
 
-Uygulamayı her güncellemede yeniden deploy etmeden içerik yönetmek için.
+Play Store / App Store’a **bir kez** native uygulama yüklersin.  
+Metin, liste, hastalık rehberi, haklar, forum kategorileri, kartlar ve ayarlar **Supabase**’ten gelir; uygulama açılışta çeker ve cache’ler.
 
-## 1) Supabase SQL
+Kod / UI değişince store güncellemesi gerekir. İçerik değişince **GitHub `content/` → Actions → Supabase** yeterli.
 
-Dashboard → SQL Editor → `supabase/app_catalog.sql` dosyasının **tamamını** Run.
+## Mimari
 
-Oluşan tablolar:
+```mermaid
+flowchart LR
+  GitHub["GitHub content/*.json"] -->|Actions sync| Supabase["Supabase app_*"]
+  Supabase -->|AppCatalogService| App["iOS / Android / Web"]
+  App -->|cache TTL| Disk["SharedPreferences"]
+```
 
-| Tablo | Ne tutar |
-|-------|----------|
-| `app_settings` | key → JSON ayarlar (TTL, yarıçap, duyuru…) |
-| `app_categories` | Haklar / uzmanlık / merkez / forum kategorileri |
-| `app_content` | Banner, metin, duyuru CMS blokları |
-| `app_rights` | Haklar listesi (sihirbaz da buradan beslenir) |
-| `app_centers` | Küratör merkez listesi (Places yedeği) |
-| `app_diseases` | Ana sayfa hastalık rehberleri |
-| `app_catalog_versions` | Ucuz sürüm numaraları (kota dostu sync) |
+| Kaynak | Ne |
+|--------|-----|
+| `content/settings.json` | `show_demo_ilanlar`, TTL… |
+| `content/diseases.json` | Ana sayfa hastalık rehberi |
+| `content/categories_forum.json` | Forum chip’leri |
+| `content/cards.json` | İletişim kartları (örnek: `cards.example.json`) |
+| `content/rights.json` | Haklar (opsiyonel; SQL seed de var) |
+| Supabase Table Editor | Elle hızlı düzenleme (trigger sürümü artırır) |
 
-Okuma: herkes (`anon` + `authenticated`).  
-Yazma: `sakir.caykara@gmail.com` (RLS) veya Dashboard Table Editor.
+Flutter: `AppCatalogService` + `CatalogAdapters` — remote boşsa yerel `lib/data/*` fallback.
 
-## 2) Flutter
+## Store’a ilk yükleme öncesi
 
-- `lib/services/app_catalog_service.dart` — çek + SharedPreferences cache + TTL + sürüm
-- `lib/services/catalog_adapters.dart` — remote → UI model; boşsa hardcoded fallback
-- `main.dart` açılışta `AppCatalogService.instance.bootstrap()`
+1. Supabase SQL Editor → `supabase/app_catalog.sql` (ve haklar seed varsa `app_catalog_seed_rights.sql`)
+2. GitHub repo Secrets:
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY` (service_role — sadece CI)
+3. `content/` dosyalarını commit → `main`’e push → workflow `Sync catalog to Supabase` çalışır  
+   veya elle:  
+   `SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node tools/sync_catalog.mjs`
+4. Uygulamada `show_demo_ilanlar: false` ile demo ilanlar kapalı
+5. Play / App Store’a release build yükle
 
-### Sync mantığı
-1. Diskten anında yükle (offline açılır)
-2. `app_catalog_versions` ile 1 küçük istek
-3. Sadece **sürümü artmış** veya **TTL dolmuş** paketleri indir
-4. Aksi halde ağ yok → kota yok
+## İçerik güncelleme (store’suz)
 
-Varsayılan TTL: 6 saat (`app_settings.catalog_ttl_hours` ile değişir).
+1. `content/diseases.json` (veya diğer) düzenle  
+   - Hastalık JSON yenilemek: `node tools/export_diseases_json.mjs`
+2. Commit + push `main`
+3. Actions sync → kullanıcılar bir sonraki açılış / TTL’de görür  
+   (varsayılan TTL 6 saat; `catalog_ttl_hours` ile değişir)
 
-## 3) Örnek: yeni hak ekleme
+## Fotoğraflar
 
-Table Editor → `app_rights` → Insert.  
-Trigger otomatik `rights` sürümünü artırır → uygulama bir sonraki sync’te çeker.
+- Şimdilik `assets/...` path’leri de çalışır (store paketinde gömülü)
+- Yeni görsel için: Supabase Storage’a yükle → satırda `photo` / `media_url` = `https://...`  
+  → store güncellemesi gerekmez (`CatalogImage` network destekler)
 
-## 4) Bağlı ekranlar
-- Haklar sekmesi + sihirbaz → remote haklar/kategoriler
-- İlan formu uzmanlık alanı → remote `uzmanlik` kategorileri
-- Merkez filtreleri (adapter hazır; Places canlı arama ayrı)
+## Store güncellemesi ne zaman gerekir?
+
+- Yeni ekran / bug fix / native izin / paket bağımlılığı
+- Yeni Dart alanı (adapter’ın bilmediği JSON şekli)
+- Asset path’i pubspec’e yeni eklenen yerel dosya (URL kullanırsan gerekmez)
+
+## Bağlı ekranlar
+
+- Ana sayfa hastalıklar → `app_diseases`
+- Haklar → `app_rights` / kategoriler
+- Forum kategorileri → `app_categories` scope `forum`
+- Kartlar → `app_content` scope `cards` (yoksa `kNeedCards`)
+- İlan formu uzmanlık → scope `uzmanlik`
+- Demo ilanlar → `app_settings.show_demo_ilanlar`

@@ -92,8 +92,7 @@ Future<User?> finalizePendingGoogleRole(User user) async {
           'user_type': pending,
           if (pending == 'bakici') 'uzmanlik': 'Bakıcı',
           if (isNewRole)
-            'welcome_credits':
-                (pending == 'uzman' || pending == 'bakici') ? 10 : 3,
+            'welcome_credits': kWelcomeKredi,
         },
       ),
     );
@@ -269,6 +268,7 @@ class _MetoCareAppState extends State<MetoCareApp> {
               : MainShell(
                   user: _user!,
                   onLogout: _logout,
+                  onUserChanged: (u) => setState(() => _user = u),
                 ),
     );
   }
@@ -527,7 +527,8 @@ class _AuthScreenState extends State<AuthScreen> {
           if (tip == 'uzman' && _kayitUzmanlik != null)
             'uzmanlik': _kayitUzmanlik,
           if (tip == 'bakici') 'uzmanlik': 'Bakıcı',
-          'welcome_credits': (tip == 'uzman' || tip == 'bakici') ? 10 : 3,
+          'welcome_credits':
+              (tip == 'uzman' || tip == 'bakici') ? kWelcomeKredi : 0,
         },
       );
       final user = res.user;
@@ -545,7 +546,8 @@ class _AuthScreenState extends State<AuthScreen> {
 
       await seedWelcomeCredits(email: email, userType: tip);
 
-      final hediyeKredi = (tip == 'uzman' || tip == 'bakici') ? 10 : 3;
+      final hediyeKredi =
+          startingKrediFor(email, userType: tip);
 
       if (res.session == null) {
         if (mounted) {
@@ -557,9 +559,9 @@ class _AuthScreenState extends State<AuthScreen> {
           });
         }
         _snack(
-          hediyeKredi == 10
-              ? 'Hesap oluşturuldu! Giriş yapınca 10 hediye kredi hesabınızda olacak.'
-              : 'Hesap oluşturuldu. E-posta doğrulaması açıksa gelen kutunu kontrol et, sonra giriş yap.',
+          hediyeKredi > 0
+              ? 'Hesap oluşturuldu! Giriş yapınca $hediyeKredi hediye kredi hesabınızda olacak.'
+              : 'Hesap oluşturuldu! Aile rolünde kredi yok; 2. el ilanlara ücretsiz teklif verebilirsiniz.',
         );
         return;
       }
@@ -569,9 +571,9 @@ class _AuthScreenState extends State<AuthScreen> {
       );
       widget.onLogin?.call(authUser);
       _snack(
-        hediyeKredi == 10
-            ? 'Hoş geldin ${authUser.name}! 10 hediye kredi hesabına tanımlandı.'
-            : 'Hesap oluşturuldu: ${authUser.name}',
+        hediyeKredi > 0
+            ? 'Hoş geldin ${authUser.name}! $hediyeKredi hediye kredi hesabına tanımlandı.'
+            : 'Hoş geldin ${authUser.name}! Aile rolünde kredi yok; ilan verebilir, 2. el ilanlara teklif verebilirsiniz.',
       );
       if (mounted) setState(() => _step = 'signin');
     } catch (e) {
@@ -744,13 +746,6 @@ class _SplashStep extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              Text(
-                'Ücretsiz · Reklamsız · Güvenli',
-                style: GoogleFonts.nunito(
-                  fontSize: 12,
-                  color: MetoColors.mutedFg,
-                ),
-              ),
             ],
           ),
         ),
@@ -858,27 +853,8 @@ class _SignInStep extends StatelessWidget {
         ),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
             child: authTab == 'giris' ? _buildGiris() : _buildKayit(),
-          ),
-        ),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: Text.rich(
-            TextSpan(
-              style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
-              children: [
-                TextSpan(text: 'Ücretsiz · Reklamsız · '),
-                TextSpan(
-                  text: 'Güvenli',
-                  style: TextStyle(
-                    color: MetoColors.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            textAlign: TextAlign.center,
           ),
         ),
       ],
@@ -1087,9 +1063,9 @@ class _SignInStep extends StatelessWidget {
               border:
                   Border.all(color: MetoColors.primary.withValues(alpha: 0.25)),
             ),
-            child: const Text(
-              '🎁 Hoş geldin hediyesi: hesabınıza 10 ücretsiz kredi tanımlanır.',
-              style: TextStyle(
+            child: Text(
+              '🎁 Hoş geldin hediyesi: hesabınıza $kWelcomeKredi ücretsiz kredi tanımlanır.',
+              style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: MetoColors.primary,

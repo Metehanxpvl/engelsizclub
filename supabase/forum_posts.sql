@@ -17,6 +17,7 @@ create table if not exists public.forum_posts (
   meslek text not null default '',
   owner_email text not null default '',
   owner_id uuid references auth.users (id) on delete set null,
+  photos jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
 );
 

@@ -17,6 +17,7 @@ class ForumPost {
     this.likedByMe = false,
     this.meslek = '',
     this.ownerEmail = '',
+    this.photos = const [],
   });
 
   final int id;
@@ -34,6 +35,7 @@ class ForumPost {
   final bool likedByMe;
   final String meslek;
   final String ownerEmail;
+  final List<String> photos;
 
   ForumPost copyWith({
     int? likes,
@@ -56,6 +58,7 @@ class ForumPost {
         likedByMe: likedByMe ?? this.likedByMe,
         meslek: meslek,
         ownerEmail: ownerEmail,
+        photos: photos,
       );
 }
 

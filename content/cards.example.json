@@ -1,0 +1,17 @@
+[
+  {
+    "id": "card_1",
+    "scope": "cards",
+    "title": "Su",
+    "body": "Su istiyorum",
+    "media_url": "",
+    "sort_order": 1,
+    "meta": {
+      "id": 1,
+      "emoji": "💧",
+      "color": 4280391411,
+      "bg": 4292928255,
+      "category": "temel"
+    }
+  }
+]

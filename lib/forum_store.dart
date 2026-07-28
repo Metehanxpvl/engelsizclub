@@ -22,6 +22,14 @@ ForumPost forumPostFromRow(
   final created =
       DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now();
   final colorVal = (json['avatar_color'] as num?)?.toInt() ?? 0xFF1A6B4A;
+  final photosRaw = json['photos'];
+  final photos = <String>[];
+  if (photosRaw is List) {
+    for (final item in photosRaw) {
+      final s = item?.toString() ?? '';
+      if (s.isNotEmpty) photos.add(s);
+    }
+  }
   return ForumPost(
     id: (json['id'] as num?)?.toInt() ?? 0,
     author: json['author']?.toString() ?? 'Anonim',
@@ -38,6 +46,7 @@ ForumPost forumPostFromRow(
     likedByMe: likedByMe,
     meslek: json['meslek']?.toString() ?? '',
     ownerEmail: (json['owner_email']?.toString() ?? '').toLowerCase(),
+    photos: photos,
   );
 }
 
@@ -102,6 +111,7 @@ Future<ForumPost> publishForumPost({
   bool anon = false,
   bool expert = false,
   String meslek = '',
+  List<String> photos = const [],
 }) async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
@@ -135,6 +145,14 @@ Future<ForumPost> publishForumPost({
   if (meslek.trim().isNotEmpty) {
     payload['meslek'] = meslek.trim();
   }
+  final safePhotos = photos
+      .map((p) => p.trim())
+      .where((p) => p.isNotEmpty)
+      .take(2)
+      .toList(growable: false);
+  if (safePhotos.isNotEmpty) {
+    payload['photos'] = safePhotos;
+  }
 
   try {
     final row =
@@ -142,6 +160,7 @@ Future<ForumPost> publishForumPost({
     return forumPostFromRow(Map<String, dynamic>.from(row));
   } catch (_) {
     payload.remove('meslek');
+    payload.remove('photos');
     final row =
         await client.from('forum_posts').insert(payload).select().single();
     return forumPostFromRow(Map<String, dynamic>.from(row));

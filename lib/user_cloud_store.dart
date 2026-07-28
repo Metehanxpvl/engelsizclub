@@ -111,6 +111,7 @@ String _localKey(String email, String suffix) {
 Future<UserCloudProfile> loadUserCloudProfile(String email) async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
+  final local = await _loadLocal(email);
 
   if (user != null) {
     try {
@@ -120,16 +121,38 @@ Future<UserCloudProfile> loadUserCloudProfile(String email) async {
           .eq('owner_id', user.id)
           .maybeSingle();
       if (row != null) {
-        final profile = _fromRow(Map<String, dynamic>.from(row));
+        var profile = _fromRow(Map<String, dynamic>.from(row));
+
+        // Bulutta favori yok ama yerelde varsa: eski sessiz kayıt
+        // hatalarından kurtar ve buluta geri yaz.
+        if (profile.favorites.isEmpty && local.favorites.isNotEmpty) {
+          profile = UserCloudProfile(
+            photoData: profile.photoData ?? local.photoData,
+            profil: profile.profil.isEmpty ? local.profil : profile.profil,
+            cocuk: profile.cocuk,
+            favorites: local.favorites,
+            notifications: profile.notifications,
+          );
+          await _persistCloudProfile(email: email, profile: profile);
+        }
+
         await _cacheLocally(email, profile);
         return profile;
       }
+
+      // Bulutta satır yok → yereli yükle ve ilk kez senkronla
+      if (local.favorites.isNotEmpty ||
+          (local.photoData != null && local.photoData!.isNotEmpty) ||
+          !local.profil.isEmpty) {
+        await _persistCloudProfile(email: email, profile: local);
+      }
+      return local;
     } catch (_) {
       // Tablo yok / ağ → yerel
     }
   }
 
-  return _loadLocal(email);
+  return local;
 }
 
 Future<void> upsertUserCloudProfile({
@@ -152,7 +175,20 @@ Future<void> upsertUserCloudProfile({
     notifications: notifications ?? current.notifications,
   );
   await _cacheLocally(email, next);
+  await _persistCloudProfile(
+    email: email,
+    profile: next,
+    photoChanged: clearPhoto || photoData != null,
+  );
+}
 
+/// Favori / profil alanlarını buluta yazar.
+/// Fotoğraf her seferinde gönderilmez (büyük base64 upsert'i bozmasın).
+Future<void> _persistCloudProfile({
+  required String email,
+  required UserCloudProfile profile,
+  bool photoChanged = false,
+}) async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
   if (user == null) return;
@@ -160,18 +196,37 @@ Future<void> upsertUserCloudProfile({
   final payload = <String, dynamic>{
     'owner_id': user.id,
     'owner_email': email.trim().toLowerCase(),
-    'photo_data': next.photoData,
-    'profil': next.profil.toJson(),
-    'cocuk': next.cocuk.toJson(),
-    'favorites': next.favorites.map((e) => e.toJson()).toList(),
-    'notifications': next.notifications.toJson(),
+    'profil': profile.profil.toJson(),
+    'cocuk': profile.cocuk.toJson(),
+    'favorites': profile.favorites.map((e) => e.toJson()).toList(),
+    'notifications': profile.notifications.toJson(),
     'updated_at': DateTime.now().toUtc().toIso8601String(),
   };
 
+  if (photoChanged) {
+    payload['photo_data'] = profile.photoData;
+  }
+
   try {
-    await client.from('user_profiles').upsert(payload);
+    await client.from('user_profiles').upsert(
+      payload,
+      onConflict: 'owner_id',
+    );
   } catch (_) {
-    // Yerel kayıt yeterli; bulut sonraki denemede
+    // Fotoğraf boyutu / ağ: en azından favorileri ayrı dene
+    try {
+      await client.from('user_profiles').upsert(
+        {
+          'owner_id': user.id,
+          'owner_email': email.trim().toLowerCase(),
+          'favorites': profile.favorites.map((e) => e.toJson()).toList(),
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        },
+        onConflict: 'owner_id',
+      );
+    } catch (_) {
+      // Yerel kayıt duruyor; sonraki girişte merge ile kurtarılır
+    }
   }
 }
 

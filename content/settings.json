@@ -1,0 +1,5 @@
+{
+  "show_demo_ilanlar": false,
+  "catalog_ttl_hours": 6,
+  "store_note": "Play/App Store sürümünde demo ilanlar kapalı; içerik GitHub→Supabase sync ile güncellenir."
+}

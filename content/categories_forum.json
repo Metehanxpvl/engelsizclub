@@ -1,0 +1,14 @@
+[
+  { "id": "forum_tumu", "scope": "forum", "label": "Tümü", "icon": "", "sort_order": 0 },
+  { "id": "forum_otizm", "scope": "forum", "label": "Otizm", "icon": "", "sort_order": 1 },
+  { "id": "forum_sp", "scope": "forum", "label": "Serebral Palsi", "icon": "", "sort_order": 2 },
+  { "id": "forum_down", "scope": "forum", "label": "Down Sendromu", "icon": "", "sort_order": 3 },
+  { "id": "forum_sma", "scope": "forum", "label": "SMA", "icon": "", "sort_order": 4 },
+  { "id": "forum_dehb", "scope": "forum", "label": "DEHB", "icon": "", "sort_order": 5 },
+  { "id": "forum_gelisim", "scope": "forum", "label": "Gelişim Geriliği", "icon": "", "sort_order": 6 },
+  { "id": "forum_duyu", "scope": "forum", "label": "Duyu Bütünleme", "icon": "", "sort_order": 7 },
+  { "id": "forum_iletisim", "scope": "forum", "label": "İletişim Bozuklukları", "icon": "", "sort_order": 8 },
+  { "id": "forum_nadir", "scope": "forum", "label": "Nadir Hastalıklar", "icon": "", "sort_order": 9 },
+  { "id": "forum_genel", "scope": "forum", "label": "Genel Konular", "icon": "", "sort_order": 10 },
+  { "id": "forum_kose", "scope": "forum", "label": "Köşe Yazısı", "icon": "", "sort_order": 11 }
+]

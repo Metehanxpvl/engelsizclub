@@ -1,13 +1,22 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/cards_data.dart';
 import '../meto_theme.dart';
+import '../services/app_catalog_service.dart';
+import '../services/catalog_adapters.dart';
+import '../widgets/catalog_media.dart';
+
+/// Klavye tuşu gibi kısa titreşim (cihaz destekliyorsa).
+void _kartHaptic() {
+  HapticFeedback.selectionClick();
+  HapticFeedback.lightImpact();
+}
 
 /// Figma Make `KartlarTab` — Flutter port with edit mode, custom cards, TTS.
 class KartlarPage extends StatefulWidget {
@@ -88,7 +97,7 @@ class _KartlarPageState extends State<KartlarPage> {
   }
 
   List<NeedCard> get _allCards {
-    final builtIn = kNeedCards.map((c) {
+    final builtIn = CatalogAdapters.needCards().map((c) {
       final ovr = _overrides[c.id];
       return ovr != null ? c.applyOverride(ovr) : c;
     });
@@ -172,7 +181,9 @@ class _KartlarPageState extends State<KartlarPage> {
       );
     }
 
-    return Stack(
+    return ListenableBuilder(
+      listenable: AppCatalogService.instance,
+      builder: (context, _) => Stack(
       children: [
         ColoredBox(
           color: MetoColors.background,
@@ -314,7 +325,9 @@ class _KartlarPageState extends State<KartlarPage> {
                             if (_editMode) {
                               _openEdit(card);
                             } else {
+                              _kartHaptic();
                               setState(() => _activeCard = card);
+                              _speakCard(card);
                             }
                           },
                         );
@@ -453,6 +466,7 @@ class _KartlarPageState extends State<KartlarPage> {
             onDelete: _addingNew ? null : () => _onDeleteEdit(_editingCard!),
           ),
       ],
+    ),
     );
   }
 }
@@ -495,6 +509,21 @@ class _CategoryChip extends StatelessWidget {
 Widget? _cardPhotoWidget(String? photo,
     {required double size, BorderRadius? radius}) {
   if (photo == null || photo.isEmpty) return null;
+  final src = photo.trim();
+  final lower = src.toLowerCase();
+  if (lower.startsWith('http://') ||
+      lower.startsWith('https://') ||
+      lower.startsWith('assets/')) {
+    return ClipRRect(
+      borderRadius: radius ?? BorderRadius.circular(12),
+      child: CatalogImage(
+        source: src,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+      ),
+    );
+  }
   final bytes = decodeCardPhoto(photo);
   if (bytes == null) return null;
   return ClipRRect(
@@ -683,7 +712,7 @@ class _DashedBorderPainter extends CustomPainter {
       oldDelegate.color != color;
 }
 
-class _CardOverlay extends StatelessWidget {
+class _CardOverlay extends StatefulWidget {
   const _CardOverlay({
     required this.card,
     required this.onClose,
@@ -695,133 +724,196 @@ class _CardOverlay extends StatelessWidget {
   final VoidCallback onSpeak;
 
   @override
+  State<_CardOverlay> createState() => _CardOverlayState();
+}
+
+class _CardOverlayState extends State<_CardOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shake;
+
+  @override
+  void initState() {
+    super.initState();
+    _shake = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => _pulse());
+  }
+
+  @override
+  void dispose() {
+    _shake.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pulse() async {
+    _kartHaptic();
+    if (!mounted) return;
+    await _shake.forward(from: 0);
+  }
+
+  void _onVisualTap() {
+    _pulse();
+    widget.onSpeak();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final card = widget.card;
+    final size = MediaQuery.sizeOf(context);
+    final cardWidth = (size.width - 32).clamp(280.0, 440.0);
+    final visualSize = (cardWidth * 0.62).clamp(180.0, 280.0);
     final photo = _cardPhotoWidget(
       card.photo,
-      size: 160,
-      radius: BorderRadius.circular(16),
+      size: visualSize,
+      radius: BorderRadius.circular(20),
     );
 
     return Material(
-      color: Colors.black.withValues(alpha: 0.55),
-      child: GestureDetector(
-        onTap: onClose,
-        behavior: HitTestBehavior.opaque,
+      color: Colors.black.withValues(alpha: 0.62),
+      child: SafeArea(
         child: Center(
-          child: GestureDetector(
-            onTap: () {},
-            child: Container(
-              width: 280,
-              margin: const EdgeInsets.symmetric(horizontal: 32),
-              padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-              decoration: BoxDecoration(
-                color: card.bg,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: card.color, width: 5),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.25),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned(
-                    top: -20,
-                    right: -8,
-                    child: Material(
-                      color: card.color.withValues(alpha: 0.13),
-                      shape: const CircleBorder(),
-                      child: InkWell(
-                        onTap: onClose,
-                        customBorder: const CircleBorder(),
-                        child: Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Icon(Icons.close, size: 16, color: card.color),
-                        ),
+          child: Container(
+            width: cardWidth,
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+            padding: const EdgeInsets.fromLTRB(28, 40, 28, 28),
+            decoration: BoxDecoration(
+              color: card.bg,
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: card.color, width: 6),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.28),
+                  blurRadius: 28,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned(
+                  top: -28,
+                  right: -12,
+                  child: Material(
+                    color: card.color,
+                    elevation: 4,
+                    shadowColor: Colors.black38,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      onTap: widget.onClose,
+                      customBorder: const CircleBorder(),
+                      child: const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: Icon(Icons.close, size: 22, color: Colors.white),
                       ),
                     ),
                   ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (photo != null)
-                        photo
-                      else
-                        Text(card.emoji, style: const TextStyle(fontSize: 72)),
-                      const SizedBox(height: 12),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedBuilder(
+                      animation: _shake,
+                      builder: (context, child) {
+                        final t = _shake.value;
+                        final dx = (1 - t) *
+                            6 *
+                            ((t * 10).floor().isEven ? 1 : -1) *
+                            (t < 1 ? (1 - t) : 0);
+                        return Transform.translate(
+                          offset: Offset(dx, 0),
+                          child: child,
+                        );
+                      },
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _onVisualTap,
+                          borderRadius: BorderRadius.circular(20),
+                          child: photo ??
+                              Text(
+                                card.emoji,
+                                style: TextStyle(fontSize: visualSize * 0.55),
+                              ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      card.label,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.w800,
+                        color: card.color,
+                        height: 1.15,
+                      ),
+                    ),
+                    if (card.desc != null && card.desc!.isNotEmpty) ...[
+                      const SizedBox(height: 14),
                       Text(
-                        card.label,
+                        card.desc!,
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w800,
-                          color: card.color,
-                        ),
-                      ),
-                      if (card.desc != null && card.desc!.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          card.desc!,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 14,
-                            height: 1.45,
-                            color: card.color.withValues(alpha: 0.80),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 20),
-                      Material(
-                        color: card.color,
-                        borderRadius: BorderRadius.circular(999),
-                        elevation: 4,
-                        shadowColor: card.color.withValues(alpha: 0.4),
-                        child: InkWell(
-                          onTap: onSpeak,
-                          borderRadius: BorderRadius.circular(999),
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.volume_up,
-                                  size: 18,
-                                  color: Colors.white,
-                                ),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Sesli Oku',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Kartı kapatmak için dışarıya dokun',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: card.color.withValues(alpha: 0.60),
+                          fontSize: 16,
+                          height: 1.45,
+                          color: card.color.withValues(alpha: 0.80),
                         ),
                       ),
                     ],
-                  ),
-                ],
-              ),
+                    const SizedBox(height: 24),
+                    Material(
+                      color: card.color,
+                      borderRadius: BorderRadius.circular(999),
+                      elevation: 4,
+                      shadowColor: card.color.withValues(alpha: 0.4),
+                      child: InkWell(
+                        onTap: () {
+                          _kartHaptic();
+                          widget.onSpeak();
+                        },
+                        borderRadius: BorderRadius.circular(999),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 28,
+                            vertical: 14,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.volume_up,
+                                size: 22,
+                                color: Colors.white,
+                              ),
+                              SizedBox(width: 10),
+                              Text(
+                                'Sesli Oku',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Kapatmak için X işaretine bas',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: card.color.withValues(alpha: 0.65),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),

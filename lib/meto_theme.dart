@@ -30,4 +30,19 @@ class AuthUser {
   final String avatar;
   final Color avatarColor;
   final String? userType;
+
+  AuthUser copyWith({
+    String? name,
+    String? email,
+    String? avatar,
+    Color? avatarColor,
+    String? userType,
+  }) =>
+      AuthUser(
+        name: name ?? this.name,
+        email: email ?? this.email,
+        avatar: avatar ?? this.avatar,
+        avatarColor: avatarColor ?? this.avatarColor,
+        userType: userType ?? this.userType,
+      );
 }

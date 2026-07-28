@@ -1,12 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../admin_config.dart';
 import '../data/forum_data.dart';
 import '../forum_store.dart';
 import '../meto_theme.dart';
+import '../services/catalog_adapters.dart';
 import '../sohbet_store.dart';
 
 /// Figma Make `ForumTab` — Flutter portu.
@@ -27,18 +31,23 @@ class ForumPage extends StatefulWidget {
 }
 
 class _ForumPageState extends State<ForumPage> {
+  static const _pageSize = 10;
+
   ForumPost? _selectedPost;
   bool _newPost = false;
   String _searchQuery = '';
   String _activeCategory = 'Tümü';
+  int _listPage = 0;
   bool _anon = false;
-  String _newPostCategory = newPostCategories.first;
+  String _newPostCategory = 'Genel Konular';
   String _uzmanMeslek = uzmanMeslekler.first;
   bool _koseYazisi = false;
   bool _loading = true;
   bool _publishing = false;
   bool _commentSending = false;
   bool _likeBusy = false;
+  bool _pickingPhoto = false;
+  final List<String> _formPhotos = [];
   List<ForumPost> _cloudPosts = const [];
   List<ForumComment> _postComments = const [];
   bool _commentsLoading = false;
@@ -51,6 +60,9 @@ class _ForumPageState extends State<ForumPage> {
 
   bool get _isProfUser =>
       widget.userType == 'uzman' || widget.userType == 'bakici';
+
+  List<String> get _feedCategories => CatalogAdapters.forumFeedCategories();
+  List<String> get _postCategories => CatalogAdapters.forumPostCategories();
 
   bool get _isAdmin => isAppAdmin(widget.userEmail);
 
@@ -132,8 +144,12 @@ class _ForumPageState extends State<ForumPage> {
     return _cloudPosts.where((p) {
       final matchesCat = switch (_activeCategory) {
         'Tümü' => true,
-        'Uzman' => p.expert || p.category == 'Uzman' || isUzmanMeslek(p.category),
-        'Köşe Yazısı' => p.expert,
+        'Köşe Yazısı' =>
+          p.expert || p.category == 'Köşe Yazısı',
+        'Genel Konular' =>
+          p.category == 'Genel Konular' || p.category == 'Genel',
+        'Uzman' =>
+          p.expert || p.category == 'Uzman' || isUzmanMeslek(p.category),
         _ => p.category == _activeCategory || p.meslek == _activeCategory,
       };
       final matchesQ = q.isEmpty ||
@@ -347,6 +363,104 @@ class _ForumPageState extends State<ForumPage> {
     }
   }
 
+  Uint8List? _decodeForumPhoto(String dataUrl) {
+    try {
+      var raw = dataUrl;
+      if (raw.contains(',')) raw = raw.split(',').last;
+      return Uint8List.fromList(base64Decode(raw));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _pickForumPhoto() async {
+    if (_formPhotos.length >= 2 || _pickingPhoto) return;
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: MetoColors.card,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Text(
+                  'Fotoğraf ekle',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined,
+                    color: MetoColors.primary),
+                title: const Text('Galeriden seç'),
+                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined,
+                    color: MetoColors.primary),
+                title: const Text('Kamerayla çek'),
+                onTap: () => Navigator.pop(ctx, ImageSource.camera),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Vazgeç'),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+
+    setState(() => _pickingPhoto = true);
+    try {
+      final file = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 720,
+        maxHeight: 720,
+        imageQuality: 45,
+      );
+      if (file == null || !mounted) return;
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) {
+        throw StateError('Boş görsel seçildi.');
+      }
+      const mime = 'image/jpeg';
+      final encoded = base64Encode(bytes);
+      if (encoded.length > 180000) {
+        throw StateError(
+          'Fotoğraf çok büyük. Daha küçük bir fotoğraf seçin.',
+        );
+      }
+      final dataUrl = 'data:$mime;base64,$encoded';
+      if (!mounted) return;
+      setState(() => _formPhotos.add(dataUrl));
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString().toLowerCase();
+      final friendly = msg.contains('büyük') || msg.contains('boş')
+          ? e.toString().replaceFirst('Bad state: ', '')
+          : (msg.contains('quota') ||
+                  msg.contains('ön bellek') ||
+                  msg.contains('localstorage') ||
+                  msg.contains('exceeded'))
+              ? 'Tarayıcı önbelleği dolu. Daha küçük fotoğraf deneyin.'
+              : 'Fotoğraf eklenemedi. Galeri/kamera iznini kontrol edin.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendly)),
+      );
+    } finally {
+      if (mounted) setState(() => _pickingPhoto = false);
+    }
+  }
+
   Future<void> _publishPost() async {
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
@@ -377,12 +491,14 @@ class _ForumPageState extends State<ForumPage> {
         anon: isExpert ? false : _anon,
         expert: isExpert,
         meslek: meslek,
+        photos: _formPhotos,
       );
       if (!mounted) return;
       _titleController.clear();
       _contentController.clear();
       setState(() {
         _cloudPosts = [post, ..._cloudPosts];
+        _formPhotos.clear();
         _newPost = false;
         _anon = false;
         _koseYazisi = _isProfUser;
@@ -539,13 +655,16 @@ class _ForumPageState extends State<ForumPage> {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: forumCategories.length,
+                itemCount: _feedCategories.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (context, i) {
-                  final cat = forumCategories[i];
+                  final cat = _feedCategories[i];
                   final active = cat == _activeCategory;
                   return GestureDetector(
-                    onTap: () => setState(() => _activeCategory = cat),
+                    onTap: () => setState(() {
+                      _activeCategory = cat;
+                      _listPage = 0;
+                    }),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -583,8 +702,8 @@ class _ForumPageState extends State<ForumPage> {
                 padding: const EdgeInsets.symmetric(vertical: 48),
                 child: _buildEmptyState(),
               )
-            else
-              ...filtered.map(
+            else ...[
+              ..._pageSlice(filtered).map(
                 (post) => Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                   child: _PostCard(
@@ -597,10 +716,76 @@ class _ForumPageState extends State<ForumPage> {
                   ),
                 ),
               ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: _buildForumPager(filtered.length),
+              ),
+            ],
             const SizedBox(height: 24),
           ],
         ),
       ),
+    );
+  }
+
+  List<ForumPost> _pageSlice(List<ForumPost> items) {
+    if (items.isEmpty) return const [];
+    final pageCount = (items.length / _pageSize).ceil().clamp(1, 9999);
+    final page = _listPage.clamp(0, pageCount - 1);
+    final start = page * _pageSize;
+    final end = (start + _pageSize).clamp(0, items.length);
+    return items.sublist(start, end);
+  }
+
+  Widget _buildForumPager(int total) {
+    if (total <= _pageSize) {
+      return Text(
+        '$total gönderi',
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
+      );
+    }
+    final pageCount = (total / _pageSize).ceil();
+    final page = _listPage.clamp(0, pageCount - 1);
+    return Column(
+      children: [
+        Text(
+          'Sayfa ${page + 1} / $pageCount · $total gönderi',
+          style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 4,
+          runSpacing: 4,
+          alignment: WrapAlignment.center,
+          children: [
+            for (var i = 0; i < pageCount; i++)
+              Material(
+                color: i == page ? MetoColors.primary : MetoColors.muted,
+                borderRadius: BorderRadius.circular(8),
+                child: InkWell(
+                  onTap: () => setState(() => _listPage = i),
+                  borderRadius: BorderRadius.circular(8),
+                  child: SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: Center(
+                      child: Text(
+                        '${i + 1}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color:
+                              i == page ? Colors.white : MetoColors.mutedFg,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -778,6 +963,10 @@ class _ForumPageState extends State<ForumPage> {
               height: post.expert ? 1.7 : 1.5,
             ),
           ),
+          if (post.photos.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _ForumPhotoStrip(photos: post.photos, height: 260),
+          ],
           const SizedBox(height: 16),
           Row(
             children: [
@@ -962,18 +1151,22 @@ class _ForumPageState extends State<ForumPage> {
           _fieldLabel('Kategori'),
           const SizedBox(height: 4),
           DropdownButtonFormField<String>(
-            value: _newPostCategory,
+            value: _postCategories.contains(_newPostCategory)
+                ? _newPostCategory
+                : _postCategories.first,
             decoration: _inputDecoration(),
-            items: newPostCategories
+            items: _postCategories
                 .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                 .toList(),
             onChanged: (v) {
               if (v == null) return;
               setState(() {
                 _newPostCategory = v;
-                if (v == 'Uzman') {
+                if (v == 'Köşe Yazısı' || v == 'Uzman') {
                   _koseYazisi = true;
                   _anon = false;
+                } else {
+                  _koseYazisi = false;
                 }
               });
             },
@@ -1078,6 +1271,87 @@ class _ForumPageState extends State<ForumPage> {
               ),
             ),
           ],
+          const SizedBox(height: 16),
+          _fieldLabel('Fotoğraflar (en fazla 2)'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ..._formPhotos.asMap().entries.map((e) {
+                final bytes = _decodeForumPhoto(e.value);
+                return Stack(
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: MetoColors.muted,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: MetoColors.border),
+                        image: bytes == null
+                            ? null
+                            : DecorationImage(
+                                image: MemoryImage(bytes),
+                                fit: BoxFit.cover,
+                              ),
+                      ),
+                      child: bytes == null
+                          ? const Center(
+                              child: Icon(
+                                Icons.image_outlined,
+                                color: MetoColors.mutedFg,
+                              ),
+                            )
+                          : null,
+                    ),
+                    Positioned(
+                      top: 2,
+                      right: 2,
+                      child: GestureDetector(
+                        onTap: () => setState(() => _formPhotos.removeAt(e.key)),
+                        child: Container(
+                          width: 20,
+                          height: 20,
+                          decoration: const BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close, size: 12, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }),
+              if (_formPhotos.length < 2)
+                InkWell(
+                  onTap: _pickingPhoto ? null : _pickForumPhoto,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: MetoColors.muted,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: MetoColors.border),
+                    ),
+                    child: _pickingPhoto
+                        ? const Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.add_a_photo_outlined,
+                            color: MetoColors.mutedFg,
+                          ),
+                  ),
+                ),
+            ],
+          ),
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(12),
@@ -1312,6 +1586,10 @@ class _PostCard extends StatelessWidget {
                   height: 1.4,
                 ),
               ),
+              if (post.photos.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _ForumPhotoStrip(photos: post.photos, height: 140, compact: true),
+              ],
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -1377,6 +1655,80 @@ class _PostCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+Uint8List? _forumPhotoBytes(String dataUrl) {
+  try {
+    var raw = dataUrl;
+    if (raw.contains(',')) raw = raw.split(',').last;
+    return Uint8List.fromList(base64Decode(raw));
+  } catch (_) {
+    return null;
+  }
+}
+
+class _ForumPhotoStrip extends StatelessWidget {
+  const _ForumPhotoStrip({
+    required this.photos,
+    required this.height,
+    this.compact = false,
+  });
+
+  final List<String> photos;
+  final double height;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    if (photos.isEmpty) return const SizedBox.shrink();
+
+    if (photos.length == 1) {
+      final bytes = _forumPhotoBytes(photos.first);
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(compact ? 10 : 12),
+        child: bytes == null
+            ? Container(
+                height: height,
+                color: MetoColors.muted,
+                alignment: Alignment.center,
+                child: const Icon(Icons.broken_image_outlined,
+                    color: MetoColors.mutedFg),
+              )
+            : Image.memory(bytes, height: height, width: double.infinity, fit: BoxFit.cover),
+      );
+    }
+
+    return SizedBox(
+      height: height,
+      child: Row(
+        children: [
+          for (var i = 0; i < photos.length && i < 2; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(compact ? 10 : 12),
+                child: Builder(
+                  builder: (context) {
+                    final bytes = _forumPhotoBytes(photos[i]);
+                    if (bytes == null) {
+                      return Container(
+                        height: height,
+                        color: MetoColors.muted,
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.broken_image_outlined,
+                            color: MetoColors.mutedFg),
+                      );
+                    }
+                    return Image.memory(bytes, height: height, fit: BoxFit.cover);
+                  },
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

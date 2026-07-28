@@ -27,18 +27,29 @@ class IlanlarPage extends StatefulWidget {
     required this.onKrediHarca,
     this.userEmail = '',
     this.userName = 'Siz',
+    this.userType = 'aile',
     this.onUnreadChange,
     this.onOpenKrediYukle,
     this.onIlanlarChanged,
+    this.openIlanKind,
+    this.openIlanId,
+    this.openIlanToken = 0,
   });
 
   final int userKredi;
-  final VoidCallback onKrediHarca;
+  final Future<bool> Function() onKrediHarca;
   final String userEmail;
   final String userName;
+  /// aile | uzman | bakici
+  final String userType;
   final ValueChanged<int>? onUnreadChange;
   final VoidCallback? onOpenKrediYukle;
   final VoidCallback? onIlanlarChanged;
+
+  /// Profil / favorilerden açılacak ilan (kind: uzman|bakici|ikinciel).
+  final String? openIlanKind;
+  final int? openIlanId;
+  final int openIlanToken;
 
   @override
   State<IlanlarPage> createState() => _IlanlarPageState();
@@ -58,11 +69,24 @@ class _ActiveSohbet {
 }
 
 class _IlanlarPageState extends State<IlanlarPage> {
+  static const _kAllIller = 'Tümü';
+  static const _pageSize = 10;
+
   IlanKategori _kategori = IlanKategori.uzmanlar;
   bool _showVerForm = false;
   double _kmFilter = 500;
+  String _filterIl = _kAllIller;
+  String _filterIlce = kAllIlceler;
+  int _listPage = 0;
   bool _loadingFeed = true;
   List<FavoriIlanRef> _favoriler = const [];
+
+  bool get _isAileRole {
+    final t = widget.userType.trim().toLowerCase();
+    return t != 'uzman' && t != 'bakici' && !isAppAdmin(widget.userEmail);
+  }
+
+  bool get _canPaidTeklif => !_isAileRole;
 
   UzmanIlani? _selectedUzman;
   BakiciIlani? _selectedBakici;
@@ -207,7 +231,81 @@ class _IlanlarPageState extends State<IlanlarPage> {
   @override
   void initState() {
     super.initState();
-    _refreshFeed();
+    _refreshFeed().then((_) {
+      if (!mounted) return;
+      _tryOpenPendingIlan();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant IlanlarPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.openIlanToken != oldWidget.openIlanToken) {
+      _tryOpenPendingIlan();
+    }
+  }
+
+  void _tryOpenPendingIlan() {
+    final kind = widget.openIlanKind?.trim().toLowerCase();
+    final id = widget.openIlanId;
+    if (kind == null || kind.isEmpty || id == null || id <= 0) return;
+    _openListingByKindId(kind, id);
+  }
+
+  void _openListingByKindId(String kind, int id) {
+    switch (kind) {
+      case 'uzman':
+        UzmanIlani? found;
+        for (final i in runtimeUzmanIlanlar) {
+          if (i.id == id) {
+            found = i;
+            break;
+          }
+        }
+        if (found == null) return;
+        setState(() {
+          _showVerForm = false;
+          _kategori = IlanKategori.uzmanlar;
+          _selectedBakici = null;
+          _selectedIkinciel = null;
+          _selectedPoster = null;
+          _selectedUzman = found;
+        });
+      case 'bakici':
+        BakiciIlani? found;
+        for (final i in runtimeBakiciIlanlar) {
+          if (i.id == id) {
+            found = i;
+            break;
+          }
+        }
+        if (found == null) return;
+        setState(() {
+          _showVerForm = false;
+          _kategori = IlanKategori.bakici;
+          _selectedUzman = null;
+          _selectedIkinciel = null;
+          _selectedPoster = null;
+          _selectedBakici = found;
+        });
+      case 'ikinciel':
+        IkincielIlani? found;
+        for (final i in runtimeIkincielIlanlar) {
+          if (i.id == id) {
+            found = i;
+            break;
+          }
+        }
+        if (found == null) return;
+        setState(() {
+          _showVerForm = false;
+          _kategori = IlanKategori.ikinciel;
+          _selectedUzman = null;
+          _selectedBakici = null;
+          _selectedPoster = null;
+          _selectedIkinciel = found;
+        });
+    }
   }
 
   Future<void> _refreshFeed() async {
@@ -239,22 +337,33 @@ class _IlanlarPageState extends State<IlanlarPage> {
       );
       return;
     }
-    final next = _isFav(ref.kind, ref.id)
-        ? _favoriler.where((f) => f.key != ref.key).toList()
-        : [..._favoriler, ref];
+    final adding = !_isFav(ref.kind, ref.id);
+    final next = adding
+        ? [..._favoriler, ref]
+        : _favoriler.where((f) => f.key != ref.key).toList();
     setState(() => _favoriler = next);
-    await upsertUserCloudProfile(email: widget.userEmail, favorites: next);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _isFav(ref.kind, ref.id)
-              ? 'Favorilere eklendi ❤️'
-              : 'Favorilerden çıkarıldı',
+    try {
+      await upsertUserCloudProfile(email: widget.userEmail, favorites: next);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            adding ? 'Favorilere eklendi ❤️' : 'Favorilerden çıkarıldı',
+          ),
+          duration: const Duration(seconds: 1),
         ),
-        duration: const Duration(seconds: 1),
-      ),
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _favoriler = adding
+            ? _favoriler.where((f) => f.key != ref.key).toList()
+            : [..._favoriler, ref];
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Favori kaydedilemedi. Tekrar deneyin.')),
+      );
+    }
   }
 
   Widget _favButton(FavoriIlanRef ref) {
@@ -271,18 +380,58 @@ class _IlanlarPageState extends State<IlanlarPage> {
     );
   }
 
-  List<UzmanIlani> get _filteredUzman =>
-      [...runtimeUzmanIlanlar, ...uzmanIlanlar]
-          .where((u) => (uzmanKm[u.id] ?? 50) <= _kmFilter)
-          .toList();
+  static String _normLoc(String s) => s
+      .toLowerCase()
+      .replaceAll('İ', 'i')
+      .replaceAll('I', 'i')
+      .replaceAll('ı', 'i')
+      .replaceAll('ö', 'o')
+      .replaceAll('ü', 'u')
+      .replaceAll('ş', 's')
+      .replaceAll('ğ', 'g')
+      .replaceAll('ç', 'c')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 
-  List<BakiciIlani> get _filteredBakici =>
-      [...runtimeBakiciIlanlar, ...bakiciIlanlar]
-          .where((b) => (bakiciKm[b.id] ?? 50) <= _kmFilter)
-          .toList();
+  bool _matchesLoc(String city, String district) {
+    if (_filterIl == _kAllIller) return true;
+    if (_normLoc(city) != _normLoc(_filterIl)) return false;
+    if (_filterIlce == kAllIlceler) return true;
+    return _normLoc(district) == _normLoc(_filterIlce);
+  }
 
-  List<IkincielIlani> get _allIkinciel =>
-      [...runtimeIkincielIlanlar, ...ikincielIlanlar];
+  List<String> get _filterIlceOptions {
+    if (_filterIl == _kAllIller) return const [kAllIlceler];
+    final info = kTurkishCities[_filterIl];
+    if (info == null) return const [kAllIlceler];
+    return info.ilceler;
+  }
+
+  List<UzmanIlani> get _filteredUzman {
+    final demo = CatalogAdapters.showDemoIlanlar() ? uzmanIlanlar : const <UzmanIlani>[];
+    return [...runtimeUzmanIlanlar, ...demo]
+        .where((u) =>
+            _matchesLoc(u.city, u.district) &&
+            (uzmanKm[u.id] ?? 50) <= _kmFilter)
+        .toList();
+  }
+
+  List<BakiciIlani> get _filteredBakici {
+    final demo = CatalogAdapters.showDemoIlanlar() ? bakiciIlanlar : const <BakiciIlani>[];
+    return [...runtimeBakiciIlanlar, ...demo]
+        .where((b) =>
+            _matchesLoc(b.city, b.district) &&
+            (bakiciKm[b.id] ?? 50) <= _kmFilter)
+        .toList();
+  }
+
+  List<IkincielIlani> get _allIkinciel {
+    final demo =
+        CatalogAdapters.showDemoIlanlar() ? ikincielIlanlar : const <IkincielIlani>[];
+    return [...runtimeIkincielIlanlar, ...demo]
+        .where((i) => _matchesLoc(i.city, i.district))
+        .toList();
+  }
 
   String _nowTime() {
     final d = DateTime.now();
@@ -314,9 +463,22 @@ class _IlanlarPageState extends State<IlanlarPage> {
       _openSohbet(kisi);
       return;
     }
-    // 2. el ürünlerde teklif ücretsiz
+    // 2. el ürünlerde teklif ücretsiz (aile dahil herkes)
     if (free) {
       _completeFreeTeklif(kisi);
+      return;
+    }
+    // Aile: uzman/bakıcı ilanlarına teklif yok
+    if (!_canPaidTeklif) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Aile rolüyle uzman/bakıcı ilanlarına teklif verilemez. '
+            'Profilinizden Uzman veya Bakıcı rolüne geçin, ya da 2. el ilanlara bakın.',
+          ),
+          duration: Duration(seconds: 4),
+        ),
+      );
       return;
     }
     setState(() => _pendingSohbet = kisi);
@@ -331,7 +493,8 @@ class _IlanlarPageState extends State<IlanlarPage> {
           actorName: widget.userName,
           ilanId: k.ilanId,
         );
-        widget.onKrediHarca();
+        final spent = await widget.onKrediHarca();
+        if (!spent) return false;
         if (k.ilanId != null) {
           await markTeklifVerildi(
             email: widget.userEmail,
@@ -347,7 +510,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${k.ad} adlı ilan sahibine teklif bildirimi gönderildi',
+              '${k.ad} adlı ilan sahibine teklif bildirimi gönderildi · 1 kredi harcandı',
             ),
           ),
         );
@@ -484,8 +647,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
         onSpend: () async {
           if (onSpendAsync != null) return onSpendAsync();
           if (widget.userKredi <= 0) return false;
-          widget.onKrediHarca();
-          return true;
+          return widget.onKrediHarca();
         },
         onUnlocked: () {
           Navigator.pop(ctx);
@@ -528,20 +690,21 @@ class _IlanlarPageState extends State<IlanlarPage> {
               _buildHeader(),
               if (_loadingFeed) const LinearProgressIndicator(minHeight: 2),
               _buildCategoryTabs(),
-              _buildCreditBar(),
+              if (!_isAileRole) _buildCreditBar(),
+              _buildLocationFilter(),
               if (_kategori != IlanKategori.ikinciel) _buildKmFilter(),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                 child: Column(
                   children: [
                     if (_kategori == IlanKategori.uzmanlar)
-                      ..._filteredUzman.map(_buildUzmanCard),
+                      ..._pageSlice(_filteredUzman).map(_buildUzmanCard),
                     if (_kategori == IlanKategori.bakici)
-                      ..._filteredBakici.map(_buildBakiciCard),
+                      ..._pageSlice(_filteredBakici).map(_buildBakiciCard),
                     if (_kategori == IlanKategori.ikinciel)
-                      ..._allIkinciel.map(_buildIkincielCard),
-                    const SizedBox(height: 12),
-                    _buildStatsFooter(),
+                      ..._pageSlice(_allIkinciel).map(_buildIkincielCard),
+                    const SizedBox(height: 8),
+                    _buildListPager(_currentListLength),
                   ],
                 ),
               ),
@@ -552,6 +715,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
           _BakiciDrawer(
             ilan: _selectedBakici!,
             alreadyOffered: _teklifVerildiMi(_selectedBakici!.id),
+            ctaLabel: _paidCtaLabel(_selectedBakici!.id),
             onClose: () => setState(() => _selectedBakici = null),
             onProfile: () {
               final ilan = _selectedBakici!;
@@ -559,9 +723,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
                 _selectedBakici = null;
                 _selectedPoster = (
                   poster: ilan.poster,
-                  ctaLabel: _teklifVerildiMi(ilan.id)
-                      ? 'Teklif Verildi — Mesaja Git'
-                      : '1 Kredi Harca — Teklif Ver',
+                  ctaLabel: _paidCtaLabel(ilan.id),
                   peerEmail: ilanOwnerById[ilan.id] ?? '',
                   ilanId: ilan.id,
                   free: false,
@@ -607,6 +769,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
           _UzmanDrawer(
             ilan: _selectedUzman!,
             alreadyOffered: _teklifVerildiMi(_selectedUzman!.id),
+            ctaLabel: _paidCtaLabel(_selectedUzman!.id),
             onClose: () => setState(() => _selectedUzman = null),
             onProfile: () {
               final ilan = _selectedUzman!;
@@ -614,9 +777,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
                 _selectedUzman = null;
                 _selectedPoster = (
                   poster: ilan.poster,
-                  ctaLabel: _teklifVerildiMi(ilan.id)
-                      ? 'Teklif Verildi — Mesaja Git'
-                      : '1 Kredi Harca — Teklif Ver',
+                  ctaLabel: _paidCtaLabel(ilan.id),
                   peerEmail: ilanOwnerById[ilan.id] ?? '',
                   ilanId: ilan.id,
                   free: false,
@@ -757,7 +918,10 @@ class _IlanlarPageState extends State<IlanlarPage> {
                 ),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(16),
-                  onTap: () => setState(() => _kategori = t.$1),
+                  onTap: () => setState(() {
+                    _kategori = t.$1;
+                    _listPage = 0;
+                  }),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     child: Column(
@@ -820,7 +984,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
                   ),
                 ),
                 const Text(
-                  '1 kredi = iletişim bilgisi',
+                  '1 kredi = uzman/bakıcı ilanına teklif',
                   style: TextStyle(fontSize: 12, color: Color(0xFFD97706)),
                 ),
               ],
@@ -840,6 +1004,141 @@ class _IlanlarPageState extends State<IlanlarPage> {
               'Satın Al',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationFilter() {
+    final ilceValue = _filterIl == _kAllIller
+        ? kAllIlceler
+        : (_filterIlceOptions.contains(_filterIlce)
+            ? _filterIlce
+            : kAllIlceler);
+    final ilceItems = _filterIl == _kAllIller
+        ? const <String>[]
+        : _filterIlceOptions.where((e) => e != kAllIlceler).toList();
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: MetoColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: MetoColors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _IlanlarLocDropdown(
+              value: _filterIl,
+              hint: 'İl',
+              allValue: _kAllIller,
+              items: kCityNames,
+              onChanged: (v) => setState(() {
+                _filterIl = v;
+                _filterIlce = kAllIlceler;
+                _listPage = 0;
+              }),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _IlanlarLocDropdown(
+              value: ilceValue,
+              hint: 'İlçe',
+              allValue: kAllIlceler,
+              items: ilceItems,
+              enabled: _filterIl != _kAllIller,
+              onChanged: (v) => setState(() {
+                _filterIlce = v;
+                _listPage = 0;
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  int get _currentListLength {
+    return switch (_kategori) {
+      IlanKategori.uzmanlar => _filteredUzman.length,
+      IlanKategori.bakici => _filteredBakici.length,
+      IlanKategori.ikinciel => _allIkinciel.length,
+    };
+  }
+
+  List<T> _pageSlice<T>(List<T> items) {
+    if (items.isEmpty) return const [];
+    final pageCount = (items.length / _pageSize).ceil().clamp(1, 9999);
+    final page = _listPage.clamp(0, pageCount - 1);
+    final start = page * _pageSize;
+    final end = (start + _pageSize).clamp(0, items.length);
+    return items.sublist(start, end);
+  }
+
+  Widget _buildListPager(int total) {
+    if (total <= _pageSize) {
+      if (total == 0) {
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 16),
+          child: Text(
+            'Bu filtrede ilan yok',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: MetoColors.mutedFg),
+          ),
+        );
+      }
+      return Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 8),
+        child: Text(
+          '$total ilan',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
+        ),
+      );
+    }
+    final pageCount = (total / _pageSize).ceil();
+    final page = _listPage.clamp(0, pageCount - 1);
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 8),
+      child: Column(
+        children: [
+          Text(
+            'Sayfa ${page + 1} / $pageCount · $total ilan',
+            style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            alignment: WrapAlignment.center,
+            children: [
+              for (var i = 0; i < pageCount; i++)
+                Material(
+                  color: i == page ? MetoColors.primary : MetoColors.muted,
+                  borderRadius: BorderRadius.circular(8),
+                  child: InkWell(
+                    onTap: () => setState(() => _listPage = i),
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: Center(
+                        child: Text(
+                          '${i + 1}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: i == page ? Colors.white : MetoColors.mutedFg,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
@@ -878,7 +1177,10 @@ class _IlanlarPageState extends State<IlanlarPage> {
                 max: 500,
                 divisions: 99,
                 value: _kmFilter,
-                onChanged: (v) => setState(() => _kmFilter = v),
+                onChanged: (v) => setState(() {
+                  _kmFilter = v;
+                  _listPage = 0;
+                }),
               ),
             ),
           ),
@@ -895,6 +1197,18 @@ class _IlanlarPageState extends State<IlanlarPage> {
     );
   }
 
+  String _paidActionLabel(int? ilanId) {
+    if (_teklifVerildiMi(ilanId)) return 'Teklif Verildi';
+    if (!_canPaidTeklif) return 'Rol gerekli';
+    return 'Teklif Ver';
+  }
+
+  String _paidCtaLabel(int? ilanId) {
+    if (_teklifVerildiMi(ilanId)) return 'Teklif Verildi — Mesaja Git';
+    if (!_canPaidTeklif) return 'Teklif için Uzman/Bakıcı rolü';
+    return '1 Kredi Harca — Teklif Ver';
+  }
+
   Widget _buildUzmanCard(UzmanIlani ilan) {
     final renk = uzmanRenkFor(ilan.uzmanlik);
     final avgR = avgRating(ilan.poster.reviews);
@@ -909,9 +1223,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
           _selectedIkinciel = null;
           _selectedPoster = (
             poster: ilan.poster,
-            ctaLabel: _teklifVerildiMi(ilan.id)
-                ? 'Teklif Verildi — Mesaja Git'
-                : '1 Kredi Harca — Teklif Ver',
+            ctaLabel: _paidCtaLabel(ilan.id),
             peerEmail: ilanOwnerById[ilan.id] ?? '',
             ilanId: ilan.id,
             free: false,
@@ -1062,10 +1374,14 @@ class _IlanlarPageState extends State<IlanlarPage> {
             price: ilan.budget,
             subtitle: '${ilan.offers} teklif · ${ilan.posted}',
             onProfile: openDetail,
-            onAction: () =>
-                _openTeklif(_kisiFromPoster(poster: ilan.poster, ilanId: ilan.id)),
-            actionLabel:
-                _teklifVerildiMi(ilan.id) ? 'Teklif Verildi' : 'Teklif Ver',
+            onAction: _canPaidTeklif || _teklifVerildiMi(ilan.id)
+                ? () => _openTeklif(
+                      _kisiFromPoster(poster: ilan.poster, ilanId: ilan.id),
+                    )
+                : null,
+            actionLabel: _canPaidTeklif || _teklifVerildiMi(ilan.id)
+                ? _paidActionLabel(ilan.id)
+                : null,
             alreadyOffered: _teklifVerildiMi(ilan.id),
             profileLabel: 'Detay',
           ),
@@ -1087,9 +1403,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
           _selectedIkinciel = null;
           _selectedPoster = (
             poster: ilan.poster,
-            ctaLabel: _teklifVerildiMi(ilan.id)
-                ? 'Teklif Verildi — Mesaja Git'
-                : '1 Kredi Harca — Teklif Ver',
+            ctaLabel: _paidCtaLabel(ilan.id),
             peerEmail: ilanOwnerById[ilan.id] ?? '',
             ilanId: ilan.id,
             free: false,
@@ -1249,10 +1563,14 @@ class _IlanlarPageState extends State<IlanlarPage> {
             price: ilan.budget,
             subtitle: ilan.posted,
             onProfile: openDetail,
-            onAction: () =>
-                _openTeklif(_kisiFromPoster(poster: ilan.poster, ilanId: ilan.id)),
-            actionLabel:
-                _teklifVerildiMi(ilan.id) ? 'Teklif Verildi' : 'Teklif Ver',
+            onAction: _canPaidTeklif || _teklifVerildiMi(ilan.id)
+                ? () => _openTeklif(
+                      _kisiFromPoster(poster: ilan.poster, ilanId: ilan.id),
+                    )
+                : null,
+            actionLabel: _canPaidTeklif || _teklifVerildiMi(ilan.id)
+                ? _paidActionLabel(ilan.id)
+                : null,
             alreadyOffered: _teklifVerildiMi(ilan.id),
             profileLabel: 'Detay',
           ),
@@ -1426,43 +1744,6 @@ class _IlanlarPageState extends State<IlanlarPage> {
     );
   }
 
-  Widget _buildStatsFooter() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: MetoColors.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: MetoColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.work_outline, size: 14, color: MetoColors.primary),
-              SizedBox(width: 8),
-              Text(
-                'Platform İstatistikleri',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: MetoColors.foreground,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _StatCell(value: '1.240', label: 'Aktif İlan'),
-              _StatCell(value: '320', label: 'Uzman'),
-              _StatCell(value: '94%', label: 'Eşleşme'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ─── Shared widgets ──────────────────────────────────────────────────────────
@@ -1710,8 +1991,8 @@ class _CardFooter extends StatelessWidget {
     required this.price,
     required this.subtitle,
     required this.onProfile,
-    required this.onAction,
-    required this.actionLabel,
+    this.onAction,
+    this.actionLabel,
     this.subtitleStrike = false,
     this.priceLarge = false,
     this.alreadyOffered = false,
@@ -1721,8 +2002,8 @@ class _CardFooter extends StatelessWidget {
   final String price;
   final String subtitle;
   final VoidCallback onProfile;
-  final VoidCallback onAction;
-  final String actionLabel;
+  final VoidCallback? onAction;
+  final String? actionLabel;
   final bool subtitleStrike;
   final bool priceLarge;
   final bool alreadyOffered;
@@ -1730,6 +2011,7 @@ class _CardFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final showAction = onAction != null && actionLabel != null;
     return Row(
       children: [
         Expanded(
@@ -1769,26 +2051,29 @@ class _CardFooter extends StatelessWidget {
           child: Text(profileLabel,
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
         ),
-        const SizedBox(width: 8),
-        FilledButton.icon(
-          onPressed: onAction,
-          style: FilledButton.styleFrom(
-            backgroundColor: alreadyOffered
-                ? const Color(0xFF15803D)
-                : MetoColors.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        if (showAction) ...[
+          const SizedBox(width: 8),
+          FilledButton.icon(
+            onPressed: onAction,
+            style: FilledButton.styleFrom(
+              backgroundColor: alreadyOffered
+                  ? const Color(0xFF15803D)
+                  : MetoColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: Icon(
+              alreadyOffered ? Icons.check_circle : Icons.monetization_on,
+              size: 14,
+            ),
+            label: Text(
+              actionLabel!,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+            ),
           ),
-          icon: Icon(
-            alreadyOffered ? Icons.check_circle : Icons.monetization_on,
-            size: 14,
-          ),
-          label: Text(actionLabel,
-              style:
-                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-        ),
+        ],
       ],
     );
   }
@@ -1807,44 +2092,48 @@ class _PhotoStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final height = photos.length == 1 ? 200.0 : 168.0;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
-        child: Row(
-          children: photos.asMap().entries.map((e) {
-            final i = e.key;
-            final photo = e.value;
-            final bytes = _photoBytes(photo);
-            return Expanded(
-              child: Container(
-                height: i == 0 ? 110 : 52,
-                margin: EdgeInsets.only(right: i < photos.length - 1 ? 4 : 0),
-                decoration: BoxDecoration(
-                  color: photo.swatchColor,
-                  borderRadius: BorderRadius.circular(12),
-                  image: bytes == null
+        child: SizedBox(
+          height: height,
+          child: Row(
+            children: photos.asMap().entries.map((e) {
+              final i = e.key;
+              final photo = e.value;
+              final bytes = _photoBytes(photo);
+              return Expanded(
+                child: Container(
+                  height: height,
+                  margin:
+                      EdgeInsets.only(right: i < photos.length - 1 ? 6 : 0),
+                  decoration: BoxDecoration(
+                    color: photo.swatchColor,
+                    borderRadius: BorderRadius.circular(14),
+                    image: bytes == null
+                        ? null
+                        : DecorationImage(
+                            image: MemoryImage(bytes),
+                            fit: BoxFit.cover,
+                          ),
+                  ),
+                  alignment: Alignment.center,
+                  child: bytes != null
                       ? null
-                      : DecorationImage(
-                          image: MemoryImage(bytes),
-                          fit: BoxFit.cover,
+                      : Text(
+                          emoji,
+                          style: TextStyle(
+                            fontSize: photos.length == 1 ? 48 : 32,
+                            color: Colors.black.withValues(alpha: 0.85),
+                          ),
                         ),
                 ),
-                alignment: Alignment.center,
-                child: bytes != null
-                    ? null
-                    : Text(
-                        emoji,
-                        style: TextStyle(
-                          fontSize: i == 0 ? 36 : 20,
-                          color:
-                              Colors.black.withValues(alpha: i == 0 ? 1 : 0.5),
-                        ),
-                      ),
-              ),
-            );
-          }).toList(),
+              );
+            }).toList(),
+          ),
         ),
       ),
     );
@@ -1859,33 +2148,6 @@ class _PhotoStrip extends StatelessWidget {
     } catch (_) {
       return null;
     }
-  }
-}
-
-class _StatCell extends StatelessWidget {
-  const _StatCell({required this.value, required this.label});
-
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: MetoColors.primary,
-            ),
-          ),
-          Text(label,
-              style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg)),
-        ],
-      ),
-    );
   }
 }
 
@@ -2578,12 +2840,14 @@ class _UzmanDrawer extends StatefulWidget {
     required this.onKrediTap,
     required this.onProfile,
     this.alreadyOffered = false,
+    this.ctaLabel = '1 Kredi Harca — Teklif Ver',
   });
   final UzmanIlani ilan;
   final VoidCallback onClose;
   final VoidCallback onKrediTap;
   final VoidCallback onProfile;
   final bool alreadyOffered;
+  final String ctaLabel;
   @override
   State<_UzmanDrawer> createState() => _UzmanDrawerState();
 }
@@ -2626,7 +2890,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
       footer: _DrawerFooter(
         label: widget.alreadyOffered
             ? 'Teklif Verildi — Mesaja Git'
-            : '1 Kredi Harca — Teklif Ver',
+            : widget.ctaLabel,
         color: renk.color,
         alreadyOffered: widget.alreadyOffered,
         onTap: () {
@@ -2643,7 +2907,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: AspectRatio(
-                  aspectRatio: 4 / 3,
+                  aspectRatio: 16 / 10,
                   child: Builder(builder: (_) {
                     final idx = _photoIndex.clamp(0, photos.length - 1);
                     final current = photos[idx];
@@ -2901,12 +3165,14 @@ class _BakiciDrawer extends StatefulWidget {
     required this.onKrediTap,
     required this.onProfile,
     this.alreadyOffered = false,
+    this.ctaLabel = '1 Kredi Harca — Teklif Ver & Sohbet Aç',
   });
   final BakiciIlani ilan;
   final VoidCallback onClose;
   final VoidCallback onKrediTap;
   final VoidCallback onProfile;
   final bool alreadyOffered;
+  final String ctaLabel;
   @override
   State<_BakiciDrawer> createState() => _BakiciDrawerState();
 }
@@ -2948,7 +3214,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
       footer: _DrawerFooter(
         label: widget.alreadyOffered
             ? 'Teklif Verildi — Mesaja Git'
-            : '1 Kredi Harca — Teklif Ver & Sohbet Aç',
+            : widget.ctaLabel,
         alreadyOffered: widget.alreadyOffered,
         onTap: () {
           widget.onClose();
@@ -2964,7 +3230,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: AspectRatio(
-                  aspectRatio: 4 / 3,
+                  aspectRatio: 16 / 10,
                   child: Builder(builder: (_) {
                     final idx = _photoIndex.clamp(0, photos.length - 1);
                     final current = photos[idx];
@@ -3275,7 +3541,7 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: AspectRatio(
-                aspectRatio: 4 / 3,
+                aspectRatio: 16 / 10,
                 child: Container(
                   color: current.swatchColor,
                   alignment: Alignment.center,
@@ -4780,6 +5046,81 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _IlanlarLocDropdown extends StatelessWidget {
+  const _IlanlarLocDropdown({
+    required this.value,
+    required this.items,
+    required this.onChanged,
+    required this.hint,
+    this.enabled = true,
+    this.allValue,
+  });
+
+  final String? value;
+  final List<String> items;
+  final ValueChanged<String> onChanged;
+  final String hint;
+  final bool enabled;
+  /// Seçilince kutuda hint gösterilir (örn. "Tümü" → İl).
+  final String? allValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final showHint = value == null ||
+        value!.isEmpty ||
+        (allValue != null && value == allValue);
+    final safeValue = showHint
+        ? null
+        : (items.contains(value) ? value : null);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: enabled ? MetoColors.background : MetoColors.muted,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: MetoColors.border),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: safeValue,
+          isExpanded: true,
+          hint: Text(
+            hint,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: enabled ? MetoColors.mutedFg : MetoColors.border,
+            ),
+          ),
+          icon: Icon(
+            Icons.expand_more,
+            size: 18,
+            color: enabled ? MetoColors.mutedFg : MetoColors.border,
+          ),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: enabled ? MetoColors.foreground : MetoColors.mutedFg,
+          ),
+          dropdownColor: MetoColors.card,
+          borderRadius: BorderRadius.circular(12),
+          items: [
+            if (allValue != null)
+              DropdownMenuItem(value: allValue, child: Text('Tümü')),
+            for (final item in items)
+              if (item != allValue)
+                DropdownMenuItem(value: item, child: Text(item)),
+          ],
+          onChanged: enabled
+              ? (v) {
+                  if (v != null) onChanged(v);
+                }
+              : null,
+        ),
       ),
     );
   }
