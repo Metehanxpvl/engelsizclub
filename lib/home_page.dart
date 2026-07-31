@@ -4,8 +4,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:reorderable_grid_view/reorderable_grid_view.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'admin_config.dart';
 import 'data/diseases_data.dart';
 import 'meto_theme.dart';
 import 'services/app_catalog_service.dart';
@@ -14,7 +16,9 @@ import 'widgets/catalog_media.dart';
 
 /// Figma Make `HomeTab` — birebir Flutter portu.
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, this.userEmail = ''});
+
+  final String userEmail;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -25,8 +29,13 @@ class _HomePageState extends State<HomePage> {
   int? _expandedFaq;
   int _heroIdx = 0;
   Timer? _heroTimer;
+  bool _savingOrder = false;
+  List<DiseaseInfo> _orderedDiseases = [];
 
-  List<DiseaseInfo> get _diseases => CatalogAdapters.diseases();
+  List<DiseaseInfo> get _diseases =>
+      _orderedDiseases.isEmpty ? CatalogAdapters.diseases() : _orderedDiseases;
+
+  bool get _canReorder => isAppAdmin(widget.userEmail);
 
   static const _heroSlides = [
     _HeroSlide(
@@ -95,6 +104,8 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _syncDiseasesFromCatalog();
+    AppCatalogService.instance.addListener(_onCatalogChanged);
     _heroTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (!mounted || _activeDisease != null) return;
       setState(() => _heroIdx = (_heroIdx + 1) % _heroSlides.length);
@@ -103,8 +114,59 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    AppCatalogService.instance.removeListener(_onCatalogChanged);
     _heroTimer?.cancel();
     super.dispose();
+  }
+
+  void _onCatalogChanged() {
+    if (!mounted || _savingOrder) return;
+    _syncDiseasesFromCatalog();
+  }
+
+  void _syncDiseasesFromCatalog() {
+    setState(() {
+      _orderedDiseases = List<DiseaseInfo>.from(CatalogAdapters.diseases());
+    });
+  }
+
+  Future<void> _onDiseaseReorder(int oldIndex, int newIndex) async {
+    if (oldIndex == newIndex) return;
+    if (oldIndex < 0 || oldIndex >= _orderedDiseases.length) return;
+    if (newIndex < 0 || newIndex >= _orderedDiseases.length) return;
+
+    setState(() {
+      final item = _orderedDiseases.removeAt(oldIndex);
+      _orderedDiseases.insert(newIndex, item);
+      _savingOrder = true;
+    });
+
+    final orderedIds = [for (final d in _orderedDiseases) d.id];
+    try {
+      if (_canReorder) {
+        await AppCatalogService.instance.persistDiseaseOrder(orderedIds);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sıra Supabase’e kaydedildi'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else {
+        // Admin değilse yerel cache + oturum sırası.
+        await AppCatalogService.instance.applyLocalDiseaseOrder(orderedIds);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Sıra kaydedilemedi: $e'),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _savingOrder = false);
+    }
   }
 
   DiseaseInfo? get _selected {
@@ -244,7 +306,7 @@ class _HomePageState extends State<HomePage> {
 
           const DisclaimerBanner(),
 
-          // Disease library
+          // Disease library — basılı tutup sürükleyerek sıralanabilir
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
             child: Column(
@@ -258,27 +320,36 @@ class _HomePageState extends State<HomePage> {
                     color: MetoColors.foreground,
                   ),
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  'Kartlara basılı tutup sürükleyerek sırayı değiştirebilirsiniz',
+                  style: GoogleFonts.nunito(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: MetoColors.mutedFg,
+                  ),
+                ),
                 const SizedBox(height: 12),
-                GridView.builder(
+                ReorderableGridView.count(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _diseases.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 0.92,
-                  ),
-                  itemBuilder: (context, i) {
-                    final d = _diseases[i];
-                    return _DiseaseCard(
-                      disease: d,
-                      onTap: () => setState(() {
-                        _activeDisease = d.id;
-                        _expandedFaq = null;
-                      }),
-                    );
-                  },
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.92,
+                  dragEnabled: true,
+                  onReorder: _onDiseaseReorder,
+                  children: [
+                    for (final d in _diseases)
+                      _DiseaseCard(
+                        key: ValueKey(d.id),
+                        disease: d,
+                        onTap: () => setState(() {
+                          _activeDisease = d.id;
+                          _expandedFaq = null;
+                        }),
+                      ),
+                  ],
                 ),
               ],
             ),
@@ -908,7 +979,7 @@ class _HomePageState extends State<HomePage> {
 // ─── Small widgets ───────────────────────────────────────────────────────────
 
 class _DiseaseCard extends StatelessWidget {
-  const _DiseaseCard({required this.disease, required this.onTap});
+  const _DiseaseCard({super.key, required this.disease, required this.onTap});
 
   final DiseaseInfo disease;
   final VoidCallback onTap;

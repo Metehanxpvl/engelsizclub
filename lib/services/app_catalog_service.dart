@@ -269,6 +269,50 @@ class AppCatalogService extends ChangeNotifier {
     );
   }
 
+  /// Yerel hastalık sırasını günceller (oturum + disk cache).
+  Future<void> applyLocalDiseaseOrder(List<String> orderedIds) async {
+    if (orderedIds.isEmpty) return;
+    final current = List<Map<String, dynamic>>.from(
+      _lists[CatalogPack.diseases] ?? const [],
+    );
+    if (current.isEmpty) return;
+
+    final byId = <String, Map<String, dynamic>>{
+      for (final r in current)
+        if ((r['id']?.toString() ?? '').isNotEmpty) r['id'].toString(): r,
+    };
+    final reordered = <Map<String, dynamic>>[];
+    for (var i = 0; i < orderedIds.length; i++) {
+      final id = orderedIds[i];
+      final row = byId.remove(id);
+      if (row == null) continue;
+      reordered.add({...row, 'sort_order': i});
+    }
+    for (final leftover in byId.values) {
+      reordered.add({...leftover, 'sort_order': reordered.length});
+    }
+    _lists[CatalogPack.diseases] = reordered;
+    _fetchedAt[CatalogPack.diseases] = DateTime.now();
+    await _persistPack(CatalogPack.diseases);
+    notifyListeners();
+  }
+
+  /// Hastalık kartlarının sırasını günceller (`app_diseases.sort_order`).
+  /// Yerel cache'i hemen günceller, ardından Supabase'e yazar (RLS: admin).
+  Future<void> persistDiseaseOrder(List<String> orderedIds) async {
+    if (orderedIds.isEmpty) return;
+    await applyLocalDiseaseOrder(orderedIds);
+
+    final client = Supabase.instance.client;
+    final now = DateTime.now().toUtc().toIso8601String();
+    for (var i = 0; i < orderedIds.length; i++) {
+      await client.from('app_diseases').update({
+        'sort_order': i,
+        'updated_at': now,
+      }).eq('id', orderedIds[i]);
+    }
+  }
+
   /// Cache'i temizle (debug / zorla yenile).
   Future<void> clearCache() async {
     final prefs = await SharedPreferences.getInstance();

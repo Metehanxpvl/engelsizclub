@@ -1307,7 +1307,10 @@ class _MainShellState extends State<MainShell> {
             ),
       onPageChanged: _onTabPageChanged,
       children: [
-        HomePage(key: ValueKey('home_$_homeRefreshToken')),
+        HomePage(
+          key: ValueKey('home_$_homeRefreshToken'),
+          userEmail: widget.user.email,
+        ),
         const _KeepAliveTab(child: MerkezlerPage()),
         IlanlarPage(
           userKredi: _userKredi,
