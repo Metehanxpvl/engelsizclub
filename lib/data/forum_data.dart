@@ -15,6 +15,7 @@ class ForumPost {
     this.pinned = false,
     this.expert = false,
     this.likedByMe = false,
+    this.anon = false,
     this.meslek = '',
     this.ownerEmail = '',
     this.photos = const [],
@@ -33,9 +34,13 @@ class ForumPost {
   final bool pinned;
   final bool expert;
   final bool likedByMe;
+  final bool anon;
   final String meslek;
   final String ownerEmail;
   final List<String> photos;
+
+  bool get isAnonymous =>
+      anon || author.trim().toLowerCase() == 'anonim';
 
   ForumPost copyWith({
     int? likes,
@@ -47,11 +52,13 @@ class ForumPost {
     bool? expert,
     String? meslek,
     List<String>? photos,
+    String? avatar,
+    bool? anon,
   }) =>
       ForumPost(
         id: id,
         author: author,
-        avatar: avatar,
+        avatar: avatar ?? this.avatar,
         avatarColor: avatarColor,
         category: category ?? this.category,
         title: title ?? this.title,
@@ -62,6 +69,7 @@ class ForumPost {
         pinned: pinned,
         expert: expert ?? this.expert,
         likedByMe: likedByMe ?? this.likedByMe,
+        anon: anon ?? this.anon,
         meslek: meslek ?? this.meslek,
         ownerEmail: ownerEmail,
         photos: photos ?? this.photos,
@@ -75,7 +83,11 @@ class ForumComment {
     required this.text,
     required this.time,
     required this.color,
+    this.avatar = '',
     this.ownerEmail = '',
+    this.parentId,
+    this.likes = 0,
+    this.likedByMe = false,
   });
 
   final int id;
@@ -83,7 +95,30 @@ class ForumComment {
   final String text;
   final String time;
   final Color color;
+  final String avatar;
   final String ownerEmail;
+  final int? parentId;
+  final int likes;
+  final bool likedByMe;
+
+  bool get isReply => parentId != null && parentId! > 0;
+
+  ForumComment copyWith({
+    int? likes,
+    bool? likedByMe,
+  }) =>
+      ForumComment(
+        id: id,
+        name: name,
+        text: text,
+        time: time,
+        color: color,
+        avatar: avatar,
+        ownerEmail: ownerEmail,
+        parentId: parentId,
+        likes: likes ?? this.likes,
+        likedByMe: likedByMe ?? this.likedByMe,
+      );
 }
 
 // Kullanıcının uygulama açıkken paylaştığı gönderiler burada tutulur.

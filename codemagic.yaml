@@ -1,0 +1,98 @@
+# Codemagic CI/CD — Engelsiz Club
+# Docs: https://docs.codemagic.io/yaml-quick-start/building-a-flutter-app/
+#
+# Codemagic UI'da bağlamanız gerekenler:
+# 1) GitHub repo: Metehanxpvl/engelsizclub
+# 2) Team integrations → Developer Portal → App Store Connect API key
+#    (ad: EngelsizClubASC — aşağıda aynı isim kullanılmalı)
+# 3) Application → codemagic.yaml seçili olsun
+
+workflows:
+  ios-testflight:
+    name: iOS → TestFlight
+    max_build_duration: 90
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: EngelsizClubASC
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.sakircaykara.engelsizclub
+    scripts:
+      - name: Get Flutter packages
+        script: |
+          flutter pub get
+      - name: Install CocoaPods dependencies
+        script: |
+          find . -name "Podfile" -print0 | while IFS= read -r -d '' podfile; do
+            (cd "$(dirname "$podfile")" && pod install)
+          done
+      - name: Set up code signing
+        script: |
+          xcode-project use-profiles
+      - name: Flutter build IPA
+        script: |
+          flutter build ipa --release \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+    publishing:
+      email:
+        recipients:
+          - sakir.caykara@gmail.com
+        notify:
+          success: true
+          failure: true
+      app_store_connect:
+        auth: integration
+        # İlk aşamada yalnız TestFlight; mağaza incelemesine otomatik gönderme kapalı
+        submit_to_testflight: true
+        # submit_to_app_store: true   # inceleme için hazır olunca açın
+
+  ios-app-store:
+    name: iOS → App Store Review
+    max_build_duration: 90
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: EngelsizClubASC
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.sakircaykara.engelsizclub
+    scripts:
+      - name: Get Flutter packages
+        script: |
+          flutter pub get
+      - name: Install CocoaPods dependencies
+        script: |
+          find . -name "Podfile" -print0 | while IFS= read -r -d '' podfile; do
+            (cd "$(dirname "$podfile")" && pod install)
+          done
+      - name: Set up code signing
+        script: |
+          xcode-project use-profiles
+      - name: Flutter build IPA
+        script: |
+          flutter build ipa --release \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      email:
+        recipients:
+          - sakir.caykara@gmail.com
+        notify:
+          success: true
+          failure: true
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        submit_to_app_store: true

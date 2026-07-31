@@ -1,0 +1,17 @@
+Confirm email + giriş sorunları
+
+SORUN
+Confirm email açılınca, email_confirmed_at boş olan eski hesaplar
+şifre ile girişte "Email not confirmed" hatası alır.
+
+ÇÖZÜM SIRASI
+1) SQL Editor'da confirm_existing_users.sql çalıştır (eski üyeleri onayla)
+2) Authentication → Providers → Email → Confirm email = AÇIK
+3) Email Templates → Confirm signup içinde {{ .Token }} olsun (6 haneli kod)
+4) Uygulama:
+   - Confirm AÇIK + yeni üye → kod ekranı
+   - Confirm KAPALI → eski gibi doğrudan giriş
+   - Onaysız giriş denemesi → kod ekranı + yeniden gönder
+
+NOT
+Google ile giriş Confirm email'den etkilenmez.

@@ -1,4 +1,4 @@
-package com.engelsizclub.app
+package com.sakircaykara.engelsizclub
 
 import io.flutter.embedding.android.FlutterActivity
 

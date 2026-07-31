@@ -30,7 +30,15 @@ class DefaultFirebaseOptions {
     measurementId: 'G-8YPB15NZPJ',
   );
 
-  // Mobil APK/IPA eklenince Firebase Console'dan güncelle.
-  static const FirebaseOptions android = web;
+  /// Android paket: com.sakircaykara.engelsizclub
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyC_Vr-DwlmtH6Of_0SNo2gDpqyQJba9zF8',
+    appId: '1:59695056324:android:4e3e2858da075b865b9091',
+    messagingSenderId: '59695056324',
+    projectId: 'engelsizclub-e5842',
+    storageBucket: 'engelsizclub-e5842.firebasestorage.app',
+  );
+
+  // iOS Firebase app eklenince Console’dan güncelle.
   static const FirebaseOptions ios = web;
 }

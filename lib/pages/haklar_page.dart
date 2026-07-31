@@ -349,21 +349,12 @@ class _RightCard extends StatelessWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            width: 20,
-                            height: 20,
-                            decoration: BoxDecoration(
+                          Padding(
+                            padding: const EdgeInsets.only(top: 1),
+                            child: Icon(
+                              Icons.check_circle,
+                              size: 16,
                               color: item.color,
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              '${i + 1}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                              ),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -372,9 +363,9 @@ class _RightCard extends StatelessWidget {
                               item.steps[i],
                               style: TextStyle(
                                 fontSize: 12,
+                                height: 1.4,
                                 color: MetoColors.foreground
                                     .withValues(alpha: 0.8),
-                                height: 1.4,
                               ),
                             ),
                           ),
@@ -792,14 +783,13 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
                     ),
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Wrap(
-                              spacing: 8,
-                              crossAxisAlignment: WrapCrossAlignment.center,
+                            Row(
                               children: [
                                 Text(
                                   g.range,
@@ -811,7 +801,8 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
                                         : MetoColors.foreground,
                                   ),
                                 ),
-                                if (g.agir)
+                                if (g.agir) ...[
+                                  const SizedBox(width: 8),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 6,
@@ -830,19 +821,22 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
                                       ),
                                     ),
                                   ),
+                                ],
                               ],
                             ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: 4),
                             Text(
                               '${g.label} (${g.kisa})',
                               style: const TextStyle(
                                 fontSize: 12,
+                                height: 1.35,
                                 color: MetoColors.mutedFg,
                               ),
                             ),
                           ],
                         ),
                       ),
+                      const SizedBox(width: 10),
                       _RadioDot(selected: selected, color: g.color),
                     ],
                   ),
@@ -1032,6 +1026,7 @@ class _OptionTile extends StatelessWidget {
             ),
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
                 child: Column(
@@ -1039,23 +1034,28 @@ class _OptionTile extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
-                        color: MetoColors.foreground,
+                        height: 1.25,
+                        color: selected
+                            ? MetoColors.primary
+                            : MetoColors.foreground,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Text(
                       subtitle,
                       style: const TextStyle(
                         fontSize: 12,
+                        height: 1.35,
                         color: MetoColors.mutedFg,
                       ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 12),
               _RadioDot(selected: selected, color: MetoColors.primary),
             ],
           ),
@@ -1166,44 +1166,42 @@ class _WizardResultCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            item.title,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: MetoColors.foreground,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: item.bg,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            item.amount,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: item.color,
-                            ),
-                          ),
-                        ),
-                      ],
+                    Text(
+                      item.title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        height: 1.3,
+                        color: MetoColors.foreground,
+                      ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: item.bg,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        item.amount,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: item.color,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
                     Text(
                       item.desc,
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 12,
+                        height: 1.4,
                         color: MetoColors.mutedFg,
                       ),
                     ),
@@ -1212,45 +1210,48 @@ class _WizardResultCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          ...List.generate(item.steps.length, (i) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 16,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: item.color,
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      '${i + 1}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      item.steps[i],
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: MetoColors.mutedFg,
-                      ),
-                    ),
-                  ),
-                ],
+          if (item.steps.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Text(
+              'Başvuru adımları',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: MetoColors.foreground,
               ),
-            );
-          }),
-          const SizedBox(height: 8),
+            ),
+            const SizedBox(height: 8),
+            ...List.generate(item.steps.length, (i) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 1),
+                      child: Icon(
+                        Icons.check_circle,
+                        size: 16,
+                        color: item.color,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        item.steps[i],
+                        style: const TextStyle(
+                          fontSize: 12,
+                          height: 1.4,
+                          color: MetoColors.mutedFg,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+          const SizedBox(height: 4),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1268,6 +1269,7 @@ class _WizardResultCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
+                      height: 1.3,
                       color: item.color,
                     ),
                   ),

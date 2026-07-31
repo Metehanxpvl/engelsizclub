@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_config.dart';
+import 'data/ilanlar_data.dart' show publicContactLabel, scrubEmailsInText;
 import 'sohbet_store.dart';
 
 class AppBildirim {
@@ -32,6 +33,8 @@ class AppBildirim {
 
   bool get isTeklif => type == 'teklif';
   bool get isMesaj => type == 'mesaj';
+  bool get isForum => type == 'forum';
+
   bool get isGorus =>
       type == 'gorus' ||
       type == 'dilek' ||
@@ -55,12 +58,28 @@ class AppBildirim {
       );
 }
 
+Future<String?> _fetchIlanTitle(int ilanId) async {
+  try {
+    final row = await Supabase.instance.client
+        .from('ilanlar')
+        .select('title')
+        .eq('id', ilanId)
+        .maybeSingle();
+    final t = row?['title']?.toString().trim() ?? '';
+    return t.isEmpty ? null : t;
+  } catch (_) {
+    return null;
+  }
+}
+
 /// İlan sahibine teklif bildirimi gönderir + sohbete ilk mesajı yazar.
-/// Başarısız olursa hata fırlatır (sessizce yutmaz).
-Future<void> notifyIlanSahibiTeklif({
+/// Aynı kişi + aynı ilan için yalnızca 1 kez çalışır (peş peşe tıklamada spam yok).
+/// Dönüş: `true` yeni teklif gitti, `false` zaten daha önce gönderilmiş.
+Future<bool> notifyIlanSahibiTeklif({
   required String ownerEmail,
   required String actorName,
   int? ilanId,
+  String? ilanTitle,
 }) async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
@@ -73,29 +92,63 @@ Future<void> notifyIlanSahibiTeklif({
     throw StateError('Kendi ilanınıza teklif veremezsiniz.');
   }
 
-  final name = actorName.trim().isEmpty
-      ? actorEmail.split('@').first
-      : actorName.trim();
-  final key = sohbetKeyFor(actorEmail, owner);
-  final ilanLabel = ilanId == null ? 'ilanınıza' : '#$ilanId nolu ilanınıza';
+  // Zaten teklif var mı? (çift tıklama / yarış durumu)
+  try {
+    var q = client
+        .from('bildirimler')
+        .select('id')
+        .eq('actor_email', actorEmail)
+        .eq('owner_email', owner)
+        .eq('type', 'teklif');
+    q = ilanId != null ? q.eq('ilan_id', ilanId) : q.isFilter('ilan_id', null);
+    final existing = await q.limit(1);
+    if (existing.isNotEmpty) {
+      return false;
+    }
+  } catch (_) {
+    // RLS / tablo yoksa insert denemesine devam; unique index varsa yine korur.
+  }
 
-  // Sohbete otomatik teklif mesajı (ayrı mesaj bildirimi yok — teklif bildirimi yeterli)
+  final name = publicContactLabel(
+    actorEmail,
+    preferredName: actorName,
+  );
+  final key = sohbetKeyFor(actorEmail, owner);
+
+  var title = (ilanTitle ?? '').trim();
+  if (title.isEmpty && ilanId != null) {
+    title = (await _fetchIlanTitle(ilanId)) ?? '';
+  }
+  final forIlan = title.isEmpty ? 'ilanınız' : '$title ilanınız';
+  final notifyBody = '$name, $forIlan için teklif verdi.';
+  final chatBody =
+      'Merhaba, $forIlan için teklif verdim. Görüşmek isterim.';
+
+  // Önce bildirim kaydı (unique index / çift tıklama koruması)
+  try {
+    await client.from('bildirimler').insert({
+      'owner_email': owner,
+      'actor_email': actorEmail,
+      'actor_name': name,
+      'type': 'teklif',
+      'title': 'Yeni teklif',
+      'body': notifyBody,
+      'ilan_id': ilanId,
+      'sohbet_key': key,
+      'read': false,
+    });
+  } on PostgrestException catch (e) {
+    // unique_violation — paralel tıklamada ikinci insert
+    if (e.code == '23505') return false;
+    rethrow;
+  }
+
+  // Sohbete otomatik teklif mesajı (bildirim başarılıysa bir kez)
   await sendSohbetMesaj(
     peerEmail: owner,
-    body: 'Merhaba! $ilanLabel teklif verdim. Görüşmek isterim.',
+    body: chatBody,
   );
-
-  await client.from('bildirimler').insert({
-    'owner_email': owner,
-    'actor_email': actorEmail,
-    'actor_name': name,
-    'type': 'teklif',
-    'title': 'Yeni teklif',
-    'body': '$name $ilanLabel teklif verdi.',
-    'ilan_id': ilanId,
-    'sohbet_key': key,
-    'read': false,
-  });
+  return true;
 }
 
 /// Karşı tarafa yeni sohbet mesajı bildirimi.
@@ -113,10 +166,11 @@ Future<void> notifySohbetMesaj({
   if (user == null || actorEmail.isEmpty || owner.isEmpty) return;
   if (owner == actorEmail) return;
 
-  final name = (actorName ?? '').trim().isEmpty
-      ? actorEmail.split('@').first
-      : actorName!.trim();
-  final raw = messageBody.trim();
+  final name = publicContactLabel(
+    actorEmail,
+    preferredName: actorName ?? '',
+  );
+  final raw = scrubEmailsInText(messageBody.trim());
   if (raw.isEmpty) return;
   final preview = raw.length > 90 ? '${raw.substring(0, 90)}…' : raw;
   final key = sohbetKeyFor(actorEmail, owner);
@@ -226,9 +280,10 @@ Future<void> submitGorusToAdmin({
     throw StateError('Konu ve mesaj zorunlu.');
   }
 
-  final name = (actorName ?? '').trim().isEmpty
-      ? actorEmail.split('@').first
-      : actorName!.trim();
+  final name = publicContactLabel(
+    actorEmail,
+    preferredName: actorName ?? '',
+  );
   final tip = type.trim().isEmpty ? 'dilek' : type.trim().toLowerCase();
   final tipLabel = switch (tip) {
     'sikayet' => 'Şikayet',
@@ -249,7 +304,7 @@ Future<void> submitGorusToAdmin({
     // Tablo yoksa veya RLS engeli: bildirim yine gitsin.
   }
 
-  final body = '$name · $actorEmail\n\n$msg';
+  final body = '$name\n\n$msg';
   final rows = <Map<String, dynamic>>[
     for (final admin in kAppAdminEmails)
       if (admin.trim().isNotEmpty)

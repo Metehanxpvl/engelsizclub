@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'admin_config.dart';
 import 'data/ilanlar_data.dart';
 import 'meto_theme.dart';
+import 'widgets/user_avatar.dart';
 
 /// İlan sahibi e-postası (id → email). Ortak listede "İlanlarım" için.
 final Map<int, String> ilanOwnerById = <int, String>{};
@@ -60,7 +61,9 @@ Map<String, dynamic> _uzmanToJson(UzmanIlani i, {bool forLocalCache = false}) =>
       'offers': i.offers,
       'urgent': i.urgent,
       'photos': _photosToJson(i.photos, forLocalCache: forLocalCache),
-      'posterName': i.poster.name,
+      'posterName': i.poster.fullName.trim().isNotEmpty
+          ? i.poster.fullName
+          : i.poster.name,
       'posterAvatar': i.poster.avatar,
       'ownerEmail': ilanOwnerById[i.id] ?? '',
     };
@@ -80,7 +83,9 @@ Map<String, dynamic> _bakiciToJson(BakiciIlani i, {bool forLocalCache = false}) 
       'views': i.views,
       'urgent': i.urgent,
       'photos': _photosToJson(i.photos, forLocalCache: forLocalCache),
-      'posterName': i.poster.name,
+      'posterName': i.poster.fullName.trim().isNotEmpty
+          ? i.poster.fullName
+          : i.poster.name,
       'posterAvatar': i.poster.avatar,
       'ownerEmail': ilanOwnerById[i.id] ?? '',
     };
@@ -116,21 +121,24 @@ Map<String, dynamic> _ikincielToJson(
       'photos': forLocalCache
           ? i.photos.map(_photoToLocalJson).toList()
           : i.photos.map((p) => p.toJson()).toList(),
-      'posterName': i.poster.name,
+      'posterName': i.poster.fullName.trim().isNotEmpty
+          ? i.poster.fullName
+          : i.poster.name,
       'posterAvatar': i.poster.avatar,
       'ownerEmail': ilanOwnerById[i.id] ?? '',
     };
 
 IlanPoster _posterFrom(Map<String, dynamic> j) {
-  final name = (j['posterName'] ?? j['poster_name'])?.toString() ?? 'Siz';
+  final rawName = (j['posterName'] ?? j['poster_name'])?.toString() ?? 'Siz';
+  final fullName = rawName.trim().isEmpty ? 'Siz' : rawName.trim();
+  final name = maskPersonDisplayName(fullName);
   final avatar = (j['posterAvatar'] ?? j['poster_avatar'])?.toString();
   return IlanPoster(
     name: name,
+    fullName: fullName,
     avatar: (avatar != null && avatar.isNotEmpty)
         ? avatar
-        : (name.length >= 2
-            ? name.substring(0, 2).toUpperCase()
-            : name.toUpperCase()),
+        : posterAvatarInitials(name),
     avatarColor: MetoColors.primary,
     rating: 0,
     reviewCount: 0,
@@ -229,6 +237,9 @@ void _applyRows(List<Map<String, dynamic>> rows) {
 
   var maxId = 1000;
   for (final row in rows) {
+    final status = (row['status']?.toString() ?? 'active').toLowerCase();
+    if (status == 'sold') continue;
+
     final j = _rowToLocalJson(row);
     final kind = j['kind']?.toString();
     final id = (j['id'] as num?)?.toInt() ?? 0;
@@ -306,14 +317,132 @@ Future<void> loadAllIlanlar({String? preferEmail}) async {
         .toList();
     _applyRows(list);
     await _cacheAllLocally();
+    await enrichRuntimeIlanAvatars(
+      ownEmail: preferEmail,
+    );
     return;
   } catch (_) {
     // Tablo yok / ağ hatası → yerel önbellek veya eski kullanıcı kaydı
   }
 
-  if (await _loadFromLocalCache()) return;
+  if (await _loadFromLocalCache()) {
+    await enrichRuntimeIlanAvatars(ownEmail: preferEmail);
+    return;
+  }
   if (preferEmail != null && preferEmail.isNotEmpty) {
     await _loadLegacyUserPrefs(preferEmail);
+    await enrichRuntimeIlanAvatars(ownEmail: preferEmail);
+  }
+}
+
+IlanPoster _posterWithAvatar(IlanPoster p, String avatar) => IlanPoster(
+      name: p.name,
+      fullName: p.fullName,
+      avatar: avatar,
+      avatarColor: p.avatarColor,
+      rating: p.rating,
+      reviewCount: p.reviewCount,
+      bio: p.bio,
+      tags: p.tags,
+      reviews: p.reviews,
+      cv: p.cv,
+    );
+
+/// Sahip e-postasından profil fotoğraflarını ilan avatarlarına uygular.
+Future<void> enrichRuntimeIlanAvatars({
+  String? ownEmail,
+  String? ownPhoto,
+}) async {
+  final emails = <String>{
+    for (final i in runtimeUzmanIlanlar) ilanOwnerById[i.id] ?? '',
+    for (final i in runtimeBakiciIlanlar) ilanOwnerById[i.id] ?? '',
+    for (final i in runtimeIkincielIlanlar) ilanOwnerById[i.id] ?? '',
+  }..removeWhere((e) => e.trim().isEmpty);
+
+  final photos = await loadUserPhotosByEmail(emails);
+  if (ownEmail != null &&
+      ownEmail.trim().isNotEmpty &&
+      ownPhoto != null &&
+      isAvatarImageSource(ownPhoto)) {
+    cacheOwnUserPhoto(ownEmail, ownPhoto);
+  }
+
+  String resolvedFor(int id, String stored) => resolveAvatar(
+        storedAvatar: stored,
+        ownerEmail: ilanOwnerById[id] ?? '',
+        photosByEmail: photos,
+        ownPhoto: ownPhoto,
+        ownEmail: ownEmail,
+      );
+
+  for (var i = 0; i < runtimeUzmanIlanlar.length; i++) {
+    final item = runtimeUzmanIlanlar[i];
+    final next = resolvedFor(item.id, item.poster.avatar);
+    if (next != item.poster.avatar) {
+      runtimeUzmanIlanlar[i] = UzmanIlani(
+        id: item.id,
+        title: item.title,
+        uzmanlik: item.uzmanlik,
+        tani: item.tani,
+        city: item.city,
+        district: item.district,
+        age: item.age,
+        frequency: item.frequency,
+        note: item.note,
+        budget: item.budget,
+        posted: item.posted,
+        views: item.views,
+        offers: item.offers,
+        urgent: item.urgent,
+        photos: item.photos,
+        poster: _posterWithAvatar(item.poster, next),
+      );
+    }
+  }
+  for (var i = 0; i < runtimeBakiciIlanlar.length; i++) {
+    final item = runtimeBakiciIlanlar[i];
+    final next = resolvedFor(item.id, item.poster.avatar);
+    if (next != item.poster.avatar) {
+      runtimeBakiciIlanlar[i] = BakiciIlani(
+        id: item.id,
+        title: item.title,
+        city: item.city,
+        district: item.district,
+        tani: item.tani,
+        age: item.age,
+        hours: item.hours,
+        note: item.note,
+        budget: item.budget,
+        posted: item.posted,
+        views: item.views,
+        urgent: item.urgent,
+        photos: item.photos,
+        poster: _posterWithAvatar(item.poster, next),
+      );
+    }
+  }
+  for (var i = 0; i < runtimeIkincielIlanlar.length; i++) {
+    final item = runtimeIkincielIlanlar[i];
+    final next = resolvedFor(item.id, item.poster.avatar);
+    if (next != item.poster.avatar) {
+      runtimeIkincielIlanlar[i] = IkincielIlani(
+        id: item.id,
+        title: item.title,
+        category: item.category,
+        city: item.city,
+        district: item.district,
+        condition: item.condition,
+        brand: item.brand,
+        note: item.note,
+        price: item.price,
+        originalPrice: item.originalPrice,
+        posted: item.posted,
+        views: item.views,
+        emoji: item.emoji,
+        photos: item.photos,
+        poster: _posterWithAvatar(item.poster, next),
+      );
+    }
   }
 }
 
@@ -397,6 +526,13 @@ Future<void> publishIlanToCloud({
     throw StateError('İlan için e-posta bulunamadı. Tekrar giriş yapın.');
   }
 
+  final fullPosterName =
+      posterName.trim().isEmpty ? 'Siz' : posterName.trim();
+  final displayPosterName = maskPersonDisplayName(fullPosterName);
+  final safePosterAvatar = posterAvatar.trim().isEmpty
+      ? posterAvatarInitials(displayPosterName)
+      : posterAvatar.trim();
+
   // Uzman / bakıcı ilanlarında en fazla 2 fotoğraf.
   final cappedPhotos = (kind == 'uzman' || kind == 'bakici')
       ? (photos.length > kUzmanBakiciMaxPhotos
@@ -426,8 +562,8 @@ Future<void> publishIlanToCloud({
     'urgent': urgent,
     'views': 0,
     'offers': 0,
-    'poster_name': posterName,
-    'poster_avatar': posterAvatar,
+    'poster_name': fullPosterName,
+    'poster_avatar': safePosterAvatar,
     'owner_email': resolvedEmail,
     'owner_id': user.id,
   };
@@ -444,8 +580,9 @@ Future<void> publishIlanToCloud({
     // Supabase yoksa yerel düş — yine de cihazlar arası paylaşılmaz.
     final id = nextIlanId();
     final poster = IlanPoster(
-      name: posterName,
-      avatar: posterAvatar,
+      name: displayPosterName,
+      fullName: fullPosterName,
+      avatar: safePosterAvatar,
       avatarColor: MetoColors.primary,
       rating: 0,
       reviewCount: 0,
@@ -542,6 +679,7 @@ Future<void> updateIlanInCloud({
   String budget = '',
   String price = '',
   String uzmanlik = 'Uzman',
+  String condition = 'İyi',
   List<IlanPhoto> photos = const [],
 }) async {
   final user = Supabase.instance.client.auth.currentUser;
@@ -560,6 +698,7 @@ Future<void> updateIlanInCloud({
           : photos)
       : photos;
 
+  final myEmail = (user.email ?? '').trim().toLowerCase();
   final payload = <String, dynamic>{
     'title': title,
     'city': city,
@@ -569,14 +708,39 @@ Future<void> updateIlanInCloud({
     'price': price,
     'uzmanlik': uzmanlik,
     'photos': cappedPhotos.map((p) => p.toJson()).toList(),
+    if (kind == 'ikinciel') 'condition': condition,
+    // Legacy kayıtlarda boş owner_id varsa sahipliği bağla
+    'owner_id': user.id,
   };
 
-  final updated = await Supabase.instance.client
+  // RLS: owner_id veya owner_email eşleşmesi; istemci filtresi de aynı mantık
+  var updated = await Supabase.instance.client
       .from('ilanlar')
       .update(payload)
       .eq('id', id)
       .eq('owner_id', user.id)
       .select('id');
+
+  if (updated.isEmpty && myEmail.isNotEmpty) {
+    updated = await Supabase.instance.client
+        .from('ilanlar')
+        .update(payload)
+        .eq('id', id)
+        .eq('owner_email', myEmail)
+        .select('id');
+  }
+
+  if (updated.isEmpty &&
+      resolvedEmail.isNotEmpty &&
+      resolvedEmail != myEmail) {
+    updated = await Supabase.instance.client
+        .from('ilanlar')
+        .update(payload)
+        .eq('id', id)
+        .eq('owner_email', resolvedEmail)
+        .select('id');
+  }
+
   if (updated.isEmpty) {
     throw StateError(
       'İlan güncellenemedi (yetki yok). Supabase’de '
@@ -630,6 +794,54 @@ Future<void> deleteUserIlan({
   } catch (_) {}
 }
 
+/// Satıldı → yayından kaldır (status=sold; kolon yoksa siler).
+Future<void> markIlanSold({
+  required String email,
+  required String kind,
+  required int id,
+}) async {
+  final normalized = email.trim().toLowerCase();
+  final me = (Supabase.instance.client.auth.currentUser?.email ?? '')
+      .trim()
+      .toLowerCase();
+  final admin = isAppAdmin(me);
+  var marked = false;
+  try {
+    var q = Supabase.instance.client
+        .from('ilanlar')
+        .update({'status': 'sold'}).eq('id', id);
+    if (!admin) {
+      q = q.eq('owner_email', normalized);
+    }
+    await q;
+    marked = true;
+  } catch (_) {
+    marked = false;
+  }
+  if (!marked) {
+    await deleteUserIlan(email: email, kind: kind, id: id);
+    return;
+  }
+  switch (kind) {
+    case 'uzman':
+      runtimeUzmanIlanlar.removeWhere((i) => i.id == id);
+      break;
+    case 'bakici':
+      runtimeBakiciIlanlar.removeWhere((i) => i.id == id);
+      break;
+    case 'ikinciel':
+      runtimeIkincielIlanlar.removeWhere((i) => i.id == id);
+      break;
+  }
+  ilanOwnerById.remove(id);
+  if (!admin || normalized == me) {
+    await persistUserIlanlar(email);
+  }
+  try {
+    await loadAllIlanlar(preferEmail: email);
+  } catch (_) {}
+}
+
 List<UzmanIlani> myUzmanIlanlar(String email) {
   final e = email.trim().toLowerCase();
   return runtimeUzmanIlanlar
@@ -655,6 +867,31 @@ int myIlanCount(String email) =>
     myUzmanIlanlar(email).length +
     myBakiciIlanlar(email).length +
     myIkincielIlanlar(email).length;
+
+/// Teklif / sohbet için ilan sahibinin tam adı (e-posta ile).
+String? revealedPosterNameForOwner(String email) {
+  final e = email.trim().toLowerCase();
+  if (e.isEmpty) return null;
+  for (final i in runtimeUzmanIlanlar) {
+    if ((ilanOwnerById[i.id] ?? '') == e) {
+      final n = i.poster.revealedName.trim();
+      if (n.isNotEmpty && n != 'Üye') return n;
+    }
+  }
+  for (final i in runtimeBakiciIlanlar) {
+    if ((ilanOwnerById[i.id] ?? '') == e) {
+      final n = i.poster.revealedName.trim();
+      if (n.isNotEmpty && n != 'Üye') return n;
+    }
+  }
+  for (final i in runtimeIkincielIlanlar) {
+    if ((ilanOwnerById[i.id] ?? '') == e) {
+      final n = i.poster.revealedName.trim();
+      if (n.isNotEmpty && n != 'Üye') return n;
+    }
+  }
+  return null;
+}
 
 void clearRuntimeIlanlar() {
   runtimeUzmanIlanlar.clear();

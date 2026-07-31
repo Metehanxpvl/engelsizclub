@@ -18,6 +18,8 @@ import '../services/catalog_adapters.dart';
 import '../sohbet_store.dart';
 import '../teklif_store.dart';
 import '../user_cloud_store.dart';
+import '../widgets/photo_gallery_lightbox.dart';
+import '../widgets/user_avatar.dart';
 
 /// MetoCare `IlanlarTab` — Flutter portu.
 class IlanlarPage extends StatefulWidget {
@@ -28,6 +30,7 @@ class IlanlarPage extends StatefulWidget {
     this.userEmail = '',
     this.userName = 'Siz',
     this.userType = 'aile',
+    this.profilFoto,
     this.onUnreadChange,
     this.onOpenKrediYukle,
     this.onIlanlarChanged,
@@ -45,6 +48,8 @@ class IlanlarPage extends StatefulWidget {
   final String userName;
   /// aile | uzman | bakici
   final String userType;
+  /// data:image… profil fotoğrafı
+  final String? profilFoto;
   final ValueChanged<int>? onUnreadChange;
   final VoidCallback? onOpenKrediYukle;
   final VoidCallback? onIlanlarChanged;
@@ -95,16 +100,46 @@ class _IlanlarPageState extends State<IlanlarPage> {
     return t != 'uzman' && t != 'bakici' && !isAppAdmin(widget.userEmail);
   }
 
-  bool get _canPaidTeklif => !_isAileRole;
+  String get _normalizedRole {
+    final t = widget.userType.trim().toLowerCase();
+    if (t == 'uzman' || t == 'bakici' || t == 'aile') return t;
+    return 'aile';
+  }
+
+  /// 2. el: her rol serbest. Uzman/bakıcı ilanları: sadece uzman veya bakıcı.
+  bool _canOfferOn(String kind) {
+    if (_isAdmin) return true;
+    switch (kind) {
+      case 'ikinciel':
+        return true;
+      case 'uzman':
+      case 'bakici':
+        return _normalizedRole == 'uzman' || _normalizedRole == 'bakici';
+      default:
+        return false;
+    }
+  }
+
+  bool _canReviewOn(String kind) => _canOfferOn(kind);
 
   UzmanIlani? _selectedUzman;
   BakiciIlani? _selectedBakici;
   IkincielIlani? _selectedIkinciel;
-  ({IlanPoster poster, String ctaLabel, String peerEmail, int? ilanId, bool free})?
-      _selectedPoster;
+  ({
+    IlanPoster poster,
+    String ctaLabel,
+    String peerEmail,
+    int? ilanId,
+    String ilanTitle,
+    bool free,
+    String kind,
+  })? _selectedPoster;
   SohbetKisi? _pendingSohbet;
   final _activeSohbetler = <_ActiveSohbet>[];
   Set<int> _teklifVerilenIlanlar = {};
+  /// Peş peşe tıklamada çift bildirim / çift kredi engeli
+  final Set<int> _teklifInFlight = {};
+  bool _freeTeklifBusy = false;
 
   int get _totalUnread => _activeSohbetler.fold<int>(0, (s, c) => s + c.unread);
 
@@ -113,34 +148,65 @@ class _IlanlarPageState extends State<IlanlarPage> {
   bool _teklifVerildiMi(int? ilanId) =>
       ilanId != null && _teklifVerilenIlanlar.contains(ilanId);
 
+  bool _teklifKilitliMi(int? ilanId) =>
+      ilanId != null &&
+      (_teklifVerilenIlanlar.contains(ilanId) ||
+          _teklifInFlight.contains(ilanId));
+
+  void _teklifKilitle(int? ilanId) {
+    if (ilanId == null) return;
+    _teklifInFlight.add(ilanId);
+    _teklifVerilenIlanlar = {..._teklifVerilenIlanlar, ilanId};
+  }
+
+  void _teklifKilitAc(int? ilanId, {bool revertOffered = false}) {
+    if (ilanId == null) return;
+    _teklifInFlight.remove(ilanId);
+    if (revertOffered) {
+      _teklifVerilenIlanlar = {..._teklifVerilenIlanlar}..remove(ilanId);
+    }
+  }
+
   SohbetKisi _kisiFromPoster({
     required IlanPoster poster,
     required int ilanId,
+    String? ilanTitle,
   }) {
     final peer = (ilanOwnerById[ilanId] ?? '').trim().toLowerCase();
     return SohbetKisi(
-      ad: poster.name,
-      avatar: poster.avatar,
+      ad: poster.revealedName,
+      avatar: poster.avatar.trim().isNotEmpty
+          ? poster.avatar
+          : contactAvatarLetter(poster.revealedName),
       avatarColor: poster.avatarColor,
       isOnline: false,
       sonGorus: peer.isEmpty ? 'Örnek / demo ilan' : null,
       peerEmail: peer,
       ilanId: ilanId,
+      ilanTitle: ilanTitle,
     );
   }
 
   bool get _isAdmin => isAppAdmin(widget.userEmail);
 
-  Future<void> _adminDeleteIlan({
+  bool _isIlanOwner(int id) {
+    final me = widget.userEmail.trim().toLowerCase();
+    return me.isNotEmpty && (ilanOwnerById[id] ?? '') == me;
+  }
+
+  bool _canDeleteIlan(int id) => _isAdmin || _isIlanOwner(id);
+
+  Future<void> _deleteIlan({
     required String kind,
     required int id,
     required String title,
   }) async {
-    if (!_isAdmin) return;
+    if (!_canDeleteIlan(id)) return;
+    final asAdmin = _isAdmin && !_isIlanOwner(id);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('İlanı sil (Admin)'),
+        title: Text(asAdmin ? 'İlanı sil (Admin)' : 'İlanı sil'),
         content: Text('"$title" ilanını kalıcı silmek istiyor musunuz?'),
         actions: [
           TextButton(
@@ -165,10 +231,16 @@ class _IlanlarPageState extends State<IlanlarPage> {
         id: id,
       );
       if (!mounted) return;
-      setState(() {});
+      setState(() {
+        _selectedUzman = null;
+        _selectedBakici = null;
+        _selectedIkinciel = null;
+      });
       widget.onIlanlarChanged?.call();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('İlan admin tarafından silindi')),
+        SnackBar(
+          content: Text(asAdmin ? 'İlan admin tarafından silindi' : 'İlan silindi'),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -176,7 +248,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
         SnackBar(
           content: Text(
             e.toString().contains('policy') || e.toString().contains('42501')
-                ? 'Silme yetkisi yok. admin_moderation.sql çalıştırın.'
+                ? 'Silme yetkisi yok.'
                 : 'Silinemedi: $e',
           ),
         ),
@@ -184,40 +256,112 @@ class _IlanlarPageState extends State<IlanlarPage> {
     }
   }
 
-  Widget _adminIlanDeleteBtn({
+  Widget _ilanEditDeleteActions({
+    required int id,
+    required String kind,
+    required String title,
+    required VoidCallback onEdit,
+  }) {
+    final canEdit = _isIlanOwner(id);
+    final canDelete = _canDeleteIlan(id);
+    if (!canEdit && !canDelete) return const SizedBox.shrink();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (canEdit)
+          IconButton(
+            tooltip: 'Satıldı olarak işaretle',
+            onPressed: () => _markSoldIlan(kind: kind, id: id, title: title),
+            icon: const Icon(
+              Icons.sell_outlined,
+              size: 18,
+              color: Color(0xFFCA8A04),
+            ),
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
+        if (canEdit)
+          IconButton(
+            tooltip: 'Düzenle',
+            onPressed: onEdit,
+            icon: const Icon(
+              Icons.edit_outlined,
+              size: 18,
+              color: MetoColors.primary,
+            ),
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
+        if (canDelete)
+          IconButton(
+            tooltip: _isAdmin && !canEdit ? 'Admin: sil' : 'Sil',
+            onPressed: () => _deleteIlan(kind: kind, id: id, title: title),
+            icon: const Icon(
+              Icons.delete_outline,
+              size: 18,
+              color: Color(0xFFEF4444),
+            ),
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _markSoldIlan({
     required String kind,
     required int id,
     required String title,
-  }) {
-    if (!_isAdmin) return const SizedBox.shrink();
-    return IconButton(
-      tooltip: 'Admin: ilanı sil',
-      onPressed: () => _adminDeleteIlan(kind: kind, id: id, title: title),
-      icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444)),
-      visualDensity: VisualDensity.compact,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+  }) async {
+    if (!_isIlanOwner(id) && !_isAdmin) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Satıldığını onaylıyor musunuz?'),
+        content: Text(
+          '"$title" ilanı satıldı olarak işaretlenecek ve yayından kalkacak.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFCA8A04),
+            ),
+            child: const Text('Evet, satıldı'),
+          ),
+        ],
+      ),
     );
-  }
-
-  bool _isIlanOwner(int id) {
-    final me = widget.userEmail.trim().toLowerCase();
-    return me.isNotEmpty && (ilanOwnerById[id] ?? '') == me;
-  }
-
-  Widget _ownerIlanEditBtn({
-    required int id,
-    required VoidCallback onEdit,
-  }) {
-    if (!_isIlanOwner(id)) return const SizedBox.shrink();
-    return IconButton(
-      tooltip: 'Düzenle',
-      onPressed: onEdit,
-      icon: const Icon(Icons.edit_outlined, size: 18, color: MetoColors.primary),
-      visualDensity: VisualDensity.compact,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-    );
+    if (ok != true || !mounted) return;
+    try {
+      await markIlanSold(
+        email: widget.userEmail,
+        kind: kind,
+        id: id,
+      );
+      if (!mounted) return;
+      setState(() {
+        _selectedUzman = null;
+        _selectedBakici = null;
+        _selectedIkinciel = null;
+      });
+      widget.onIlanlarChanged?.call();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('İlan satıldı olarak işaretlendi ve yayından kaldırıldı')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('İşlem başarısız: $e')),
+      );
+    }
   }
 
   void _openEditUzman(UzmanIlani ilan) {
@@ -263,6 +407,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
         district: ilan.district,
         note: ilan.note == '—' ? '' : ilan.note,
         budgetOrPrice: ilan.price,
+        condition: ilan.condition,
         photos: List<IlanPhoto>.from(ilan.photos),
       );
       _showVerForm = true;
@@ -315,21 +460,23 @@ class _IlanlarPageState extends State<IlanlarPage> {
         final time =
             '${o.lastTime.toLocal().hour.toString().padLeft(2, '0')}:${o.lastTime.toLocal().minute.toString().padLeft(2, '0')}';
         if (existing != null) {
-          existing.lastMsg = o.lastMsg;
+          existing.lastMsg = scrubEmailsInText(o.lastMsg);
           existing.lastTime = time;
         } else {
-          final initials = o.peerEmail.isNotEmpty
-              ? o.peerEmail.substring(0, 1).toUpperCase()
-              : '?';
+          final fromIlan = revealedPosterNameForOwner(o.peerEmail);
+          final label = publicContactLabel(
+            o.peerEmail,
+            preferredName: fromIlan ?? '',
+          );
           _activeSohbetler.add(_ActiveSohbet(
             kisi: SohbetKisi(
-              ad: o.peerEmail.split('@').first,
-              avatar: initials,
+              ad: label,
+              avatar: contactAvatarLetter(label),
               avatarColor: MetoColors.primary,
               isOnline: false,
               peerEmail: o.peerEmail,
             ),
-            lastMsg: o.lastMsg,
+            lastMsg: scrubEmailsInText(o.lastMsg),
             lastTime: time,
           ));
         }
@@ -425,6 +572,10 @@ class _IlanlarPageState extends State<IlanlarPage> {
   Future<void> _refreshFeed() async {
     setState(() => _loadingFeed = true);
     await loadAllIlanlar(preferEmail: widget.userEmail);
+    await enrichRuntimeIlanAvatars(
+      ownEmail: widget.userEmail,
+      ownPhoto: widget.profilFoto,
+    );
     final cloud = widget.userEmail.trim().isEmpty
         ? null
         : await loadUserCloudProfile(widget.userEmail);
@@ -552,7 +703,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
     return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   }
 
-  void _openTeklif(SohbetKisi kisi, {bool free = false}) {
+  void _openTeklif(SohbetKisi kisi, {bool free = false, String kind = 'uzman'}) {
     final me = widget.userEmail.trim().toLowerCase();
     if (kisi.peerEmail.isNotEmpty &&
         kisi.peerEmail.toLowerCase() == me) {
@@ -572,54 +723,62 @@ class _IlanlarPageState extends State<IlanlarPage> {
       );
       return;
     }
-    // Daha önce teklif verildiyse kredi alma — doğrudan sohbet
-    if (_teklifVerildiMi(kisi.ilanId)) {
+    // Daha önce teklif verildiyse / gönderiliyor ise kredi alma — doğrudan sohbet
+    if (_teklifKilitliMi(kisi.ilanId)) {
       _openSohbet(kisi);
       return;
     }
-    // 2. el ürünlerde teklif ücretsiz (aile dahil herkes)
-    if (free) {
+    // 2. el: tüm roller serbest, ücretsiz
+    if (free || kind == 'ikinciel') {
       _completeFreeTeklif(kisi);
       return;
     }
-    // Aile: uzman/bakıcı ilanlarına teklif yok
-    if (!_canPaidTeklif) {
+    if (!_canOfferOn(kind)) {
+      final msg = (kind == 'uzman' || kind == 'bakici')
+          ? 'Uzman/bakıcı ilanlarına yalnızca Uzman veya Bakıcı rolü teklif verebilir. '
+              '2. el ilanlarda her rol serbestçe teklif verip konuşabilir.'
+          : 'Bu ilana teklif veremezsiniz.';
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Aile rolüyle uzman/bakıcı ilanlarına teklif verilemez. '
-            'Profilinizden Uzman veya Bakıcı rolüne geçin, ya da 2. el ilanlara bakın.',
-          ),
-          duration: Duration(seconds: 4),
-        ),
+        SnackBar(content: Text(msg), duration: const Duration(seconds: 4)),
       );
       return;
     }
-    setState(() => _pendingSohbet = kisi);
+    // Optimistic kilit — modal açılırken peş peşe tıklamayı kes
+    setState(() {
+      _pendingSohbet = kisi;
+      _teklifKilitle(kisi.ilanId);
+    });
     _showKrediModal(
       onSpendAsync: () async {
         final k = _pendingSohbet;
         if (k == null) return false;
         if (widget.userKredi <= 0) return false;
-        // Önce mesaj + bildirim; başarılı olursa kredi düş.
-        await notifyIlanSahibiTeklif(
+        // Önce mesaj + bildirim; yalnızca ilk teklifte kredi düş.
+        final newlySent = await notifyIlanSahibiTeklif(
           ownerEmail: k.peerEmail,
           actorName: widget.userName,
           ilanId: k.ilanId,
+          ilanTitle: k.ilanTitle,
         );
-        final spent = await widget.onKrediHarca();
-        if (!spent) return false;
         if (k.ilanId != null) {
           await markTeklifVerildi(
             email: widget.userEmail,
             ilanId: k.ilanId!,
           );
-          if (mounted) {
-            setState(() {
-              _teklifVerilenIlanlar = {..._teklifVerilenIlanlar, k.ilanId!};
-            });
-          }
         }
+        if (!newlySent) {
+          // Zaten bildirilmiş — tekrar puan alma
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Bu ilana zaten teklif verdiniz · sohbet açılıyor'),
+              ),
+            );
+          }
+          return true;
+        }
+        final spent = await widget.onKrediHarca();
+        if (!spent) return false;
         if (!mounted) return true;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -635,6 +794,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
         final k = _pendingSohbet!;
         setState(() {
           _pendingSohbet = null;
+          _teklifKilitAc(k.ilanId);
           if (k.ilanId != null) {
             _teklifVerilenIlanlar = {..._teklifVerilenIlanlar, k.ilanId!};
           }
@@ -650,18 +810,66 @@ class _IlanlarPageState extends State<IlanlarPage> {
         _reportUnread();
         _openSohbet(k);
       },
+      onDismissed: () {
+        if (!mounted || _pendingSohbet == null) return;
+        // Vazgeçildi — kilidi geri al
+        setState(() {
+          final id = _pendingSohbet!.ilanId;
+          _pendingSohbet = null;
+          _teklifKilitAc(id, revertOffered: true);
+        });
+      },
     );
   }
 
   Future<void> _completeFreeTeklif(SohbetKisi k) async {
+    if (_freeTeklifBusy || _teklifKilitliMi(k.ilanId)) {
+      _openSohbet(k);
+      return;
+    }
+    setState(() {
+      _freeTeklifBusy = true;
+      _teklifKilitle(k.ilanId);
+    });
     try {
-      await notifyIlanSahibiTeklif(
+      final newlySent = await notifyIlanSahibiTeklif(
         ownerEmail: k.peerEmail,
         actorName: widget.userName,
         ilanId: k.ilanId,
+        ilanTitle: k.ilanTitle,
       );
+      if (k.ilanId != null) {
+        await markTeklifVerildi(email: widget.userEmail, ilanId: k.ilanId!);
+      }
+      if (!mounted) return;
+      setState(() {
+        _teklifKilitAc(k.ilanId);
+        if (k.ilanId != null) {
+          _teklifVerilenIlanlar = {..._teklifVerilenIlanlar, k.ilanId!};
+        }
+        if (!_activeSohbetler.any((c) =>
+            c.kisi.peerEmail.toLowerCase() == k.peerEmail.toLowerCase())) {
+          _activeSohbetler.add(_ActiveSohbet(
+            kisi: k,
+            lastMsg: 'Teklif gönderildi',
+            lastTime: _nowTime(),
+          ));
+        }
+      });
+      _reportUnread();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            newlySent
+                ? '2. el teklif ücretsiz — sohbet açılıyor'
+                : 'Bu ilana zaten teklif verdiniz · sohbet açılıyor',
+          ),
+        ),
+      );
+      _openSohbet(k);
     } catch (e) {
       if (!mounted) return;
+      setState(() => _teklifKilitAc(k.ilanId, revertOffered: true));
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -673,34 +881,9 @@ class _IlanlarPageState extends State<IlanlarPage> {
           ),
         ),
       );
-      return;
+    } finally {
+      if (mounted) setState(() => _freeTeklifBusy = false);
     }
-    if (k.ilanId != null) {
-      await markTeklifVerildi(email: widget.userEmail, ilanId: k.ilanId!);
-      if (mounted) {
-        setState(() {
-          _teklifVerilenIlanlar = {..._teklifVerilenIlanlar, k.ilanId!};
-        });
-      }
-    }
-    if (!mounted) return;
-    setState(() {
-      if (!_activeSohbetler.any((c) =>
-          c.kisi.peerEmail.toLowerCase() == k.peerEmail.toLowerCase())) {
-        _activeSohbetler.add(_ActiveSohbet(
-          kisi: k,
-          lastMsg: 'Teklif gönderildi',
-          lastTime: _nowTime(),
-        ));
-      }
-    });
-    _reportUnread();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('2. el teklif ücretsiz — sohbet açılıyor'),
-      ),
-    );
-    _openSohbet(k);
   }
 
   void _openSohbet(SohbetKisi kisi) {
@@ -719,6 +902,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
         builder: (_) => SohbetPage(
           kisi: kisi,
           myEmail: widget.userEmail,
+          myDisplayName: widget.userName,
           onNewMessage: (text) {
             setState(() {
               final existing = _activeSohbetler
@@ -727,12 +911,12 @@ class _IlanlarPageState extends State<IlanlarPage> {
                       kisi.peerEmail.toLowerCase())
                   .firstOrNull;
               if (existing != null) {
-                existing.lastMsg = text;
+                existing.lastMsg = scrubEmailsInText(text);
                 existing.lastTime = _nowTime();
               } else {
                 _activeSohbetler.add(_ActiveSohbet(
                   kisi: kisi,
-                  lastMsg: text,
+                  lastMsg: scrubEmailsInText(text),
                   lastTime: _nowTime(),
                 ));
               }
@@ -751,6 +935,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
   void _showKrediModal({
     VoidCallback? onUnlocked,
     Future<bool> Function()? onSpendAsync,
+    VoidCallback? onDismissed,
   }) {
     showModalBottomSheet<void>(
       context: context,
@@ -769,7 +954,9 @@ class _IlanlarPageState extends State<IlanlarPage> {
         },
         onClose: () => Navigator.pop(ctx),
       ),
-    );
+    ).whenComplete(() {
+      onDismissed?.call();
+    });
   }
 
   @override
@@ -779,6 +966,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
       return _YeniIlanForm(
         userName: widget.userName,
         userEmail: widget.userEmail,
+        profilFoto: widget.profilFoto,
         editDraft: _editDraft,
         onBack: () => setState(() {
           _showVerForm = false;
@@ -839,25 +1027,46 @@ class _IlanlarPageState extends State<IlanlarPage> {
           _BakiciDrawer(
             ilan: _selectedBakici!,
             alreadyOffered: _teklifVerildiMi(_selectedBakici!.id),
-            ctaLabel: _paidCtaLabel(_selectedBakici!.id),
+            ctaLabel: _paidCtaLabel('bakici', _selectedBakici!.id),
+            allowOffer: _canOfferOn('bakici'),
+            canWriteReview: _canReviewOn('bakici'),
             onClose: () => setState(() => _selectedBakici = null),
+            onEdit: _isIlanOwner(_selectedBakici!.id)
+                ? () {
+                    final ilan = _selectedBakici!;
+                    setState(() => _selectedBakici = null);
+                    _openEditBakici(ilan);
+                  }
+                : null,
+            onDelete: _canDeleteIlan(_selectedBakici!.id)
+                ? () => _deleteIlan(
+                      kind: 'bakici',
+                      id: _selectedBakici!.id,
+                      title: _selectedBakici!.title,
+                    )
+                : null,
             onProfile: () {
               final ilan = _selectedBakici!;
               setState(() {
                 _selectedBakici = null;
                 _selectedPoster = (
                   poster: ilan.poster,
-                  ctaLabel: _paidCtaLabel(ilan.id),
+                  ctaLabel: _paidCtaLabel('bakici', ilan.id),
                   peerEmail: ilanOwnerById[ilan.id] ?? '',
                   ilanId: ilan.id,
+                  ilanTitle: ilan.title,
                   free: false,
+                  kind: 'bakici',
                 );
               });
             },
             onKrediTap: () {
               final ilan = _selectedBakici!;
               setState(() => _selectedBakici = null);
-              _openTeklif(_kisiFromPoster(poster: ilan.poster, ilanId: ilan.id));
+              _openTeklif(
+                _kisiFromPoster(poster: ilan.poster, ilanId: ilan.id, ilanTitle: ilan.title),
+                kind: 'bakici',
+              );
             },
           ),
         if (_selectedIkinciel != null)
@@ -865,6 +1074,20 @@ class _IlanlarPageState extends State<IlanlarPage> {
             ilan: _selectedIkinciel!,
             alreadyOffered: _teklifVerildiMi(_selectedIkinciel!.id),
             onClose: () => setState(() => _selectedIkinciel = null),
+            onEdit: _isIlanOwner(_selectedIkinciel!.id)
+                ? () {
+                    final ilan = _selectedIkinciel!;
+                    setState(() => _selectedIkinciel = null);
+                    _openEditIkinciel(ilan);
+                  }
+                : null,
+            onDelete: _canDeleteIlan(_selectedIkinciel!.id)
+                ? () => _deleteIlan(
+                      kind: 'ikinciel',
+                      id: _selectedIkinciel!.id,
+                      title: _selectedIkinciel!.title,
+                    )
+                : null,
             onProfile: () {
               final ilan = _selectedIkinciel!;
               setState(() {
@@ -876,7 +1099,9 @@ class _IlanlarPageState extends State<IlanlarPage> {
                       : 'Ücretsiz İletişim',
                   peerEmail: ilanOwnerById[ilan.id] ?? '',
                   ilanId: ilan.id,
+                  ilanTitle: ilan.title,
                   free: true,
+                  kind: 'ikinciel',
                 );
               });
             },
@@ -884,8 +1109,9 @@ class _IlanlarPageState extends State<IlanlarPage> {
               final ilan = _selectedIkinciel!;
               setState(() => _selectedIkinciel = null);
               _openTeklif(
-                _kisiFromPoster(poster: ilan.poster, ilanId: ilan.id),
+                _kisiFromPoster(poster: ilan.poster, ilanId: ilan.id, ilanTitle: ilan.title),
                 free: true,
+                kind: 'ikinciel',
               );
             },
           ),
@@ -893,25 +1119,46 @@ class _IlanlarPageState extends State<IlanlarPage> {
           _UzmanDrawer(
             ilan: _selectedUzman!,
             alreadyOffered: _teklifVerildiMi(_selectedUzman!.id),
-            ctaLabel: _paidCtaLabel(_selectedUzman!.id),
+            ctaLabel: _paidCtaLabel('uzman', _selectedUzman!.id),
+            allowOffer: _canOfferOn('uzman'),
+            canWriteReview: _canReviewOn('uzman'),
             onClose: () => setState(() => _selectedUzman = null),
+            onEdit: _isIlanOwner(_selectedUzman!.id)
+                ? () {
+                    final ilan = _selectedUzman!;
+                    setState(() => _selectedUzman = null);
+                    _openEditUzman(ilan);
+                  }
+                : null,
+            onDelete: _canDeleteIlan(_selectedUzman!.id)
+                ? () => _deleteIlan(
+                      kind: 'uzman',
+                      id: _selectedUzman!.id,
+                      title: _selectedUzman!.title,
+                    )
+                : null,
             onProfile: () {
               final ilan = _selectedUzman!;
               setState(() {
                 _selectedUzman = null;
                 _selectedPoster = (
                   poster: ilan.poster,
-                  ctaLabel: _paidCtaLabel(ilan.id),
+                  ctaLabel: _paidCtaLabel('uzman', ilan.id),
                   peerEmail: ilanOwnerById[ilan.id] ?? '',
                   ilanId: ilan.id,
+                  ilanTitle: ilan.title,
                   free: false,
+                  kind: 'uzman',
                 );
               });
             },
             onKrediTap: () {
               final ilan = _selectedUzman!;
               setState(() => _selectedUzman = null);
-              _openTeklif(_kisiFromPoster(poster: ilan.poster, ilanId: ilan.id));
+              _openTeklif(
+                _kisiFromPoster(poster: ilan.poster, ilanId: ilan.id, ilanTitle: ilan.title),
+                kind: 'uzman',
+              );
             },
           ),
         // Profil en üstte — satıcıya basınca diğer panellerin altında kalmasın.
@@ -922,24 +1169,34 @@ class _IlanlarPageState extends State<IlanlarPage> {
                 ? 'Teklif Verildi — Mesaja Git'
                 : _selectedPoster!.ctaLabel,
             alreadyOffered: _teklifVerildiMi(_selectedPoster!.ilanId),
+            allowOffer: _canOfferOn(_selectedPoster!.kind),
+            canWriteReview: _canReviewOn(_selectedPoster!.kind),
             onClose: () => setState(() => _selectedPoster = null),
             onKrediTap: () {
               final p = _selectedPoster!.poster;
               final peer = _selectedPoster!.peerEmail;
               final id = _selectedPoster!.ilanId;
+              final title = _selectedPoster!.ilanTitle;
               final free = _selectedPoster!.free;
+              final kind = _selectedPoster!.kind;
               setState(() => _selectedPoster = null);
               _openTeklif(
                 id != null
-                    ? _kisiFromPoster(poster: p, ilanId: id)
+                    ? _kisiFromPoster(
+                        poster: p,
+                        ilanId: id,
+                        ilanTitle: title,
+                      )
                     : SohbetKisi(
                         ad: p.name,
                         avatar: p.avatar,
                         avatarColor: p.avatarColor,
                         isOnline: false,
                         peerEmail: peer,
+                        ilanTitle: title,
                       ),
                 free: free,
+                kind: kind,
               );
             },
           ),
@@ -1321,15 +1578,19 @@ class _IlanlarPageState extends State<IlanlarPage> {
     );
   }
 
-  String _paidActionLabel(int? ilanId) {
+  String _paidActionLabel(String kind, int? ilanId) {
     if (_teklifVerildiMi(ilanId)) return 'Teklif Verildi';
-    if (!_canPaidTeklif) return 'Rol gerekli';
+    if (!_canOfferOn(kind)) return 'Rol gerekli';
     return 'Teklif Ver';
   }
 
-  String _paidCtaLabel(int? ilanId) {
+  String _paidCtaLabel(String kind, int? ilanId) {
     if (_teklifVerildiMi(ilanId)) return 'Teklif Verildi — Mesaja Git';
-    if (!_canPaidTeklif) return 'Teklif için Uzman/Bakıcı rolü';
+    if (!_canOfferOn(kind)) {
+      return kind == 'uzman' || kind == 'bakici'
+          ? 'Teklif için Uzman/Bakıcı rolü'
+          : 'Teklif verilemez';
+    }
     return '1 Puan Harca — Teklif Ver';
   }
 
@@ -1347,10 +1608,12 @@ class _IlanlarPageState extends State<IlanlarPage> {
           _selectedIkinciel = null;
           _selectedPoster = (
             poster: ilan.poster,
-            ctaLabel: _paidCtaLabel(ilan.id),
+            ctaLabel: _paidCtaLabel('uzman', ilan.id),
             peerEmail: ilanOwnerById[ilan.id] ?? '',
             ilanId: ilan.id,
+            ilanTitle: ilan.title,
             free: false,
+            kind: 'uzman',
           );
         });
 
@@ -1362,7 +1625,6 @@ class _IlanlarPageState extends State<IlanlarPage> {
             _PhotoStrip(
               photos: ilan.photos,
               emoji: renk.emoji,
-              onTap: openDetail,
             ),
           InkWell(
             onTap: openDetail,
@@ -1398,23 +1660,6 @@ class _IlanlarPageState extends State<IlanlarPage> {
                                 color: MetoColors.foreground,
                               ),
                             ),
-                          ),
-                          _favButton(FavoriIlanRef(
-                            kind: 'uzman',
-                            id: ilan.id,
-                            title: ilan.title,
-                            konum:
-                                '${ilan.district.isEmpty ? '' : '${ilan.district}, '}${ilan.city}',
-                            fiyat: ilan.budget,
-                          )),
-                          _ownerIlanEditBtn(
-                            id: ilan.id,
-                            onEdit: () => _openEditUzman(ilan),
-                          ),
-                          _adminIlanDeleteBtn(
-                            kind: 'uzman',
-                            id: ilan.id,
-                            title: ilan.title,
                           ),
                           _Badge(
                             text: '${renk.emoji} ${ilan.uzmanlik}',
@@ -1501,14 +1746,34 @@ class _IlanlarPageState extends State<IlanlarPage> {
           _CardFooter(
             price: ilan.budget,
             subtitle: '${ilan.offers} teklif · ${ilan.posted}',
+            leadingActions: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _favButton(FavoriIlanRef(
+                  kind: 'uzman',
+                  id: ilan.id,
+                  title: ilan.title,
+                  konum:
+                      '${ilan.district.isEmpty ? '' : '${ilan.district}, '}${ilan.city}',
+                  fiyat: ilan.budget,
+                )),
+                _ilanEditDeleteActions(
+                  id: ilan.id,
+                  kind: 'uzman',
+                  title: ilan.title,
+                  onEdit: () => _openEditUzman(ilan),
+                ),
+              ],
+            ),
             onProfile: openDetail,
-            onAction: _canPaidTeklif || _teklifVerildiMi(ilan.id)
+            onAction: _canOfferOn('uzman') || _teklifVerildiMi(ilan.id)
                 ? () => _openTeklif(
-                      _kisiFromPoster(poster: ilan.poster, ilanId: ilan.id),
+                      _kisiFromPoster(poster: ilan.poster, ilanId: ilan.id, ilanTitle: ilan.title),
+                      kind: 'uzman',
                     )
                 : null,
-            actionLabel: _canPaidTeklif || _teklifVerildiMi(ilan.id)
-                ? _paidActionLabel(ilan.id)
+            actionLabel: _canOfferOn('uzman') || _teklifVerildiMi(ilan.id)
+                ? _paidActionLabel('uzman', ilan.id)
                 : null,
             alreadyOffered: _teklifVerildiMi(ilan.id),
             profileLabel: 'Detay',
@@ -1531,10 +1796,12 @@ class _IlanlarPageState extends State<IlanlarPage> {
           _selectedIkinciel = null;
           _selectedPoster = (
             poster: ilan.poster,
-            ctaLabel: _paidCtaLabel(ilan.id),
+            ctaLabel: _paidCtaLabel('bakici', ilan.id),
             peerEmail: ilanOwnerById[ilan.id] ?? '',
             ilanId: ilan.id,
+            ilanTitle: ilan.title,
             free: false,
+            kind: 'bakici',
           );
         });
 
@@ -1546,7 +1813,6 @@ class _IlanlarPageState extends State<IlanlarPage> {
             _PhotoStrip(
               photos: ilan.photos,
               emoji: '🤝',
-              onTap: openDetail,
             ),
           InkWell(
             onTap: openDetail,
@@ -1582,23 +1848,6 @@ class _IlanlarPageState extends State<IlanlarPage> {
                                 color: MetoColors.foreground,
                               ),
                             ),
-                          ),
-                          _favButton(FavoriIlanRef(
-                            kind: 'bakici',
-                            id: ilan.id,
-                            title: ilan.title,
-                            konum:
-                                '${ilan.district.isEmpty ? '' : '${ilan.district}, '}${ilan.city}',
-                            fiyat: ilan.budget,
-                          )),
-                          _ownerIlanEditBtn(
-                            id: ilan.id,
-                            onEdit: () => _openEditBakici(ilan),
-                          ),
-                          _adminIlanDeleteBtn(
-                            kind: 'bakici',
-                            id: ilan.id,
-                            title: ilan.title,
                           ),
                           const _Badge(
                             text: '🤝 Bakıcı Aranıyor',
@@ -1694,14 +1943,34 @@ class _IlanlarPageState extends State<IlanlarPage> {
           _CardFooter(
             price: ilan.budget,
             subtitle: ilan.posted,
+            leadingActions: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _favButton(FavoriIlanRef(
+                  kind: 'bakici',
+                  id: ilan.id,
+                  title: ilan.title,
+                  konum:
+                      '${ilan.district.isEmpty ? '' : '${ilan.district}, '}${ilan.city}',
+                  fiyat: ilan.budget,
+                )),
+                _ilanEditDeleteActions(
+                  id: ilan.id,
+                  kind: 'bakici',
+                  title: ilan.title,
+                  onEdit: () => _openEditBakici(ilan),
+                ),
+              ],
+            ),
             onProfile: openDetail,
-            onAction: _canPaidTeklif || _teklifVerildiMi(ilan.id)
+            onAction: _canOfferOn('bakici') || _teklifVerildiMi(ilan.id)
                 ? () => _openTeklif(
-                      _kisiFromPoster(poster: ilan.poster, ilanId: ilan.id),
+                      _kisiFromPoster(poster: ilan.poster, ilanId: ilan.id, ilanTitle: ilan.title),
+                      kind: 'bakici',
                     )
                 : null,
-            actionLabel: _canPaidTeklif || _teklifVerildiMi(ilan.id)
-                ? _paidActionLabel(ilan.id)
+            actionLabel: _canOfferOn('bakici') || _teklifVerildiMi(ilan.id)
+                ? _paidActionLabel('bakici', ilan.id)
                 : null,
             alreadyOffered: _teklifVerildiMi(ilan.id),
             profileLabel: 'Detay',
@@ -1724,7 +1993,9 @@ class _IlanlarPageState extends State<IlanlarPage> {
               : 'Ücretsiz İletişim',
           peerEmail: ilanOwnerById[ilan.id] ?? '',
           ilanId: ilan.id,
+          ilanTitle: ilan.title,
           free: true,
+          kind: 'ikinciel',
         );
       });
     }
@@ -1737,7 +2008,6 @@ class _IlanlarPageState extends State<IlanlarPage> {
             _PhotoStrip(
               photos: ilan.photos,
               emoji: ilan.emoji,
-              onTap: openDetail,
             ),
           InkWell(
             onTap: openDetail,
@@ -1765,27 +2035,10 @@ class _IlanlarPageState extends State<IlanlarPage> {
                     ],
                   ),
                 ),
-                _favButton(FavoriIlanRef(
-                  kind: 'ikinciel',
-                  id: ilan.id,
-                  title: ilan.title,
-                  konum:
-                      '${ilan.district.isEmpty ? '' : '${ilan.district}, '}${ilan.city}',
-                  fiyat: ilan.price,
-                )),
-                _ownerIlanEditBtn(
-                  id: ilan.id,
-                  onEdit: () => _openEditIkinciel(ilan),
-                ),
-                _adminIlanDeleteBtn(
-                  kind: 'ikinciel',
-                  id: ilan.id,
-                  title: ilan.title,
-                ),
                 _Badge(
                   text: ilan.condition,
-                  bg: const Color(0xFFF0FDF4),
-                  fg: const Color(0xFF15803D),
+                  bg: ikincielDurumRenk(ilan.condition).bg,
+                  fg: ikincielDurumRenk(ilan.condition).fg,
                 ),
               ],
             ),
@@ -1865,10 +2118,30 @@ class _IlanlarPageState extends State<IlanlarPage> {
             subtitle: ilan.originalPrice,
             subtitleStrike: true,
             priceLarge: true,
+            leadingActions: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _favButton(FavoriIlanRef(
+                  kind: 'ikinciel',
+                  id: ilan.id,
+                  title: ilan.title,
+                  konum:
+                      '${ilan.district.isEmpty ? '' : '${ilan.district}, '}${ilan.city}',
+                  fiyat: ilan.price,
+                )),
+                _ilanEditDeleteActions(
+                  id: ilan.id,
+                  kind: 'ikinciel',
+                  title: ilan.title,
+                  onEdit: () => _openEditIkinciel(ilan),
+                ),
+              ],
+            ),
             onProfile: openDetail,
             onAction: () => _openTeklif(
-                  _kisiFromPoster(poster: ilan.poster, ilanId: ilan.id),
+                  _kisiFromPoster(poster: ilan.poster, ilanId: ilan.id, ilanTitle: ilan.title),
                   free: true,
+                  kind: 'ikinciel',
                 ),
             actionLabel:
                 _teklifVerildiMi(ilan.id) ? 'Teklif Verildi' : 'İletişim',
@@ -2004,25 +2277,35 @@ class _AvatarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 44,
-        height: 44,
+    Widget face;
+    if (isAvatarImageSource(label)) {
+      face = UserAvatar(
+        avatar: label,
+        color: color,
+        radius: 22,
+        fallbackName: label,
+      );
+    } else {
+      face = Container(
         alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(12),
-        ),
+        color: color,
         child: Text(
-          label,
+          avatarInitialsFallback(label),
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w800,
             fontSize: 13,
           ),
         ),
+      );
+    }
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(width: 44, height: 44, child: face),
       ),
     );
   }
@@ -2036,19 +2319,11 @@ class _SmallAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 24,
-      height: 24,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w800,
-          fontSize: 10,
-        ),
-      ),
+    return UserAvatar(
+      avatar: label,
+      color: color,
+      radius: 12,
+      fallbackName: label,
     );
   }
 }
@@ -2133,6 +2408,7 @@ class _CardFooter extends StatelessWidget {
     this.priceLarge = false,
     this.alreadyOffered = false,
     this.profileLabel = 'Profil',
+    this.leadingActions,
   });
 
   final String price;
@@ -2144,104 +2420,144 @@ class _CardFooter extends StatelessWidget {
   final bool priceLarge;
   final bool alreadyOffered;
   final String profileLabel;
+  final Widget? leadingActions;
 
   @override
   Widget build(BuildContext context) {
     final showAction = onAction != null && actionLabel != null;
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                price,
-                style: TextStyle(
-                  fontSize: priceLarge ? 16 : 12,
-                  fontWeight: FontWeight.w800,
-                  color:
-                      priceLarge ? MetoColors.primary : MetoColors.foreground,
-                ),
+        Row(
+          children: [
+            if (leadingActions != null) ...[
+              leadingActions!,
+              const SizedBox(width: 4),
+            ],
+            const Spacer(),
+            OutlinedButton(
+              onPressed: onProfile,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: MetoColors.foreground,
+                side: const BorderSide(color: MetoColors.border),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: MetoColors.mutedFg,
-                  decoration:
-                      subtitleStrike ? TextDecoration.lineThrough : null,
+              child: Text(profileLabel,
+                  style: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w800)),
+            ),
+            if (showAction) ...[
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                onPressed: onAction,
+                style: FilledButton.styleFrom(
+                  backgroundColor: alreadyOffered
+                      ? const Color(0xFF15803D)
+                      : MetoColors.primary,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: Icon(
+                  alreadyOffered
+                      ? Icons.check_circle
+                      : Icons.monetization_on,
+                  size: 14,
+                ),
+                label: Text(
+                  actionLabel!,
+                  style: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w800),
                 ),
               ),
             ],
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          price,
+          style: TextStyle(
+            fontSize: priceLarge ? 16 : 12,
+            fontWeight: FontWeight.w800,
+            color: priceLarge ? MetoColors.primary : MetoColors.foreground,
           ),
         ),
-        OutlinedButton(
-          onPressed: onProfile,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: MetoColors.foreground,
-            side: const BorderSide(color: MetoColors.border),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 12,
+            color: MetoColors.mutedFg,
+            decoration: subtitleStrike ? TextDecoration.lineThrough : null,
           ),
-          child: Text(profileLabel,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
         ),
-        if (showAction) ...[
-          const SizedBox(width: 8),
-          FilledButton.icon(
-            onPressed: onAction,
-            style: FilledButton.styleFrom(
-              backgroundColor: alreadyOffered
-                  ? const Color(0xFF15803D)
-                  : MetoColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            icon: Icon(
-              alreadyOffered ? Icons.check_circle : Icons.monetization_on,
-              size: 14,
-            ),
-            label: Text(
-              actionLabel!,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-            ),
-          ),
-        ],
       ],
     );
   }
+}
+
+List<ImageProvider> _ilanGalleryImages(List<IlanPhoto> photos) {
+  return [
+    for (final p in photos)
+      if (galleryImageProvider(p.dataUrl) != null)
+        galleryImageProvider(p.dataUrl)!,
+  ];
+}
+
+void _openIlanPhotoGallery(
+  BuildContext context,
+  List<IlanPhoto> photos, {
+  int index = 0,
+}) {
+  final gallery = _ilanGalleryImages(photos);
+  if (gallery.isEmpty) return;
+  final safe = index.clamp(0, photos.length - 1);
+  var gi = 0;
+  for (var k = 0; k < safe; k++) {
+    if (photos[k].hasImage) gi++;
+  }
+  openPhotoGallery(
+    context,
+    images: gallery,
+    initialIndex: photos[safe].hasImage ? gi : 0,
+  );
 }
 
 class _PhotoStrip extends StatelessWidget {
   const _PhotoStrip({
     required this.photos,
     required this.emoji,
-    this.onTap,
   });
 
   final List<IlanPhoto> photos;
   final String emoji;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final height = photos.length == 1 ? 220.0 : 180.0;
+    final gallery = _ilanGalleryImages(photos);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: SizedBox(
-          height: height,
-          child: Row(
-            children: photos.asMap().entries.map((e) {
-              final i = e.key;
-              final photo = e.value;
-              final bytes = _photoBytes(photo);
-              return Expanded(
+      child: SizedBox(
+        height: height,
+        child: Row(
+          children: photos.asMap().entries.map((e) {
+            final i = e.key;
+            final photo = e.value;
+            final bytes = _photoBytes(photo);
+            return Expanded(
+              child: GestureDetector(
+                onTap: gallery.isEmpty
+                    ? null
+                    : () => _openIlanPhotoGallery(
+                          context,
+                          photos,
+                          index: i,
+                        ),
                 child: Container(
                   height: height,
                   margin:
@@ -2267,9 +2583,9 @@ class _PhotoStrip extends StatelessWidget {
                           ),
                         ),
                 ),
-              );
-            }).toList(),
-          ),
+              ),
+            );
+          }).toList(),
         ),
       ),
     );
@@ -2679,11 +2995,13 @@ class _DrawerFooter extends StatelessWidget {
     required this.onTap,
     this.color,
     this.alreadyOffered = false,
+    this.enabled = true,
   });
   final String label;
   final VoidCallback onTap;
   final Color? color;
   final bool alreadyOffered;
+  final bool enabled;
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -2691,14 +3009,20 @@ class _DrawerFooter extends StatelessWidget {
       decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: MetoColors.border))),
       child: FilledButton.icon(
-        onPressed: onTap,
+        onPressed: enabled ? onTap : null,
         style: _primaryBtn.copyWith(
             backgroundColor: WidgetStatePropertyAll(
-                alreadyOffered
-                    ? const Color(0xFF15803D)
-                    : (color ?? MetoColors.primary))),
+                !enabled
+                    ? MetoColors.mutedFg
+                    : alreadyOffered
+                        ? const Color(0xFF15803D)
+                        : (color ?? MetoColors.primary))),
         icon: Icon(
-          alreadyOffered ? Icons.check_circle : Icons.monetization_on,
+          !enabled
+              ? Icons.block
+              : alreadyOffered
+                  ? Icons.check_circle
+                  : Icons.monetization_on,
           size: 18,
         ),
         label: Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
@@ -2717,6 +3041,7 @@ class _ReviewSection extends StatelessWidget {
     required this.onToggleYorum,
     required this.onRating,
     required this.onSubmit,
+    this.canWrite = true,
   });
 
   final List<IlanReview> reviews;
@@ -2727,6 +3052,7 @@ class _ReviewSection extends StatelessWidget {
   final VoidCallback onToggleYorum;
   final ValueChanged<int> onRating;
   final VoidCallback onSubmit;
+  final bool canWrite;
 
   @override
   Widget build(BuildContext context) {
@@ -2738,11 +3064,17 @@ class _ReviewSection extends StatelessWidget {
           children: [
             const Text('Yorumlar',
                 style: TextStyle(fontWeight: FontWeight.w800)),
-            if (!yorumYaz && !submitted)
+            if (canWrite && !yorumYaz && !submitted)
               TextButton(
                   onPressed: onToggleYorum,
                   child: const Text('+ Yorum Yaz',
                       style: TextStyle(fontWeight: FontWeight.w800))),
+            if (!canWrite)
+              const Text('Bu ilana rolünüzle yorum yazılamaz',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: MetoColors.mutedFg)),
             if (submitted)
               const Text('✓ Yorumunuz eklendi',
                   style: TextStyle(
@@ -2751,7 +3083,7 @@ class _ReviewSection extends StatelessWidget {
                       color: Color(0xFF16A34A))),
           ],
         ),
-        if (yorumYaz) ...[
+        if (canWrite && yorumYaz) ...[
           Container(
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.only(bottom: 12),
@@ -2854,12 +3186,16 @@ class _ProfilDrawer extends StatefulWidget {
     required this.onClose,
     required this.onKrediTap,
     this.alreadyOffered = false,
+    this.allowOffer = true,
+    this.canWriteReview = true,
   });
   final IlanPoster poster;
   final String ctaLabel;
   final VoidCallback onClose;
   final VoidCallback onKrediTap;
   final bool alreadyOffered;
+  final bool allowOffer;
+  final bool canWriteReview;
   @override
   State<_ProfilDrawer> createState() => _ProfilDrawerState();
 }
@@ -2882,11 +3218,15 @@ class _ProfilDrawerState extends State<_ProfilDrawer> {
 
   @override
   Widget build(BuildContext context) {
+    final offerOk = widget.allowOffer || widget.alreadyOffered;
     return _DrawerShell(
       onClose: widget.onClose,
       footer: _DrawerFooter(
-        label: widget.ctaLabel,
+        label: offerOk
+            ? widget.ctaLabel
+            : 'Bu ilan için rolünüz uygun değil',
         alreadyOffered: widget.alreadyOffered,
+        enabled: offerOk,
         onTap: () {
           widget.onClose();
           widget.onKrediTap();
@@ -2939,6 +3279,7 @@ class _ProfilDrawerState extends State<_ProfilDrawer> {
               submitted: _submitted,
               myRating: _myRating,
               myText: _myText,
+              canWrite: widget.canWriteReview,
               onToggleYorum: () => setState(() => _yorumYaz = !_yorumYaz),
               onRating: (r) => setState(() => _myRating = r),
               onSubmit: () {
@@ -2977,6 +3318,10 @@ class _UzmanDrawer extends StatefulWidget {
     required this.onProfile,
     this.alreadyOffered = false,
     this.ctaLabel = '1 Puan Harca — Teklif Ver',
+    this.onEdit,
+    this.onDelete,
+    this.allowOffer = true,
+    this.canWriteReview = true,
   });
   final UzmanIlani ilan;
   final VoidCallback onClose;
@@ -2984,6 +3329,10 @@ class _UzmanDrawer extends StatefulWidget {
   final VoidCallback onProfile;
   final bool alreadyOffered;
   final String ctaLabel;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final bool allowOffer;
+  final bool canWriteReview;
   @override
   State<_UzmanDrawer> createState() => _UzmanDrawerState();
 }
@@ -3020,15 +3369,19 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
     final avgR = avgRating(_reviews);
     final ilan = widget.ilan;
     final photos = ilan.photos;
+    final offerOk = widget.allowOffer || widget.alreadyOffered;
 
     return _DrawerShell(
       onClose: widget.onClose,
       footer: _DrawerFooter(
         label: widget.alreadyOffered
             ? 'Teklif Verildi — Mesaja Git'
-            : widget.ctaLabel,
+            : (offerOk
+                ? widget.ctaLabel
+                : 'Bu ilan için rolünüz uygun değil'),
         color: renk.color,
         alreadyOffered: widget.alreadyOffered,
+        enabled: offerOk,
         onTap: () {
           widget.onClose();
           widget.onKrediTap();
@@ -3044,20 +3397,27 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                 borderRadius: BorderRadius.circular(16),
                 child: AspectRatio(
                   aspectRatio: 16 / 10,
-                  child: Builder(builder: (_) {
+                  child: Builder(builder: (context) {
                     final idx = _photoIndex.clamp(0, photos.length - 1);
                     final current = photos[idx];
                     final bytes = _bytes(current);
-                    return Container(
-                      color: current.swatchColor,
-                      alignment: Alignment.center,
-                      child: bytes != null
-                          ? Image.memory(bytes,
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                              height: double.infinity)
-                          : Text(renk.emoji,
-                              style: const TextStyle(fontSize: 64)),
+                    return GestureDetector(
+                      onTap: () => _openIlanPhotoGallery(
+                        context,
+                        photos,
+                        index: idx,
+                      ),
+                      child: Container(
+                        color: current.swatchColor,
+                        alignment: Alignment.center,
+                        child: bytes != null
+                            ? Image.memory(bytes,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity)
+                            : Text(renk.emoji,
+                                style: const TextStyle(fontSize: 64)),
+                      ),
                     );
                   }),
                 ),
@@ -3075,7 +3435,10 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                       final b = _bytes(p);
                       final selected = i == _photoIndex.clamp(0, photos.length - 1);
                       return GestureDetector(
-                        onTap: () => setState(() => _photoIndex = i),
+                        onTap: () {
+                          setState(() => _photoIndex = i);
+                          _openIlanPhotoGallery(context, photos, index: i);
+                        },
                         child: Container(
                           width: 56,
                           decoration: BoxDecoration(
@@ -3102,13 +3465,48 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
               ],
               const SizedBox(height: 14),
             ],
-            Text(
-              ilan.title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: MetoColors.foreground,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    ilan.title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: MetoColors.foreground,
+                    ),
+                  ),
+                ),
+                if (widget.onEdit != null)
+                  IconButton(
+                    tooltip: 'Düzenle',
+                    onPressed: widget.onEdit,
+                    icon: const Icon(
+                      Icons.edit_outlined,
+                      size: 20,
+                      color: MetoColors.primary,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                  ),
+                if (widget.onDelete != null)
+                  IconButton(
+                    tooltip: 'Sil',
+                    onPressed: widget.onDelete,
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      size: 20,
+                      color: Color(0xFFEF4444),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                  ),
+              ],
             ),
             const SizedBox(height: 6),
             _Badge(
@@ -3252,6 +3650,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                 submitted: false,
                 myRating: _myRating,
                 myText: _myText,
+                canWrite: widget.canWriteReview,
                 onToggleYorum: () => setState(() => _yorumYaz = !_yorumYaz),
                 onRating: (r) => setState(() => _myRating = r),
                 onSubmit: () {
@@ -3302,6 +3701,10 @@ class _BakiciDrawer extends StatefulWidget {
     required this.onProfile,
     this.alreadyOffered = false,
     this.ctaLabel = '1 Puan Harca — Teklif Ver & Sohbet Aç',
+    this.onEdit,
+    this.onDelete,
+    this.allowOffer = true,
+    this.canWriteReview = true,
   });
   final BakiciIlani ilan;
   final VoidCallback onClose;
@@ -3309,6 +3712,10 @@ class _BakiciDrawer extends StatefulWidget {
   final VoidCallback onProfile;
   final bool alreadyOffered;
   final String ctaLabel;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final bool allowOffer;
+  final bool canWriteReview;
   @override
   State<_BakiciDrawer> createState() => _BakiciDrawerState();
 }
@@ -3344,14 +3751,16 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
     final avgR = avgRating(_reviews);
     final ilan = widget.ilan;
     final photos = ilan.photos;
+    final offerOk = widget.allowOffer || widget.alreadyOffered;
 
     return _DrawerShell(
       onClose: widget.onClose,
       footer: _DrawerFooter(
         label: widget.alreadyOffered
             ? 'Teklif Verildi — Mesaja Git'
-            : widget.ctaLabel,
+            : (offerOk ? widget.ctaLabel : 'Bu ilan için rolünüz uygun değil'),
         alreadyOffered: widget.alreadyOffered,
+        enabled: offerOk,
         onTap: () {
           widget.onClose();
           widget.onKrediTap();
@@ -3367,20 +3776,27 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                 borderRadius: BorderRadius.circular(16),
                 child: AspectRatio(
                   aspectRatio: 16 / 10,
-                  child: Builder(builder: (_) {
+                  child: Builder(builder: (context) {
                     final idx = _photoIndex.clamp(0, photos.length - 1);
                     final current = photos[idx];
                     final bytes = _bytes(current);
-                    return Container(
-                      color: current.swatchColor,
-                      alignment: Alignment.center,
-                      child: bytes != null
-                          ? Image.memory(bytes,
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                              height: double.infinity)
-                          : const Text('🤝',
-                              style: TextStyle(fontSize: 64)),
+                    return GestureDetector(
+                      onTap: () => _openIlanPhotoGallery(
+                        context,
+                        photos,
+                        index: idx,
+                      ),
+                      child: Container(
+                        color: current.swatchColor,
+                        alignment: Alignment.center,
+                        child: bytes != null
+                            ? Image.memory(bytes,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity)
+                            : const Text('🤝',
+                                style: TextStyle(fontSize: 64)),
+                      ),
                     );
                   }),
                 ),
@@ -3399,7 +3815,10 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                       final selected =
                           i == _photoIndex.clamp(0, photos.length - 1);
                       return GestureDetector(
-                        onTap: () => setState(() => _photoIndex = i),
+                        onTap: () {
+                          setState(() => _photoIndex = i);
+                          _openIlanPhotoGallery(context, photos, index: i);
+                        },
                         child: Container(
                           width: 56,
                           decoration: BoxDecoration(
@@ -3426,13 +3845,48 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
               ],
               const SizedBox(height: 14),
             ],
-            Text(
-              ilan.title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: MetoColors.foreground,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    ilan.title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: MetoColors.foreground,
+                    ),
+                  ),
+                ),
+                if (widget.onEdit != null)
+                  IconButton(
+                    tooltip: 'Düzenle',
+                    onPressed: widget.onEdit,
+                    icon: const Icon(
+                      Icons.edit_outlined,
+                      size: 20,
+                      color: MetoColors.primary,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                  ),
+                if (widget.onDelete != null)
+                  IconButton(
+                    tooltip: 'Sil',
+                    onPressed: widget.onDelete,
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      size: 20,
+                      color: Color(0xFFEF4444),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                  ),
+              ],
             ),
             const SizedBox(height: 6),
             const _Badge(
@@ -3574,6 +4028,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                 submitted: false,
                 myRating: _myRating,
                 myText: _myText,
+                canWrite: widget.canWriteReview,
                 onToggleYorum: () => setState(() => _yorumYaz = !_yorumYaz),
                 onRating: (r) => setState(() => _myRating = r),
                 onSubmit: () {
@@ -3621,6 +4076,8 @@ class _IkincielDrawer extends StatefulWidget {
     required this.onKrediTap,
     required this.onProfile,
     this.alreadyOffered = false,
+    this.onEdit,
+    this.onDelete,
   });
 
   final IkincielIlani ilan;
@@ -3628,6 +4085,8 @@ class _IkincielDrawer extends StatefulWidget {
   final VoidCallback onKrediTap;
   final VoidCallback onProfile;
   final bool alreadyOffered;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   @override
   State<_IkincielDrawer> createState() => _IkincielDrawerState();
@@ -3678,12 +4137,19 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
               borderRadius: BorderRadius.circular(16),
               child: AspectRatio(
                 aspectRatio: 16 / 10,
-                child: Container(
-                  color: current.swatchColor,
-                  alignment: Alignment.center,
-                  child: bytes != null
-                      ? Image.memory(bytes, fit: BoxFit.cover, width: double.infinity, height: double.infinity)
-                      : Text(ilan.emoji, style: const TextStyle(fontSize: 64)),
+                child: GestureDetector(
+                  onTap: () => _openIlanPhotoGallery(
+                    context,
+                    photos,
+                    index: idx,
+                  ),
+                  child: Container(
+                    color: current.swatchColor,
+                    alignment: Alignment.center,
+                    child: bytes != null
+                        ? Image.memory(bytes, fit: BoxFit.cover, width: double.infinity, height: double.infinity)
+                        : Text(ilan.emoji, style: const TextStyle(fontSize: 64)),
+                  ),
                 ),
               ),
             ),
@@ -3700,7 +4166,10 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                     final b = _bytes(p);
                     final selected = i == idx;
                     return GestureDetector(
-                      onTap: () => setState(() => _photoIndex = i),
+                      onTap: () {
+                        setState(() => _photoIndex = i);
+                        _openIlanPhotoGallery(context, photos, index: i);
+                      },
                       child: Container(
                         width: 56,
                         decoration: BoxDecoration(
@@ -3744,10 +4213,38 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                     ),
                   ),
                 ),
+                if (widget.onEdit != null)
+                  IconButton(
+                    tooltip: 'Düzenle',
+                    onPressed: widget.onEdit,
+                    icon: const Icon(
+                      Icons.edit_outlined,
+                      size: 20,
+                      color: MetoColors.primary,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                  ),
+                if (widget.onDelete != null)
+                  IconButton(
+                    tooltip: 'Sil',
+                    onPressed: widget.onDelete,
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      size: 20,
+                      color: Color(0xFFEF4444),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                  ),
                 _Badge(
                   text: ilan.condition,
-                  bg: const Color(0xFFF0FDF4),
-                  fg: const Color(0xFF15803D),
+                  bg: ikincielDurumRenk(ilan.condition).bg,
+                  fg: ikincielDurumRenk(ilan.condition).fg,
                 ),
               ],
             ),
@@ -3924,12 +4421,15 @@ class SohbetPage extends StatefulWidget {
     super.key,
     required this.kisi,
     required this.myEmail,
+    this.myDisplayName = '',
     this.sohbetKey,
     this.onNewMessage,
   });
 
   final SohbetKisi kisi;
   final String myEmail;
+  /// Karşı tarafa bildirimde gösterilecek ad (e-posta değil).
+  final String myDisplayName;
   /// Admin moderasyonunda gerçek sohbet anahtarı (iki başka kullanıcı).
   final String? sohbetKey;
   final ValueChanged<String>? onNewMessage;
@@ -4076,7 +4576,7 @@ class _SohbetPageState extends State<SohbetPage> {
         await notifySohbetMesaj(
           peerEmail: _peer,
           messageBody: text,
-          actorName: _me.split('@').first,
+          actorName: widget.myDisplayName,
           ilanId: widget.kisi.ilanId,
         );
       } catch (_) {
@@ -4215,7 +4715,7 @@ class _SohbetPageState extends State<SohbetPage> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Text(
-                m.body,
+                scrubEmailsInText(m.body),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 13, color: MetoColors.mutedFg),
@@ -4411,7 +4911,7 @@ class _SohbetPageState extends State<SohbetPage> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Text(m.body,
+                                        Text(scrubEmailsInText(m.body),
                                             style: TextStyle(
                                                 color: ben
                                                     ? Colors.white
@@ -4435,58 +4935,64 @@ class _SohbetPageState extends State<SohbetPage> {
                   ),
           ),
           Container(
-            padding: const EdgeInsets.all(12),
             color: MetoColors.card,
-            child: !_canSend
-                ? Text(
-                    _isAdmin
-                        ? 'Admin: mesajları basılı tutarak silebilirsiniz (gönderim kapalı).'
-                        : 'Bu sohbette mesaj gönderilemez.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: MetoColors.mutedFg,
-                    ),
-                  )
-                : Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _draft,
-                          enabled: true,
-                          decoration: InputDecoration(
-                            hintText: 'Mesaj yaz…',
-                            filled: true,
-                            fillColor: MetoColors.muted,
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: BorderSide.none),
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 10),
+            child: SafeArea(
+              top: false,
+              minimum: const EdgeInsets.only(bottom: 8),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                child: !_canSend
+                    ? Text(
+                        _isAdmin
+                            ? 'Admin: mesajları basılı tutarak silebilirsiniz (gönderim kapalı).'
+                            : 'Bu sohbette mesaj gönderilemez.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: MetoColors.mutedFg,
+                        ),
+                      )
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _draft,
+                              enabled: true,
+                              decoration: InputDecoration(
+                                hintText: 'Mesaj yaz…',
+                                filled: true,
+                                fillColor: MetoColors.muted,
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide.none),
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 10),
+                              ),
+                              onSubmitted: (_) => _gonder(),
+                            ),
                           ),
-                          onSubmitted: (_) => _gonder(),
-                        ),
+                          const SizedBox(width: 8),
+                          IconButton.filled(
+                            onPressed: _sending ? null : _gonder,
+                            style: IconButton.styleFrom(
+                              backgroundColor: MetoColors.primary,
+                              foregroundColor: Colors.white,
+                            ),
+                            icon: _sending
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.send),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      IconButton.filled(
-                        onPressed: _sending ? null : _gonder,
-                        style: IconButton.styleFrom(
-                          backgroundColor: MetoColors.primary,
-                          foregroundColor: Colors.white,
-                        ),
-                        icon: _sending
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.send),
-                      ),
-                    ],
-                  ),
+              ),
+            ),
           ),
         ],
       ),
@@ -4504,6 +5010,7 @@ class _IlanEditDraft {
     required this.note,
     required this.budgetOrPrice,
     this.uzmanlik = 'Uzman',
+    this.condition = 'İyi',
     this.photos = const [],
   });
 
@@ -4515,6 +5022,7 @@ class _IlanEditDraft {
   final String note;
   final String budgetOrPrice;
   final String uzmanlik;
+  final String condition;
   final List<IlanPhoto> photos;
 }
 
@@ -4524,12 +5032,14 @@ class _YeniIlanForm extends StatefulWidget {
     required this.onPublished,
     this.userName = 'Siz',
     this.userEmail = '',
+    this.profilFoto,
     this.editDraft,
   });
   final VoidCallback onBack;
   final ValueChanged<IlanKategori> onPublished;
   final String userName;
   final String userEmail;
+  final String? profilFoto;
   final _IlanEditDraft? editDraft;
   @override
   State<_YeniIlanForm> createState() => _YeniIlanFormState();
@@ -4538,6 +5048,7 @@ class _YeniIlanForm extends StatefulWidget {
 class _YeniIlanFormState extends State<_YeniIlanForm> {
   String _formKategori = 'Uzman Arıyorum';
   String _formUzmanlik = CatalogAdapters.uzmanlikSecenekleri().first;
+  String _formCondition = 'İyi';
   final List<IlanPhoto> _formPhotos = [];
   final _formBaslik = TextEditingController();
   final _formButce = TextEditingController();
@@ -4586,6 +5097,23 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
       final opts = CatalogAdapters.uzmanlikSecenekleri();
       _formUzmanlik = opts.contains(d.uzmanlik) ? d.uzmanlik : opts.first;
     }
+    if (kIkincielDurumSecenekleri.contains(d.condition)) {
+      _formCondition = d.condition;
+    } else if (d.condition.trim().isNotEmpty) {
+      // Eski değerleri en yakın seçeneğe eşle
+      final lower = d.condition.trim().toLowerCase();
+      if (lower.contains('sıfır') || lower.contains('sifir')) {
+        _formCondition = 'Sıfır ürün';
+      } else if (lower.contains('az')) {
+        _formCondition = 'Az kullanılmış';
+      } else if (lower.contains('kötü') || lower.contains('kotu')) {
+        _formCondition = 'Kötü';
+      } else if (lower.contains('çok')) {
+        _formCondition = 'İyi';
+      } else {
+        _formCondition = 'İyi';
+      }
+    }
     _formPhotos.addAll(d.photos);
   }
 
@@ -4621,16 +5149,12 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
       return;
     }
 
-    final name = widget.userName.trim().isEmpty ? 'Siz' : widget.userName.trim();
-    final initials = name
-        .split(RegExp(r'\s+'))
-        .where((w) => w.isNotEmpty)
-        .map((w) => w[0])
-        .join()
-        .toUpperCase();
-    final avatar = initials.isEmpty
-        ? 'SZ'
-        : initials.substring(0, initials.length.clamp(0, 2));
+    final name =
+        widget.userName.trim().isEmpty ? 'Siz' : widget.userName.trim();
+    final photo = (widget.profilFoto ?? '').trim();
+    final avatar = isAvatarImageSource(photo)
+        ? photo
+        : posterAvatarInitials(maskPersonDisplayName(name));
     final cityName = city!;
     final districtName = district!;
     final note = aciklama.isEmpty ? '—' : aciklama;
@@ -4722,6 +5246,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               district: districtName,
               note: note,
               price: butce,
+              condition: _formCondition,
               photos: _formPhotos.isEmpty
                   ? const [IlanPhoto.swatch(Color(0xFFDCE8F5))]
                   : List<IlanPhoto>.from(_formPhotos),
@@ -4735,6 +5260,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               district: districtName,
               note: note,
               price: butce,
+              condition: _formCondition,
               photos: _formPhotos.isEmpty
                   ? const [IlanPhoto.swatch(Color(0xFFDCE8F5))]
                   : List<IlanPhoto>.from(_formPhotos),
@@ -5095,6 +5621,43 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             _isIkinciel ? '₺2.000' : '₺300–500/seans',
             _formButce,
           ),
+          if (_isIkinciel) ...[
+            const Text(
+              'ÜRÜN DURUMU',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: MetoColors.mutedFg,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final opt in kIkincielDurumSecenekleri)
+                  ChoiceChip(
+                    label: Text(opt),
+                    selected: _formCondition == opt,
+                    onSelected: (_) => setState(() => _formCondition = opt),
+                    selectedColor: MetoColors.primary.withValues(alpha: 0.18),
+                    labelStyle: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: _formCondition == opt
+                          ? MetoColors.primary
+                          : MetoColors.mutedFg,
+                    ),
+                    side: BorderSide(
+                      color: _formCondition == opt
+                          ? MetoColors.primary
+                          : MetoColors.border,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
           if (_showPhotoPicker) ...[
             Text(
                 _isIkinciel ? 'ÜRÜN FOTOĞRAFLARI' : 'FOTOĞRAFLAR',

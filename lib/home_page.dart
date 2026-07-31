@@ -6,15 +6,26 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
+import 'admin_config.dart';
 import 'data/diseases_data.dart';
+import 'data/nadir_data.dart';
 import 'meto_theme.dart';
+import 'nadir_store.dart';
 import 'services/app_catalog_service.dart';
 import 'services/catalog_adapters.dart';
 import 'widgets/catalog_media.dart';
+import 'widgets/duyurular_section.dart';
+import 'widgets/hastaliklar_section.dart';
+import 'widgets/admin_disease_edit_sheet.dart';
 
 /// Figma Make `HomeTab` — birebir Flutter portu.
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({
+    super.key,
+    this.userEmail = '',
+  });
+
+  final String userEmail;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -22,11 +33,16 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   String? _activeDisease;
+  DiseaseInfo? _openedDisease;
+  String? _activeNadirId;
+  List<NadirItem> _nadirItems = List<NadirItem>.from(kDefaultNadirItems);
   int? _expandedFaq;
   int _heroIdx = 0;
   Timer? _heroTimer;
 
   List<DiseaseInfo> get _diseases => CatalogAdapters.diseases();
+
+  bool get _isAdmin => isAppAdmin(widget.userEmail);
 
   static const _heroSlides = [
     _HeroSlide(
@@ -43,62 +59,22 @@ class _HomePageState extends State<HomePage> {
     ),
   ];
 
-  static const _nadirHastaliklar = [
-    _NadirItem('Spina Bifida', '🧠', 'Omurilik ve omurga gelişim bozukluğu.'),
-    _NadirItem(
-      'Rett Sendromu',
-      '🌸',
-      'Ağırlıklı olarak kız çocuklarında görülen nörolojik gelişim bozukluğu.',
-    ),
-    _NadirItem(
-      'Angelman Sendromu',
-      '😊',
-      'Mutluluk davranışı ve gelişim geriliğiyle karakterize genetik hastalık.',
-    ),
-    _NadirItem(
-      'Prader-Willi',
-      '🧬',
-      'Hipotoni, obezite eğilimi ve gelişim geriliğiyle seyreden genetik durum.',
-    ),
-    _NadirItem(
-      'PKU (Fenilketonüri)',
-      '🔴',
-      'Fenilalanin metabolizmasındaki enzim eksikliğinden kaynaklanan metabolik hastalık.',
-    ),
-    _NadirItem(
-      'Fragile X',
-      '🔬',
-      'En yaygın kalıtsal zihinsel engel nedeni olan genetik bozukluk.',
-    ),
-    _NadirItem(
-      'Tuberous Sclerosis',
-      '🔵',
-      'Beyin, cilt ve organlarda iyi huylu tümörlere yol açan genetik hastalık.',
-    ),
-    _NadirItem(
-      'Duchenne Müsküler Distrofi',
-      '💪',
-      'Kas gücünün ilerleyici kaybıyla seyreden genetik kas hastalığı.',
-    ),
-    _NadirItem(
-      'Williams Sendromu',
-      '🎵',
-      'Sosyal kişilik, müzikal yetenek ve kardiyovasküler sorunlarla karakterize durum.',
-    ),
-    _NadirItem(
-      'CDKL5 Eksikliği',
-      '⚡',
-      'Erken başlangıçlı nöbetler ve ciddi gelişimsel gecikmeye yol açan genetik bozukluk.',
-    ),
-  ];
-
   @override
   void initState() {
     super.initState();
+    final cached = cachedNadirItems;
+    if (cached != null) _nadirItems = List<NadirItem>.from(cached);
+    _loadNadir();
     _heroTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (!mounted || _activeDisease != null) return;
       setState(() => _heroIdx = (_heroIdx + 1) % _heroSlides.length);
     });
+  }
+
+  Future<void> _loadNadir() async {
+    final items = await loadNadirItems(forceRefresh: !hasFreshNadirCache);
+    if (!mounted) return;
+    setState(() => _nadirItems = items);
   }
 
   @override
@@ -109,23 +85,69 @@ class _HomePageState extends State<HomePage> {
 
   DiseaseInfo? get _selected {
     if (_activeDisease == null || _activeDisease == 'nadir') return null;
+    if (_openedDisease?.id == _activeDisease) return _openedDisease;
     return _diseases.cast<DiseaseInfo?>().firstWhere(
           (d) => d!.id == _activeDisease,
           orElse: () => null,
         );
   }
 
-  void _goBack() => setState(() {
-        _activeDisease = null;
+  void _goBack() {
+    if (_activeDisease == 'nadir' && _activeNadirId != null) {
+      setState(() => _activeNadirId = null);
+      return;
+    }
+    setState(() {
+      _activeDisease = null;
+      _openedDisease = null;
+      _activeNadirId = null;
+      _expandedFaq = null;
+    });
+  }
+
+  void _openDisease(DiseaseInfo d) => setState(() {
+        _activeDisease = d.id;
+        _openedDisease = d;
+        _activeNadirId = null;
         _expandedFaq = null;
       });
+
+  Future<void> _editDiseaseDetail(DiseaseInfo d) async {
+    final result = await showModalBottomSheet<DiseaseInfo>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => AdminDiseaseEditSheet(disease: d),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _openedDisease = result;
+      _activeDisease = result.id;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Hastalık metni kaydedildi.')),
+    );
+  }
+
+  NadirItem? get _selectedNadir {
+    final id = _activeNadirId;
+    if (id == null) return null;
+    return _nadirItems.cast<NadirItem?>().firstWhere(
+          (n) => n!.id == id,
+          orElse: () => null,
+        );
+  }
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: AppCatalogService.instance,
       builder: (context, _) {
-        if (_activeDisease == 'nadir') return _buildNadirDetail();
+        if (_activeDisease == 'nadir') {
+          final nadir = _selectedNadir;
+          if (nadir != null) return _buildNadirItemDetail(nadir);
+          return _buildNadirDetail();
+        }
         final selected = _selected;
         if (selected != null) return _buildDiseaseDetail(selected);
         return _buildHome();
@@ -244,44 +266,11 @@ class _HomePageState extends State<HomePage> {
 
           const DisclaimerBanner(),
 
-          // Disease library
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Hastalıklar & Durumlar',
-                  style: GoogleFonts.nunito(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: MetoColors.foreground,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _diseases.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 0.92,
-                  ),
-                  itemBuilder: (context, i) {
-                    final d = _diseases[i];
-                    return _DiseaseCard(
-                      disease: d,
-                      onTap: () => setState(() {
-                        _activeDisease = d.id;
-                        _expandedFaq = null;
-                      }),
-                    );
-                  },
-                ),
-              ],
-            ),
+          DuyurularSection(userEmail: widget.userEmail),
+
+          HastaliklarSection(
+            userEmail: widget.userEmail,
+            onOpenDisease: _openDisease,
           ),
 
           // Yakında teaser
@@ -369,7 +358,8 @@ class _HomePageState extends State<HomePage> {
   Widget _buildDiseaseDetail(DiseaseInfo d) {
     return ColoredBox(
       color: MetoColors.background,
-      child: Column(
+      child: ListView(
+        padding: EdgeInsets.zero,
         children: [
           Container(
             width: double.infinity,
@@ -406,6 +396,23 @@ class _HomePageState extends State<HomePage> {
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   ),
+                  if (_isAdmin) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () => _editDiseaseDetail(d),
+                        icon: Icon(Icons.edit_outlined, size: 18, color: d.color),
+                        label: Text(
+                          'Metni düzenle',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: d.color,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   if (d.photo != null)
                     Center(
@@ -448,148 +455,156 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const DisclaimerBanner(margin: EdgeInsets.only(bottom: 16)),
-                _DetailCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              color: d.color,
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: const Text(
-                              '!',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
+                if (d.symptoms.isNotEmpty) ...[
+                  _DetailCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                color: d.color,
+                                shape: BoxShape.circle,
+                              ),
+                              alignment: Alignment.center,
+                              child: const Text(
+                                '!',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Belirtiler',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: MetoColors.foreground,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      for (final s in d.symptoms) ...[
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(Icons.check_circle, size: 14, color: d.color),
                             const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                s,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: MetoColors.foreground,
+                            const Text(
+                              'Belirtiler',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: MetoColors.foreground,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        for (final s in d.symptoms) ...[
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.check_circle, size: 14, color: d.color),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  s,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: MetoColors.foreground,
+                                  ),
                                 ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                if (d.diagnosis.trim().isNotEmpty) ...[
+                  _DetailCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.medical_services_outlined,
+                                size: 16, color: d.color),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Tanı Süreci',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: MetoColors.foreground,
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 8),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _DetailCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.medical_services_outlined,
-                              size: 16, color: d.color),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Tanı Süreci',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: MetoColors.foreground,
-                            ),
+                        Text(
+                          d.diagnosis,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: MetoColors.mutedFg,
+                            height: 1.45,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        d.diagnosis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: MetoColors.mutedFg,
-                          height: 1.45,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                _DetailCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.favorite_outline,
-                              size: 16, color: d.color),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Destek Yolları',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: MetoColors.foreground,
+                  const SizedBox(height: 16),
+                ],
+                if (d.support.isNotEmpty) ...[
+                  _DetailCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.favorite_outline,
+                                size: 16, color: d.color),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Destek Yolları',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: MetoColors.foreground,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final s in d.support)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: d.bg,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                s,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: d.color,
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final s in d.support)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: d.bg,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  s,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: d.color,
+                                  ),
                                 ),
                               ),
-                            ),
-                        ],
-                      ),
-                    ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                _DetailCard(
+                  const SizedBox(height: 16),
+                ],
+                if (d.faq.isNotEmpty)
+                  _DetailCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -683,7 +698,8 @@ class _HomePageState extends State<HomePage> {
   Widget _buildNadirDetail() {
     return ColoredBox(
       color: MetoColors.background,
-      child: Column(
+      child: ListView(
+        padding: EdgeInsets.zero,
         children: [
           Container(
             width: double.infinity,
@@ -742,9 +758,10 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const DisclaimerBanner(margin: EdgeInsets.only(bottom: 16)),
                 Container(
@@ -774,77 +791,80 @@ class _HomePageState extends State<HomePage> {
                     ],
                   ),
                 ),
-                for (final h in _nadirHastaliklar) ...[
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
+                for (final h in _nadirItems) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Material(
                       color: MetoColors.card,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: MetoColors.border),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () => setState(() => _activeNadirId = h.id),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF0EEFF),
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: MetoColors.border),
                           ),
-                          alignment: Alignment.center,
-                          child: Text(h.icon,
-                              style: const TextStyle(fontSize: 20)),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
+                          child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                h.name,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  color: MetoColors.foreground,
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF0EEFF),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
+                                alignment: Alignment.center,
+                                child: Text(h.icon,
+                                    style: const TextStyle(fontSize: 20)),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                h.desc,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: MetoColors.mutedFg,
-                                  height: 1.45,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              const Row(
-                                children: [
-                                  Text(
-                                    'Detay',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF9333EA),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      h.name,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: MetoColors.foreground,
+                                      ),
                                     ),
-                                  ),
-                                  Icon(Icons.chevron_right,
-                                      size: 14, color: Color(0xFF9333EA)),
-                                ],
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      h.shortDesc,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: MetoColors.mutedFg,
+                                        height: 1.45,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Row(
+                                      children: [
+                                        Text(
+                                          'Detay',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF9333EA),
+                                          ),
+                                        ),
+                                        Icon(Icons.chevron_right,
+                                            size: 14,
+                                            color: Color(0xFF9333EA)),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
@@ -868,29 +888,32 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      for (final r in const [
-                        'NORD — Nadir Hastalıklar Örgütü',
-                        'Orphanet Türkiye',
-                        'TÜBİTAK Nadir Hastalıklar Portalı',
-                      ])
+                      for (final r in kNadirResources)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.open_in_new,
-                                  size: 12, color: MetoColors.primary),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  r,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: MetoColors.primary,
+                          child: InkWell(
+                            onTap: () => _openExternalUrl(r.url),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.open_in_new,
+                                      size: 12, color: MetoColors.primary),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      r.label,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: MetoColors.primary,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ),
                     ],
@@ -903,102 +926,167 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-}
 
-// ─── Small widgets ───────────────────────────────────────────────────────────
+  Future<void> _openExternalUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bağlantı açılamadı.')),
+      );
+    }
+  }
 
-class _DiseaseCard extends StatelessWidget {
-  const _DiseaseCard({required this.disease, required this.onTap});
-
-  final DiseaseInfo disease;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: MetoColors.card,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: MetoColors.border),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 4,
-                offset: const Offset(0, 1),
+  Widget _buildNadirItemDetail(NadirItem item) {
+    return ColoredBox(
+      color: MetoColors.background,
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1A1A2E), Color(0xFF2D1B69)],
               ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (disease.photo != null)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 10,
-                    child: CatalogImage(
-                      source: disease.photo!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: disease.bg,
-                        alignment: Alignment.center,
-                        child: Text(disease.icon,
-                            style: const TextStyle(fontSize: 28)),
-                      ),
-                    ),
-                  ),
-                )
-              else
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: disease.bg,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  alignment: Alignment.center,
-                  child:
-                      Text(disease.icon, style: const TextStyle(fontSize: 20)),
-                ),
-              const SizedBox(height: 8),
-              Text(
-                disease.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.nunito(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: MetoColors.foreground,
-                  height: 1.25,
-                ),
-              ),
-              const Spacer(),
-              Row(
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Row(
+                    children: [
+                      TextButton.icon(
+                        onPressed: _goBack,
+                        icon: const Icon(Icons.chevron_left,
+                            size: 20, color: Color(0xCCFFFFFF)),
+                        label: const Text(
+                          'Nadir Hastalıklar',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xCCFFFFFF),
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (_isAdmin)
+                        IconButton(
+                          tooltip: 'Düzenle',
+                          onPressed: () => _openNadirEdit(item),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.white24,
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: const Icon(Icons.edit_outlined, size: 20),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(item.icon, style: const TextStyle(fontSize: 40)),
+                  const SizedBox(height: 8),
                   Text(
-                    'Daha fazla',
-                    style: GoogleFonts.nunito(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: disease.color,
+                    item.name,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      height: 1.2,
                     ),
                   ),
-                  Icon(Icons.chevron_right, size: 12, color: disease.color),
                 ],
               ),
-            ],
+            ),
           ),
-        ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _NadirSectionCard(
+                  title: 'Tanım ve Gelişim',
+                  body: item.definition,
+                ),
+                const SizedBox(height: 12),
+                _NadirSectionCard(
+                  title: 'Etkileri',
+                  body: item.effects,
+                ),
+                if (_isAdmin) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openNadirEdit(item),
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text('Metni düzenle'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
+
+  Future<void> _openNadirEdit(NadirItem item) async {
+    final result = await showModalBottomSheet<NadirItem>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _NadirEditSheet(item: item),
+    );
+    if (result == null || !mounted) return;
+    try {
+      final saved = await updateNadirItem(result);
+      if (!mounted) return;
+      setState(() {
+        _nadirItems = [
+          for (final n in _nadirItems)
+            if (n.id == saved.id) saved else n,
+        ];
+        _activeNadirId = saved.id;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nadir hastalık metni kaydedildi.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      // Lokal güncelle (tablo yoksa)
+      setState(() {
+        _nadirItems = [
+          for (final n in _nadirItems)
+            if (n.id == result.id) result else n,
+        ];
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().contains('nadir') ||
+                    e.toString().contains('PGRST') ||
+                    e.toString().contains('schema')
+                ? 'Yerelde kaydedildi. Kalıcı için nadir_hastaliklar.sql çalıştırın.'
+                : 'Kayıt uyarısı: $e',
+          ),
+        ),
+      );
+    }
+  }
 }
+
+// ─── Small widgets ───────────────────────────────────────────────────────────
 
 class _DetailCard extends StatelessWidget {
   const _DetailCard({required this.child});
@@ -1079,6 +1167,7 @@ class PubMedSearchBar extends StatefulWidget {
 
 class _PubMedSearchBarState extends State<PubMedSearchBar> {
   final _controller = TextEditingController();
+  final _focus = FocusNode();
   bool _loading = false;
   bool _searched = false;
   String _translatedQ = '';
@@ -1087,6 +1176,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
   List<_TrialItem> _trials = [];
   int _pubmedPage = 0;
   int _trialsPage = 0;
+  List<String> _suggestions = const [];
 
   /// Sayfa başına gösterilen kart sayısı.
   static const _pageSize = 6;
@@ -1112,14 +1202,128 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
     'çocuk': 'children',
   };
 
+  static const _typoHints = {
+    'otizim': 'otizm',
+    'otizim spektrum': 'otizm',
+    'otizm spektrumu': 'otizm',
+    'serebral pals': 'serebral palsi',
+    'serebralpalasi': 'serebral palsi',
+    'down sendormu': 'down sendromu',
+    'dawn sendromu': 'down sendromu',
+    'deh': 'dehb',
+    'adhd': 'dehb',
+    'gelisim geriligi': 'gelişim geriliği',
+    'gelisim': 'gelişim geriliği',
+    'duyu butunleme': 'duyu bütünleme',
+    'iletisim': 'iletişim bozukluğu',
+  };
+
+  List<String> get _vocab {
+    final names = <String>[
+      for (final d in CatalogAdapters.diseases()) d.name,
+      ..._dict.keys,
+      'nadir hastalıklar',
+      'fizyoterapi',
+      'özel eğitim',
+      'dil terapisi',
+    ];
+    final seen = <String>{};
+    return [
+      for (final n in names)
+        if (seen.add(n.toLowerCase())) n,
+    ];
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onQueryChanged);
+    _focus.addListener(() {
+      if (!_focus.hasFocus) {
+        // Kısa gecikme: öneri satırına tıklamaya izin ver
+        Future<void>.delayed(const Duration(milliseconds: 120), () {
+          if (mounted && !_focus.hasFocus) {
+            setState(() => _suggestions = const []);
+          }
+        });
+      } else {
+        _onQueryChanged();
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _controller.removeListener(_onQueryChanged);
     _controller.dispose();
+    _focus.dispose();
     super.dispose();
+  }
+
+  int _lev(String a, String b) {
+    if (a == b) return 0;
+    if (a.isEmpty) return b.length;
+    if (b.isEmpty) return a.length;
+    final m = a.length;
+    final n = b.length;
+    var prev = List<int>.generate(n + 1, (j) => j);
+    for (var i = 1; i <= m; i++) {
+      final cur = List<int>.filled(n + 1, 0);
+      cur[0] = i;
+      for (var j = 1; j <= n; j++) {
+        final cost = a[i - 1] == b[j - 1] ? 0 : 1;
+        cur[j] = [
+          cur[j - 1] + 1,
+          prev[j] + 1,
+          prev[j - 1] + cost,
+        ].reduce((x, y) => x < y ? x : y);
+      }
+      prev = cur;
+    }
+    return prev[n];
+  }
+
+  void _onQueryChanged() {
+    final raw = _controller.text.trim().toLowerCase();
+    if (raw.isEmpty) {
+      if (_suggestions.isNotEmpty) setState(() => _suggestions = const []);
+      return;
+    }
+    final corrected = _typoHints[raw] ?? raw;
+    final scored = <(String, int)>[];
+    for (final v in _vocab) {
+      final vl = v.toLowerCase();
+      if (vl.startsWith(corrected) || vl.contains(corrected)) {
+        scored.add((v, 0));
+        continue;
+      }
+      final d = _lev(corrected, vl.length > 24 ? vl.substring(0, 24) : vl);
+      if (d <= 2 && corrected.length >= 3) scored.add((v, d + 1));
+    }
+    scored.sort((a, b) => a.$2.compareTo(b.$2));
+    final out = <String>[];
+    final typoFix = _typoHints[raw];
+    if (typoFix != null) out.add(typoFix);
+    for (final s in scored) {
+      if (out.length >= 6) break;
+      if (!out.any((e) => e.toLowerCase() == s.$1.toLowerCase())) {
+        out.add(s.$1);
+      }
+    }
+    setState(() => _suggestions = out);
+  }
+
+  void _applySuggestion(String s) {
+    _controller.text = s;
+    _controller.selection = TextSelection.collapsed(offset: s.length);
+    setState(() => _suggestions = const []);
+    _search();
   }
 
   String _toEnglish(String text) {
     var t = text.toLowerCase().trim();
+    final typo = _typoHints[t];
+    if (typo != null) t = typo;
     final keys = _dict.keys.toList()
       ..sort((a, b) => b.length.compareTo(a.length));
     for (final k in keys) {
@@ -1427,6 +1631,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
               Expanded(
                 child: TextField(
                   controller: _controller,
+                  focusNode: _focus,
                   onSubmitted: (_) => _search(),
                   style: const TextStyle(
                       fontSize: 14, color: MetoColors.foreground),
@@ -1469,6 +1674,58 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
             ],
           ),
         ),
+        if (_suggestions.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Container(
+            decoration: BoxDecoration(
+              color: MetoColors.card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: MetoColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < _suggestions.length; i++) ...[
+                  if (i > 0) const Divider(height: 1),
+                  InkWell(
+                    onTap: () => _applySuggestion(_suggestions[i]),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.north_west,
+                              size: 14, color: MetoColors.mutedFg),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _suggestions[i],
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: MetoColors.foreground,
+                              ),
+                            ),
+                          ),
+                          if (_typoHints[
+                                  _controller.text.trim().toLowerCase()] ==
+                              _suggestions[i].toLowerCase())
+                            const Text(
+                              'Bunu mu demek istediniz?',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: MetoColors.mutedFg,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 6),
         const Row(
           children: [
@@ -1909,11 +2166,210 @@ class _HeroSlide {
   final String alt;
 }
 
-class _NadirItem {
-  const _NadirItem(this.name, this.icon, this.desc);
-  final String name;
-  final String icon;
-  final String desc;
+class _NadirSectionCard extends StatelessWidget {
+  const _NadirSectionCard({required this.title, required this.body});
+
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: MetoColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: MetoColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF9333EA),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            body.isEmpty ? 'İçerik henüz eklenmedi.' : body,
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.5,
+              color: MetoColors.mutedFg,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NadirEditSheet extends StatefulWidget {
+  const _NadirEditSheet({required this.item});
+
+  final NadirItem item;
+
+  @override
+  State<_NadirEditSheet> createState() => _NadirEditSheetState();
+}
+
+class _NadirEditSheetState extends State<_NadirEditSheet> {
+  late final TextEditingController _name;
+  late final TextEditingController _short;
+  late final TextEditingController _definition;
+  late final TextEditingController _effects;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _name = TextEditingController(text: widget.item.name);
+    _short = TextEditingController(text: widget.item.shortDesc);
+    _definition = TextEditingController(text: widget.item.definition);
+    _effects = TextEditingController(text: widget.item.effects);
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _short.dispose();
+    _definition.dispose();
+    _effects.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final name = _name.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Başlık gerekli.')),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    Navigator.of(context).pop(
+      widget.item.copyWith(
+        name: name,
+        shortDesc: _short.text.trim(),
+        definition: _definition.text.trim(),
+        effects: _effects.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottom),
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.88,
+        ),
+        decoration: const BoxDecoration(
+          color: MetoColors.card,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        child: Column(
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: MetoColors.border,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Nadir hastalık düzenle',
+                style: GoogleFonts.nunito(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: MetoColors.foreground,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: _name,
+                      enabled: !_saving,
+                      decoration: const InputDecoration(
+                        labelText: 'Başlık',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _short,
+                      enabled: !_saving,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Kısa özet (liste kartı)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _definition,
+                      enabled: !_saving,
+                      minLines: 4,
+                      maxLines: 8,
+                      decoration: const InputDecoration(
+                        labelText: 'Tanım ve Gelişim',
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _effects,
+                      enabled: !_saving,
+                      minLines: 4,
+                      maxLines: 8,
+                      decoration: const InputDecoration(
+                        labelText: 'Etkileri',
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _saving ? null : _save,
+                style: FilledButton.styleFrom(
+                  backgroundColor: MetoColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: Text(
+                  'Kaydet',
+                  style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _PubMedItem {

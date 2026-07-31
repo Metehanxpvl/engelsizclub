@@ -9,13 +9,25 @@
 
 -- Aşağısı Dashboard’da tek seferde çalıştırılabilir:
 
--- İlan UPDATE (sahip)
+-- İlan UPDATE (sahip: owner_id veya e-posta)
+update public.ilanlar i
+set owner_id = u.id
+from auth.users u
+where i.owner_id is null
+  and lower(trim(i.owner_email)) = lower(u.email);
+
 drop policy if exists "ilanlar_update_own" on public.ilanlar;
 create policy "ilanlar_update_own"
   on public.ilanlar for update
   to authenticated
-  using (owner_id = auth.uid())
-  with check (owner_id = auth.uid());
+  using (
+    owner_id = auth.uid()
+    or lower(trim(owner_email)) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  )
+  with check (
+    owner_id = auth.uid()
+    or lower(trim(owner_email)) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
 
 -- Mesaj bildirimi: gönderen seç + güncelle (üst üste binmesin)
 drop policy if exists "bildirim_select_actor_mesaj" on public.bildirimler;

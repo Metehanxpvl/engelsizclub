@@ -12,10 +12,16 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'admin_config.dart';
 import 'bildirim_store.dart';
+import 'feed_seen_store.dart';
 import 'home_page.dart';
 import 'cocuk_profil_store.dart';
 import 'data/centers_data.dart' show kAllIlceler;
-import 'data/ilanlar_data.dart' show SohbetKisi;
+import 'data/ilanlar_data.dart'
+    show
+        SohbetKisi,
+        contactAvatarLetter,
+        publicContactLabel,
+        scrubEmailsInText;
 import 'data/turkish_cities_data.dart';
 import 'ilan_store.dart';
 import 'kredi_store.dart';
@@ -31,6 +37,8 @@ import 'profil_foto_store.dart';
 import 'services/play_billing_service.dart';
 import 'sohbet_store.dart';
 import 'user_cloud_store.dart';
+import 'widgets/user_avatar.dart';
+import 'package:showcaseview/showcaseview.dart';
 
 enum MetoTab { home, merkezler, ilanlar, forum, mesajlar, haklar, kartlar }
 
@@ -66,11 +74,13 @@ class _MainShellState extends State<MainShell> {
   late final PageController _tabPageController;
   bool _showProfilPanel = false;
   bool _krediSatin = false;
+  bool _storeLoadingOpen = false;
   bool _showCocukProfil = false;
   bool _showIlanlarim = false;
   bool _showKullaniciProfil = false;
   bool _showKaydedilenler = false;
   bool _showBildirimler = false;
+  bool _showHakkinda = false;
   /// Profil panelini aşağı kaydırarak kapatırken biriken dikey ofset.
   double _profilDragY = 0;
   CocukProfil _cocukProfil = const CocukProfil();
@@ -87,6 +97,15 @@ class _MainShellState extends State<MainShell> {
   late int _userKredi;
   bool _krediHosBonusGosterildi = false;
   int _ilanlarUnread = 0;
+  int _newIlanlarCount = 0;
+  int _newForumCount = 0;
+  bool _navTourStarted = false;
+
+  final _navTourKeys = <MetoTab, GlobalKey>{
+    for (final t in MetoTab.values) t: GlobalKey(),
+  };
+
+  static const _navTourDoneKey = 'nav_feature_tour_v1';
 
   _KrediStep _krediStep = _KrediStep.paket;
   _KrediPaket? _seciliPaket;
@@ -186,10 +205,117 @@ class _MainShellState extends State<MainShell> {
     );
     // Realtime yedek poll (ağ kopması / publication eksikse)
     _sohbetTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) => _loadSohbetOzetleri(),
+      const Duration(seconds: 12),
+      (_) {
+        _loadSohbetOzetleri();
+        unawaited(_refreshFeedDots());
+      },
     );
     unawaited(_initStoreBilling());
+    unawaited(_refreshFeedDots());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_maybeStartNavTour());
+    });
+  }
+
+  Future<void> _refreshFeedDots() async {
+    final ilan = await FeedSeenStore.countNewIlanlar();
+    final forum = await FeedSeenStore.countNewForum();
+    if (!mounted) return;
+    if (_newIlanlarCount == ilan && _newForumCount == forum) return;
+    setState(() {
+      _newIlanlarCount = ilan;
+      _newForumCount = forum;
+    });
+  }
+
+  Future<void> _maybeStartNavTour() async {
+    if (!mounted || _navTourStarted) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_navTourDoneKey) == true) return;
+    _navTourStarted = true;
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
+    ShowcaseView.get().startShowCase([
+      for (final t in MetoTab.values) _navTourKeys[t]!,
+    ]);
+  }
+
+  Future<void> _finishNavTour() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_navTourDoneKey, true);
+  }
+
+  void _showCenteredNotice(String message) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    final h = MediaQuery.sizeOf(context).height;
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.fromLTRB(24, 0, 24, h * 0.42),
+        duration: const Duration(seconds: 4),
+        content: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCenteredLoading(String message) async {
+    if (!mounted) return;
+    _storeLoadingOpen = true;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black45,
+      useRootNavigator: true,
+      builder: (ctx) => PopScope(
+        canPop: false,
+        child: Center(
+          child: Material(
+            color: MetoColors.card,
+            elevation: 8,
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      color: MetoColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: MetoColors.foreground,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    _storeLoadingOpen = false;
+  }
+
+  void _hideCenteredLoading() {
+    if (!_storeLoadingOpen || !mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
   }
 
   Future<void> _initStoreBilling() async {
@@ -199,12 +325,8 @@ class _MainShellState extends State<MainShell> {
         setState(() => _userKredi += adet);
         await _saveKredi();
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${StoreBillingService.instance.storeName} ödemesi alındı · +$adet $_krediBirimLabel',
-            ),
-          ),
+        _showCenteredNotice(
+          '${StoreBillingService.instance.storeName} ödemesi alındı · +$adet $_krediBirimLabel',
         );
         setState(() {
           _krediStep = _KrediStep.paket;
@@ -214,7 +336,7 @@ class _MainShellState extends State<MainShell> {
       },
       onError: (msg) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        _showCenteredNotice(msg);
       },
     );
   }
@@ -236,8 +358,24 @@ class _MainShellState extends State<MainShell> {
     if (changed) {
       setState(() {
         _activeTab = t;
-        if (t == MetoTab.ilanlar) _ilanlarUnread = 0;
+        if (t == MetoTab.ilanlar) {
+          _ilanlarUnread = 0;
+          _newIlanlarCount = 0;
+        }
+        if (t == MetoTab.forum) {
+          _newForumCount = 0;
+        }
       });
+      if (t == MetoTab.ilanlar) {
+        unawaited(FeedSeenStore.markIlanlarSeen());
+      }
+      if (t == MetoTab.forum) {
+        unawaited(FeedSeenStore.markForumSeen());
+      }
+      // Sekmeden çıkınca / değişince sayıyı tazele (yeni paylaşım rozeti)
+      if (t != MetoTab.ilanlar && t != MetoTab.forum) {
+        unawaited(_refreshFeedDots());
+      }
     }
     if (_tabPageController.hasClients) {
       final current = _tabPageController.page?.round() ?? _activeTab.index;
@@ -271,15 +409,29 @@ class _MainShellState extends State<MainShell> {
     if (_activeTab == t) return;
     setState(() {
       _activeTab = t;
-      if (t == MetoTab.ilanlar) _ilanlarUnread = 0;
+      if (t == MetoTab.ilanlar) {
+        _ilanlarUnread = 0;
+        _newIlanlarCount = 0;
+      }
+      if (t == MetoTab.forum) {
+        _newForumCount = 0;
+      }
     });
     if (t == MetoTab.ilanlar) {
+      unawaited(FeedSeenStore.markIlanlarSeen());
       loadAllIlanlar(preferEmail: widget.user.email).then((_) {
         if (mounted) setState(() {});
       });
     }
+    if (t == MetoTab.forum) {
+      unawaited(FeedSeenStore.markForumSeen());
+    }
     if (t == MetoTab.mesajlar) {
       _loadSohbetOzetleri();
+    }
+    // İlanlar/Forum dışına çıkınca yeni paylaşım sayısını güncelle
+    if (t != MetoTab.ilanlar && t != MetoTab.forum) {
+      unawaited(_refreshFeedDots());
     }
   }
 
@@ -367,14 +519,31 @@ class _MainShellState extends State<MainShell> {
     });
   }
 
+  String _peerDisplayName(String peerEmail) {
+    final key = peerEmail.trim().toLowerCase();
+    for (final b in _bildirimlerInbox) {
+      if (b.actorEmail.trim().toLowerCase() == key &&
+          b.actorName.trim().isNotEmpty &&
+          !b.actorName.contains('@') &&
+          !b.actorName.contains('****')) {
+        return publicContactLabel(b.actorName);
+      }
+    }
+    final fromIlan = revealedPosterNameForOwner(key);
+    if (fromIlan != null &&
+        fromIlan.isNotEmpty &&
+        !fromIlan.contains('****')) {
+      return publicContactLabel(fromIlan);
+    }
+    return publicContactLabel(peerEmail);
+  }
+
   void _openSohbet(SohbetOzet o) {
-    final display = o.peerEmail.contains('↔')
-        ? o.peerEmail
-        : o.peerEmail.split('@').first;
+    final display = _peerDisplayName(o.peerEmail);
     final peerKey = o.peerEmail.trim().toLowerCase();
     final kisi = SohbetKisi(
-      ad: display.isEmpty ? o.peerEmail : display,
-      avatar: (display.isNotEmpty ? display.substring(0, 1) : '?').toUpperCase(),
+      ad: display,
+      avatar: contactAvatarLetter(display),
       avatarColor: MetoColors.primary,
       isOnline: _peerOnline[peerKey] == true,
       peerEmail: o.peerEmail,
@@ -405,6 +574,7 @@ class _MainShellState extends State<MainShell> {
         builder: (_) => SohbetPage(
           kisi: kisi,
           myEmail: widget.user.email,
+          myDisplayName: _publicDisplayName,
           sohbetKey: o.sohbetKey,
         ),
       ),
@@ -421,7 +591,7 @@ class _MainShellState extends State<MainShell> {
         title: const Text('Bildirimi sil'),
         content: Text(
           b.body.isNotEmpty
-              ? '"${b.body}" bildirimini silmek istiyor musunuz?'
+              ? '"${scrubEmailsInText(b.body)}" bildirimini silmek istiyor musunuz?'
               : 'Bu bildirimi silmek istiyor musunuz?',
         ),
         actions: [
@@ -487,7 +657,7 @@ class _MainShellState extends State<MainShell> {
       builder: (dCtx) => AlertDialog(
         title: const Text('Sohbeti sil'),
         content: Text(
-          '${o.peerEmail.split('@').first} ile olan tüm mesajlar silinecek.',
+          '${_peerDisplayName(o.peerEmail)} ile olan tüm mesajlar silinecek.',
         ),
         actions: [
           TextButton(
@@ -571,9 +741,10 @@ class _MainShellState extends State<MainShell> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  b.actorName.isNotEmpty
-                      ? '${b.actorName} · ${b.actorEmail}'
-                      : b.actorEmail,
+                  publicContactLabel(
+                    b.actorEmail,
+                    preferredName: b.actorName,
+                  ),
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -582,7 +753,7 @@ class _MainShellState extends State<MainShell> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  b.body,
+                  scrubEmailsInText(b.body),
                   style: const TextStyle(fontSize: 14, height: 1.4),
                 ),
               ],
@@ -593,13 +764,13 @@ class _MainShellState extends State<MainShell> {
               TextButton(
                 onPressed: () {
                   Navigator.pop(ctx);
-                  final name = b.actorName.isNotEmpty
-                      ? b.actorName
-                      : b.actorEmail.split('@').first;
+                  final name = publicContactLabel(
+                    b.actorEmail,
+                    preferredName: b.actorName,
+                  );
                   final kisi = SohbetKisi(
-                    ad: name.isEmpty ? b.actorEmail : name,
-                    avatar: (name.isNotEmpty ? name.substring(0, 1) : '?')
-                        .toUpperCase(),
+                    ad: name,
+                    avatar: contactAvatarLetter(name),
                     avatarColor: MetoColors.primary,
                     isOnline:
                         _peerOnline[b.actorEmail.trim().toLowerCase()] == true,
@@ -610,6 +781,7 @@ class _MainShellState extends State<MainShell> {
                       builder: (_) => SohbetPage(
                         kisi: kisi,
                         myEmail: widget.user.email,
+                        myDisplayName: _publicDisplayName,
                       ),
                     ),
                   );
@@ -626,12 +798,13 @@ class _MainShellState extends State<MainShell> {
       return;
     }
 
-    final name = b.actorName.isNotEmpty
-        ? b.actorName
-        : b.actorEmail.split('@').first;
+    final name = publicContactLabel(
+      b.actorEmail,
+      preferredName: b.actorName,
+    );
     final kisi = SohbetKisi(
-      ad: name.isEmpty ? b.actorEmail : name,
-      avatar: (name.isNotEmpty ? name.substring(0, 1) : '?').toUpperCase(),
+      ad: name,
+      avatar: contactAvatarLetter(name),
       avatarColor: MetoColors.primary,
       isOnline:
           _peerOnline[b.actorEmail.trim().toLowerCase()] == true,
@@ -645,6 +818,7 @@ class _MainShellState extends State<MainShell> {
         builder: (_) => SohbetPage(
           kisi: kisi,
           myEmail: widget.user.email,
+          myDisplayName: _publicDisplayName,
         ),
       ),
     )
@@ -751,10 +925,8 @@ class _MainShellState extends State<MainShell> {
                         for (final b in bildirimler) ...[
                           Dismissible(
                             key: ValueKey('bildirim_${b.id}'),
-                            direction: DismissDirection.horizontal,
-                            background: _bildirimSwipeDeleteBg(alignStart: true),
-                            secondaryBackground:
-                                _bildirimSwipeDeleteBg(alignStart: false),
+                            direction: DismissDirection.endToStart,
+                            background: _bildirimSwipeDeleteBg(alignStart: false),
                             confirmDismiss: (_) => _confirmDeleteBildirim(b),
                             child: Material(
                               color: b.read
@@ -776,15 +948,19 @@ class _MainShellState extends State<MainShell> {
                                       ? MetoColors.muted
                                       : (b.isMesaj
                                           ? MetoColors.primary
-                                          : b.isGorus
-                                              ? const Color(0xFF0EA5E9)
-                                              : const Color(0xFFEF4444)),
+                                          : b.isForum
+                                              ? const Color(0xFF7C3AED)
+                                              : b.isGorus
+                                                  ? const Color(0xFF0EA5E9)
+                                                  : const Color(0xFFEF4444)),
                                   child: Icon(
                                     b.isMesaj
                                         ? Icons.chat_bubble_outline
-                                        : b.isGorus
-                                            ? Icons.feedback_outlined
-                                            : Icons.campaign_outlined,
+                                        : b.isForum
+                                            ? Icons.forum_outlined
+                                            : b.isGorus
+                                                ? Icons.feedback_outlined
+                                                : Icons.campaign_outlined,
                                     color: b.read
                                         ? MetoColors.mutedFg
                                         : Colors.white,
@@ -895,11 +1071,9 @@ class _MainShellState extends State<MainShell> {
                                               : MetoColors.primary
                                                   .withValues(alpha: 0.75),
                                           child: Text(
-                                            o.peerEmail.isNotEmpty
-                                                ? o.peerEmail
-                                                    .substring(0, 1)
-                                                    .toUpperCase()
-                                                : '?',
+                                            contactAvatarLetter(
+                                              _peerDisplayName(o.peerEmail),
+                                            ),
                                             style: const TextStyle(
                                               color: Colors.white,
                                               fontWeight: FontWeight.w800,
@@ -936,9 +1110,7 @@ class _MainShellState extends State<MainShell> {
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            o.peerEmail.contains('↔')
-                                                ? o.peerEmail
-                                                : o.peerEmail.split('@').first,
+                                            _peerDisplayName(o.peerEmail),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: TextStyle(
@@ -953,7 +1125,7 @@ class _MainShellState extends State<MainShell> {
                                           ),
                                           const SizedBox(height: 3),
                                           Text(
-                                            o.lastMsg,
+                                            scrubEmailsInText(o.lastMsg),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: TextStyle(
@@ -1042,6 +1214,7 @@ class _MainShellState extends State<MainShell> {
       _kullaniciProfil = cloud.profil;
       _cocukProfil = cloud.cocuk;
       _profilFoto = cloud.photoData;
+      cacheOwnUserPhoto(widget.user.email, cloud.photoData);
       _favoriler = cloud.favorites;
       _bildirimler = cloud.notifications;
     });
@@ -1092,6 +1265,7 @@ class _MainShellState extends State<MainShell> {
       photoData: dataUrl,
     );
     await saveProfilFoto(widget.user.email, dataUrl);
+    cacheOwnUserPhoto(widget.user.email, dataUrl);
     if (!mounted) return;
     setState(() => _profilFoto = dataUrl);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1288,8 +1462,16 @@ class _MainShellState extends State<MainShell> {
     _odemeYukleniyor = false;
   }
 
+  String get _publicDisplayName {
+    final ad = _kullaniciProfil.adSoyad.trim();
+    if (ad.isNotEmpty && !ad.contains('@')) return ad;
+    final n = widget.user.name.trim();
+    if (n.isNotEmpty && !n.contains('@')) return n;
+    return 'Üye';
+  }
+
   String get _initials {
-    final parts = widget.user.name.trim().split(RegExp(r'\s+'));
+    final parts = _publicDisplayName.split(RegExp(r'\s+'));
     final letters = parts.map((w) => w.isEmpty ? '' : w[0]).join();
     return letters.toUpperCase().substring(0, letters.length.clamp(0, 2));
   }
@@ -1299,21 +1481,25 @@ class _MainShellState extends State<MainShell> {
     // konum/merkez araması tetiklenmesin. Sağa/sola kaydırarak sekmeler arası geçiş.
     return PageView(
       controller: _tabPageController,
-      // Mesajlar'da yatay kaydırma bildirim silmeye gitsin (sekme kaydırması kapalı).
-      physics: _activeTab == MetoTab.mesajlar
-          ? const NeverScrollableScrollPhysics()
-          : const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
-            ),
+      // Sekmeler arası kaydırma açık; mesaj silme yalnız sola kaydırma (endToStart).
+      physics: const BouncingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      ),
       onPageChanged: _onTabPageChanged,
       children: [
-        HomePage(key: ValueKey('home_$_homeRefreshToken')),
+        _KeepAliveTab(
+          child: HomePage(
+            key: ValueKey('home_$_homeRefreshToken'),
+            userEmail: widget.user.email,
+          ),
+        ),
         const _KeepAliveTab(child: MerkezlerPage()),
         IlanlarPage(
           userKredi: _userKredi,
           userEmail: widget.user.email,
-          userName: widget.user.name,
+          userName: _publicDisplayName,
           userType: _role,
+          profilFoto: _profilFoto,
           onKrediHarca: _harcaBirKredi,
           onUnreadChange: (n) {
             if (_ilanlarUnread == n) return;
@@ -1336,6 +1522,7 @@ class _MainShellState extends State<MainShell> {
           userName: widget.user.name,
           userEmail: widget.user.email,
           userType: _role,
+          profilFoto: _profilFoto,
         ),
         _buildMesajlarPage(),
         const HaklarPage(),
@@ -1357,6 +1544,7 @@ class _MainShellState extends State<MainShell> {
       _showKullaniciProfil = false;
       _showKaydedilenler = false;
       _showBildirimler = false;
+      _showHakkinda = false;
       _profilDragY = 0;
       _resetKredi();
     });
@@ -1493,6 +1681,7 @@ class _MainShellState extends State<MainShell> {
       _showKullaniciProfil = false;
       _showKaydedilenler = false;
       _showBildirimler = false;
+      _showHakkinda = false;
       _profilDragY = 0;
       _resetKredi();
     });
@@ -1500,33 +1689,44 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: MetoColors.background,
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              _BrandBar(
-                initials: _initials,
-                avatarColor: widget.user.avatarColor,
-                photoBytes: _profilFotoBytes,
-                notificationBadge:
-                    _teklifBildirimUnread + (_yeniMesajVar ? 1 : 0),
-                onAvatarTap: _openProfilPanel,
-                onMenuTap: _openProfilPanel,
-                onHomeTap: _goHomeAndRefresh,
-              ),
-              Expanded(child: _body),
-              _BottomNav(
-                active: _activeTab,
-                ilanlarUnread: _ilanlarUnread,
-                mesajlarUnread: _mesajUnreadCount,
-                onSelect: (t) => _goToTab(t),
-              ),
-            ],
-          ),
-          if (_showProfilPanel) _buildProfilOverlay(),
-        ],
+    return ShowCaseWidget(
+      onFinish: () {
+        unawaited(_finishNavTour());
+      },
+      builder: (context) => Scaffold(
+        backgroundColor: MetoColors.background,
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                _BrandBar(
+                  initials: _initials,
+                  avatarColor: widget.user.avatarColor,
+                  photoBytes: _profilFotoBytes,
+                  notificationBadge:
+                      _teklifBildirimUnread + (_yeniMesajVar ? 1 : 0),
+                  onAvatarTap: _openProfilPanel,
+                  onMenuTap: _openProfilPanel,
+                  onHomeTap: _goHomeAndRefresh,
+                ),
+                Expanded(child: _body),
+                _BottomNav(
+                  active: _activeTab,
+                  tourKeys: _navTourKeys,
+                  ilanlarNewCount: _newIlanlarCount,
+                  forumNewCount: _newForumCount,
+                  mesajlarUnread: _mesajUnreadCount,
+                  onSelect: (t) => _goToTab(t),
+                  onSkipTour: () {
+                    ShowcaseView.get().dismiss();
+                    unawaited(_finishNavTour());
+                  },
+                ),
+              ],
+            ),
+            if (_showProfilPanel) _buildProfilOverlay(),
+          ],
+        ),
       ),
     );
   }
@@ -1698,7 +1898,9 @@ class _MainShellState extends State<MainShell> {
                                                 ? _buildKaydedilenler()
                                                 : _showBildirimler
                                                     ? _buildBildirimler()
-                                                    : _buildProfilMenu(),
+                                                    : _showHakkinda
+                                                        ? _buildHakkinda()
+                                                        : _buildProfilMenu(),
                           ),
                         ),
                       ),
@@ -1876,9 +2078,12 @@ class _MainShellState extends State<MainShell> {
                     backgroundColor:
                         b.read ? MetoColors.muted : const Color(0xFFEF4444),
                     child: Text(
-                      b.actorName.isNotEmpty
-                          ? b.actorName.substring(0, 1).toUpperCase()
-                          : '!',
+                      contactAvatarLetter(
+                        publicContactLabel(
+                          b.actorEmail,
+                          preferredName: b.actorName,
+                        ),
+                      ),
                       style: TextStyle(
                         color: b.read ? MetoColors.mutedFg : Colors.white,
                         fontWeight: FontWeight.w800,
@@ -1887,7 +2092,7 @@ class _MainShellState extends State<MainShell> {
                     ),
                   ),
                   title: Text(
-                    b.body,
+                    scrubEmailsInText(b.body),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -2126,6 +2331,55 @@ class _MainShellState extends State<MainShell> {
                       ),
                       visualDensity: VisualDensity.compact,
                     ),
+                  IconButton(
+                    tooltip: 'Satıldı olarak işaretle',
+                    onPressed: () async {
+                      final ok = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Satıldığını onaylıyor musunuz?'),
+                          content: Text(
+                            '"${e.title}" ilanı satıldı olarak işaretlenecek ve yayından kalkacak.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Vazgeç'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFFCA8A04),
+                              ),
+                              child: const Text('Evet, satıldı'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (ok != true || !mounted) return;
+                      await markIlanSold(
+                        email: widget.user.email,
+                        kind: e.kind,
+                        id: e.id,
+                      );
+                      if (!mounted) return;
+                      setState(() {});
+                      _persistIlanlar();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'İlan satıldı olarak işaretlendi ve yayından kaldırıldı',
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.sell_outlined,
+                      color: Color(0xFFCA8A04),
+                      size: 18,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
                   IconButton(
                     tooltip: 'İlanı düzenle',
                     onPressed: () => _openEditIlanFromProfil(e.kind, e.id),
@@ -2804,6 +3058,15 @@ class _MainShellState extends State<MainShell> {
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: _menuTile(
+            emoji: 'ℹ️',
+            label: 'Hakkında',
+            sub: 'Engelsiz Club nedir?',
+            onTap: () => setState(() => _showHakkinda = true),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _menuTile(
             emoji: '🔒',
             label: 'Gizlilik & Güvenlik',
             sub: 'Ayarlarınız',
@@ -2841,10 +3104,178 @@ class _MainShellState extends State<MainShell> {
               _showKullaniciProfil = false;
               _showKaydedilenler = false;
               _showBildirimler = false;
+              _showHakkinda = false;
             });
             clearRuntimeIlanlar();
             widget.onLogout();
           },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHakkinda() {
+    Widget sectionTitle(String text) => Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 8),
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: MetoColors.foreground,
+            ),
+          ),
+        );
+
+    Widget body(String text) => Text(
+          text,
+          style: const TextStyle(
+            fontSize: 13,
+            height: 1.5,
+            color: MetoColors.mutedFg,
+            fontWeight: FontWeight.w500,
+          ),
+        );
+
+    Widget feature({
+      required String title,
+      required String desc,
+    }) =>
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: MetoColors.foreground,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                desc,
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.45,
+                  color: MetoColors.mutedFg,
+                ),
+              ),
+            ],
+          ),
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 12),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: () => setState(() => _showHakkinda = false),
+                style: IconButton.styleFrom(backgroundColor: MetoColors.muted),
+                icon: const Icon(Icons.arrow_back, size: 18),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Hakkında',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: MetoColors.foreground,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: MetoColors.card,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: MetoColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              sectionTitle('Engelsiz Club'),
+              body(
+                'Engelsiz Club, özel gereksinimli bireylerin ve ailelerinin '
+                'yaşamını kolaylaştırmak, ihtiyaç duydukları bilgiye, haklara '
+                've toplumsal destek ağlarına en hızlı şekilde ulaşmalarını '
+                'sağlamak amacıyla geliştirilmiş kapsamlı bir dayanışma ve '
+                'rehberlik platformudur.',
+              ),
+              const SizedBox(height: 12),
+              body(
+                'Yola çıkış amacımız; engelli bireylerin toplumsal hayata tam '
+                've etkin katılımını desteklemek, ailelerin hayatını '
+                'zorlaştıran süreçlerde rehberlik etmek ve yardımlaşma '
+                'köprüleri kurmaktır.',
+              ),
+              const SizedBox(height: 20),
+              sectionTitle('Uygulamamızda Neler Bulabilirsiniz?'),
+              feature(
+                title: 'Hastalıklar & Durumlar Rehberi',
+                desc:
+                    'Otizm, Serebral Palsi, Down Sendromu, SMA, Prematüre Doğum '
+                    've DMD gibi pek çok özel durum hakkında anlaşılır, bilimsel '
+                    've güncel bilgilere hızlıca ulaşabilirsiniz.',
+              ),
+              feature(
+                title: 'Harita ve Lokasyonlar',
+                desc:
+                    'Çevrenizdeki erişilebilir mekanları, kurumsal destek '
+                    'merkezlerini ve ihtiyaç duyabileceğiniz noktaları harita '
+                    'üzerinden kolayca bulabilirsiniz.',
+              ),
+              feature(
+                title: 'İlanlar Platformu',
+                desc:
+                    'İhtiyaç fazlası medikal malzemeler, tekerlekli sandalyeler '
+                    'veya eğitim materyalleri için güvenli bir paylaşım ve '
+                    'dayanışma alanı sunar.',
+              ),
+              feature(
+                title: 'Topluluk & Forum',
+                desc:
+                    'Deneyimlerinizi paylaşabileceğiniz, sorularınıza yanıt '
+                    'bulabileceğiniz ve diğer ailelerle iletişim kurabileceğiniz '
+                    'sıcak bir topluluk alanıdır.',
+              ),
+              feature(
+                title: 'Haklar ve Mevzuat',
+                desc:
+                    'Engelli hakları, sosyal yardımlar, maaşlar ve yasal '
+                    'düzenlemeler hakkında güncel ve anlaşılır rehberlik '
+                    'bilgilerini inceleyebilirsiniz.',
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: MetoColors.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'Engelsiz Club ile kimse yalnız değil; engelleri birlikte aşıyoruz.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    height: 1.4,
+                    color: MetoColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -3144,22 +3575,22 @@ class _MainShellState extends State<MainShell> {
       return;
     }
     setState(() => _odemeYukleniyor = true);
+    // Yükleme kartını ortada göster (alt snackbar yerine).
+    unawaited(
+      _showCenteredLoading('${store.storeName} açılıyor…'),
+    );
     try {
       final ok = await store.buyKrediPaket(paket.adet);
+      _hideCenteredLoading();
       if (!ok && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Ürün bulunamadı. ${store.storeName}’da kredi_1 / kredi_5 / kredi_10 tanımlı mı kontrol edin.',
-            ),
-          ),
+        _showCenteredNotice(
+          'Ürün bulunamadı. ${store.storeName}’da kredi_1 / kredi_5 / kredi_10 tanımlı mı kontrol edin.',
         );
       }
     } catch (e) {
+      _hideCenteredLoading();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${store.storeName} ödeme başlatılamadı: $e')),
-        );
+        _showCenteredNotice('${store.storeName} ödeme başlatılamadı: $e');
       }
     } finally {
       if (mounted) setState(() => _odemeYukleniyor = false);
@@ -4500,23 +4931,71 @@ class _BottomNav extends StatelessWidget {
   const _BottomNav({
     required this.active,
     required this.onSelect,
-    this.ilanlarUnread = 0,
+    required this.tourKeys,
+    this.ilanlarNewCount = 0,
+    this.forumNewCount = 0,
     this.mesajlarUnread = 0,
+    this.onSkipTour,
   });
 
   final MetoTab active;
   final ValueChanged<MetoTab> onSelect;
-  final int ilanlarUnread;
+  final Map<MetoTab, GlobalKey> tourKeys;
+  final int ilanlarNewCount;
+  final int forumNewCount;
   final int mesajlarUnread;
+  final VoidCallback? onSkipTour;
 
   static const _items = [
-    (MetoTab.home, 'Ana', Icons.home_outlined, Icons.home),
-    (MetoTab.merkezler, 'Harita', Icons.place_outlined, Icons.place),
-    (MetoTab.ilanlar, 'İlanlar', Icons.work_outline, Icons.work),
-    (MetoTab.forum, 'Forum', Icons.forum_outlined, Icons.forum),
-    (MetoTab.mesajlar, 'Mesaj', Icons.chat_bubble_outline, Icons.chat_bubble),
-    (MetoTab.haklar, 'Haklar', Icons.balance_outlined, Icons.balance),
-    (MetoTab.kartlar, 'Kartlar', Icons.grid_view_outlined, Icons.grid_view),
+    (
+      MetoTab.home,
+      'Ana',
+      Icons.home_outlined,
+      Icons.home,
+      'Uygulamanın ana akışına, duyurulara ve genel içeriklere buradan ulaşabilirsin.'
+    ),
+    (
+      MetoTab.merkezler,
+      'Harita',
+      Icons.place_outlined,
+      Icons.place,
+      'Yakınındaki özel gereksinimli kahramanları, uzmanları ve hizmet noktalarını harita üzerinden kolayca görüntüle.'
+    ),
+    (
+      MetoTab.ilanlar,
+      'İlanlar',
+      Icons.work_outline,
+      Icons.work,
+      'Bakıcı arayanlar veya hizmet vermek isteyenler için ilanları incele ya da kendi ilanını oluştur.'
+    ),
+    (
+      MetoTab.forum,
+      'Forum',
+      Icons.forum_outlined,
+      Icons.forum,
+      'Diğer aileler ve uzmanlarla deneyimlerini paylaş, sorularına topluluktan destek bul.'
+    ),
+    (
+      MetoTab.mesajlar,
+      'Mesaj',
+      Icons.chat_bubble_outline,
+      Icons.chat_bubble,
+      'Anlaştığın uzmanlar ve bakıcılarla güvenle mesajlaş, iletişimde kal.'
+    ),
+    (
+      MetoTab.haklar,
+      'Haklar',
+      Icons.balance_outlined,
+      Icons.balance,
+      'Özel gereksinimli bireylerin ve ailelerinin yasal hakları, yönetmelikler ve devlet destekleri hakkında rehber bilgiler.'
+    ),
+    (
+      MetoTab.kartlar,
+      'Kartlar',
+      Icons.grid_view_outlined,
+      Icons.grid_view,
+      'Acil durum kartları ve hayatı kolaylaştıran dijital kartvizit/bilgi araçlarına buradan eriş.'
+    ),
   ];
 
   @override
@@ -4543,14 +5022,30 @@ class _BottomNav extends StatelessWidget {
         children: [
           for (final item in _items)
             Expanded(
-              child: _NavItem(
-                label: item.$2,
-                icon: active == item.$1 ? item.$4 : item.$3,
-                active: active == item.$1,
-                badge: item.$1 == MetoTab.ilanlar
-                    ? ilanlarUnread
-                    : (item.$1 == MetoTab.mesajlar ? mesajlarUnread : 0),
-                onTap: () => onSelect(item.$1),
+              child: Showcase(
+                key: tourKeys[item.$1]!,
+                title: item.$2,
+                description: item.$5,
+                tooltipActions: [
+                  TooltipActionButton(
+                    type: TooltipDefaultActionType.skip,
+                    name: 'Geç',
+                    onTap: onSkipTour,
+                  ),
+                ],
+                child: _NavItem(
+                  label: item.$2,
+                  icon: active == item.$1 ? item.$4 : item.$3,
+                  active: active == item.$1,
+                  badge: item.$1 == MetoTab.mesajlar
+                      ? mesajlarUnread
+                      : item.$1 == MetoTab.ilanlar
+                          ? ilanlarNewCount
+                          : item.$1 == MetoTab.forum
+                              ? forumNewCount
+                              : 0,
+                  onTap: () => onSelect(item.$1),
+                ),
               ),
             ),
         ],
@@ -4613,39 +5108,26 @@ class _NavItem extends StatelessWidget {
                 ),
                 if (badge > 0 && !active)
                   Positioned(
-                    top: -6,
-                    right: -6,
+                    top: -4,
+                    right: -4,
                     child: Container(
-                      constraints: const BoxConstraints(minWidth: 18),
-                      height: 18,
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      constraints: const BoxConstraints(minWidth: 16),
+                      height: 16,
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: const Color(0xFFEF4444),
                         borderRadius: BorderRadius.circular(99),
-                        border: Border.all(color: MetoColors.card, width: 2),
+                        border: Border.all(color: MetoColors.card, width: 1.5),
                       ),
                       child: Text(
-                        badge > 9 ? '9+' : '$badge',
+                        badge > 99 ? '99+' : '$badge',
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 10,
+                          fontSize: 9,
                           fontWeight: FontWeight.w800,
+                          height: 1,
                         ),
-                      ),
-                    ),
-                  )
-                else if (active && badge == 0)
-                  Positioned(
-                    top: -2,
-                    right: -2,
-                    child: Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: MetoColors.accentGold,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: MetoColors.card, width: 2),
                       ),
                     ),
                   ),

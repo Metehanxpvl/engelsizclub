@@ -269,6 +269,31 @@ class AppCatalogService extends ChangeNotifier {
     );
   }
 
+  /// Admin kayıt sonrası diseases paketini yerelde güncelle.
+  Future<void> replaceDiseaseRow(Map<String, dynamic> row) async {
+    final id = row['id']?.toString() ?? '';
+    if (id.isEmpty) return;
+    final list = List<Map<String, dynamic>>.from(
+      _lists[CatalogPack.diseases] ?? const [],
+    );
+    final i = list.indexWhere((e) => e['id']?.toString() == id);
+    if (i >= 0) {
+      list[i] = row;
+    } else {
+      list.add(row);
+    }
+    list.sort(
+      (a, b) => ((a['sort_order'] as num?)?.toInt() ?? 0)
+          .compareTo((b['sort_order'] as num?)?.toInt() ?? 0),
+    );
+    _lists[CatalogPack.diseases] = list;
+    _localVersions[CatalogPack.diseases] =
+        (_localVersions[CatalogPack.diseases] ?? 0) + 1;
+    _fetchedAt[CatalogPack.diseases] = DateTime.now();
+    await _persistPack(CatalogPack.diseases);
+    notifyListeners();
+  }
+
   /// Cache'i temizle (debug / zorla yenile).
   Future<void> clearCache() async {
     final prefs = await SharedPreferences.getInstance();

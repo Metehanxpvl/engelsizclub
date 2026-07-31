@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../data/cards_data.dart';
@@ -85,6 +87,7 @@ class CatalogAdapters {
       ...forumDiseaseCategoryLabels(),
       'Genel Konular',
       'Köşe Yazısı',
+      'Doktor',
     ];
     final seen = <String>{};
     return [
@@ -131,14 +134,6 @@ class CatalogAdapters {
   }
 
   static RightItem _rightFromRow(Map<String, dynamic> r) {
-    final stepsRaw = r['steps'];
-    final steps = <String>[];
-    if (stepsRaw is List) {
-      for (final s in stepsRaw) {
-        final t = s.toString().trim();
-        if (t.isNotEmpty) steps.add(t);
-      }
-    }
     return RightItem(
       id: r['id']?.toString() ?? '',
       title: r['title']?.toString() ?? '',
@@ -151,9 +146,46 @@ class CatalogAdapters {
       maxAge: (r['max_age'] as num?)?.toInt() ?? 99,
       incomeLimit: r['income_limit'] == true,
       desc: r['description']?.toString() ?? '',
-      steps: steps,
+      steps: _stepsFrom(r['steps']),
       where: r['where_text']?.toString() ?? '',
     );
+  }
+
+  /// Katalogdan gelen steps: dizi, JSON string veya satır ayrılmış metin.
+  /// Karakter karakter parçalanmış bozuk dizileri de toparlar.
+  static List<String> _stepsFrom(dynamic raw) {
+    if (raw == null) return const [];
+    var items = <String>[];
+    if (raw is List) {
+      for (final s in raw) {
+        final t = s.toString().trim();
+        if (t.isNotEmpty) items.add(t);
+      }
+    } else if (raw is String) {
+      final t = raw.trim();
+      if (t.isEmpty) return const [];
+      if (t.startsWith('[')) {
+        try {
+          final decoded = jsonDecode(t);
+          if (decoded is List) return _stepsFrom(decoded);
+        } catch (_) {}
+      }
+      items = t
+          .split(RegExp(r'\n+|\r+|;'))
+          .map((e) => e.replaceFirst(RegExp(r'^[\s•\-\d.)]+'), '').trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+    // Bozuk import: her öğe tek karakter → birleştirip satıra böl
+    if (items.length > 6 && items.every((e) => e.length <= 1)) {
+      final joined = items.join();
+      return joined
+          .split(RegExp(r'\n+|;\s*|·\s*'))
+          .map((e) => e.trim())
+          .where((e) => e.length > 1)
+          .toList();
+    }
+    return items;
   }
 
   static DiseaseInfo _diseaseFromRow(Map<String, dynamic> r) {

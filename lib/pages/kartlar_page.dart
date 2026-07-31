@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -451,7 +452,10 @@ class _KartlarPageState extends State<KartlarPage> {
         if (_activeCard != null && !_editMode)
           _CardOverlay(
             card: _activeCard!,
-            onClose: () => setState(() => _activeCard = null),
+            onClose: () {
+              unawaited(_tts.stop());
+              setState(() => _activeCard = null);
+            },
             onSpeak: () => _speakCard(_activeCard!),
           ),
         if (_editingCard != null)
@@ -772,48 +776,53 @@ class _CardOverlayState extends State<_CardOverlay>
 
     return Material(
       color: Colors.black.withValues(alpha: 0.62),
-      child: SafeArea(
-        child: Center(
-          child: Container(
-            width: cardWidth,
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-            padding: const EdgeInsets.fromLTRB(28, 40, 28, 28),
-            decoration: BoxDecoration(
-              color: card.bg,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: card.color, width: 6),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.28),
-                  blurRadius: 28,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned(
-                  top: -28,
-                  right: -12,
-                  child: Material(
-                    color: card.color,
-                    elevation: 4,
-                    shadowColor: Colors.black38,
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      onTap: widget.onClose,
-                      customBorder: const CircleBorder(),
-                      child: const Padding(
-                        padding: EdgeInsets.all(10),
-                        child: Icon(Icons.close, size: 22, color: Colors.white),
-                      ),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onClose,
+        child: SafeArea(
+          child: Center(
+            child: GestureDetector(
+              onTap: () {}, // kart gövdesine basınca arka plan kapanmasın
+              child: Container(
+                width: cardWidth,
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                padding: const EdgeInsets.fromLTRB(20, 16, 16, 28),
+                decoration: BoxDecoration(
+                  color: card.bg,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: card.color, width: 6),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.28),
+                      blurRadius: 28,
+                      offset: const Offset(0, 10),
                     ),
-                  ),
+                  ],
                 ),
-                Column(
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: Material(
+                        color: card.color,
+                        elevation: 2,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          onTap: widget.onClose,
+                          customBorder: const CircleBorder(),
+                          child: const Padding(
+                            padding: EdgeInsets.all(10),
+                            child: Icon(
+                              Icons.close,
+                              size: 24,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     AnimatedBuilder(
                       animation: _shake,
                       builder: (context, child) {
@@ -904,7 +913,7 @@ class _CardOverlayState extends State<_CardOverlay>
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Kapatmak için X işaretine bas',
+                      'Kapatmak için X’e veya dışarıya bas',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -913,7 +922,7 @@ class _CardOverlayState extends State<_CardOverlay>
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
         ),

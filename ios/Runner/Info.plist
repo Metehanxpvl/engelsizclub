@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Engelsizclub</string>
+	<string>Engelsiz Club</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -41,6 +41,13 @@
 	<string>Yakınınızdaki rehabilitasyon merkezlerini göstermek için konumunuz kullanılır.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>İletişim kartlarını kişiselleştirmek için galerinizden fotoğraf seçebilirsiniz.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

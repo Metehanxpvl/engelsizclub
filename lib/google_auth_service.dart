@@ -1,17 +1,36 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'google_js_auth_stub.dart'
     if (dart.library.html) 'google_js_auth_web.dart' as google_js;
 
-/// Google → Firebase Auth → Supabase oturumu.
+/// Google → Supabase oturumu.
 ///
-/// Web: Firebase JS popup (engelsizclub.com) — supabase.co OAuth yok.
-/// Mobil: Firebase Auth provider.
+/// Web: Firebase JS popup (engelsizclub.com).
+/// Android/iOS: Hosted Firebase Google page → deep link + idToken
+/// (Play SHA-1 / Supabase→Google redirect_uri gerekmez).
 class GoogleAuthService {
   GoogleAuthService._();
+
+  /// Firebase / Google Cloud Web Client ID (Supabase Google provider’da da olmalı).
+  static const webClientId =
+      '59695056324-3dk4r1lsht7n5agn811vjj9777l0qdce.apps.googleusercontent.com';
+
+  static const mobileRedirect = 'io.supabase.engelsizclub://login-callback';
+
+  /// Web’de çalışan Firebase Google akışını mobil tarayıcıda açar.
+  static const mobileAuthPage =
+      'https://engelsizclub.com/mobile_google_auth.html';
+
+  static StreamSubscription<Uri>? _linkSub;
+  static Completer<AuthResponse?>? _mobileWait;
+  static bool _listening = false;
 
   static firebase_auth.FirebaseAuth get _firebaseAuth {
     if (Firebase.apps.isEmpty) {
@@ -30,17 +49,37 @@ class GoogleAuthService {
       ..setCustomParameters({'prompt': 'select_account'});
   }
 
+  /// Deep link dinleyicisini başlat (main’de bir kez).
+  static Future<void> startMobileDeepLinkListener() async {
+    if (kIsWeb || _listening) return;
+    _listening = true;
+    final appLinks = AppLinks();
+    try {
+      final initial = await appLinks.getInitialLink();
+      if (initial != null) {
+        await handleMobileAuthDeepLink(initial);
+      }
+    } catch (_) {}
+    _linkSub = appLinks.uriLinkStream.listen((uri) {
+      unawaited(handleMobileAuthDeepLink(uri));
+    });
+  }
+
+  static Future<void> disposeDeepLinkListener() async {
+    await _linkSub?.cancel();
+    _linkSub = null;
+    _listening = false;
+  }
+
   /// Başarılıysa Supabase [AuthResponse] döner.
-  /// İptal / redirect → null.
   static Future<AuthResponse?> signIn() async {
     if (kIsWeb) {
       return _signInWeb();
     }
-    return _signInMobile();
+    return _signInMobileBridge();
   }
 
   static Future<AuthResponse?> _signInWeb() async {
-    // Firebase JS popup — hata yutulmaz, kullanıcıya gösterilir.
     final js = await google_js.firebaseGooglePopupJs();
     if (js == null) return null;
     if (js['cancelled'] == 'true') return null;
@@ -71,15 +110,92 @@ class GoogleAuthService {
     }
   }
 
-  static Future<AuthResponse?> _signInMobile() async {
-    late final firebase_auth.UserCredential firebaseCred;
-    try {
-      firebaseCred = await _firebaseAuth.signInWithProvider(_provider);
-    } on firebase_auth.FirebaseAuthException catch (e) {
-      if (_isUserCancel(e)) return null;
-      rethrow;
+  /// Web’deki çalışan Firebase Google girişini Custom Tab’da açar;
+  /// dönüşte id_token ile Supabase oturumu kurar.
+  static Future<AuthResponse?> _signInMobileBridge() async {
+    await startMobileDeepLinkListener();
+
+    if (_mobileWait != null && !_mobileWait!.isCompleted) {
+      _mobileWait!.complete(null);
     }
-    return _exchangeFirebaseForSupabase(firebaseCred);
+    final wait = Completer<AuthResponse?>();
+    _mobileWait = wait;
+
+    final uri = Uri.parse(mobileAuthPage);
+    var launched = false;
+    try {
+      launched = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+    } catch (_) {}
+    if (!launched) {
+      launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+    if (!launched) {
+      _mobileWait = null;
+      throw StateError(
+        'Google giriş sayfası açılamadı. İnternet bağlantınızı kontrol edin.',
+      );
+    }
+
+    try {
+      return await wait.future.timeout(
+        const Duration(minutes: 3),
+        onTimeout: () => null,
+      );
+    } finally {
+      if (identical(_mobileWait, wait)) {
+        _mobileWait = null;
+      }
+    }
+  }
+
+  static Map<String, String> _paramsFromUri(Uri uri) {
+    final out = <String, String>{...uri.queryParameters};
+    if (uri.fragment.isNotEmpty) {
+      out.addAll(Uri.splitQueryString(uri.fragment));
+    }
+    return out;
+  }
+
+  static Future<void> handleMobileAuthDeepLink(Uri uri) async {
+    if (uri.scheme != 'io.supabase.engelsizclub') return;
+    final host = uri.host;
+    if (host.isNotEmpty && host != 'login-callback') return;
+    if (host.isEmpty && uri.path != 'login-callback' && uri.path != '/login-callback') {
+      // Bazı cihazlarda host boş, path login-callback olabilir
+      if (!uri.toString().contains('login-callback')) return;
+    }
+
+    final params = _paramsFromUri(uri);
+    if (params['cancelled'] == '1') {
+      if (_mobileWait != null && !_mobileWait!.isCompleted) {
+        _mobileWait!.complete(null);
+      }
+      return;
+    }
+
+    final idToken = params['id_token'];
+    if (idToken == null || idToken.isEmpty) return;
+
+    final accessToken = params['access_token'];
+    try {
+      try {
+        await closeInAppWebView();
+      } catch (_) {}
+      final res = await Supabase.instance.client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: (accessToken != null && accessToken.isNotEmpty)
+            ? accessToken
+            : null,
+      );
+      if (_mobileWait != null && !_mobileWait!.isCompleted) {
+        _mobileWait!.complete(res);
+      }
+    } catch (e) {
+      if (_mobileWait != null && !_mobileWait!.isCompleted) {
+        _mobileWait!.completeError(e);
+      }
+    }
   }
 
   static Future<AuthResponse?> completeRedirectIfAny() async {
@@ -129,14 +245,6 @@ class GoogleAuthService {
       idToken: googleIdToken,
       accessToken: googleAccessToken,
     );
-  }
-
-  static bool _isUserCancel(firebase_auth.FirebaseAuthException e) {
-    final code = e.code.toLowerCase();
-    return code.contains('popup-closed') ||
-        code.contains('cancelled') ||
-        code.contains('canceled') ||
-        code == 'user-cancelled';
   }
 
   static Future<void> signOut() async {

@@ -55,9 +55,13 @@ class IlanPoster {
     required this.tags,
     required this.reviews,
     this.cv,
+    this.fullName = '',
   });
 
+  /// İlan kartında gösterilen ad (soyadı maskeli olabilir).
   final String name;
+  /// Teklif sonrası sohbette gösterilecek tam ad soyad.
+  final String fullName;
   final String avatar;
   final Color avatarColor;
   final double rating;
@@ -66,6 +70,14 @@ class IlanPoster {
   final List<String> tags;
   final List<IlanReview> reviews;
   final PosterCv? cv;
+
+  /// Sohbet / teklif sonrası: tam ad; yoksa kart adı.
+  String get revealedName {
+    final full = fullName.trim();
+    if (full.isNotEmpty && !full.contains('@')) return full;
+    final n = name.trim();
+    return n.isEmpty ? 'Üye' : n;
+  }
 }
 
 class SohbetKisi {
@@ -77,6 +89,7 @@ class SohbetKisi {
     this.sonGorus,
     this.peerEmail = '',
     this.ilanId,
+    this.ilanTitle,
   });
 
   final String ad;
@@ -87,6 +100,8 @@ class SohbetKisi {
   /// Gerçek kullanıcı e-postası (ilan sahibi). Boşsa örnek/demo ilandır.
   final String peerEmail;
   final int? ilanId;
+  /// Teklif mesajında kullanılan ilan başlığı.
+  final String? ilanTitle;
 }
 
 enum IlanKategori { uzmanlar, bakici, ikinciel }
@@ -193,6 +208,31 @@ class BakiciIlani {
   final IlanPoster poster;
   /// Uzman / bakıcı ilanlarında en fazla 2 fotoğraf.
   final List<IlanPhoto> photos;
+}
+
+/// 2. el ürün durumu seçenekleri (ilan formu + badge).
+const kIkincielDurumSecenekleri = <String>[
+  'Sıfır ürün',
+  'Az kullanılmış',
+  'İyi',
+  'Kötü',
+];
+
+({Color bg, Color fg}) ikincielDurumRenk(String condition) {
+  switch (condition.trim().toLowerCase()) {
+    case 'sıfır ürün':
+    case 'sifir urun':
+      return (bg: const Color(0xFFEFF6FF), fg: const Color(0xFF1D4ED8));
+    case 'az kullanılmış':
+    case 'az kullanilmis':
+      return (bg: const Color(0xFFECFDF5), fg: const Color(0xFF0F766E));
+    case 'kötü':
+    case 'kotu':
+      return (bg: const Color(0xFFFEF2F2), fg: const Color(0xFFB91C1C));
+    case 'iyi':
+    default:
+      return (bg: const Color(0xFFF0FDF4), fg: const Color(0xFF15803D));
+  }
 }
 
 /// Uzman ve bakıcı ilanları için izin verilen maksimum fotoğraf sayısı.
@@ -1087,6 +1127,63 @@ final List<IkincielIlani> runtimeIkincielIlanlar = <IkincielIlani>[];
 
 int _ilanIdSeq = 1000;
 int nextIlanId() => ++_ilanIdSeq;
+
+/// İlan sahibi görünen adı: ad açık, soyad ****.
+String maskPersonDisplayName(String raw) {
+  final parts = raw
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((p) => p.isNotEmpty)
+      .toList();
+  if (parts.isEmpty) return 'Siz';
+  if (parts.length == 1) return parts.first;
+  return '${parts.first} ****';
+}
+
+final _emailInTextRe = RegExp(
+  r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}',
+);
+
+/// Mesaj / önizleme metnindeki e-postaları gizler.
+String scrubEmailsInText(String text) {
+  return text.replaceAllMapped(_emailInTextRe, (_) => 'üye');
+}
+
+/// Sohbet / bildirimde gösterilecek ad — e-posta gizler, ad soyadı açık bırakır.
+String publicContactLabel(
+  String raw, {
+  String preferredName = '',
+  String fallback = 'Üye',
+}) {
+  final preferred = preferredName.trim();
+  if (preferred.isNotEmpty && !preferred.contains('@')) {
+    return preferred;
+  }
+  var s = raw.trim();
+  if (s.isEmpty) return fallback;
+  if (s.contains('↔')) return fallback;
+  if (s.contains('@')) return fallback;
+  return s;
+}
+
+String contactAvatarLetter(String label) {
+  final s = publicContactLabel(label).trim();
+  if (s.isEmpty || s == 'Üye') return 'Ü';
+  return s[0].toUpperCase();
+}
+
+/// Avatar baş harfleri (maskeli isimden).
+String posterAvatarInitials(String displayName) {
+  final first = displayName
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((p) => p.isNotEmpty && p != '****')
+      .map((p) => p[0])
+      .join()
+      .toUpperCase();
+  if (first.isEmpty) return 'SZ';
+  return first.substring(0, first.length.clamp(0, 2));
+}
 
 void syncIlanIdSeq(int maxId) {
   if (maxId > _ilanIdSeq) _ilanIdSeq = maxId;

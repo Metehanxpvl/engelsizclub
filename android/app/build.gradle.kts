@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services")
 }
 
 import java.util.Properties
@@ -16,20 +17,23 @@ android {
     ndkVersion = "28.2.13676358"
     ndkPath = "C:/Users/sakir/AppData/Local/Android/Sdk/ndk/28.2.13676358"
 
-    namespace = "com.engelsizclub.app"
+    namespace = "com.sakircaykara.engelsizclub"
     compileSdk = flutter.compileSdkVersion
 
     compileOptions {
+        // flutter_local_notifications (zamanlama / eski Android uyumu)
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 
     defaultConfig {
-        applicationId = "com.engelsizclub.app"
+        applicationId = "com.sakircaykara.engelsizclub"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        multiDexEnabled = true
     }
 
     signingConfigs {
@@ -52,13 +56,6 @@ android {
             }
         }
     }
-
-    packaging {
-        jniLibs {
-            // Windows'ta llvm-strip hatasını aşmak için
-            keepDebugSymbols.add("**/*.so")
-        }
-    }
 }
 
 kotlin {
@@ -69,4 +66,8 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

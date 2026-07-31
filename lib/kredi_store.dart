@@ -215,7 +215,7 @@ Future<bool> saveUserKredi({
   final key = krediPrefsKeyFor(email);
   final giftKey = '${key}_welcome_gift';
   final grantKey = krediGrantPrefsKeyFor(email);
-  final safe = balance.clamp(0, 999999);
+  final safe = balance.clamp(0, 99999999);
   await prefs.setInt(key, safe);
   // Harcama sonrası grant kilitlensin — reload bakiyeyi şişirmesin
   await prefs.setBool(grantKey, true);

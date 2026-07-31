@@ -1,7 +1,7 @@
 # Google Play — Engelsiz Club yayın rehberi
 
 ## Paket kimliği
-- **applicationId:** `com.engelsizclub.app`
+- **applicationId:** `com.sakircaykara.engelsizclub`
 - **Uygulama adı:** Engelsiz Club
 
 ## In-app ürünler (Play Console → Monetize → Products → In-app products)
@@ -48,15 +48,33 @@ flutter build appbundle --release
 
 ## Firebase (Android)
 
-`com.engelsizclub.app` için Firebase Console’da Android uygulaması ekle; `google-services.json` indirip `android/app/` altına koy (gitignore’da — commit etme). Google Sign-In için SHA-1:
+Paket: `com.sakircaykara.engelsizclub`  
+Firebase App ID: `1:59695056324:android:4e3e2858da075b865b9091`
+
+`google-services.json` → `android/app/` (gitignore’da; yerelde tut).
+
+### Google Sign-In SHA-1 (zorunlu)
+
+Play’den indirilen uygulamada Google giriş için **Play App Signing** SHA-1 şart:
+
+1. Play Console → Uygulama → **Setup / Ayarlar** → **App integrity / Uygulama bütünlüğü** → **App signing**
+2. **App signing key certificate** altındaki **SHA-1** değerini kopyala
+3. Firebase Console → Project settings → Android app → **Add fingerprint** → yapıştır
+
+Upload key SHA-1 (yerel AAB imzalama; zaten eklendi):
+`1D:B8:0C:6C:2E:19:DC:22:21:36:E5:5E:02:E4:94:12:80:12:D6:FF`
 
 ```bat
 "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -list -v -keystore android\upload-keystore.jks -alias upload
 ```
 
-SHA-1’i Firebase Android uygulamasına ekle.
+SHA ekledikten sonra birkaç dakika bekleyip uygulamayı yeniden dene. Yeni AAB şart değil; sadece Firebase’e Play SHA-1 eklemek çoğu zaman yeterli.
 
 ## Supabase
 
 Dashboard → SQL Editor → `supabase/play_ready.sql` çalıştır.
 Site URL / Redirect: `https://engelsizclub.com` ve deep link `io.supabase.engelsizclub://login-callback`.
+
+Supabase → Authentication → URL Configuration → Redirect URLs listesine ekle:
+- `io.supabase.engelsizclub://login-callback`
+- `https://engelsizclub.com/**`

@@ -44,23 +44,34 @@ ForumPost forumPostFromRow(
     pinned: json['pinned'] == true,
     expert: json['expert'] == true,
     likedByMe: likedByMe,
+    anon: json['anon'] == true ||
+        (json['author']?.toString() ?? '').trim().toLowerCase() == 'anonim',
     meslek: json['meslek']?.toString() ?? '',
     ownerEmail: (json['owner_email']?.toString() ?? '').toLowerCase(),
     photos: photos,
   );
 }
 
-ForumComment forumCommentFromRow(Map<String, dynamic> json) {
+ForumComment forumCommentFromRow(
+  Map<String, dynamic> json, {
+  bool likedByMe = false,
+}) {
   final created =
       DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now();
   final colorVal = (json['avatar_color'] as num?)?.toInt() ?? 0xFFF4A832;
+  final parentRaw = json['parent_id'];
+  final parentId = parentRaw == null ? null : (parentRaw as num?)?.toInt();
   return ForumComment(
     id: (json['id'] as num?)?.toInt() ?? 0,
     name: json['author']?.toString() ?? 'Üye',
     text: json['body']?.toString() ?? '',
     time: forumRelativeTime(created),
     color: Color(colorVal),
+    avatar: json['avatar']?.toString() ?? '',
     ownerEmail: (json['owner_email']?.toString() ?? '').toLowerCase(),
+    parentId: (parentId != null && parentId > 0) ? parentId : null,
+    likes: (json['likes'] as num?)?.toInt() ?? 0,
+    likedByMe: likedByMe,
   );
 }
 
@@ -112,6 +123,7 @@ Future<ForumPost> publishForumPost({
   bool expert = false,
   String meslek = '',
   List<String> photos = const [],
+  String? avatarPhoto,
 }) async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
@@ -122,9 +134,14 @@ Future<ForumPost> publishForumPost({
       ? (user.email ?? 'Üye').split('@').first
       : authorName.trim();
   final author = anon ? 'Anonim' : name;
+  final photo = (avatarPhoto ?? '').trim();
   final avatar = anon
       ? 'A'
-      : (name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '?');
+      : (photo.startsWith('data:image') ||
+              photo.startsWith('http://') ||
+              photo.startsWith('https://'))
+          ? photo
+          : (name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '?');
 
   final payload = <String, dynamic>{
     'author': author,
@@ -169,16 +186,50 @@ Future<ForumPost> publishForumPost({
 
 Future<List<ForumComment>> loadForumComments(int postId) async {
   if (postId <= 0) return const [];
+  final client = Supabase.instance.client;
+  final user = client.auth.currentUser;
   try {
-    final rows = await Supabase.instance.client
+    final rows = await client
         .from('forum_comments')
         .select()
         .eq('post_id', postId)
         .order('created_at', ascending: true)
-        .limit(200);
-    return (rows as List)
+        .limit(300);
+    final list = (rows as List)
         .whereType<Map>()
-        .map((e) => forumCommentFromRow(Map<String, dynamic>.from(e)))
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+
+    Set<int> liked = {};
+    if (user != null) {
+      try {
+        final ids = list
+            .map((e) => (e['id'] as num?)?.toInt())
+            .whereType<int>()
+            .where((id) => id > 0)
+            .toList();
+        if (ids.isNotEmpty) {
+          final likeRows = await client
+              .from('forum_comment_likes')
+              .select('comment_id')
+              .eq('owner_id', user.id)
+              .inFilter('comment_id', ids);
+          liked = {
+            for (final e in (likeRows as List).whereType<Map>())
+              if ((e['comment_id'] as num?) != null)
+                (e['comment_id'] as num).toInt(),
+          };
+        }
+      } catch (_) {}
+    }
+
+    return list
+        .map(
+          (e) => forumCommentFromRow(
+            e,
+            likedByMe: liked.contains((e['id'] as num?)?.toInt() ?? -1),
+          ),
+        )
         .toList();
   } catch (_) {
     return const [];
@@ -190,30 +241,58 @@ Future<ForumComment> addForumComment({
   required String body,
   required String authorName,
   required String authorEmail,
+  int? parentId,
+  bool anon = false,
+  String? avatarPhoto,
 }) async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
   if (user == null) throw StateError('Yorum için giriş yapın.');
   final text = body.trim();
   if (text.isEmpty) throw StateError('Boş yorum gönderilemez.');
-  final name = authorName.trim().isEmpty
-      ? (user.email ?? 'Üye').split('@').first
-      : authorName.trim();
-  final avatar = name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '?';
+  final name = anon
+      ? 'Anonim'
+      : (authorName.trim().isEmpty
+          ? (user.email ?? 'Üye').split('@').first
+          : authorName.trim());
+  final photo = (avatarPhoto ?? '').trim();
+  final avatar = anon
+      ? '?'
+      : (photo.startsWith('data:image') ||
+              photo.startsWith('http://') ||
+              photo.startsWith('https://'))
+          ? photo
+          : (name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '?');
 
-  final row = await client
-      .from('forum_comments')
-      .insert({
-        'post_id': postId,
-        'author': name,
-        'avatar': avatar,
-        'avatar_color': MetoColors.primary.toARGB32(),
-        'body': text,
-        'owner_email': authorEmail.trim().toLowerCase(),
-        'owner_id': user.id,
-      })
-      .select()
-      .single();
+  final payload = <String, dynamic>{
+    'post_id': postId,
+    'author': name,
+    'avatar': avatar,
+    'avatar_color': anon
+        ? const Color(0xFF94A3B8).toARGB32()
+        : MetoColors.primary.toARGB32(),
+    'body': text,
+    'owner_email': authorEmail.trim().toLowerCase(),
+    'owner_id': user.id,
+    'likes': 0,
+  };
+  if (parentId != null && parentId > 0) {
+    payload['parent_id'] = parentId;
+  }
+
+  Map<String, dynamic> row;
+  try {
+    row = Map<String, dynamic>.from(
+      await client.from('forum_comments').insert(payload).select().single(),
+    );
+  } catch (_) {
+    // parent_id / likes sütunu yoksa sade insert
+    payload.remove('parent_id');
+    payload.remove('likes');
+    row = Map<String, dynamic>.from(
+      await client.from('forum_comments').insert(payload).select().single(),
+    );
+  }
 
   try {
     final post = await client
@@ -227,7 +306,53 @@ Future<ForumComment> addForumComment({
         .update({'comments': current + 1}).eq('id', postId);
   } catch (_) {}
 
-  return forumCommentFromRow(Map<String, dynamic>.from(row));
+  return forumCommentFromRow(row);
+}
+
+/// Yorum beğenisini aç/kapa.
+Future<({bool liked, int likes})> toggleForumCommentLike(int commentId) async {
+  final client = Supabase.instance.client;
+  final user = client.auth.currentUser;
+  if (user == null) throw StateError('Beğeni için giriş yapın.');
+  if (commentId <= 0) throw StateError('Geçersiz yorum.');
+
+  final existing = await client
+      .from('forum_comment_likes')
+      .select('id')
+      .eq('comment_id', commentId)
+      .eq('owner_id', user.id)
+      .maybeSingle();
+
+  final comment = await client
+      .from('forum_comments')
+      .select('likes')
+      .eq('id', commentId)
+      .maybeSingle();
+  var likes = (comment?['likes'] as num?)?.toInt() ?? 0;
+
+  if (existing != null) {
+    await client
+        .from('forum_comment_likes')
+        .delete()
+        .eq('comment_id', commentId)
+        .eq('owner_id', user.id);
+    likes = (likes - 1).clamp(0, 999999);
+    await client
+        .from('forum_comments')
+        .update({'likes': likes}).eq('id', commentId);
+    return (liked: false, likes: likes);
+  }
+
+  await client.from('forum_comment_likes').insert({
+    'comment_id': commentId,
+    'owner_id': user.id,
+    'owner_email': (user.email ?? '').toLowerCase(),
+  });
+  likes = likes + 1;
+  await client
+      .from('forum_comments')
+      .update({'likes': likes}).eq('id', commentId);
+  return (liked: true, likes: likes);
 }
 
 /// Beğeniyi aç/kapa. Yeni beğeni durumunu döner.
@@ -373,23 +498,37 @@ Future<void> deleteForumComment({
   if (user == null) throw StateError('Silmek için giriş yapın.');
   if (commentId <= 0) throw StateError('Geçersiz yorum.');
 
+  // Yanıtlar dahil kaç satır silinecek (sayaç için)
+  var removeCount = 1;
+  try {
+    final kids = await client
+        .from('forum_comments')
+        .select('id')
+        .eq('parent_id', commentId);
+    removeCount += (kids as List).length;
+  } catch (_) {}
+
+  Future<void> bumpCounter() async {
+    try {
+      final post = await client
+          .from('forum_posts')
+          .select('comments')
+          .eq('id', postId)
+          .maybeSingle();
+      final current = (post?['comments'] as num?)?.toInt() ?? 0;
+      await client.from('forum_posts').update({
+        'comments': (current - removeCount).clamp(0, 999999),
+      }).eq('id', postId);
+    } catch (_) {}
+  }
+
   if (isAppAdmin(me)) {
     try {
       await client.rpc(
         'admin_delete_forum_comment',
         params: {'p_id': commentId},
       );
-      try {
-        final post = await client
-            .from('forum_posts')
-            .select('comments')
-            .eq('id', postId)
-            .maybeSingle();
-        final current = (post?['comments'] as num?)?.toInt() ?? 0;
-        await client.from('forum_posts').update({
-          'comments': (current - 1).clamp(0, 999999),
-        }).eq('id', postId);
-      } catch (_) {}
+      await bumpCounter();
       return;
     } catch (_) {}
   }
@@ -407,15 +546,5 @@ Future<void> deleteForumComment({
           : 'Yorum silinemedi (yetki yok veya bulunamadı).',
     );
   }
-  try {
-    final post = await client
-        .from('forum_posts')
-        .select('comments')
-        .eq('id', postId)
-        .maybeSingle();
-    final current = (post?['comments'] as num?)?.toInt() ?? 0;
-    await client.from('forum_posts').update({
-      'comments': (current - 1).clamp(0, 999999),
-    }).eq('id', postId);
-  } catch (_) {}
+  await bumpCounter();
 }

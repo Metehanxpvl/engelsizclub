@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Engelsiz Club — Google Giriş</title>
+  <style>
+    html, body {
+      margin: 0; height: 100%;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: #0f3d2e; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      text-align: center; padding: 24px;
+    }
+    .card { max-width: 360px; }
+    h1 { font-size: 1.25rem; margin: 0 0 8px; }
+    p { opacity: .85; font-size: .95rem; line-height: 1.4; }
+    .spin {
+      width: 36px; height: 36px; margin: 20px auto;
+      border: 3px solid rgba(255,255,255,.25);
+      border-top-color: #fff; border-radius: 50%;
+      animation: r 0.8s linear infinite;
+    }
+    @keyframes r { to { transform: rotate(360deg); } }
+    button {
+      margin-top: 16px; padding: 12px 20px; border: 0; border-radius: 12px;
+      background: #fff; color: #0f3d2e; font-weight: 700; font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Google ile giriş</h1>
+    <p id="msg">Hesabınız seçiliyor…</p>
+    <div class="spin" id="spin"></div>
+    <button id="btn" style="display:none" type="button">Google ile devam et</button>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-auth-compat.js"></script>
+  <script>
+    var APP_SCHEME = 'io.supabase.engelsizclub://login-callback';
+
+    firebase.initializeApp({
+      apiKey: 'AIzaSyDbcRvVaEQSDQJ2y-0kHZUsxtW_O2Xb_bQ',
+      authDomain: 'engelsizclub.com',
+      projectId: 'engelsizclub-e5842',
+      storageBucket: 'engelsizclub-e5842.firebasestorage.app',
+      messagingSenderId: '59695056324',
+      appId: '1:59695056324:web:ea6c93f11bd19d395b9091',
+      measurementId: 'G-8YPB15NZPJ'
+    });
+
+    var auth = firebase.auth();
+    var provider = new firebase.auth.GoogleAuthProvider();
+    provider.addScope('openid');
+    provider.addScope('email');
+    provider.addScope('profile');
+    provider.setCustomParameters({ prompt: 'select_account' });
+
+    function setMsg(t) { document.getElementById('msg').textContent = t; }
+
+    function goApp(params) {
+      var q = [];
+      Object.keys(params).forEach(function (k) {
+        if (params[k] != null && params[k] !== '') {
+          q.push(encodeURIComponent(k) + '=' + encodeURIComponent(String(params[k])));
+        }
+      });
+      // Fragment: uzun token sunucu loglarına düşmesin
+      window.location.href = APP_SCHEME + '#' + q.join('&');
+    }
+
+    function extractTokens(result) {
+      var idToken = null, accessToken = null;
+      try {
+        var oauth = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
+        if (oauth) {
+          idToken = oauth.idToken || null;
+          accessToken = oauth.accessToken || null;
+        }
+      } catch (_) {}
+      if (!idToken && result.credential) {
+        idToken = result.credential.idToken || idToken;
+        accessToken = result.credential.accessToken || accessToken;
+      }
+      var tr = result._tokenResponse || {};
+      if (!idToken) idToken = tr.oauthIdToken || tr.idToken || null;
+      if (!accessToken) accessToken = tr.oauthAccessToken || accessToken;
+      return { idToken: idToken, accessToken: accessToken };
+    }
+
+    function finishWithResult(result) {
+      var t = extractTokens(result);
+      if (!t.idToken) {
+        setMsg('Kimlik jetonu alınamadı. Tekrar deneyin.');
+        document.getElementById('btn').style.display = 'inline-block';
+        document.getElementById('spin').style.display = 'none';
+        return;
+      }
+      setMsg('Uygulamaya dönülüyor…');
+      goApp({ id_token: t.idToken, access_token: t.accessToken || '' });
+    }
+
+    async function startRedirect() {
+      try {
+        await auth.signOut();
+      } catch (_) {}
+      await auth.signInWithRedirect(provider);
+    }
+
+    document.getElementById('btn').onclick = function () {
+      document.getElementById('spin').style.display = 'block';
+      document.getElementById('btn').style.display = 'none';
+      setMsg('Hesabınız seçiliyor…');
+      startRedirect();
+    };
+
+    auth.getRedirectResult()
+      .then(function (result) {
+        if (result && result.user) {
+          finishWithResult(result);
+          return;
+        }
+        // İlk açılış — Google’a yönlendir
+        startRedirect();
+      })
+      .catch(function (e) {
+        var code = (e && e.code) ? String(e.code) : '';
+        if (code.indexOf('popup-closed') >= 0 || code.indexOf('cancelled') >= 0) {
+          goApp({ cancelled: '1' });
+          return;
+        }
+        setMsg((e && e.message) ? e.message : 'Giriş başarısız.');
+        document.getElementById('spin').style.display = 'none';
+        document.getElementById('btn').style.display = 'inline-block';
+      });
+  </script>
+</body>
+</html>

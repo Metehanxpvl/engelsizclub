@@ -8,10 +8,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../admin_config.dart';
 import '../data/forum_data.dart';
+import '../forum_follow_store.dart';
 import '../forum_store.dart';
 import '../meto_theme.dart';
 import '../services/catalog_adapters.dart';
 import '../sohbet_store.dart';
+import '../widgets/photo_gallery_lightbox.dart';
+import '../widgets/user_avatar.dart';
 
 /// Figma Make `ForumTab` — Flutter portu.
 class ForumPage extends StatefulWidget {
@@ -20,11 +23,14 @@ class ForumPage extends StatefulWidget {
     this.userName = 'Siz',
     this.userEmail = '',
     this.userType = 'aile',
+    this.profilFoto,
   });
 
   final String userName;
   final String userEmail;
   final String userType;
+  /// data:image… profil fotoğrafı (varsa paylaşımlarda kullanılır).
+  final String? profilFoto;
 
   @override
   State<ForumPage> createState() => _ForumPageState();
@@ -46,12 +52,17 @@ class _ForumPageState extends State<ForumPage> {
   bool _loading = true;
   bool _publishing = false;
   bool _commentSending = false;
+  bool _commentAnon = false;
   bool _likeBusy = false;
+  bool _commentLikeBusy = false;
+  Set<String> _followedCats = {};
+  bool _followBusy = false;
   bool _pickingPhoto = false;
   final List<String> _formPhotos = [];
   List<ForumPost> _cloudPosts = const [];
   List<ForumComment> _postComments = const [];
   bool _commentsLoading = false;
+  ForumComment? _replyingTo;
   RealtimeChannel? _forumChannel;
 
   final _searchController = TextEditingController();
@@ -128,11 +139,13 @@ class _ForumPageState extends State<ForumPage> {
     if (_isProfUser) {
       _newPostCategory = 'Uzman';
       _koseYazisi = true;
+      _uzmanMeslek = 'Doktor';
     } else {
       // Aileler köşe yazısında "Aile" olarak paylaşır
       _uzmanMeslek = 'Aile';
     }
     _loadPosts();
+    unawaited(_loadFollows());
     _forumChannel = Supabase.instance.client.channel('forum-feed');
     _forumChannel!
       ..onPostgresChanges(
@@ -173,15 +186,99 @@ class _ForumPageState extends State<ForumPage> {
   Future<void> _loadPosts() async {
     setState(() => _loading = true);
     final posts = await loadForumPosts();
+    final photos = await loadUserPhotosByEmail(
+      posts.where((p) => !p.isAnonymous).map((p) => p.ownerEmail),
+    );
+    final enriched = [
+      for (final p in posts)
+        p.copyWith(
+          avatar: resolveAvatar(
+            storedAvatar: p.avatar,
+            ownerEmail: p.ownerEmail,
+            photosByEmail: photos,
+            ownPhoto: widget.profilFoto,
+            ownEmail: widget.userEmail,
+            anonymous: p.isAnonymous,
+          ),
+        ),
+    ];
     if (!mounted) return;
     setState(() {
-      _cloudPosts = posts;
+      _cloudPosts = enriched;
       _loading = false;
       if (_selectedPost != null) {
-        final updated = posts.where((p) => p.id == _selectedPost!.id).firstOrNull;
+        final updated =
+            enriched.where((p) => p.id == _selectedPost!.id).firstOrNull;
         if (updated != null) _selectedPost = updated;
       }
     });
+  }
+
+  Future<List<ForumComment>> _enrichComments(List<ForumComment> comments) async {
+    final photos = await loadUserPhotosByEmail(
+      comments
+          .where((c) => c.name.trim().toLowerCase() != 'anonim')
+          .map((c) => c.ownerEmail),
+    );
+    return [
+      for (final c in comments)
+        ForumComment(
+          id: c.id,
+          name: c.name,
+          text: c.text,
+          time: c.time,
+          color: c.color,
+          avatar: resolveAvatar(
+            storedAvatar: c.avatar,
+            ownerEmail: c.ownerEmail,
+            photosByEmail: photos,
+            ownPhoto: widget.profilFoto,
+            ownEmail: widget.userEmail,
+            anonymous: c.name.trim().toLowerCase() == 'anonim',
+          ),
+          ownerEmail: c.ownerEmail,
+          parentId: c.parentId,
+          likes: c.likes,
+          likedByMe: c.likedByMe,
+        ),
+    ];
+  }
+
+  Future<void> _loadFollows() async {
+    if (widget.userEmail.trim().isEmpty) return;
+    final set = await ForumFollowStore.loadFollowed(widget.userEmail);
+    if (!mounted) return;
+    setState(() => _followedCats = set);
+  }
+
+  Future<void> _toggleFollowActiveCategory() async {
+    final cat = _activeCategory;
+    if (cat == 'Tümü' || widget.userEmail.trim().isEmpty || _followBusy) return;
+    setState(() => _followBusy = true);
+    final next = !_followedCats.contains(cat);
+    await ForumFollowStore.setFollowing(
+      widget.userEmail,
+      cat,
+      follow: next,
+    );
+    if (!mounted) return;
+    setState(() {
+      if (next) {
+        _followedCats = {..._followedCats, cat};
+      } else {
+        _followedCats = {..._followedCats}..remove(cat);
+      }
+      _followBusy = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          next
+              ? '"$cat" konusundan bildirim alacaksın'
+              : '"$cat" bildirimleri kapatıldı',
+        ),
+      ),
+    );
   }
 
   List<ForumPost> get _filteredPosts {
@@ -192,6 +289,10 @@ class _ForumPageState extends State<ForumPage> {
         'Tümü' => true,
         'Köşe Yazısı' =>
           p.expert || p.category == 'Köşe Yazısı',
+        'Doktor' =>
+          p.expert &&
+              (p.meslek == 'Doktor' ||
+                  p.category.toLowerCase().contains('doktor')),
         'Genel Konular' =>
           p.category == 'Genel Konular' || p.category == 'Genel',
         'Uzman' =>
@@ -210,13 +311,62 @@ class _ForumPageState extends State<ForumPage> {
       _selectedPost = post;
       _commentsLoading = true;
       _postComments = const [];
+      _replyingTo = null;
     });
     final comments = await loadForumComments(post.id);
+    final enriched = await _enrichComments(comments);
     if (!mounted) return;
     setState(() {
-      _postComments = comments;
+      _postComments = enriched;
       _commentsLoading = false;
     });
+  }
+
+  List<ForumComment> get _rootComments =>
+      _postComments.where((c) => !c.isReply).toList();
+
+  List<ForumComment> _repliesOf(int parentId) =>
+      _postComments.where((c) => c.parentId == parentId).toList();
+
+  void _startReply(ForumComment c) {
+    setState(() => _replyingTo = c);
+  }
+
+  void _cancelReply() {
+    setState(() => _replyingTo = null);
+  }
+
+  Future<void> _toggleCommentLike(ForumComment c) async {
+    if (_commentLikeBusy || c.id <= 0) return;
+    setState(() => _commentLikeBusy = true);
+    try {
+      final result = await toggleForumCommentLike(c.id);
+      if (!mounted) return;
+      setState(() {
+        _postComments = [
+          for (final x in _postComments)
+            if (x.id == c.id)
+              x.copyWith(likedByMe: result.liked, likes: result.likes)
+            else
+              x,
+        ];
+        _commentLikeBusy = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _commentLikeBusy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().contains('forum_comment_likes') ||
+                    e.toString().contains('PGRST') ||
+                    e.toString().contains('42P01')
+                ? 'Yorum beğenisi için forum_comment_replies_likes.sql çalıştırın.'
+                : 'Beğenilemedi: $e',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _toggleLike(ForumPost post) async {
@@ -336,11 +486,21 @@ class _ForumPageState extends State<ForumPage> {
     try {
       await deleteForumComment(commentId: c.id, postId: post.id);
       if (!mounted) return;
+      final removeIds = <int>{
+        c.id,
+        ..._postComments
+            .where((x) => x.parentId == c.id)
+            .map((x) => x.id),
+      };
       final updated = post.copyWith(
-        comments: (post.comments - 1).clamp(0, 999999),
+        comments: (post.comments - removeIds.length).clamp(0, 999999),
       );
       setState(() {
-        _postComments = _postComments.where((x) => x.id != c.id).toList();
+        _postComments =
+            _postComments.where((x) => !removeIds.contains(x.id)).toList();
+        if (_replyingTo != null && removeIds.contains(_replyingTo!.id)) {
+          _replyingTo = null;
+        }
         _selectedPost = updated;
         _cloudPosts = [
           for (final p in _cloudPosts)
@@ -372,6 +532,11 @@ class _ForumPageState extends State<ForumPage> {
     final post = _selectedPost;
     final text = _commentController.text.trim();
     if (post == null || text.isEmpty || _commentSending) return;
+    final parent = _replyingTo;
+    // Yanıtlar yalnızca kök yoruma bağlanır (tek seviye)
+    final parentId = parent == null
+        ? null
+        : (parent.isReply ? parent.parentId : parent.id);
     setState(() => _commentSending = true);
     try {
       final c = await addForumComment(
@@ -379,6 +544,9 @@ class _ForumPageState extends State<ForumPage> {
         body: text,
         authorName: widget.userName,
         authorEmail: widget.userEmail,
+        parentId: parentId,
+        anon: _commentAnon,
+        avatarPhoto: _commentAnon ? null : widget.profilFoto,
       );
       if (!mounted) return;
       _commentController.clear();
@@ -386,6 +554,8 @@ class _ForumPageState extends State<ForumPage> {
       setState(() {
         _postComments = [..._postComments, c];
         _selectedPost = updated;
+        _replyingTo = null;
+        _commentAnon = false;
         _cloudPosts = [
           for (final p in _cloudPosts)
             if (p.id == post.id) updated else p,
@@ -399,9 +569,8 @@ class _ForumPageState extends State<ForumPage> {
         SnackBar(
           content: Text(
             e.toString().contains('forum_comments') ||
-                    e.toString().contains('PGRST') ||
-                    e.toString().contains('schema cache')
-                ? 'Yorum tablosu yok. Supabase’de forum_interact.sql çalıştırın.'
+                    e.toString().contains('PGRST')
+                ? 'Yorum tablosu yok. forum_interact.sql çalıştırın.'
                 : 'Yorum gönderilemedi: $e',
           ),
         ),
@@ -551,7 +720,22 @@ class _ForumPageState extends State<ForumPage> {
           expert: isExpert,
           meslek: meslek,
           photos: _formPhotos,
+          avatarPhoto: (isExpert || !_anon) ? widget.profilFoto : null,
         );
+        unawaited(ForumFollowStore.notifyFollowersOfPost(
+          category: isExpert ? 'Köşe Yazısı' : category,
+          title: title,
+          actorName: widget.userName,
+          actorEmail: widget.userEmail,
+        ));
+        if (isExpert && meslek.isNotEmpty) {
+          unawaited(ForumFollowStore.notifyFollowersOfPost(
+            category: meslek,
+            title: title,
+            actorName: widget.userName,
+            actorEmail: widget.userEmail,
+          ));
+        }
       }
       if (!mounted) return;
       _titleController.clear();
@@ -758,6 +942,34 @@ class _ForumPageState extends State<ForumPage> {
                 },
               ),
             ),
+            const SizedBox(height: 8),
+            if (_activeCategory != 'Tümü')
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: OutlinedButton.icon(
+                  onPressed: _followBusy ? null : _toggleFollowActiveCategory,
+                  icon: Icon(
+                    _followedCats.contains(_activeCategory)
+                        ? Icons.notifications_active
+                        : Icons.notifications_none,
+                    size: 18,
+                  ),
+                  label: Text(
+                    _followedCats.contains(_activeCategory)
+                        ? 'Bu konudan bildirim alınıyor'
+                        : 'Bu konudan bildirim al',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: MetoColors.primary,
+                    side: const BorderSide(color: MetoColors.border),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ),
             const SizedBox(height: 12),
             if (_loading) const LinearProgressIndicator(minHeight: 2),
             if (_loading && filtered.isEmpty)
@@ -918,6 +1130,8 @@ class _ForumPageState extends State<ForumPage> {
             onPressed: () => setState(() {
               _selectedPost = null;
               _postComments = const [];
+              _replyingTo = null;
+              _commentAnon = false;
             }),
             style: TextButton.styleFrom(
               foregroundColor: MetoColors.primary,
@@ -933,17 +1147,13 @@ class _ForumPageState extends State<ForumPage> {
           const SizedBox(height: 8),
           Row(
             children: [
-              CircleAvatar(
+              UserAvatar(
+                avatar: post.isAnonymous ? 'A' : post.avatar,
+                color: post.isAnonymous
+                    ? const Color(0xFF94A3B8)
+                    : post.avatarColor,
                 radius: 20,
-                backgroundColor: post.avatarColor,
-                child: Text(
-                  post.avatar,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+                fallbackName: post.author,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -1125,7 +1335,7 @@ class _ForumPageState extends State<ForumPage> {
                 ),
               ),
             )
-          else if (_postComments.isEmpty)
+          else if (_rootComments.isEmpty)
             const Padding(
               padding: EdgeInsets.only(bottom: 12),
               child: Text(
@@ -1134,13 +1344,69 @@ class _ForumPageState extends State<ForumPage> {
               ),
             )
           else
-            ..._postComments.map(
-              (c) => _CommentBubble(
-                c,
-                onDelete: _canModerateComment(c) ? () => _deleteComment(c) : null,
+            ..._rootComments.expand((c) {
+              final replies = _repliesOf(c.id);
+              return [
+                _CommentBubble(
+                  c,
+                  onDelete:
+                      _canModerateComment(c) ? () => _deleteComment(c) : null,
+                  onReply: () => _startReply(c),
+                  onLike: () => _toggleCommentLike(c),
+                ),
+                for (final r in replies)
+                  _CommentBubble(
+                    r,
+                    indented: true,
+                    onDelete: _canModerateComment(r)
+                        ? () => _deleteComment(r)
+                        : null,
+                    onReply: () => _startReply(c),
+                    onLike: () => _toggleCommentLike(r),
+                  ),
+              ];
+            }),
+          const SizedBox(height: 8),
+          if (_replyingTo != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: MetoColors.muted,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: MetoColors.border),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.reply, size: 16, color: MetoColors.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${_replyingTo!.name} adlı üyeye yanıt',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: MetoColors.foreground,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'İptal',
+                      onPressed: _cancelReply,
+                      icon: const Icon(Icons.close, size: 16),
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
@@ -1149,7 +1415,11 @@ class _ForumPageState extends State<ForumPage> {
                   textInputAction: TextInputAction.send,
                   onSubmitted: (_) => _sendComment(),
                   decoration: InputDecoration(
-                    hintText: 'Yorum yaz...',
+                    hintText: _replyingTo == null
+                        ? (_commentAnon
+                            ? 'Anonim yorum yaz...'
+                            : 'Yorum yaz...')
+                        : (_commentAnon ? 'Anonim yanıt yaz...' : 'Yanıt yaz...'),
                     filled: true,
                     fillColor: MetoColors.card,
                     contentPadding: const EdgeInsets.symmetric(
@@ -1192,15 +1462,61 @@ class _ForumPageState extends State<ForumPage> {
                           color: Colors.white,
                         ),
                       )
-                    : const Text(
-                        'Gönder',
-                        style: TextStyle(
+                    : Text(
+                        _replyingTo == null ? 'Gönder' : 'Yanıtla',
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: _commentSending
+                ? null
+                : () => setState(() => _commentAnon = !_commentAnon),
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: Checkbox(
+                      value: _commentAnon,
+                      onChanged: _commentSending
+                          ? null
+                          : (v) => setState(() => _commentAnon = v ?? false),
+                      activeColor: MetoColors.primary,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Anonim yorum',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: MetoColors.foreground,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _commentAnon
+                        ? '(adın gizlenecek)'
+                        : '(isteğe bağlı)',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: MetoColors.mutedFg,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -1252,6 +1568,11 @@ class _ForumPageState extends State<ForumPage> {
                 if (v == 'Köşe Yazısı' || v == 'Uzman') {
                   _koseYazisi = true;
                   _anon = false;
+                  // Köşe yazısında Doktor seçeneği varsayılan / görünür
+                  if (_uzmanMeslek == 'Aile' ||
+                      !uzmanMeslekler.contains(_uzmanMeslek)) {
+                    _uzmanMeslek = _isProfUser ? 'Doktor' : 'Aile';
+                  }
                 } else {
                   _koseYazisi = false;
                 }
@@ -1280,7 +1601,9 @@ class _ForumPageState extends State<ForumPage> {
             _fieldLabel('Meslek'),
             const SizedBox(height: 4),
             DropdownButtonFormField<String>(
-              value: _uzmanMeslek,
+              value: uzmanMeslekler.contains(_uzmanMeslek)
+                  ? _uzmanMeslek
+                  : uzmanMeslekler.first,
               decoration: _inputDecoration(),
               items: uzmanMeslekler
                   .map((m) => DropdownMenuItem(value: m, child: Text(m)))
@@ -1288,6 +1611,27 @@ class _ForumPageState extends State<ForumPage> {
               onChanged: (v) {
                 if (v != null) setState(() => _uzmanMeslek = v);
               },
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final m in uzmanMeslekler)
+                  ChoiceChip(
+                    label: Text(m),
+                    selected: _uzmanMeslek == m,
+                    onSelected: (_) => setState(() => _uzmanMeslek = m),
+                    selectedColor: MetoColors.primary.withValues(alpha: 0.2),
+                    labelStyle: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: _uzmanMeslek == m
+                          ? MetoColors.primary
+                          : MetoColors.mutedFg,
+                    ),
+                  ),
+              ],
             ),
           ] else ...[
             const SizedBox(height: 12),
@@ -1578,17 +1922,13 @@ class _PostCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircleAvatar(
+                  UserAvatar(
+                    avatar: post.isAnonymous ? 'A' : post.avatar,
+                    color: post.isAnonymous
+                        ? const Color(0xFF94A3B8)
+                        : post.avatarColor,
                     radius: 16,
-                    backgroundColor: post.avatarColor,
-                    child: Text(
-                      post.avatar,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    fallbackName: post.author,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -1787,34 +2127,47 @@ class _ForumPhotoStrip extends StatelessWidget {
   final double height;
   final bool compact;
 
+  void _open(BuildContext context, int index) {
+    final images = galleryProvidersFromSources(photos);
+    if (images.isEmpty) return;
+    openPhotoGallery(
+      context,
+      images: images,
+      initialIndex: index.clamp(0, images.length - 1),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (photos.isEmpty) return const SizedBox.shrink();
 
     if (photos.length == 1) {
       final bytes = _forumPhotoBytes(photos.first);
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(compact ? 10 : 12),
-        child: ColoredBox(
-          color: MetoColors.muted,
-          child: bytes == null
-              ? SizedBox(
-                  height: height,
-                  child: const Center(
-                    child: Icon(Icons.broken_image_outlined,
-                        color: MetoColors.mutedFg),
-                  ),
-                )
-              : SizedBox(
-                  height: height,
-                  width: double.infinity,
-                  child: Image.memory(
-                    bytes,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
+      return GestureDetector(
+        onTap: () => _open(context, 0),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(compact ? 10 : 12),
+          child: ColoredBox(
+            color: MetoColors.muted,
+            child: bytes == null
+                ? SizedBox(
                     height: height,
+                    child: const Center(
+                      child: Icon(Icons.broken_image_outlined,
+                          color: MetoColors.mutedFg),
+                    ),
+                  )
+                : SizedBox(
+                    height: height,
+                    width: double.infinity,
+                    child: Image.memory(
+                      bytes,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: height,
+                    ),
                   ),
-                ),
+          ),
         ),
       );
     }
@@ -1826,29 +2179,32 @@ class _ForumPhotoStrip extends StatelessWidget {
           for (var i = 0; i < photos.length && i < 2; i++) ...[
             if (i > 0) const SizedBox(width: 8),
             Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(compact ? 10 : 12),
-                child: ColoredBox(
-                  color: MetoColors.muted,
-                  child: Builder(
-                    builder: (context) {
-                      final bytes = _forumPhotoBytes(photos[i]);
-                      if (bytes == null) {
-                        return SizedBox(
+              child: GestureDetector(
+                onTap: () => _open(context, i),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(compact ? 10 : 12),
+                  child: ColoredBox(
+                    color: MetoColors.muted,
+                    child: Builder(
+                      builder: (context) {
+                        final bytes = _forumPhotoBytes(photos[i]);
+                        if (bytes == null) {
+                          return SizedBox(
+                            height: height,
+                            child: const Center(
+                              child: Icon(Icons.broken_image_outlined,
+                                  color: MetoColors.mutedFg),
+                            ),
+                          );
+                        }
+                        return Image.memory(
+                          bytes,
                           height: height,
-                          child: const Center(
-                            child: Icon(Icons.broken_image_outlined,
-                                color: MetoColors.mutedFg),
-                          ),
+                          width: double.infinity,
+                          fit: BoxFit.cover,
                         );
-                      }
-                      return Image.memory(
-                        bytes,
-                        height: height,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      );
-                    },
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -1861,34 +2217,34 @@ class _ForumPhotoStrip extends StatelessWidget {
 }
 
 class _CommentBubble extends StatelessWidget {
-  const _CommentBubble(this.comment, {this.onDelete});
+  const _CommentBubble(
+    this.comment, {
+    this.onDelete,
+    this.onReply,
+    this.onLike,
+    this.indented = false,
+  });
 
   final ForumComment comment;
   final VoidCallback? onDelete;
+  final VoidCallback? onReply;
+  final VoidCallback? onLike;
+  final bool indented;
 
   @override
   Widget build(BuildContext context) {
-    final initials = comment.name
-        .split(' ')
-        .map((n) => n.isNotEmpty ? n[0] : '')
-        .join();
+    final isAnon = comment.name.toLowerCase() == 'anonim';
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.only(left: indented ? 28 : 0, bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: comment.color,
-            child: Text(
-              initials,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+          UserAvatar(
+            avatar: isAnon ? '?' : comment.avatar,
+            color: isAnon ? const Color(0xFF94A3B8) : comment.color,
+            radius: indented ? 13 : 16,
+            fallbackName: comment.name,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1897,6 +2253,9 @@ class _CommentBubble extends StatelessWidget {
               decoration: BoxDecoration(
                 color: MetoColors.muted,
                 borderRadius: BorderRadius.circular(16),
+                border: indented
+                    ? Border.all(color: MetoColors.border)
+                    : null,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1939,13 +2298,83 @@ class _CommentBubble extends StatelessWidget {
                       color: MetoColors.foreground.withValues(alpha: 0.8),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    comment.time,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: MetoColors.mutedFg,
-                    ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Text(
+                        comment.time,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: MetoColors.mutedFg,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      InkWell(
+                        onTap: onLike,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                comment.likedByMe
+                                    ? Icons.thumb_up
+                                    : Icons.thumb_up_outlined,
+                                size: 14,
+                                color: comment.likedByMe
+                                    ? MetoColors.primary
+                                    : MetoColors.mutedFg,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${comment.likes}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: comment.likedByMe
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: comment.likedByMe
+                                      ? MetoColors.primary
+                                      : MetoColors.mutedFg,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: onReply,
+                        borderRadius: BorderRadius.circular(8),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.reply,
+                                size: 14,
+                                color: MetoColors.mutedFg,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Yanıtla',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: MetoColors.mutedFg,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
