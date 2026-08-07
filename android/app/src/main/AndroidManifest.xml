@@ -10,12 +10,17 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Aile Koçu ilaç/ders hatırlatıcıları (USE_EXACT_ALARM yok — Play politikası) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <application
         android:label="Engelsiz Club"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher">
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyAHDu7hYJInYdPhrg8i0YdEzgfl0lL502o"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"

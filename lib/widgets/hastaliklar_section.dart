@@ -10,12 +10,16 @@ import '../admin_config.dart';
 import '../condition_store.dart';
 import '../data/condition_data.dart';
 import '../data/diseases_data.dart';
+import '../medical_disclaimer_store.dart';
 import '../meto_theme.dart';
 import '../services/catalog_adapters.dart';
 import 'admin_disease_edit_sheet.dart';
 import 'catalog_media.dart';
+import 'medical_info_card.dart';
+import '../l10n/app_strings.dart';
+import '../l10n/l10n_text.dart';
 
-/// Ana sayfa: Hastalıklar & Durumlar grid + admin CRUD / sürükle-bırak sıra.
+/// Ana sayfa: Bilgi Kütüphanesi grid + admin CRUD / sürükle-bırak sıra.
 class HastaliklarSection extends StatefulWidget {
   const HastaliklarSection({
     super.key,
@@ -110,7 +114,7 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
     );
     if (result == null || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Hastalık kaydedildi.')),
+      const SnackBar(content: L10nText('Kart kaydedildi.')),
     );
     setState(() {});
   }
@@ -288,14 +292,14 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Sıra kaydedildi.'),
+          content: L10nText('Sıra kaydedildi.'),
           duration: Duration(seconds: 1),
         ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sıra kaydedilemedi: $e')),
+        SnackBar(content: L10nText('Sıra kaydedilemedi: $e')),
       );
       await _reload(silent: true);
     } finally {
@@ -364,8 +368,8 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
           Row(
             children: [
               Expanded(
-                child: Text(
-                  'Hastalıklar & Durumlar',
+                child: L10nText(
+                  'Bilgi Kütüphanesi',
                   style: GoogleFonts.nunito(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
@@ -384,7 +388,7 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
                 ),
               if (_isAdmin) ...[
                 IconButton(
-                  tooltip: 'Yönet',
+                  tooltip: S.auto('Yönet'),
                   onPressed: _openManage,
                   style: IconButton.styleFrom(
                     backgroundColor: MetoColors.primary.withValues(alpha: 0.1),
@@ -393,7 +397,7 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
                   icon: const Icon(Icons.tune, size: 20),
                 ),
                 IconButton(
-                  tooltip: 'Yeni hastalık ekle',
+                  tooltip: S.auto('Yeni durum kartı ekle'),
                   onPressed: () => _openForm(),
                   style: IconButton.styleFrom(
                     backgroundColor: MetoColors.primary.withValues(alpha: 0.1),
@@ -404,10 +408,18 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
               ],
             ],
           ),
+          const SizedBox(height: 10),
+          const MedicalInfoCard(
+            title: 'Bilgilendirme',
+            body:
+                'Bu bölüm yalnızca bilgilendirme amaçlıdır. İçerikler klinik hizmet veya tavsiye niteliğinde değildir.',
+            icon: Icons.menu_book_outlined,
+            dismissKey: kDismissLibraryInfo,
+          ),
           if (_isAdmin && active.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
+              padding: const EdgeInsets.only(top: 8),
+              child: L10nText(
                 'Basılı tutup sürükleyerek sırayı değiştirin',
                 style: GoogleFonts.nunito(
                   fontSize: 11,
@@ -562,7 +574,7 @@ class _ConditionCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 10),
-              Text(
+              L10nText(
                 disease.name,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
@@ -575,7 +587,7 @@ class _ConditionCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Expanded(
-                child: Text(
+                child: L10nText(
                   disease.desc,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
@@ -701,7 +713,7 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
     final title = _title.text.trim();
     if (title.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Başlık gerekli.')),
+        const SnackBar(content: L10nText('Başlık gerekli.')),
       );
       return;
     }
@@ -794,7 +806,7 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                _isEdit ? 'Kartı ve detayı düzenle' : 'Yeni hastalık / durum',
+                _isEdit ? 'Kartı ve detayı düzenle' : 'Yeni durum kartı',
                 style: GoogleFonts.nunito(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -808,7 +820,7 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
+                    L10nText(
                       'Kart',
                       style: GoogleFonts.nunito(
                         fontSize: 13,
@@ -845,7 +857,7 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
                             onPressed: _saving ? null : _pickImage,
                             icon: const Icon(Icons.photo_library_outlined,
                                 size: 18),
-                            label: const Text('Galeriden yükle'),
+                            label: const L10nText('Galeriden yükle'),
                           ),
                         ),
                       ],
@@ -854,8 +866,8 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
                     TextField(
                       controller: _imageUrl,
                       enabled: !_saving && _pickedBytes == null,
-                      decoration: const InputDecoration(
-                        hintText: 'veya görsel URL / asset yolu',
+                      decoration: InputDecoration(
+                        hintText: S.auto('veya görsel URL / asset yolu'),
                         border: OutlineInputBorder(),
                       ),
                       onChanged: (_) => setState(() {}),
@@ -865,8 +877,8 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
                       controller: _title,
                       enabled: !_saving,
                       maxLength: 80,
-                      decoration: const InputDecoration(
-                        labelText: 'Başlık',
+                      decoration: InputDecoration(
+                        labelText: S.auto('Başlık'),
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -874,8 +886,8 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
                     TextField(
                       controller: _icon,
                       enabled: !_saving,
-                      decoration: const InputDecoration(
-                        labelText: 'İkon (emoji)',
+                      decoration: InputDecoration(
+                        labelText: S.auto('İkon (emoji)'),
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -885,14 +897,14 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
                       enabled: !_saving,
                       minLines: 3,
                       maxLines: 8,
-                      decoration: const InputDecoration(
-                        labelText: 'Kısa açıklama (kart)',
+                      decoration: InputDecoration(
+                        labelText: S.auto('Kısa açıklama (kart)'),
                         alignLabelWithHint: true,
                         border: OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 14),
-                    Text(
+                    L10nText(
                       'Detay içeriği',
                       style: GoogleFonts.nunito(
                         fontSize: 13,
@@ -905,8 +917,8 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
                       enabled: !_saving,
                       minLines: 4,
                       maxLines: 8,
-                      decoration: const InputDecoration(
-                        labelText: 'Belirtiler (her satır bir madde)',
+                      decoration: InputDecoration(
+                        labelText: S.auto('Belirtiler (her satır bir madde)'),
                         alignLabelWithHint: true,
                         border: OutlineInputBorder(),
                       ),
@@ -917,8 +929,8 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
                       enabled: !_saving,
                       minLines: 3,
                       maxLines: 6,
-                      decoration: const InputDecoration(
-                        labelText: 'Tanı süreci',
+                      decoration: InputDecoration(
+                        labelText: S.auto('Değerlendirme bilgisi'),
                         alignLabelWithHint: true,
                         border: OutlineInputBorder(),
                       ),
@@ -929,8 +941,8 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
                       enabled: !_saving,
                       minLines: 3,
                       maxLines: 8,
-                      decoration: const InputDecoration(
-                        labelText: 'Destek yolları (her satır bir madde)',
+                      decoration: InputDecoration(
+                        labelText: S.auto('Destek yolları (her satır bir madde)'),
                         alignLabelWithHint: true,
                         border: OutlineInputBorder(),
                       ),
@@ -941,8 +953,8 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
                       enabled: !_saving,
                       minLines: 3,
                       maxLines: 8,
-                      decoration: const InputDecoration(
-                        labelText: 'SSS (satır: soru | cevap)',
+                      decoration: InputDecoration(
+                        labelText: S.auto('SSS (satır: soru | cevap)'),
                         alignLabelWithHint: true,
                         border: OutlineInputBorder(),
                       ),
@@ -951,21 +963,21 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
                     TextField(
                       controller: _catalogId,
                       enabled: !_saving,
-                      decoration: const InputDecoration(
-                        labelText: 'Katalog id (opsiyonel, örn. otizm)',
+                      decoration: InputDecoration(
+                        labelText: S.auto('Katalog id (opsiyonel, örn. otizm)'),
                         border: OutlineInputBorder(),
                       ),
                     ),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: Text(
+                      title: L10nText(
                         'Aktif',
                         style: GoogleFonts.nunito(
                           fontWeight: FontWeight.w700,
                           fontSize: 14,
                         ),
                       ),
-                      subtitle: Text(
+                      subtitle: L10nText(
                         'Kapalıysa ana sayfada görünmez.',
                         style: GoogleFonts.nunito(
                           fontSize: 12,
@@ -1079,7 +1091,7 @@ class _AdminConditionManageSheetState extends State<_AdminConditionManageSheet> 
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sıra kaydedilemedi: $e')),
+        SnackBar(content: L10nText('Sıra kaydedilemedi: $e')),
       );
     } finally {
       if (mounted) setState(() => _savingOrder = false);
@@ -1097,7 +1109,7 @@ class _AdminConditionManageSheetState extends State<_AdminConditionManageSheet> 
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Güncellenemedi: $e')),
+        SnackBar(content: L10nText('Güncellenemedi: $e')),
       );
     } finally {
       if (mounted) setState(() => _busyId = null);
@@ -1108,25 +1120,25 @@ class _AdminConditionManageSheetState extends State<_AdminConditionManageSheet> 
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(
+        title: L10nText(
           'Kartı sil?',
           style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
         ),
-        content: Text(
+        content: L10nText(
           '"${item.title}" kalıcı olarak silinecek.',
           style: GoogleFonts.nunito(fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Vazgeç'),
+            child: const L10nText('Vazgeç'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFDC2626),
             ),
-            child: const Text('Sil'),
+            child: const L10nText('Sil'),
           ),
         ],
       ),
@@ -1139,7 +1151,7 @@ class _AdminConditionManageSheetState extends State<_AdminConditionManageSheet> 
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Silinemedi: $e')),
+        SnackBar(content: L10nText('Silinemedi: $e')),
       );
     } finally {
       if (mounted) setState(() => _busyId = null);
@@ -1174,15 +1186,15 @@ class _AdminConditionManageSheetState extends State<_AdminConditionManageSheet> 
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Hastalık / durum yönetimi',
+                      L10nText(
+                        'Durum kartı yönetimi',
                         style: GoogleFonts.nunito(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
                           color: MetoColors.foreground,
                         ),
                       ),
-                      Text(
+                      L10nText(
                         'Sürükleyerek sırayı değiştirin',
                         style: GoogleFonts.nunito(
                           fontSize: 11,
@@ -1204,7 +1216,7 @@ class _AdminConditionManageSheetState extends State<_AdminConditionManageSheet> 
                 TextButton.icon(
                   onPressed: widget.onAdd,
                   icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Ekle'),
+                  label: const L10nText('Ekle'),
                 ),
               ],
             ),
@@ -1215,7 +1227,7 @@ class _AdminConditionManageSheetState extends State<_AdminConditionManageSheet> 
                 ? Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
-                      child: Text(
+                      child: L10nText(
                         'Henüz kayıt yok.\nEkle ile yeni kart oluşturun.\n(Boşken ana sayfa yerel kataloğu gösterir.)',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.nunito(color: MetoColors.mutedFg),
@@ -1275,7 +1287,7 @@ class _AdminConditionManageSheetState extends State<_AdminConditionManageSheet> 
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
+                                      L10nText(
                                         item.title,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
@@ -1324,12 +1336,12 @@ class _AdminConditionManageSheetState extends State<_AdminConditionManageSheet> 
                                     ),
                                   ),
                                   IconButton(
-                                    tooltip: 'Düzenle',
+                                    tooltip: S.auto('Düzenle'),
                                     onPressed: () => widget.onEdit(item),
                                     icon: const Icon(Icons.edit_outlined),
                                   ),
                                   IconButton(
-                                    tooltip: 'Sil',
+                                    tooltip: S.auto('Sil'),
                                     onPressed: () => _delete(item),
                                     icon: const Icon(
                                       Icons.delete_outline,

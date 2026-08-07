@@ -7,18 +7,40 @@ import '../data/diseases_data.dart';
 import '../data/rights_data.dart';
 import '../services/app_catalog_service.dart';
 
+/// Forum chip / dropdown sırası (kullanıcı tercihi).
+const _forumDiseaseOrder = <String>[
+  'Serebral Palsi',
+  'Otizm',
+  'Down Sendromu',
+  'SMA',
+  'DEHB',
+  'Gelişim Geriliği',
+  'Duyu Bütünleme',
+  'İletişim Bozuklukları',
+  'Nadir Hastalıklar',
+];
+
 /// Forum paylaşım / filtre kategorileri — ana sayfa hastalıkları + genel + köşe.
 List<String> forumDiseaseCategoryLabels() {
-  final names = <String>[
-    for (final d in CatalogAdapters.diseases()) d.name,
-  ];
-  return [
-    for (final n in names)
-      n
+  final short = <String>[
+    for (final d in CatalogAdapters.diseases())
+      d.name
           .replaceFirst('Otizm Spektrum Bozukluğu', 'Otizm')
           .replaceFirst('SMA (Spinal Müsküler Atrofi)', 'SMA')
           .replaceFirst('Duyu Bütünleme Sorunları', 'Duyu Bütünleme'),
   ];
+  final seen = <String>{};
+  final ordered = <String>[];
+  for (final preferred in _forumDiseaseOrder) {
+    final hit = short.where((n) => n == preferred).toList();
+    for (final n in hit) {
+      if (seen.add(n)) ordered.add(n);
+    }
+  }
+  for (final n in short) {
+    if (seen.add(n)) ordered.add(n);
+  }
+  return ordered;
 }
 
 /// Haklar / uzmanlık / merkez / hastalık / kart / forum — remote katalog;
@@ -57,6 +79,7 @@ class CatalogAdapters {
         'Ergoterapist',
         'Dil Konuşma Terapisti',
         'Özel Eğitim Öğretmeni',
+        'Gölge Öğretmen',
         'Psikolog',
       ];
     }
@@ -70,10 +93,9 @@ class CatalogAdapters {
     if (remote.isEmpty) {
       return const [
         'Tümü',
-        'Fizik Tedavi',
         'Özel Eğitim',
-        'Dil Terapisi',
-        'Nöroloji',
+        'Fizik Tedavi',
+        'Medikal',
       ];
     }
     return [

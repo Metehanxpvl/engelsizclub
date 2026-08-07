@@ -4,6 +4,7 @@ import '../data/rights_data.dart';
 import '../meto_theme.dart';
 import '../services/app_catalog_service.dart';
 import '../services/catalog_adapters.dart';
+import '../l10n/l10n_text.dart';
 
 /// Figma Make `HaklarTab` + `RightsSihirbazi` — Flutter portu.
 class HaklarPage extends StatefulWidget {
@@ -42,7 +43,7 @@ class _HaklarPageState extends State<HaklarPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    L10nText(
                       'Devlet Destekleri',
                       style: TextStyle(
                         fontSize: 20,
@@ -51,7 +52,7 @@ class _HaklarPageState extends State<HaklarPage> {
                       ),
                     ),
                     SizedBox(height: 2),
-                    Text(
+                    L10nText(
                       'Yasal haklar, maaşlar ve başvuru rehberleri',
                       style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
                     ),
@@ -95,7 +96,7 @@ class _HaklarPageState extends State<HaklarPage> {
                                 ]
                               : null,
                         ),
-                        child: Text(
+                        child: L10nText(
                           '${cat.icon} ${cat.label}',
                           style: TextStyle(
                             fontSize: 12,
@@ -176,7 +177,7 @@ class _WizardBanner extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        L10nText(
                           'Hak Sorgulama Sihirbazı',
                           style: TextStyle(
                             color: Colors.white,
@@ -185,7 +186,7 @@ class _WizardBanner extends StatelessWidget {
                           ),
                         ),
                         SizedBox(height: 2),
-                        Text(
+                        L10nText(
                           '3 soruya yanıt verin — size özel haklar listelensin',
                           style: TextStyle(
                             color: Color(0xB3FFFFFF),
@@ -214,7 +215,7 @@ class _WizardBanner extends StatelessWidget {
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
+                      L10nText(
                         'Sihirbazı Başlat',
                         style: TextStyle(
                           color: Colors.white,
@@ -280,7 +281,7 @@ class _RightCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        L10nText(
                           item.title,
                           style: const TextStyle(
                             fontSize: 14,
@@ -323,7 +324,7 @@ class _RightCard extends StatelessWidget {
                   ...item.desc.split('\n\n').map(
                         (para) => Padding(
                           padding: const EdgeInsets.only(bottom: 6),
-                          child: Text(
+                          child: L10nText(
                             para,
                             style: const TextStyle(
                               fontSize: 12,
@@ -334,7 +335,7 @@ class _RightCard extends StatelessWidget {
                         ),
                       ),
                   const SizedBox(height: 6),
-                  const Text(
+                  const L10nText(
                     'Başvuru Adımları:',
                     style: TextStyle(
                       fontSize: 12,
@@ -359,7 +360,7 @@ class _RightCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: Text(
+                            child: L10nText(
                               item.steps[i],
                               style: TextStyle(
                                 fontSize: 12,
@@ -426,7 +427,7 @@ class _DisclaimerCard extends StatelessWidget {
           Icon(Icons.info_outline, size: 14, color: Color(0xFFD97706)),
           SizedBox(width: 8),
           Expanded(
-            child: Text(
+            child: L10nText(
               'Belirtilen tutarlar yaklaşık değerlerdir. Güncel miktarlar için resmi kurum web sitelerine başvurun.',
               style: TextStyle(
                 fontSize: 12,
@@ -619,7 +620,7 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
                   size: 16, color: MetoColors.primary),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
+                child: L10nText(
                   '${matched.length} hak bulundu — seçimlerinize göre filtrelendi',
                   style: const TextStyle(
                     fontSize: 12,
@@ -676,7 +677,7 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
             side: const BorderSide(color: MetoColors.border),
           ),
           icon: const Icon(Icons.refresh, size: 14),
-          label: const Text(
+          label: const L10nText(
             'Yeniden Sorgula',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           ),
@@ -688,9 +689,9 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
   Widget _buildYasStep() {
     return Column(
       children: [
-        const Text('🎂', style: TextStyle(fontSize: 48)),
+        const L10nText('🎂', style: TextStyle(fontSize: 48)),
         const SizedBox(height: 12),
-        const Text(
+        const L10nText(
           'Kaç yaşında?',
           style: TextStyle(
             fontSize: 20,
@@ -699,7 +700,7 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
+        const L10nText(
           'Hak sistemi yaşa göre farklılaşır',
           style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
         ),
@@ -733,9 +734,9 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
   Widget _buildCozgerStep() {
     return Column(
       children: [
-        const Text('📋', style: TextStyle(fontSize: 48)),
+        const L10nText('📋', style: TextStyle(fontSize: 48)),
         const SizedBox(height: 12),
-        const Text(
+        const L10nText(
           'ÇÖZGER Rapor Grubu',
           style: TextStyle(
             fontSize: 20,
@@ -744,7 +745,7 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
+        const L10nText(
           'Raporunuzdaki gereksinim düzeyi',
           style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
         ),
@@ -756,7 +757,7 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: const Color(0xFFE9D5FF)),
           ),
-          child: const Text(
+          child: const L10nText(
             '18 yaş altında geleneksel engellilik oranı kaldırılmıştır. Yerine ÇÖZGER (Çocuklar İçin Özel Gereksinim Raporu) sistemi kullanılmaktadır.',
             style:
                 TextStyle(fontSize: 12, color: Color(0xFF6B21A8), height: 1.5),
@@ -812,7 +813,7 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
                                       color: const Color(0xFFFEF2F2),
                                       borderRadius: BorderRadius.circular(999),
                                     ),
-                                    child: const Text(
+                                    child: const L10nText(
                                       'Ağır Engelli',
                                       style: TextStyle(
                                         fontSize: 10,
@@ -825,7 +826,7 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
                               ],
                             ),
                             const SizedBox(height: 4),
-                            Text(
+                            L10nText(
                               '${g.label} (${g.kisa})',
                               style: const TextStyle(
                                 fontSize: 12,
@@ -864,9 +865,9 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
 
     return Column(
       children: [
-        const Text('📊', style: TextStyle(fontSize: 48)),
+        const L10nText('📊', style: TextStyle(fontSize: 48)),
         const SizedBox(height: 12),
-        const Text(
+        const L10nText(
           'Engel oranı nedir?',
           style: TextStyle(
             fontSize: 20,
@@ -875,7 +876,7 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
+        const L10nText(
           'Sağlık Kurulu Raporu\'ndaki yüzde',
           style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
         ),
@@ -909,9 +910,9 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
 
     return Column(
       children: [
-        const Text('🎈', style: TextStyle(fontSize: 48)),
+        const L10nText('🎈', style: TextStyle(fontSize: 48)),
         const SizedBox(height: 12),
-        const Text(
+        const L10nText(
           'Çocuğun yaşı?',
           style: TextStyle(
             fontSize: 20,
@@ -920,7 +921,7 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
+        const L10nText(
           'Destekler yaşa göre farklılaşıyor',
           style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
         ),
@@ -955,9 +956,9 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
 
     return Column(
       children: [
-        const Text('💰', style: TextStyle(fontSize: 48)),
+        const L10nText('💰', style: TextStyle(fontSize: 48)),
         const SizedBox(height: 12),
-        const Text(
+        const L10nText(
           'Hane kişi başı gelir?',
           style: TextStyle(
             fontSize: 20,
@@ -966,7 +967,7 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
+        const L10nText(
           'Net aylık yaklaşık',
           style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
         ),
@@ -1166,7 +1167,7 @@ class _WizardResultCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    L10nText(
                       item.title,
                       style: const TextStyle(
                         fontSize: 14,
@@ -1195,7 +1196,7 @@ class _WizardResultCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Text(
+                    L10nText(
                       item.desc,
                       maxLines: 4,
                       overflow: TextOverflow.ellipsis,
@@ -1212,7 +1213,7 @@ class _WizardResultCard extends StatelessWidget {
           ),
           if (item.steps.isNotEmpty) ...[
             const SizedBox(height: 14),
-            const Text(
+            const L10nText(
               'Başvuru adımları',
               style: TextStyle(
                 fontSize: 12,
@@ -1237,7 +1238,7 @@ class _WizardResultCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
+                      child: L10nText(
                         item.steps[i],
                         style: const TextStyle(
                           fontSize: 12,

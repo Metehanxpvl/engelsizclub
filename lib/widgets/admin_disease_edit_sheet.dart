@@ -324,7 +324,7 @@ class _AdminDiseaseEditSheetState extends State<AdminDiseaseEditSheet> {
                       minLines: 3,
                       maxLines: 6,
                       decoration: const InputDecoration(
-                        labelText: 'Tanı süreci',
+                        labelText: 'Değerlendirme bilgisi',
                         alignLabelWithHint: true,
                         border: OutlineInputBorder(),
                       ),

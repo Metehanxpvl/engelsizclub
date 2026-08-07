@@ -57,7 +57,7 @@ const kDiseases = <DiseaseInfo>[
       'Sınırlı ilgi alanları ve obsesif odaklanma',
     ],
     diagnosis:
-        'Çocuk psikiyatristi veya çocuk nöroloğu tarafından DSM-5 ölçütleri esas alınarak kapsamlı gelişimsel değerlendirme yapılır. ADOS-2 ve ADI-R standart araçlardır. Erken belirtiler 12–18 aylarda fark edilebilir; kesin tanı genellikle 2–3 yaşında konulur.',
+        'Çocuk gelişimi alanında uzman hekim tarafından DSM-5 ölçütleri esas alınarak kapsamlı gelişimsel değerlendirme yapılır. ADOS-2 ve ADI-R standart araçlardır. Erken özellikler 12–18 aylarda fark edilebilir; değerlendirme genellikle 2–3 yaşında netleşir.',
     support: [
       'Uygulamalı Davranış Analizi (ABA)',
       'Dil ve konuşma terapisi',
@@ -69,12 +69,12 @@ const kDiseases = <DiseaseInfo>[
     ],
     faq: [
       FaqItem(
-        'Otizm tedavi edilebilir mi?',
-        "Otizm 'tedavi edilmez' ancak erken ve yoğun müdahaleyle bireyler bağımsızlıklarını ve yaşam kalitelerini önemli ölçüde artırabilir. ABA en kanıta dayalı yöntemdir.",
+        'Otizm için destek seçenekleri nelerdir?',
+        'Erken ve yoğun destekle bireyler bağımsızlıklarını ve yaşam kalitelerini önemli ölçüde artırabilir. ABA yaygın kullanılan kanıta dayalı yöntemlerden biridir.',
       ),
       FaqItem(
-        'Kaç yaşında tanı konulabilir?',
-        '18–24 ay gibi erken dönemde belirtiler fark edilebilir. Güvenilir tanı genellikle 2–3 yaşında konulur.',
+        'Ne zaman değerlendirilebilir?',
+        '18–24 ay gibi erken dönemde özellikler fark edilebilir. Güvenilir değerlendirme genellikle 2–3 yaşında netleşir.',
       ),
       FaqItem(
         'Otizm kalıtsal mıdır?',
@@ -102,9 +102,9 @@ const kDiseases = <DiseaseInfo>[
       'Epilepsi nöbetleri',
     ],
     diagnosis:
-        'Nörolog tarafından klinik değerlendirme ve beyin MRI ile tanı konulur. Erken belirtiler ilk 6 ayda fark edilebilir. Kesin tanı çoğunlukla 12–24 ayda netleşir.',
+        'Uzman hekim tarafından klinik değerlendirme ve beyin MRI ile değerlendirilir. Erken özellikler ilk 6 ayda fark edilebilir. Değerlendirme çoğunlukla 12–24 ayda netleşir.',
     support: [
-      'Fizik tedavi ve rehabilitasyon (Bobath, Vojta yöntemleri)',
+      'Fizyoterapi ve destek programları (Bobath, Vojta yöntemleri)',
       'Ergoterapi (günlük yaşam becerileri)',
       'Dil ve konuşma terapisi',
       'Ortez ve yardımcı cihazlar (AFO, tekerlekli sandalye)',
@@ -199,16 +199,16 @@ const kDiseases = <DiseaseInfo>[
     ],
     faq: [
       FaqItem(
-        'SMA tedavi edilebilir mi?',
-        'Zolgensma, Spinraza ve Evrysdi hastalığın seyrini ciddi biçimde değiştirmektedir.',
+        'SMA için destek seçenekleri nelerdir?',
+        'Zolgensma, Spinraza ve Evrysdi hastalığın seyrini ciddi biçimde değiştirebilen seçenekler arasındadır.',
       ),
       FaqItem(
-        "Türkiye'de tedaviye erişim nasıl?",
-        'Spinraza SGK kapsamındadır. Zolgensma için Sağlık Bakanlığına bireysel başvuru yapılabilmektedir.',
+        "Türkiye'de desteğe erişim nasıl?",
+        'Spinraza SGK kapsamındadır. Zolgensma için ilgili kurumlara bireysel başvuru yapılabilmektedir.',
       ),
       FaqItem(
-        'Gelecekte ne gibi tedaviler bekleniyor?',
-        'Miyostatin inhibitörleri, yeni nesil gen tedavileri ve nöroprotektif ajanlar klinik deneme aşamasındadır.',
+        'Gelecekte ne gibi gelişmeler bekleniyor?',
+        'Miyostatin inhibitörleri, yeni nesil gen yaklaşımları ve nöroprotektif ajanlar araştırma aşamasındadır.',
       ),
     ],
   ),

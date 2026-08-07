@@ -1,18 +1,19 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:http/http.dart' as http;
 
 import '../firebase_options.dart';
+import '../user_cloud_store.dart';
 
 /// Arka planda (isolate) gelen FCM mesajları.
-/// [main] içinde [Firebase.initializeApp] sonrası, [runApp] öncesi kaydedilmeli.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Background isolate'te Firebase yeniden init gerekir.
   try {
     if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp(
@@ -28,7 +29,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   );
 }
 
-/// FCM + yerel bildirim (ön planda göstermek için).
+/// FCM + yerel bildirim (ön planda BigPicture destekli).
 class PushNotificationService {
   PushNotificationService._();
   static final PushNotificationService instance = PushNotificationService._();
@@ -43,7 +44,6 @@ class PushNotificationService {
   bool _initialized = false;
   String? fcmToken;
 
-  /// Bildirime tıklanınca (data payload). İsterseniz UI'da dinleyin.
   final StreamController<RemoteMessage> _opens =
       StreamController<RemoteMessage>.broadcast();
   Stream<RemoteMessage> get onNotificationOpened => _opens.stream;
@@ -76,6 +76,27 @@ class PushNotificationService {
     if (initial != null) {
       _handleOpen(initial);
     }
+  }
+
+  /// Bildirim tercihlerine göre FCM topic abonelikleri.
+  Future<void> syncTopics(BildirimAyarlari prefs) async {
+    if (kIsWeb || !_initialized) return;
+    Future<void> set(String topic, bool on) async {
+      try {
+        if (on) {
+          await _messaging.subscribeToTopic(topic);
+        } else {
+          await _messaging.unsubscribeFromTopic(topic);
+        }
+      } catch (e) {
+        debugPrint('FCM topic $topic: $e');
+      }
+    }
+
+    await set('duyurular', prefs.duyurular);
+    await set('ilanlar', prefs.ilanlar);
+    await set('forum', prefs.forum);
+    await set('mesajlar', prefs.mesajlar);
   }
 
   Future<void> _initLocalNotifications() async {
@@ -123,7 +144,6 @@ class PushNotificationService {
     );
     debugPrint('FCM izin durumu: ${settings.authorizationStatus}');
 
-    // Android 13+ bildirim izni
     final androidPlugin = _local.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     await androidPlugin?.requestNotificationsPermission();
@@ -143,13 +163,36 @@ class PushNotificationService {
       'FCM foreground: title=${message.notification?.title} data=${message.data}',
     );
     final n = message.notification;
-    if (n == null) return;
+    final title = n?.title ?? message.data['title']?.toString() ?? '';
+    final body = n?.body ?? message.data['body']?.toString() ?? '';
+    if (title.isEmpty && body.isEmpty) return;
+
+    final imageUrl = (n?.android?.imageUrl ??
+            message.data['image']?.toString() ??
+            '')
+        .trim();
+
+    StyleInformation? style;
+    AndroidBitmap<Object>? largeIcon;
+    if (imageUrl.startsWith('https://')) {
+      final bytes = await _downloadImage(imageUrl);
+      if (bytes != null && bytes.isNotEmpty) {
+        final bmp = ByteArrayAndroidBitmap(bytes);
+        largeIcon = bmp;
+        style = BigPictureStyleInformation(
+          bmp,
+          largeIcon: bmp,
+          contentTitle: title,
+          summaryText: body,
+        );
+      }
+    }
 
     await _local.show(
       id: message.hashCode,
-      title: n.title,
-      body: n.body,
-      notificationDetails: const NotificationDetails(
+      title: title,
+      body: body,
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           _androidChannelId,
           _androidChannelName,
@@ -157,8 +200,10 @@ class PushNotificationService {
           importance: Importance.high,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',
+          largeIcon: largeIcon,
+          styleInformation: style,
         ),
-        iOS: DarwinNotificationDetails(
+        iOS: const DarwinNotificationDetails(
           presentAlert: true,
           presentBadge: true,
           presentSound: true,
@@ -166,6 +211,20 @@ class PushNotificationService {
       ),
       payload: message.data.isEmpty ? null : jsonEncode(message.data),
     );
+  }
+
+  Future<Uint8List?> _downloadImage(String url) async {
+    try {
+      final r = await http.get(Uri.parse(url)).timeout(
+            const Duration(seconds: 8),
+          );
+      if (r.statusCode == 200 && r.bodyBytes.isNotEmpty) {
+        return r.bodyBytes;
+      }
+    } catch (e) {
+      debugPrint('Bildirim görseli indirilemedi: $e');
+    }
+    return null;
   }
 
   void _handleOpen(RemoteMessage message) {

@@ -1,0 +1,1988 @@
+-- Engelsiz Club — combined schema for project ifwcrmehzipguncrnsxp
+-- Generated from supabase/_migrate_order.txt
+-- Run in Supabase SQL Editor (may need to split if editor size limit hits)
+
+
+-- =============================================================================
+-- FILE: user_profiles.sql
+-- =============================================================================
+
+-- Engelsiz Club — kullanıcı profili, foto, favoriler, bildirim tercihleri
+-- Supabase Dashboard → SQL Editor → çalıştır
+
+create table if not exists public.user_profiles (
+  owner_id uuid primary key references auth.users (id) on delete cascade,
+  owner_email text not null,
+  photo_data text,
+  profil jsonb not null default '{}'::jsonb,
+  cocuk jsonb not null default '{}'::jsonb,
+  favorites jsonb not null default '[]'::jsonb,
+  notifications jsonb not null default '{
+    "ilanlar": true,
+    "mesajlar": true,
+    "duyurular": true
+  }'::jsonb,
+  kredi int not null default 0,
+  kredi_welcome_gift boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists user_profiles_email_idx
+  on public.user_profiles (owner_email);
+
+alter table public.user_profiles enable row level security;
+
+drop policy if exists "user_profiles_select_own" on public.user_profiles;
+create policy "user_profiles_select_own"
+  on public.user_profiles for select
+  to authenticated
+  using (owner_id = auth.uid());
+
+drop policy if exists "user_profiles_insert_own" on public.user_profiles;
+create policy "user_profiles_insert_own"
+  on public.user_profiles for insert
+  to authenticated
+  with check (owner_id = auth.uid());
+
+drop policy if exists "user_profiles_update_own" on public.user_profiles;
+create policy "user_profiles_update_own"
+  on public.user_profiles for update
+  to authenticated
+  using (owner_id = auth.uid())
+  with check (owner_id = auth.uid());
+
+drop policy if exists "user_profiles_delete_own" on public.user_profiles;
+create policy "user_profiles_delete_own"
+  on public.user_profiles for delete
+  to authenticated
+  using (owner_id = auth.uid());
+
+notify pgrst, 'reload schema';
+
+-- Mevcut tablolara kredi kolonları (yoksa ekle)
+alter table public.user_profiles
+  add column if not exists kredi int not null default 0;
+alter table public.user_profiles
+  add column if not exists kredi_welcome_gift boolean not null default false;
+
+
+-- =============================================================================
+-- FILE: user_kredi.sql
+-- =============================================================================
+
+-- Engelsiz Club — kullanıcı kredisi (cihazlar arası senkron)
+-- Supabase Dashboard → SQL Editor → çalıştır
+-- Admin: 10000 · Uzman/Bakıcı hediye: 25 · Aile başlangıç: 1 (uygulama tarafı)
+
+alter table public.user_profiles
+  add column if not exists kredi int not null default 0;
+
+alter table public.user_profiles
+  add column if not exists kredi_welcome_gift boolean not null default false;
+
+alter table public.user_profiles
+  alter column kredi set default 0;
+
+comment on column public.user_profiles.kredi is
+  'Kullanıcı kredi bakiyesi (Web/iOS/Android ortak)';
+comment on column public.user_profiles.kredi_welcome_gift is
+  'Hoş geldin hediyesi bir kez tanımlandı mı';
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: user_presence.sql
+-- =============================================================================
+
+-- Engelsiz Club — sohbet çevrimiçi durumu (last_seen)
+-- Supabase Dashboard → SQL Editor → New query → çalıştır
+
+create table if not exists public.user_presence (
+  owner_email text primary key,
+  owner_id uuid references auth.users (id) on delete cascade,
+  last_seen timestamptz not null default now()
+);
+
+create index if not exists user_presence_last_seen_idx
+  on public.user_presence (last_seen desc);
+
+alter table public.user_presence enable row level security;
+
+-- Giriş yapan herkes başkalarının çevrimiçi durumunu görebilir
+drop policy if exists "user_presence_select_authenticated" on public.user_presence;
+create policy "user_presence_select_authenticated"
+  on public.user_presence for select
+  to authenticated
+  using (true);
+
+-- Sadece kendi satırını yazabilir / güncelleyebilir
+drop policy if exists "user_presence_upsert_own" on public.user_presence;
+create policy "user_presence_upsert_own"
+  on public.user_presence for insert
+  to authenticated
+  with check (
+    owner_id = auth.uid()
+    and lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+drop policy if exists "user_presence_update_own" on public.user_presence;
+create policy "user_presence_update_own"
+  on public.user_presence for update
+  to authenticated
+  using (owner_id = auth.uid())
+  with check (owner_id = auth.uid());
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: user_profiles_photos_rpc.sql
+-- =============================================================================
+
+-- Diğer kullanıcıların profil fotoğraflarını (yalnız photo) okumak için.
+-- Supabase Dashboard → SQL Editor → çalıştır
+
+create or replace function public.get_user_photos(emails text[])
+returns table(owner_email text, photo_data text)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select p.owner_email, p.photo_data
+  from public.user_profiles p
+  where lower(p.owner_email) = any (
+    select lower(unnest(emails))
+  )
+  and p.photo_data is not null
+  and length(trim(p.photo_data)) > 0;
+$$;
+
+revoke all on function public.get_user_photos(text[]) from public;
+grant execute on function public.get_user_photos(text[]) to authenticated;
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: user_blocks_reports.sql
+-- =============================================================================
+
+-- Kullanıcı engelleme + şikayet (rapor)
+-- Supabase Dashboard → SQL Editor → çalıştır
+
+create table if not exists public.user_blocks (
+  id bigint generated always as identity primary key,
+  blocker_email text not null,
+  blocked_email text not null,
+  created_at timestamptz not null default now(),
+  constraint user_blocks_emails_chk check (
+    length(trim(blocker_email)) > 3
+    and length(trim(blocked_email)) > 3
+    and lower(blocker_email) <> lower(blocked_email)
+  ),
+  constraint user_blocks_unique unique (blocker_email, blocked_email)
+);
+
+create index if not exists user_blocks_blocker_idx
+  on public.user_blocks (lower(blocker_email));
+
+create index if not exists user_blocks_blocked_idx
+  on public.user_blocks (lower(blocked_email));
+
+create table if not exists public.user_reports (
+  id bigint generated always as identity primary key,
+  reporter_email text not null,
+  target_email text not null,
+  reason text not null default '',
+  context text not null default 'genel',
+  detail text not null default '',
+  created_at timestamptz not null default now(),
+  constraint user_reports_emails_chk check (
+    length(trim(reporter_email)) > 3
+    and length(trim(target_email)) > 3
+  )
+);
+
+create index if not exists user_reports_created_idx
+  on public.user_reports (created_at desc);
+
+create index if not exists user_reports_target_idx
+  on public.user_reports (lower(target_email));
+
+alter table public.user_blocks enable row level security;
+alter table public.user_reports enable row level security;
+
+-- Engeller: kendi engellerini yönet; kendisiyle ilgili engelleri okuyabilsin
+-- (karşı taraf engellediyse mesaj gönderimi de engellensin)
+drop policy if exists "user_blocks_select_own" on public.user_blocks;
+drop policy if exists "user_blocks_select_involving_me" on public.user_blocks;
+create policy "user_blocks_select_involving_me"
+  on public.user_blocks for select
+  to authenticated
+  using (
+    lower(blocker_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+    or lower(blocked_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+drop policy if exists "user_blocks_insert_own" on public.user_blocks;
+create policy "user_blocks_insert_own"
+  on public.user_blocks for insert
+  to authenticated
+  with check (
+    lower(blocker_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+drop policy if exists "user_blocks_delete_own" on public.user_blocks;
+create policy "user_blocks_delete_own"
+  on public.user_blocks for delete
+  to authenticated
+  using (
+    lower(blocker_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+-- Şikayetler: kullanıcı kendi gönderdiğini görür; admin hepsini görür
+drop policy if exists "user_reports_select_own_or_admin" on public.user_reports;
+create policy "user_reports_select_own_or_admin"
+  on public.user_reports for select
+  to authenticated
+  using (
+    lower(reporter_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+    or lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  );
+
+drop policy if exists "user_reports_insert_own" on public.user_reports;
+create policy "user_reports_insert_own"
+  on public.user_reports for insert
+  to authenticated
+  with check (
+    lower(reporter_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: ilanlar.sql
+-- =============================================================================
+
+-- Engelsiz Club — ortak ilan tablosu
+-- Supabase Dashboard → SQL Editor → New query → çalıştır
+
+create table if not exists public.ilanlar (
+  id bigint generated always as identity primary key,
+  kind text not null check (kind in ('uzman', 'bakici', 'ikinciel')),
+  title text not null,
+  city text not null,
+  district text not null default '',
+  note text not null default '',
+  budget text not null default '',
+  price text not null default '',
+  original_price text not null default '',
+  uzmanlik text,
+  tani text,
+  age text,
+  frequency text,
+  hours text,
+  category text,
+  condition text,
+  brand text,
+  emoji text,
+  photos jsonb not null default '[]'::jsonb,
+  urgent boolean not null default false,
+  views int not null default 0,
+  offers int not null default 0,
+  poster_name text not null,
+  poster_avatar text not null,
+  owner_email text not null,
+  owner_id uuid references auth.users (id) on delete set null,
+  created_at timestamptz not null default now(),
+  -- Uzman / bakıcı ilanlarında en fazla 2 fotoğraf
+  constraint ilanlar_photos_max_check check (
+    (kind in ('uzman', 'bakici') and jsonb_array_length(photos) <= 2)
+    or kind = 'ikinciel'
+  )
+);
+
+create index if not exists ilanlar_created_at_idx on public.ilanlar (created_at desc);
+create index if not exists ilanlar_owner_email_idx on public.ilanlar (owner_email);
+create index if not exists ilanlar_kind_idx on public.ilanlar (kind);
+
+alter table public.ilanlar enable row level security;
+
+-- Giriş yapmış herkes tüm ilanları görebilir
+drop policy if exists "ilanlar_select_authenticated" on public.ilanlar;
+create policy "ilanlar_select_authenticated"
+  on public.ilanlar for select
+  to authenticated
+  using (true);
+
+-- Kendi oturumuyla ilan ekleyebilir (e-posta JWT'de yoksa da çalışır)
+drop policy if exists "ilanlar_insert_own" on public.ilanlar;
+create policy "ilanlar_insert_own"
+  on public.ilanlar for insert
+  to authenticated
+  with check (owner_id = auth.uid());
+
+-- Sadece kendi ilanını silebilir
+drop policy if exists "ilanlar_delete_own" on public.ilanlar;
+create policy "ilanlar_delete_own"
+  on public.ilanlar for delete
+  to authenticated
+  using (owner_id = auth.uid());
+
+-- Sadece kendi ilanını güncelleyebilir (owner_id veya e-posta)
+drop policy if exists "ilanlar_update_own" on public.ilanlar;
+create policy "ilanlar_update_own"
+  on public.ilanlar for update
+  to authenticated
+  using (
+    owner_id = auth.uid()
+    or lower(trim(owner_email)) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  )
+  with check (
+    owner_id = auth.uid()
+    or lower(trim(owner_email)) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+notify pgrst, 'reload schema';
+
+-- Mevcut tablolar için (tablo zaten varsa yukarıdaki CREATE atlanır):
+-- Uzman / bakıcı ilanlarında en fazla 2 fotoğraf kısıtı
+alter table public.ilanlar drop constraint if exists ilanlar_photos_max_check;
+alter table public.ilanlar
+  add constraint ilanlar_photos_max_check check (
+    (kind in ('uzman', 'bakici') and jsonb_array_length(photos) <= 2)
+    or kind = 'ikinciel'
+  );
+
+
+-- =============================================================================
+-- FILE: ilanlar_status.sql
+-- =============================================================================
+
+-- İlan satıldı / yayından kaldır durumu
+alter table public.ilanlar
+  add column if not exists status text not null default 'active';
+
+alter table public.ilanlar
+  drop constraint if exists ilanlar_status_check;
+
+alter table public.ilanlar
+  add constraint ilanlar_status_check
+  check (status in ('active', 'sold'));
+
+create index if not exists ilanlar_status_idx on public.ilanlar (status);
+
+
+-- =============================================================================
+-- FILE: ilanlar_update_own.sql
+-- =============================================================================
+
+-- İlan sahibi kendi ilanını güncelleyebilir
+-- Supabase Dashboard → SQL Editor → bu dosyanın tamamını çalıştır
+
+-- Eski kayıtlarda boş kalan owner_id'yi e-postadan doldur
+update public.ilanlar i
+set owner_id = u.id
+from auth.users u
+where i.owner_id is null
+  and lower(trim(i.owner_email)) = lower(u.email);
+
+drop policy if exists "ilanlar_update_own" on public.ilanlar;
+create policy "ilanlar_update_own"
+  on public.ilanlar for update
+  to authenticated
+  using (
+    owner_id = auth.uid()
+    or lower(trim(owner_email)) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  )
+  with check (
+    owner_id = auth.uid()
+    or lower(trim(owner_email)) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: ilan_photos_storage.sql
+-- =============================================================================
+
+-- İlan fotoğrafları için Supabase Storage bucket (R2 yedeği / alternatif)
+-- Supabase SQL Editor'da çalıştırın.
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'ilan-photos',
+  'ilan-photos',
+  true,
+  8388608,
+  array['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+)
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+-- Herkes okuyabilir (ilan kartlarında URL)
+drop policy if exists "ilan_photos_public_read" on storage.objects;
+create policy "ilan_photos_public_read"
+  on storage.objects for select
+  to anon, authenticated
+  using (bucket_id = 'ilan-photos');
+
+-- Sadece giriş yapmış kullanıcı kendi klasörüne yükler: {user_id}/...
+drop policy if exists "ilan_photos_auth_insert" on storage.objects;
+create policy "ilan_photos_auth_insert"
+  on storage.objects for insert
+  to authenticated
+  with check (
+    bucket_id = 'ilan-photos'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "ilan_photos_auth_update" on storage.objects;
+create policy "ilan_photos_auth_update"
+  on storage.objects for update
+  to authenticated
+  using (
+    bucket_id = 'ilan-photos'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  )
+  with check (
+    bucket_id = 'ilan-photos'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "ilan_photos_auth_delete" on storage.objects;
+create policy "ilan_photos_auth_delete"
+  on storage.objects for delete
+  to authenticated
+  using (
+    bucket_id = 'ilan-photos'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+
+-- =============================================================================
+-- FILE: forum_posts.sql
+-- =============================================================================
+
+-- Engelsiz Club — forum gönderileri (herkes görür)
+-- Supabase Dashboard → SQL Editor → New query → çalıştır
+
+create table if not exists public.forum_posts (
+  id bigint generated always as identity primary key,
+  author text not null,
+  avatar text not null default '?',
+  avatar_color bigint not null default 4281568586,
+  category text not null default 'Genel',
+  title text not null,
+  content text not null,
+  likes int not null default 0,
+  comments int not null default 0,
+  pinned boolean not null default false,
+  expert boolean not null default false,
+  anon boolean not null default false,
+  meslek text not null default '',
+  owner_email text not null default '',
+  owner_id uuid references auth.users (id) on delete set null,
+  photos jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+-- Tablo daha önce int ile oluşturulduysa genişlet (renk değeri int sınırını aşar)
+alter table public.forum_posts
+  alter column avatar_color type bigint;
+
+alter table public.forum_posts
+  add column if not exists meslek text not null default '';
+
+create index if not exists forum_posts_created_at_idx
+  on public.forum_posts (created_at desc);
+
+alter table public.forum_posts enable row level security;
+
+drop policy if exists "forum_select_authenticated" on public.forum_posts;
+create policy "forum_select_authenticated"
+  on public.forum_posts for select
+  to authenticated
+  using (true);
+
+drop policy if exists "forum_insert_own" on public.forum_posts;
+create policy "forum_insert_own"
+  on public.forum_posts for insert
+  to authenticated
+  with check (owner_id = auth.uid());
+
+drop policy if exists "forum_delete_own" on public.forum_posts;
+create policy "forum_delete_own"
+  on public.forum_posts for delete
+  to authenticated
+  using (owner_id = auth.uid());
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: forum_post_photos.sql
+-- =============================================================================
+
+-- Forum gönderilerine fotoğraf (en fazla 2, uygulama tarafında sınırlı)
+-- Supabase Dashboard → SQL Editor → New query → çalıştır
+
+alter table public.forum_posts
+  add column if not exists photos jsonb not null default '[]'::jsonb;
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: forum_interact.sql
+-- =============================================================================
+
+-- Engelsiz Club — forum yorum + beğeni
+-- Supabase SQL Editor → New query → çalıştır
+
+-- Beğeniler
+create table if not exists public.forum_likes (
+  id bigint generated always as identity primary key,
+  post_id bigint not null references public.forum_posts (id) on delete cascade,
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  owner_email text not null default '',
+  created_at timestamptz not null default now(),
+  unique (post_id, owner_id)
+);
+
+create index if not exists forum_likes_post_idx on public.forum_likes (post_id);
+
+alter table public.forum_likes enable row level security;
+
+drop policy if exists "forum_likes_select" on public.forum_likes;
+create policy "forum_likes_select"
+  on public.forum_likes for select
+  to authenticated
+  using (true);
+
+drop policy if exists "forum_likes_insert" on public.forum_likes;
+create policy "forum_likes_insert"
+  on public.forum_likes for insert
+  to authenticated
+  with check (owner_id = auth.uid());
+
+drop policy if exists "forum_likes_delete" on public.forum_likes;
+create policy "forum_likes_delete"
+  on public.forum_likes for delete
+  to authenticated
+  using (owner_id = auth.uid());
+
+-- Yorumlar
+create table if not exists public.forum_comments (
+  id bigint generated always as identity primary key,
+  post_id bigint not null references public.forum_posts (id) on delete cascade,
+  author text not null,
+  avatar text not null default '?',
+  avatar_color bigint not null default 4281568586,
+  body text not null,
+  owner_email text not null default '',
+  owner_id uuid references auth.users (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists forum_comments_post_idx
+  on public.forum_comments (post_id, created_at);
+
+alter table public.forum_comments enable row level security;
+
+drop policy if exists "forum_comments_select" on public.forum_comments;
+create policy "forum_comments_select"
+  on public.forum_comments for select
+  to authenticated
+  using (true);
+
+drop policy if exists "forum_comments_insert" on public.forum_comments;
+create policy "forum_comments_insert"
+  on public.forum_comments for insert
+  to authenticated
+  with check (owner_id = auth.uid());
+
+drop policy if exists "forum_comments_delete" on public.forum_comments;
+create policy "forum_comments_delete"
+  on public.forum_comments for delete
+  to authenticated
+  using (owner_id = auth.uid());
+
+-- Beğeni / yorum sayacı güncellemesi (herkes sayacı artırabilir)
+drop policy if exists "forum_posts_update_counts" on public.forum_posts;
+create policy "forum_posts_update_counts"
+  on public.forum_posts for update
+  to authenticated
+  using (true)
+  with check (true);
+
+-- Gönderiye meslek (köşe yazısı) alanı
+alter table public.forum_posts
+  add column if not exists meslek text not null default '';
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: forum_comment_replies_likes.sql
+-- =============================================================================
+
+-- Engelsiz Club — yorum yanıtı + yorum beğenisi
+-- Supabase SQL Editor → New query → çalıştır
+
+-- Yanıt için parent_id
+alter table public.forum_comments
+  add column if not exists parent_id bigint
+    references public.forum_comments (id) on delete cascade;
+
+alter table public.forum_comments
+  add column if not exists likes int not null default 0;
+
+create index if not exists forum_comments_parent_idx
+  on public.forum_comments (parent_id);
+
+create index if not exists forum_comments_post_parent_idx
+  on public.forum_comments (post_id, parent_id, created_at);
+
+-- Yorum beğenileri
+create table if not exists public.forum_comment_likes (
+  id bigint generated always as identity primary key,
+  comment_id bigint not null references public.forum_comments (id) on delete cascade,
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  owner_email text not null default '',
+  created_at timestamptz not null default now(),
+  unique (comment_id, owner_id)
+);
+
+create index if not exists forum_comment_likes_comment_idx
+  on public.forum_comment_likes (comment_id);
+
+alter table public.forum_comment_likes enable row level security;
+
+drop policy if exists "forum_comment_likes_select" on public.forum_comment_likes;
+create policy "forum_comment_likes_select"
+  on public.forum_comment_likes for select
+  to authenticated
+  using (true);
+
+drop policy if exists "forum_comment_likes_insert" on public.forum_comment_likes;
+create policy "forum_comment_likes_insert"
+  on public.forum_comment_likes for insert
+  to authenticated
+  with check (owner_id = auth.uid());
+
+drop policy if exists "forum_comment_likes_delete" on public.forum_comment_likes;
+create policy "forum_comment_likes_delete"
+  on public.forum_comment_likes for delete
+  to authenticated
+  using (owner_id = auth.uid());
+
+-- Yorum beğeni sayacı güncellemesi
+drop policy if exists "forum_comments_update_counts" on public.forum_comments;
+create policy "forum_comments_update_counts"
+  on public.forum_comments for update
+  to authenticated
+  using (true)
+  with check (true);
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: forum_post_follows.sql
+-- =============================================================================
+
+-- Forum gönderi takibi (Facebook tarzı "gönderi hakkında bildirim al")
+-- Supabase Dashboard → SQL Editor → çalıştırın
+
+create table if not exists public.forum_post_follows (
+  id bigint generated always as identity primary key,
+  owner_email text not null,
+  post_id bigint not null references public.forum_posts (id) on delete cascade,
+  notify_enabled boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (owner_email, post_id)
+);
+
+create index if not exists forum_post_follows_post_idx
+  on public.forum_post_follows (post_id);
+
+create index if not exists forum_post_follows_owner_idx
+  on public.forum_post_follows (owner_email);
+
+alter table public.forum_post_follows enable row level security;
+
+-- Takipçileri okumak: yorum yazan kullanıcı bildirim gönderebilsin
+drop policy if exists "forum_post_follow_select" on public.forum_post_follows;
+create policy "forum_post_follow_select"
+  on public.forum_post_follows for select
+  to authenticated
+  using (true);
+
+drop policy if exists "forum_post_follow_insert_own" on public.forum_post_follows;
+create policy "forum_post_follow_insert_own"
+  on public.forum_post_follows for insert
+  to authenticated
+  with check (lower(owner_email) = lower(auth.jwt() ->> 'email'));
+
+drop policy if exists "forum_post_follow_delete_own" on public.forum_post_follows;
+create policy "forum_post_follow_delete_own"
+  on public.forum_post_follows for delete
+  to authenticated
+  using (lower(owner_email) = lower(auth.jwt() ->> 'email'));
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: forum_post_follows_mute.sql
+-- =============================================================================
+
+-- Forum gönderi bildirimi: kapat → mute (satır silinmez)
+-- Supabase SQL Editor'da çalıştırın.
+
+alter table public.forum_post_follows
+  add column if not exists notify_enabled boolean not null default true;
+
+-- Eski yorumcuları otomatik takip et (bildirim açık)
+insert into public.forum_post_follows (owner_email, post_id, notify_enabled)
+select distinct lower(trim(c.owner_email)), c.post_id, true
+from public.forum_comments c
+where coalesce(trim(c.owner_email), '') <> ''
+  and c.post_id is not null
+on conflict (owner_email, post_id) do nothing;
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: forum_topic_follows.sql
+-- =============================================================================
+
+-- Forum konu takibi (bildirim için)
+create table if not exists public.forum_topic_follows (
+  id bigint generated always as identity primary key,
+  owner_email text not null,
+  category text not null,
+  created_at timestamptz not null default now(),
+  unique (owner_email, category)
+);
+
+create index if not exists forum_topic_follows_cat_idx
+  on public.forum_topic_follows (category);
+
+alter table public.forum_topic_follows enable row level security;
+
+drop policy if exists "forum_follow_select_own" on public.forum_topic_follows;
+create policy "forum_follow_select_own"
+  on public.forum_topic_follows for select
+  to authenticated
+  using (true);
+
+drop policy if exists "forum_follow_insert_own" on public.forum_topic_follows;
+create policy "forum_follow_insert_own"
+  on public.forum_topic_follows for insert
+  to authenticated
+  with check (lower(owner_email) = lower(auth.jwt() ->> 'email'));
+
+drop policy if exists "forum_follow_delete_own" on public.forum_topic_follows;
+create policy "forum_follow_delete_own"
+  on public.forum_topic_follows for delete
+  to authenticated
+  using (lower(owner_email) = lower(auth.jwt() ->> 'email'));
+
+drop policy if exists "forum_follow_update_own" on public.forum_topic_follows;
+create policy "forum_follow_update_own"
+  on public.forum_topic_follows for update
+  to authenticated
+  using (lower(owner_email) = lower(auth.jwt() ->> 'email'));
+
+
+-- =============================================================================
+-- FILE: forum_scale_taxonomy.sql
+-- =============================================================================
+
+-- Forum ölçekleme: dinam hastalık / alt kategori + konu filtre alanları
+-- Supabase SQL Editor'da çalıştırın.
+-- Not: Firestore değil; mevcut Postgres `forum_posts` genişletilir.
+
+-- 1) Ana hastalıklar (dinamik)
+create table if not exists public.forum_diseases (
+  id text primary key,
+  label text not null,
+  short_label text not null default '',
+  icon text not null default '',
+  sort_order int not null default 0,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+-- 2) Alt kategoriler
+create table if not exists public.forum_sub_categories (
+  id text primary key,
+  disease_id text not null references public.forum_diseases (id) on delete cascade,
+  label text not null,
+  sort_order int not null default 0,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists forum_sub_cat_disease_idx
+  on public.forum_sub_categories (disease_id, sort_order);
+
+-- 3) Konu alanları (forum_posts)
+alter table public.forum_posts
+  add column if not exists disease_id text references public.forum_diseases (id) on delete set null;
+
+alter table public.forum_posts
+  add column if not exists sub_category_id text references public.forum_sub_categories (id) on delete set null;
+
+alter table public.forum_posts
+  add column if not exists age_group text not null default '';
+
+alter table public.forum_posts
+  add column if not exists tags text[] not null default '{}';
+
+alter table public.forum_posts
+  add column if not exists views int not null default 0;
+
+alter table public.forum_posts
+  add column if not exists is_resolved boolean not null default false;
+
+-- Performans indeksleri (100k+)
+create index if not exists forum_posts_disease_created_idx
+  on public.forum_posts (disease_id, created_at desc);
+
+create index if not exists forum_posts_subcat_created_idx
+  on public.forum_posts (sub_category_id, created_at desc);
+
+create index if not exists forum_posts_age_created_idx
+  on public.forum_posts (age_group, created_at desc);
+
+create index if not exists forum_posts_resolved_created_idx
+  on public.forum_posts (is_resolved, created_at desc);
+
+create index if not exists forum_posts_comments_created_idx
+  on public.forum_posts (comments desc, created_at desc);
+
+create index if not exists forum_posts_likes_created_idx
+  on public.forum_posts (likes desc, created_at desc);
+
+create index if not exists forum_posts_tags_gin_idx
+  on public.forum_posts using gin (tags);
+
+-- RLS: herkes okuyabilir (authenticated + mevcut guest politikalarına uyum)
+alter table public.forum_diseases enable row level security;
+alter table public.forum_sub_categories enable row level security;
+
+drop policy if exists "forum_diseases_select" on public.forum_diseases;
+create policy "forum_diseases_select"
+  on public.forum_diseases for select
+  to anon, authenticated
+  using (is_active = true);
+
+drop policy if exists "forum_sub_categories_select" on public.forum_sub_categories;
+create policy "forum_sub_categories_select"
+  on public.forum_sub_categories for select
+  to anon, authenticated
+  using (is_active = true);
+
+-- Seed ana hastalıklar
+insert into public.forum_diseases (id, label, short_label, sort_order) values
+  ('serebral-palsi', 'Serebral Palsi', 'Serebral Palsi', 1),
+  ('otizm', 'Otizm Spektrum Bozukluğu', 'Otizm', 2),
+  ('down-sendromu', 'Down Sendromu', 'Down Sendromu', 3),
+  ('sma', 'SMA (Spinal Müsküler Atrofi)', 'SMA', 4),
+  ('dehb', 'DEHB', 'DEHB', 5),
+  ('gelisim-geriligi', 'Gelişim Geriliği', 'Gelişim Geriliği', 6),
+  ('duyu-butunleme', 'Duyu Bütünleme Sorunları', 'Duyu Bütünleme', 7),
+  ('iletisim-bozukluklari', 'İletişim Bozuklukları', 'İletişim Bozuklukları', 8),
+  ('nadir-hastaliklar', 'Nadir Hastalıklar', 'Nadir Hastalıklar', 9),
+  ('genel', 'Genel Konular', 'Genel', 100)
+on conflict (id) do update set
+  label = excluded.label,
+  short_label = excluded.short_label,
+  sort_order = excluded.sort_order,
+  is_active = true;
+
+-- Seed alt kategoriler (örnek set — yönetilebilir)
+insert into public.forum_sub_categories (id, disease_id, label, sort_order) values
+  ('otizm-egitim', 'otizm', 'Eğitim & Terapi', 1),
+  ('otizm-gunluk', 'otizm', 'Günlük Yaşam', 2),
+  ('otizm-aile', 'otizm', 'Aile Destek', 3),
+  ('sp-fizyo', 'serebral-palsi', 'Fizyoterapi', 1),
+  ('sp-ortez', 'serebral-palsi', 'Ortez / Cihaz', 2),
+  ('sp-aile', 'serebral-palsi', 'Aile Destek', 3),
+  ('down-egitim', 'down-sendromu', 'Eğitim', 1),
+  ('down-saglik', 'down-sendromu', 'Sağlık', 2),
+  ('sma-tedavi', 'sma', 'Tedavi & İlaç', 1),
+  ('sma-bakim', 'sma', 'Bakım', 2),
+  ('dehb-okul', 'dehb', 'Okul', 1),
+  ('dehb-davranis', 'dehb', 'Davranış', 2),
+  ('genel-soru', 'genel', 'Soru-Cevap', 1),
+  ('genel-deneyim', 'genel', 'Deneyim Paylaşımı', 2)
+on conflict (id) do update set
+  label = excluded.label,
+  sort_order = excluded.sort_order,
+  is_active = true;
+
+-- Eski category metninden disease_id doldur (best-effort)
+update public.forum_posts p
+set disease_id = d.id
+from public.forum_diseases d
+where p.disease_id is null
+  and (
+    lower(p.category) = lower(d.short_label)
+    or lower(p.category) = lower(d.label)
+    or lower(p.category) like '%' || lower(d.short_label) || '%'
+  );
+
+update public.forum_posts
+set disease_id = 'genel'
+where disease_id is null
+  and (
+    lower(category) like '%genel%'
+    or category = ''
+    or category is null
+  );
+
+notify pgrst, 'reload schema';
+
+-- Görüntülenme sayacı (atomik)
+create or replace function public.forum_increment_views(p_id bigint)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.forum_posts
+  set views = coalesce(views, 0) + 1
+  where id = p_id;
+end;
+$$;
+
+grant execute on function public.forum_increment_views(bigint) to anon, authenticated;
+
+
+-- =============================================================================
+-- FILE: forum_tags_ensure.sql
+-- =============================================================================
+
+-- Forum tags kolonu + GIN index (yoksa ekle)
+-- forum_scale_taxonomy.sql çalıştıysa zaten vardır; güvenle tekrar çalışır.
+
+alter table public.forum_posts
+  add column if not exists tags text[] not null default '{}'::text[];
+
+create index if not exists forum_posts_tags_gin_idx
+  on public.forum_posts using gin (tags);
+
+comment on column public.forum_posts.tags is
+  'Hazır tıbbi alt tip + kullanıcı #etiketleri';
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: bildirimler.sql
+-- =============================================================================
+
+-- Engelsiz Club — uygulama içi bildirimler (teklif vb.)
+-- Supabase Dashboard → SQL Editor → çalıştır
+
+create table if not exists public.bildirimler (
+  id bigint generated always as identity primary key,
+  owner_email text not null,
+  actor_email text not null,
+  actor_name text not null default '',
+  type text not null default 'teklif',
+  title text not null,
+  body text not null,
+  ilan_id bigint,
+  sohbet_key text,
+  read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists bildirimler_owner_idx
+  on public.bildirimler (owner_email, created_at desc);
+create index if not exists bildirimler_unread_idx
+  on public.bildirimler (owner_email, read)
+  where read = false;
+
+alter table public.bildirimler enable row level security;
+
+-- Alıcı kendi bildirimlerini görür
+drop policy if exists "bildirim_select_own" on public.bildirimler;
+create policy "bildirim_select_own"
+  on public.bildirimler for select
+  to authenticated
+  using (
+    lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+-- Gönderen (teklif veren) başkasına bildirim oluşturabilir
+drop policy if exists "bildirim_insert_actor" on public.bildirimler;
+create policy "bildirim_insert_actor"
+  on public.bildirimler for insert
+  to authenticated
+  with check (
+    lower(actor_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+-- Alıcı okundu işaretleyebilir
+drop policy if exists "bildirim_update_own" on public.bildirimler;
+create policy "bildirim_update_own"
+  on public.bildirimler for update
+  to authenticated
+  using (
+    lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  )
+  with check (
+    lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+-- Alıcı silebilir
+drop policy if exists "bildirim_delete_own" on public.bildirimler;
+create policy "bildirim_delete_own"
+  on public.bildirimler for delete
+  to authenticated
+  using (
+    lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+-- Gönderen mesaj bildirimini seçebilir (upsert için)
+drop policy if exists "bildirim_select_actor_mesaj" on public.bildirimler;
+create policy "bildirim_select_actor_mesaj"
+  on public.bildirimler for select
+  to authenticated
+  using (
+    type = 'mesaj'
+    and lower(actor_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+-- Gönderen mesaj bildirimini güncelleyebilir (aynı kişiden tek satır)
+drop policy if exists "bildirim_update_actor_mesaj" on public.bildirimler;
+create policy "bildirim_update_actor_mesaj"
+  on public.bildirimler for update
+  to authenticated
+  using (
+    type = 'mesaj'
+    and lower(actor_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  )
+  with check (
+    type = 'mesaj'
+    and lower(actor_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: bildirimler_delete.sql
+-- =============================================================================
+
+-- Engelsiz Club — teklif bildirimlerini silme yetkisi
+-- Supabase Dashboard → SQL Editor → New query → çalıştır
+-- (bildirimler.sql zaten içeriyorsa tekrar güvenle çalışır)
+
+drop policy if exists "bildirim_delete_own" on public.bildirimler;
+create policy "bildirim_delete_own"
+  on public.bildirimler for delete
+  to authenticated
+  using (
+    lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: bildirimler_mesaj_collapse.sql
+-- =============================================================================
+
+-- Mesaj bildirimleri: gönderen güncelleyebilsin / kendi satırını görebilsin
+-- (aynı kişiden üst üste bildirim olmasın diye upsert için)
+-- Supabase Dashboard → SQL Editor → çalıştır
+
+-- Gönderen, oluşturduğu mesaj bildirimlerini seçebilir (güncellemek için)
+drop policy if exists "bildirim_select_actor_mesaj" on public.bildirimler;
+create policy "bildirim_select_actor_mesaj"
+  on public.bildirimler for select
+  to authenticated
+  using (
+    type = 'mesaj'
+    and lower(actor_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+-- Gönderen, okunmamış mesaj bildirimini güncelleyebilir (son mesaj + saat)
+drop policy if exists "bildirim_update_actor_mesaj" on public.bildirimler;
+create policy "bildirim_update_actor_mesaj"
+  on public.bildirimler for update
+  to authenticated
+  using (
+    type = 'mesaj'
+    and lower(actor_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  )
+  with check (
+    type = 'mesaj'
+    and lower(actor_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: bildirimler_teklif_unique.sql
+-- =============================================================================
+
+-- Teklif spam önleme: aynı kişi aynı ilana yalnızca 1 teklif bildirimi
+-- Supabase Dashboard → SQL Editor → çalıştır
+
+-- Gönderen kendi teklif satırını görebilsin (idempotency kontrolü)
+drop policy if exists "bildirim_select_actor_teklif" on public.bildirimler;
+create policy "bildirim_select_actor_teklif"
+  on public.bildirimler for select
+  to authenticated
+  using (
+    type = 'teklif'
+    and lower(actor_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+-- Varsa mükerrer teklif satırlarını temizle (en eski kalsın)
+delete from public.bildirimler a
+using public.bildirimler b
+where a.type = 'teklif'
+  and b.type = 'teklif'
+  and a.id > b.id
+  and lower(a.actor_email) = lower(b.actor_email)
+  and lower(a.owner_email) = lower(b.owner_email)
+  and coalesce(a.ilan_id, 0) = coalesce(b.ilan_id, 0);
+
+create unique index if not exists bildirimler_teklif_unique_idx
+  on public.bildirimler (
+    lower(actor_email),
+    lower(owner_email),
+    coalesce(ilan_id, 0)
+  )
+  where type = 'teklif';
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: kredi_admin_notify.sql
+-- =============================================================================
+
+-- Her puan (kredi) artışında admin'e uygulama içi bildirim.
+-- Supabase SQL Editor → çalıştırın.
+
+create or replace function public.trg_notify_admin_kredi_yukleme()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  delta int;
+  admin_email text := 'sakir.caykara@gmail.com';
+  display text;
+  actor text;
+begin
+  if tg_op = 'INSERT' then
+    delta := coalesce(new.kredi, 0);
+  else
+    delta := coalesce(new.kredi, 0) - coalesce(old.kredi, 0);
+  end if;
+
+  if delta <= 0 then
+    return new;
+  end if;
+
+  actor := lower(trim(coalesce(new.owner_email, '')));
+  if actor = '' or actor = admin_email then
+    return new;
+  end if;
+
+  display := coalesce(
+    nullif(trim(new.profil ->> 'adSoyad'), ''),
+    split_part(actor, '@', 1)
+  );
+
+  insert into public.bildirimler (
+    owner_email,
+    actor_email,
+    actor_name,
+    type,
+    title,
+    body,
+    ilan_id,
+    sohbet_key,
+    read
+  ) values (
+    admin_email,
+    actor,
+    display,
+    'kredi',
+    format('Puan yükleme: +%s puan', delta),
+    format(
+      E'%s (%s)\n+%s puan yüklendi\nYeni bakiye: %s',
+      display,
+      actor,
+      delta,
+      coalesce(new.kredi, 0)
+    ),
+    null,
+    null,
+    false
+  );
+
+  return new;
+end;
+$$;
+
+drop trigger if exists user_profiles_kredi_notify on public.user_profiles;
+create trigger user_profiles_kredi_notify
+  after insert or update of kredi
+  on public.user_profiles
+  for each row
+  execute function public.trg_notify_admin_kredi_yukleme();
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: kredi_odemeleri.sql
+-- =============================================================================
+
+-- Engelsiz Club — kredi ödeme bildirimleri (Armut tarzı)
+-- Supabase Dashboard → SQL Editor → çalıştır
+-- Onay: Table Editor'da status = 'onaylandi' yapın; uygulama krediyi yükler.
+
+create table if not exists public.kredi_odemeleri (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  owner_email text not null,
+  paket_adet int not null check (paket_adet > 0),
+  paket_fiyat text not null,
+  gonderen_ad text not null,
+  not_text text not null default '',
+  referans_kodu text not null,
+  status text not null default 'beklemede'
+    check (status in ('beklemede', 'onaylandi', 'reddedildi')),
+  credited boolean not null default false,
+  created_at timestamptz not null default now(),
+  reviewed_at timestamptz
+);
+
+create index if not exists kredi_odemeleri_owner_idx
+  on public.kredi_odemeleri (owner_id, created_at desc);
+create index if not exists kredi_odemeleri_status_idx
+  on public.kredi_odemeleri (status) where status = 'beklemede';
+
+alter table public.kredi_odemeleri enable row level security;
+
+drop policy if exists "kredi_odemeleri_select_own" on public.kredi_odemeleri;
+create policy "kredi_odemeleri_select_own"
+  on public.kredi_odemeleri for select
+  to authenticated
+  using (owner_id = auth.uid());
+
+drop policy if exists "kredi_odemeleri_insert_own" on public.kredi_odemeleri;
+create policy "kredi_odemeleri_insert_own"
+  on public.kredi_odemeleri for insert
+  to authenticated
+  with check (owner_id = auth.uid());
+
+-- Kullanıcı status değiştiremez; yalnızca onaylı kayıtlarda credited işaretleyebilir.
+drop policy if exists "kredi_odemeleri_claim_credit" on public.kredi_odemeleri;
+create policy "kredi_odemeleri_claim_credit"
+  on public.kredi_odemeleri for update
+  to authenticated
+  using (owner_id = auth.uid() and status = 'onaylandi' and credited = false)
+  with check (owner_id = auth.uid() and status = 'onaylandi' and credited = true);
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: sohbet_mesajlari.sql
+-- =============================================================================
+
+-- Engelsiz Club — gerçek sohbet mesajları
+-- Supabase Dashboard → SQL Editor → çalıştır
+
+create table if not exists public.sohbet_mesajlari (
+  id bigint generated always as identity primary key,
+  sohbet_key text not null,
+  sender_email text not null,
+  sender_id uuid references auth.users (id) on delete set null,
+  receiver_email text not null,
+  body text not null,
+  created_at timestamptz not null default now(),
+  read_at timestamptz
+);
+
+-- Mevcut tablolara kolon ekle
+alter table public.sohbet_mesajlari
+  add column if not exists read_at timestamptz;
+
+create index if not exists sohbet_mesajlari_key_idx
+  on public.sohbet_mesajlari (sohbet_key, created_at);
+create index if not exists sohbet_mesajlari_receiver_idx
+  on public.sohbet_mesajlari (receiver_email, created_at desc);
+create index if not exists sohbet_mesajlari_unread_idx
+  on public.sohbet_mesajlari (receiver_email, created_at desc)
+  where read_at is null;
+
+alter table public.sohbet_mesajlari enable row level security;
+
+drop policy if exists "sohbet_select_participants" on public.sohbet_mesajlari;
+create policy "sohbet_select_participants"
+  on public.sohbet_mesajlari for select
+  to authenticated
+  using (
+    lower(sender_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+    or lower(receiver_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+drop policy if exists "sohbet_insert_own" on public.sohbet_mesajlari;
+create policy "sohbet_insert_own"
+  on public.sohbet_mesajlari for insert
+  to authenticated
+  with check (sender_id = auth.uid());
+
+-- Kendi gönderdiğiniz mesajı silin
+drop policy if exists "sohbet_delete_own" on public.sohbet_mesajlari;
+create policy "sohbet_delete_own"
+  on public.sohbet_mesajlari for delete
+  to authenticated
+  using (sender_id = auth.uid());
+
+-- Katılımcı olduğunuz sohbetteki tüm mesajları silin (sohbeti temizle)
+drop policy if exists "sohbet_delete_participant" on public.sohbet_mesajlari;
+create policy "sohbet_delete_participant"
+  on public.sohbet_mesajlari for delete
+  to authenticated
+  using (
+    lower(sender_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+    or lower(receiver_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+-- Alıcı gelen mesajı okundu işaretleyebilir
+drop policy if exists "sohbet_update_receiver_read" on public.sohbet_mesajlari;
+create policy "sohbet_update_receiver_read"
+  on public.sohbet_mesajlari for update
+  to authenticated
+  using (
+    lower(receiver_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  )
+  with check (
+    lower(receiver_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+-- Realtime (yoksa hata vermemesi için)
+do $$
+begin
+  alter publication supabase_realtime add table public.sohbet_mesajlari;
+exception
+  when duplicate_object then null;
+  when others then null;
+end $$;
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: sohbet_mesajlari_read.sql
+-- =============================================================================
+
+-- Engelsiz Club — sohbet mesajı okundu / okunmadı
+-- Supabase Dashboard → SQL Editor → çalıştır
+-- Alıcı sohbeti açınca read_at dolar; null = henüz okunmadı.
+
+alter table public.sohbet_mesajlari
+  add column if not exists read_at timestamptz;
+
+create index if not exists sohbet_mesajlari_unread_idx
+  on public.sohbet_mesajlari (receiver_email, created_at desc)
+  where read_at is null;
+
+-- Alıcı kendi gelen mesajlarını okundu işaretleyebilir
+drop policy if exists "sohbet_update_receiver_read" on public.sohbet_mesajlari;
+create policy "sohbet_update_receiver_read"
+  on public.sohbet_mesajlari for update
+  to authenticated
+  using (
+    lower(receiver_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  )
+  with check (
+    lower(receiver_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: sohbet_mesajlari_delete.sql
+-- =============================================================================
+
+-- Engelsiz Club — sohbet mesaj silme politikaları
+-- Supabase Dashboard → SQL Editor → çalıştır
+-- (Tablo zaten varsa sadece bu dosyayı çalıştırmanız yeterli)
+
+drop policy if exists "sohbet_delete_own" on public.sohbet_mesajlari;
+create policy "sohbet_delete_own"
+  on public.sohbet_mesajlari for delete
+  to authenticated
+  using (sender_id = auth.uid());
+
+drop policy if exists "sohbet_delete_participant" on public.sohbet_mesajlari;
+create policy "sohbet_delete_participant"
+  on public.sohbet_mesajlari for delete
+  to authenticated
+  using (
+    lower(sender_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+    or lower(receiver_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: duyurular.sql
+-- =============================================================================
+
+-- Güncel Duyurular & Haberler (Instagram story tarzı)
+-- Supabase Dashboard → SQL Editor → çalıştır
+--
+-- Instagram story/gönderi kaydı (DB yükü yok):
+--   image_url = 'instagram:embed'   -- kısa işaretçi, medya YOK
+--   source_url = 'https://www.instagram.com/reel/...'  -- yalnız metin link
+-- Video/dosya Supabase'e yazılmaz; oynatma istemcide Instagram üzerinden yapılır.
+
+create table if not exists public.duyurular (
+  id bigint generated always as identity primary key,
+  title text not null,
+  body text not null default '',
+  image_url text not null default '',
+  source_url text,
+  created_by text not null default '',
+  is_active boolean not null default true,
+  is_popup boolean not null default false,
+  publish_at timestamptz,
+  expires_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists duyurular_created_idx
+  on public.duyurular (created_at desc);
+
+alter table public.duyurular enable row level security;
+
+-- Herkes okuyabilir (girişli)
+drop policy if exists "duyuru_select_auth" on public.duyurular;
+create policy "duyuru_select_auth"
+  on public.duyurular for select
+  to authenticated
+  using (true);
+
+-- Yalnız admin ekler
+drop policy if exists "duyuru_insert_admin" on public.duyurular;
+create policy "duyuru_insert_admin"
+  on public.duyurular for insert
+  to authenticated
+  with check (
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  );
+
+-- Yalnız admin siler / günceller
+drop policy if exists "duyuru_update_admin" on public.duyurular;
+create policy "duyuru_update_admin"
+  on public.duyurular for update
+  to authenticated
+  using (
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  )
+  with check (
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  );
+
+drop policy if exists "duyuru_delete_admin" on public.duyurular;
+create policy "duyuru_delete_admin"
+  on public.duyurular for delete
+  to authenticated
+  using (
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  );
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: duyurular_is_active.sql
+-- =============================================================================
+
+-- Story / duyurular: is_active (pasif story gizlensin)
+-- Supabase Dashboard → SQL Editor → çalıştır
+
+alter table public.duyurular
+  add column if not exists is_active boolean not null default true;
+
+create index if not exists duyurular_active_created_idx
+  on public.duyurular (is_active, created_at desc);
+
+-- Normal kullanıcılar yalnız aktifleri görür (select policy güncellemesi)
+drop policy if exists "duyuru_select_auth" on public.duyurular;
+create policy "duyuru_select_auth"
+  on public.duyurular for select
+  to authenticated
+  using (
+    is_active = true
+    or lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  );
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: duyurular_is_popup.sql
+-- =============================================================================
+
+-- Duyurular: pop-up haber vs yatay liste (Güncel Haber)
+-- Supabase Dashboard → SQL Editor → New query → çalıştır
+
+alter table public.duyurular
+  add column if not exists is_popup boolean not null default false;
+
+create index if not exists duyurular_popup_active_created_idx
+  on public.duyurular (is_popup, is_active, created_at desc);
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: duyurular_schedule.sql
+-- =============================================================================
+
+-- Duyurular: yayın başlangıç / bitiş tarihi
+-- Supabase SQL Editor'da çalıştırın.
+
+alter table public.duyurular
+  add column if not exists publish_at timestamptz;
+
+alter table public.duyurular
+  add column if not exists expires_at timestamptz;
+
+-- Eski kayıtlarda boş publish_at → oluşturulma anı (hemen yayında)
+update public.duyurular
+set publish_at = coalesce(publish_at, created_at)
+where publish_at is null;
+
+create index if not exists duyurular_publish_idx
+  on public.duyurular (publish_at desc nulls last);
+
+create index if not exists duyurular_expires_idx
+  on public.duyurular (expires_at asc nulls last);
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: duyurular_guest_read.sql
+-- =============================================================================
+
+-- Misafir (anon): aktif duyuru / story okuma
+-- Supabase Dashboard → SQL Editor → çalıştırın
+-- (guest_public_read.sql içinde de var; yalnız duyuru için bu dosya yeterli)
+
+drop policy if exists "duyuru_select_anon" on public.duyurular;
+create policy "duyuru_select_anon"
+  on public.duyurular for select
+  to anon
+  using (is_active = true);
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: conditions.sql
+-- =============================================================================
+
+-- Hastalıklar & Durumlar (ana sayfa kartları)
+-- Supabase Dashboard → SQL Editor → çalıştır
+
+create table if not exists public.conditions (
+  id bigint generated always as identity primary key,
+  title text not null,
+  image_url text not null default '',
+  description text not null default '',
+  catalog_id text not null default '',
+  icon text not null default '🩺',
+  symptoms jsonb not null default '[]'::jsonb,
+  diagnosis text not null default '',
+  support jsonb not null default '[]'::jsonb,
+  faq jsonb not null default '[]'::jsonb,
+  sort_order int not null default 0,
+  is_active boolean not null default true,
+  created_by text not null default '',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists conditions_active_sort_idx
+  on public.conditions (is_active, sort_order, created_at desc);
+
+alter table public.conditions enable row level security;
+
+-- Girişli kullanıcılar aktif kayıtları görür; admin hepsini
+drop policy if exists "conditions_select_auth" on public.conditions;
+create policy "conditions_select_auth"
+  on public.conditions for select
+  to authenticated
+  using (
+    is_active = true
+    or lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  );
+
+drop policy if exists "conditions_insert_admin" on public.conditions;
+create policy "conditions_insert_admin"
+  on public.conditions for insert
+  to authenticated
+  with check (
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  );
+
+drop policy if exists "conditions_update_admin" on public.conditions;
+create policy "conditions_update_admin"
+  on public.conditions for update
+  to authenticated
+  using (
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  )
+  with check (
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  );
+
+drop policy if exists "conditions_delete_admin" on public.conditions;
+create policy "conditions_delete_admin"
+  on public.conditions for delete
+  to authenticated
+  using (
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  );
+
+-- Mevcut tabloya detay kolonları
+alter table public.conditions
+  add column if not exists catalog_id text not null default '';
+alter table public.conditions
+  add column if not exists icon text not null default '🩺';
+alter table public.conditions
+  add column if not exists symptoms jsonb not null default '[]'::jsonb;
+alter table public.conditions
+  add column if not exists diagnosis text not null default '';
+alter table public.conditions
+  add column if not exists support jsonb not null default '[]'::jsonb;
+alter table public.conditions
+  add column if not exists faq jsonb not null default '[]'::jsonb;
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: conditions_detail.sql
+-- =============================================================================
+
+-- conditions: kart + detay alanları
+-- Supabase Dashboard → SQL Editor → çalıştır
+
+alter table public.conditions
+  add column if not exists catalog_id text not null default '';
+
+alter table public.conditions
+  add column if not exists icon text not null default '🩺';
+
+alter table public.conditions
+  add column if not exists symptoms jsonb not null default '[]'::jsonb;
+
+alter table public.conditions
+  add column if not exists diagnosis text not null default '';
+
+alter table public.conditions
+  add column if not exists support jsonb not null default '[]'::jsonb;
+
+alter table public.conditions
+  add column if not exists faq jsonb not null default '[]'::jsonb;
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: nadir_hastaliklar.sql
+-- =============================================================================
+
+-- Nadir hastalıklar detay içerikleri
+-- Supabase Dashboard → SQL Editor → çalıştır
+
+create table if not exists public.nadir_hastaliklar (
+  id text primary key,
+  name text not null,
+  icon text not null default '',
+  short_desc text not null default '',
+  definition text not null default '',
+  effects text not null default '',
+  sort_order int not null default 0,
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists nadir_hastaliklar_sort_idx
+  on public.nadir_hastaliklar (sort_order);
+
+alter table public.nadir_hastaliklar enable row level security;
+
+drop policy if exists "nadir_select_auth" on public.nadir_hastaliklar;
+create policy "nadir_select_auth"
+  on public.nadir_hastaliklar for select
+  to authenticated
+  using (true);
+
+drop policy if exists "nadir_write_admin" on public.nadir_hastaliklar;
+create policy "nadir_write_admin"
+  on public.nadir_hastaliklar for all
+  to authenticated
+  using (
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  )
+  with check (
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  );
+
+-- Varsayılan kayıtları ekle (yoksa); mevcut satırları bozmaz
+insert into public.nadir_hastaliklar
+  (id, name, icon, short_desc, definition, effects, sort_order)
+values
+  (
+    'spina_bifida',
+    'Spina Bifida',
+    '🧠',
+    'Omurilik ve omurga gelişim bozukluğu.',
+    'Omurganın ve omuriliğin anne karnındaki gelişim sürecinde (gebeliğin ilk haftalarında) tam olarak kapanmaması sonucu ortaya çıkan konjenital (doğuştan) bir nöral tüp defektidir.',
+    'Omuriliğin dışarıya kesecik şeklinde çıkmasına veya açık kalmasına neden olabilir. Etkilenen bölgeye bağlı olarak bacaklarda kısmi veya tam felç, idrar ve dışkı kontrolü sorunları gibi fiziksel engellerle seyredebilir.',
+    0
+  ),
+  (
+    'rett',
+    'Rett Sendromu',
+    '🌸',
+    'Ağırlıklı olarak kız çocuklarında görülen nörolojik gelişim bozukluğu.',
+    'Genellikle MECP2 genindeki mutasyonlardan kaynaklanan, nadir görülen ve ilerleyici nörogelişimsel bir bozukluktur. Ağırlıklı olarak kız çocuklarını etkiler.',
+    'Bebek ilk aylarında normal bir gelişim gösterdikten sonra; el becerilerini (amaçlı el hareketlerini) kaybeder, konuşma yeteneği geriler, yürüme bozuklukları ve karakteristik el ovuşturma/bükme hareketleri başlar.',
+    1
+  ),
+  (
+    'angelman',
+    'Angelman Sendromu',
+    '😊',
+    'Mutluluk davranışı ve gelişim geriliğiyle karakterize genetik hastalık.',
+    '15 numaralı kromozomdaki genetik bir bozukluktan (genellikle anneden gelen kopyanın eksikliği veya işlevsizliği) kaynaklanan nörogelişimsel bir sendromdur.',
+    'Şiddetli zihinsel yetersizlik, konuşma yokluğu veya ciddi derecede kısıtlı konuşma, denge ve yürüme bozuklukları (ataksik/marazi yürüyüş) görülür. En belirgin özelliklerinden biri, sık gülme, neşeli görünüm, el çırpma gibi davranışlar ve aşırı heyecan halidir.',
+    2
+  ),
+  (
+    'prader_willi',
+    'Prader-Willi Sendromu',
+    '🧬',
+    'Hipotoni, obezite eğilimi ve gelişim geriliğiyle seyreden genetik durum.',
+    '15 numaralı kromozomun babadan gelen kısmındaki bir eksiklikten kaynaklanan karmaşık bir genetik hastalıktır.',
+    'Bebeklik döneminde derin kas gevşekliği (hipotoni) ve beslenme güçlükleri ile başlar. Çocukluk dönemine geçişle birlikte doyum noktası olmama (sürekli açlık hissi - hiperfaji) durumu baş gösterir; bu da kontrol edilmezse aşırı obeziteye ve buna bağlı metabolik sorunlara yol açabilir.',
+    3
+  ),
+  (
+    'pku',
+    'PKU (Fenilketonüri)',
+    '🔴',
+    'Fenilalanin metabolizmasındaki enzim eksikliğinden kaynaklanan metabolik hastalık.',
+    'Karaciğerde fenilalanin amino asidini parçalayan enzimin eksikliği veya çalışmaması nedeniyle ortaya çıkan kalıtsal bir metabolik hastalıktır.',
+    'Vücutta biriken fenilalanin ve türevleri beyin dokusuna zarar vererek tedavi edilmediği takdirde kalıcı zihinsel geriliğe yol açar. Doğan her bebeğe rutin olarak topuk kanı testi ile taranır ve ömür boyu düşük fenilalaninli diyetle kontrol altında tutulur.',
+    4
+  ),
+  (
+    'fragile_x',
+    'Fragile X (Kırılgan X Sendromu)',
+    '🔬',
+    'En yaygın kalıtsal zihinsel engel nedeni olan genetik bozukluk.',
+    'X kromozomu üzerinde bulunan FMR1 genindeki mutasyon sonucu gelişen, en sık rastlanan kalıtsal zihinsel engel nedenlerinden biridir.',
+    'Öğrenme güçlükleri, dikkat eksikliği, hiperaktivite, sosyal kaygı ve otizm benzeri davranışsal özellikler görülebilir. Erkeklerde genellikle kızlara kıyasla daha ağır tablolara yol açar.',
+    5
+  ),
+  (
+    'tuberous',
+    'Tuberous Sclerosis (Tüberoskleroz)',
+    '🔵',
+    'Beyin, cilt ve organlarda iyi huylu tümörlere yol açan genetik hastalık.',
+    'Vücudun farklı organlarında (özellikle beyin, böbrek, kalp, akciğer ve cilt) iyi huylu tümörlerin (hamartom) oluşmasına neden olan genetik bir hastalıktır.',
+    'Beyindeki lezyonlara bağlı olarak epilepsi (nöbetler), öğrenme güçlükleri veya otizm spektrum bozuklukları görülebilir. Ciltte karakteristik lekeler ve kabarıklıklar eşlik edebilir.',
+    6
+  ),
+  (
+    'dmd',
+    'Duchenne Müsküler Distrofi (DMD)',
+    '💪',
+    'Kas gücünün ilerleyici kaybıyla seyreden genetik kas hastalığı.',
+    'Kasların yapısını koruyan distrofin proteininin eksikliğinden kaynaklanan, X kromozomuna bağlı geçiş gösteren ilerleyici bir genetik kas hastalığıdır. Genellikle erkek çocuklarında görülür.',
+    'Çocukluk çağında yürüme zorlukları, sık düşme ve merdiven çıkmada güçlükle başlar. Zamanla tüm iskelet kaslarını ve solunum/kalp kaslarını zayıflatarak hastanın tekerlekli sandalyeye bağımlı hale gelmesine yol açar.',
+    7
+  ),
+  (
+    'williams',
+    'Williams Sendromu',
+    '🎵',
+    'Sosyal kişilik, müzikal yetenek ve kardiyovasküler sorunlarla karakterize durum.',
+    '7 numaralı kromozomun belirli bir bölgesindeki genlerin eksilmesi (mikrodelesyon) sonucu oluşan nadir bir genetik sendromdur.',
+    'Hastalar genellikle aşırı sosyal, dışa dönük, empatik ve müzik kulağı gelişmiş kişilik yapılarıyla bilinirler. Buna karşın yüz hatlarında belirgin özellikler (elf benzeri yüz), böbrek anomalileri ve ilerleyici kardiyovasküler (kalp-damar) sorunlar barındırabilir.',
+    8
+  ),
+  (
+    'cdkl5',
+    'CDKL5 Eksikliği',
+    '⚡',
+    'Erken başlangıçlı nöbetler ve ciddi gelişimsel gecikmeye yol açan genetik bozukluk.',
+    'X kromozomu üzerindeki CDKL5 geninin mutasyonu veya eksikliğinden kaynaklanan, erken çocukluk döneminde ortaya çıkan ağır bir genetik nörolojik bozukluktur.',
+    'Yaşamın ilk aylarından itibaren başlayan, kontrol edilmesi zor ve dirençli epilepsi nöbetleri (erken başlangıçlı nöbetler), ağır motor ve zihinsel gelişim gerilikleri, konuşma yokluğu ve ellerde tekrarlayan stereotipik hareketlerle karakterizedir.',
+    9
+  )
+on conflict (id) do nothing;
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: gorusler.sql
+-- =============================================================================
+
+-- Engelsiz Club — dilek / şikayet / öneri
+-- Supabase Dashboard → SQL Editor → Run
+
+create table if not exists public.gorusler (
+  id bigint generated always as identity primary key,
+  user_email text not null,
+  user_name text not null default '',
+  type text not null default 'dilek',  -- dilek | sikayet | oneri | diger
+  subject text not null,
+  message text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists gorusler_created_idx
+  on public.gorusler (created_at desc);
+
+create index if not exists gorusler_user_idx
+  on public.gorusler (user_email, created_at desc);
+
+alter table public.gorusler enable row level security;
+
+-- Kullanıcı kendi görüşünü ekler
+drop policy if exists "gorus_insert_own" on public.gorusler;
+create policy "gorus_insert_own"
+  on public.gorusler for insert
+  to authenticated
+  with check (
+    lower(user_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+-- Kullanıcı kendi kayıtlarını görür
+drop policy if exists "gorus_select_own" on public.gorusler;
+create policy "gorus_select_own"
+  on public.gorusler for select
+  to authenticated
+  using (
+    lower(user_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+-- Admin tüm görüşleri görür
+drop policy if exists "gorus_select_admin" on public.gorusler;
+create policy "gorus_select_admin"
+  on public.gorusler for select
+  to authenticated
+  using (
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  );
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================
+-- FILE: home_hero_slides.sql
+-- =============================================================================
+
+-- Ana sayfa geçiş (hero) görselleri
+-- Supabase SQL Editor → çalıştır
+
+create table if not exists public.home_hero_slides (
+  id bigint generated always as identity primary key,
+  image_url text not null,
+  alt_text text not null default '',
+  sort_order int not null default 0,
+  is_active boolean not null default true,
+  created_by text not null default '',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists home_hero_slides_sort_idx
+  on public.home_hero_slides (is_active, sort_order, id);
+
+alter table public.home_hero_slides enable row level security;
+
+drop policy if exists "home_hero_select_all" on public.home_hero_slides;
+create policy "home_hero_select_all"
+  on public.home_hero_slides for select
+  to anon, authenticated
+  using (is_active = true or lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com');
+
+drop policy if exists "home_hero_insert_admin" on public.home_hero_slides;
+create policy "home_hero_insert_admin"
+  on public.home_hero_slides for insert
+  to authenticated
+  with check (
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  );
+
+drop policy if exists "home_hero_update_admin" on public.home_hero_slides;
+create policy "home_hero_update_admin"
+  on public.home_hero_slides for update
+  to authenticated
+  using (
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  )
+  with check (
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  );
+
+drop policy if exists "home_hero_delete_admin" on public.home_hero_slides;
+create policy "home_hero_delete_admin"
+  on public.home_hero_slides for delete
+  to authenticated
+  using (
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  );
+
+-- Varsayılan 3 slide (asset yolu — uygulama paketinden okunur)
+insert into public.home_hero_slides (image_url, alt_text, sort_order)
+select v.image_url, v.alt_text, v.sort_order
+from (values
+  ('asset:assets/images/118547.png', 'Terapist ve özel gereksinimli çocuk yürüyüş terapisinde', 1),
+  ('asset:assets/images/118587-1.png', 'Gökkuşağı altında mutlu iki çocuk', 2),
+  ('asset:assets/images/118600.png', 'Anne ve yeni doğan bebeği hastanede', 3)
+) as v(image_url, alt_text, sort_order)
+where not exists (select 1 from public.home_hero_slides limit 1);
+
+notify pgrst, 'reload schema';
+
+
+-- =============================================================================

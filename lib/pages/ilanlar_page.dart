@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -8,18 +7,32 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../admin_config.dart';
 import '../bildirim_store.dart';
-import '../data/centers_data.dart' show kAllIlceler;
 import '../data/ilanlar_data.dart';
-import '../data/turkish_cities_data.dart';
+import '../data/location_models.dart';
 import '../ilan_store.dart';
+import '../l10n/app_strings.dart';
+import '../l10n/locale_controller.dart';
 import '../meto_theme.dart';
 import '../presence_store.dart';
 import '../services/catalog_adapters.dart';
+import '../services/image_optimize_service.dart';
+import '../services/r2_storage_service.dart';
 import '../sohbet_store.dart';
 import '../teklif_store.dart';
 import '../user_cloud_store.dart';
+import '../widgets/location_picker.dart';
 import '../widgets/photo_gallery_lightbox.dart';
 import '../widgets/user_avatar.dart';
+import '../widgets/user_safety_sheet.dart';
+import '../widgets/guest_gate.dart';
+import '../l10n/l10n_text.dart';
+import '../utils/price_format.dart';
+
+String ikincielAltDisplayLabel(String category) {
+  final alt = ikincielAltKategoriOf(category);
+  if (alt == kIkincielAltMedikal) return S.t('ilan_alt_medikal');
+  return S.t('ilan_alt_diger');
+}
 
 /// MetoCare `IlanlarTab` — Flutter portu.
 class IlanlarPage extends StatefulWidget {
@@ -31,6 +44,8 @@ class IlanlarPage extends StatefulWidget {
     this.userName = 'Siz',
     this.userType = 'aile',
     this.profilFoto,
+    this.isGuest = false,
+    this.onRequireLogin,
     this.onUnreadChange,
     this.onOpenKrediYukle,
     this.onIlanlarChanged,
@@ -50,6 +65,8 @@ class IlanlarPage extends StatefulWidget {
   final String userType;
   /// data:image… profil fotoğrafı
   final String? profilFoto;
+  final bool isGuest;
+  final VoidCallback? onRequireLogin;
   final ValueChanged<int>? onUnreadChange;
   final VoidCallback? onOpenKrediYukle;
   final VoidCallback? onIlanlarChanged;
@@ -65,7 +82,7 @@ class IlanlarPage extends StatefulWidget {
   final int openEditIlanToken;
 
   @override
-  State<IlanlarPage> createState() => _IlanlarPageState();
+  State<IlanlarPage> createState() => IlanlarPageState();
 }
 
 class _ActiveSohbet {
@@ -81,16 +98,47 @@ class _ActiveSohbet {
   int unread = 0;
 }
 
-class _IlanlarPageState extends State<IlanlarPage> {
-  static const _kAllIller = 'Tümü';
+class IlanlarPageState extends State<IlanlarPage> {
+  /// Sistem geri: form / detay katmanlarını sırayla kapatır.
+  bool consumeBack() {
+    if (_selectedPoster != null) {
+      setState(() => _selectedPoster = null);
+      return true;
+    }
+    if (_selectedUzman != null ||
+        _selectedBakici != null ||
+        _selectedIkinciel != null) {
+      setState(() {
+        _selectedUzman = null;
+        _selectedBakici = null;
+        _selectedIkinciel = null;
+      });
+      return true;
+    }
+    if (_showVerForm) {
+      setState(() {
+        _showVerForm = false;
+        _editDraft = null;
+      });
+      return true;
+    }
+    return false;
+  }
+
   static const _pageSize = 10;
 
   IlanKategori _kategori = IlanKategori.uzmanlar;
   bool _showVerForm = false;
   _IlanEditDraft? _editDraft;
   double _kmFilter = 500;
-  String _filterIl = _kAllIller;
-  String _filterIlce = kAllIlceler;
+  /// Ana konum filtresi — varsayılan: dil ülkesinin tümü
+  late LocationData _filterLoc = LocationData(
+    countryCode: countryCodeForLang(LocaleController.instance.lang),
+  );
+  /// 2. el ürün durumu: Tümü | Sıfır | Az Kullanılmış | İyi | Kötü
+  String _ikincielDurumFilter = 'Tümü';
+  /// 'Tümü' | Medikal Malzemeler | Diğer (canonical TR keys)
+  String _ikincielAltFilter = 'Tümü';
   int _listPage = 0;
   bool _loadingFeed = true;
   List<FavoriIlanRef> _favoriler = const [];
@@ -120,7 +168,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
     }
   }
 
-  bool _canReviewOn(String kind) => _canOfferOn(kind);
+  bool _canReviewOn(String kind) => !widget.isGuest && _canOfferOn(kind);
 
   UzmanIlani? _selectedUzman;
   BakiciIlani? _selectedBakici;
@@ -207,18 +255,18 @@ class _IlanlarPageState extends State<IlanlarPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(asAdmin ? 'İlanı sil (Admin)' : 'İlanı sil'),
-        content: Text('"$title" ilanını kalıcı silmek istiyor musunuz?'),
+        content: L10nText('"$title" ilanını kalıcı silmek istiyor musunuz?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Vazgeç'),
+            child: const L10nText('Vazgeç'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFEF4444),
             ),
-            child: const Text('Sil'),
+            child: const L10nText('Sil'),
           ),
         ],
       ),
@@ -270,7 +318,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
       children: [
         if (canEdit)
           IconButton(
-            tooltip: 'Satıldı olarak işaretle',
+            tooltip: S.auto('Satıldı olarak işaretle'),
             onPressed: () => _markSoldIlan(kind: kind, id: id, title: title),
             icon: const Icon(
               Icons.sell_outlined,
@@ -283,7 +331,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
           ),
         if (canEdit)
           IconButton(
-            tooltip: 'Düzenle',
+            tooltip: S.auto('Düzenle'),
             onPressed: onEdit,
             icon: const Icon(
               Icons.edit_outlined,
@@ -320,21 +368,21 @@ class _IlanlarPageState extends State<IlanlarPage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Satıldığını onaylıyor musunuz?'),
-        content: Text(
+        title: const L10nText('Satıldığını onaylıyor musunuz?'),
+        content: L10nText(
           '"$title" ilanı satıldı olarak işaretlenecek ve yayından kalkacak.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Vazgeç'),
+            child: const L10nText('Vazgeç'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFCA8A04),
             ),
-            child: const Text('Evet, satıldı'),
+            child: const L10nText('Evet, satıldı'),
           ),
         ],
       ),
@@ -354,12 +402,12 @@ class _IlanlarPageState extends State<IlanlarPage> {
       });
       widget.onIlanlarChanged?.call();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('İlan satıldı olarak işaretlendi ve yayından kaldırıldı')),
+        const SnackBar(content: L10nText('İlan satıldı olarak işaretlendi ve yayından kaldırıldı')),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('İşlem başarısız: $e')),
+        SnackBar(content: L10nText('İşlem başarısız: $e')),
       );
     }
   }
@@ -372,6 +420,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
         title: ilan.title,
         city: ilan.city,
         district: ilan.district,
+        countryCode: ilan.countryCode,
         note: ilan.note == '—' ? '' : ilan.note,
         budgetOrPrice: ilan.budget,
         uzmanlik: ilan.uzmanlik,
@@ -389,6 +438,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
         title: ilan.title,
         city: ilan.city,
         district: ilan.district,
+        countryCode: ilan.countryCode,
         note: ilan.note == '—' ? '' : ilan.note,
         budgetOrPrice: ilan.budget,
         photos: List<IlanPhoto>.from(ilan.photos),
@@ -405,9 +455,11 @@ class _IlanlarPageState extends State<IlanlarPage> {
         title: ilan.title,
         city: ilan.city,
         district: ilan.district,
+        countryCode: ilan.countryCode,
         note: ilan.note == '—' ? '' : ilan.note,
         budgetOrPrice: ilan.price,
         condition: ilan.condition,
+        category: ikincielAltKategoriOf(ilan.category),
         photos: List<IlanPhoto>.from(ilan.photos),
       );
       _showVerForm = true;
@@ -596,9 +648,12 @@ class _IlanlarPageState extends State<IlanlarPage> {
       _favoriler.any((f) => f.kind == kind && f.id == id);
 
   Future<void> _toggleFav(FavoriIlanRef ref) async {
-    if (widget.userEmail.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Favori için giriş yapın')),
+    if (widget.isGuest || widget.userEmail.trim().isEmpty) {
+      await ensureMemberAccess(
+        context,
+        isGuest: true,
+        onRequireLogin: widget.onRequireLogin ?? () {},
+        message: 'Favoriye eklemek için giriş yapmanız veya üye olmanız gerekiyor.',
       );
       return;
     }
@@ -626,7 +681,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
             : [..._favoriler, ref];
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Favori kaydedilemedi. Tekrar deneyin.')),
+        const SnackBar(content: L10nText('Favori kaydedilemedi. Tekrar deneyin.')),
       );
     }
   }
@@ -658,25 +713,24 @@ class _IlanlarPageState extends State<IlanlarPage> {
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
 
-  bool _matchesLoc(String city, String district) {
-    if (_filterIl == _kAllIller) return true;
-    if (_normLoc(city) != _normLoc(_filterIl)) return false;
-    if (_filterIlce == kAllIlceler) return true;
-    return _normLoc(district) == _normLoc(_filterIlce);
-  }
-
-  List<String> get _filterIlceOptions {
-    if (_filterIl == _kAllIller) return const [kAllIlceler];
-    final info = kTurkishCities[_filterIl];
-    if (info == null) return const [kAllIlceler];
-    return info.ilceler;
+  bool _matchesLoc(String city, String district, {String countryCode = 'TR'}) {
+    final f = _filterLoc;
+    // Konumdan bağımsız
+    if (f.countryCode.isEmpty) return true;
+    final code = countryCode.trim().isEmpty ? 'TR' : countryCode.trim().toUpperCase();
+    if (code != f.countryCode.toUpperCase()) return false;
+    // Tüm ülke
+    if (f.state.isEmpty) return true;
+    if (_normLoc(city) != _normLoc(f.state)) return false;
+    if (f.city.isEmpty) return true;
+    return _normLoc(district) == _normLoc(f.city);
   }
 
   List<UzmanIlani> get _filteredUzman {
     final demo = CatalogAdapters.showDemoIlanlar() ? uzmanIlanlar : const <UzmanIlani>[];
     return [...runtimeUzmanIlanlar, ...demo]
         .where((u) =>
-            _matchesLoc(u.city, u.district) &&
+            _matchesLoc(u.city, u.district, countryCode: u.countryCode) &&
             (uzmanKm[u.id] ?? 50) <= _kmFilter)
         .toList();
   }
@@ -685,7 +739,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
     final demo = CatalogAdapters.showDemoIlanlar() ? bakiciIlanlar : const <BakiciIlani>[];
     return [...runtimeBakiciIlanlar, ...demo]
         .where((b) =>
-            _matchesLoc(b.city, b.district) &&
+            _matchesLoc(b.city, b.district, countryCode: b.countryCode) &&
             (bakiciKm[b.id] ?? 50) <= _kmFilter)
         .toList();
   }
@@ -694,8 +748,37 @@ class _IlanlarPageState extends State<IlanlarPage> {
     final demo =
         CatalogAdapters.showDemoIlanlar() ? ikincielIlanlar : const <IkincielIlani>[];
     return [...runtimeIkincielIlanlar, ...demo]
-        .where((i) => _matchesLoc(i.city, i.district))
+        .where((i) =>
+            _matchesLoc(i.city, i.district, countryCode: i.countryCode) &&
+            _matchesIkincielDurum(i.condition) &&
+            _matchesIkincielAlt(i.category))
         .toList();
+  }
+
+  bool _matchesIkincielAlt(String category) {
+    if (_ikincielAltFilter == 'Tümü') return true;
+    return ikincielAltKategoriOf(category) == _ikincielAltFilter;
+  }
+
+  bool _matchesIkincielDurum(String condition) {
+    if (_ikincielDurumFilter == 'Tümü') return true;
+    final c = condition
+        .trim()
+        .toLowerCase()
+        .replaceAll('ı', 'i')
+        .replaceAll('İ', 'i')
+        .replaceAll('ş', 's')
+        .replaceAll('ğ', 'g')
+        .replaceAll('ü', 'u')
+        .replaceAll('ö', 'o')
+        .replaceAll('ç', 'c');
+    return switch (_ikincielDurumFilter) {
+      'Sıfır' => c.contains('sifir'),
+      'Az Kullanılmış' => c.contains('az kullan'),
+      'İyi' => c == 'iyi' || c.startsWith('iyi '),
+      'Kötü' => c.contains('kotu'),
+      _ => true,
+    };
   }
 
   String _nowTime() {
@@ -704,18 +787,27 @@ class _IlanlarPageState extends State<IlanlarPage> {
   }
 
   void _openTeklif(SohbetKisi kisi, {bool free = false, String kind = 'uzman'}) {
+    if (widget.isGuest) {
+      unawaited(ensureMemberAccess(
+        context,
+        isGuest: true,
+        onRequireLogin: widget.onRequireLogin ?? () {},
+        message: 'Teklif vermek için giriş yapmanız veya üye olmanız gerekiyor.',
+      ));
+      return;
+    }
     final me = widget.userEmail.trim().toLowerCase();
     if (kisi.peerEmail.isNotEmpty &&
         kisi.peerEmail.toLowerCase() == me) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kendi ilanınıza teklif veremezsiniz')),
+        const SnackBar(content: L10nText('Kendi ilanınıza teklif veremezsiniz')),
       );
       return;
     }
     if (kisi.peerEmail.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
+          content: L10nText(
             'Bu örnek bir ilandır. Gerçek kullanıcı ilanına teklif vererek sohbet edebilirsiniz.',
           ),
           duration: Duration(seconds: 4),
@@ -771,7 +863,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Bu ilana zaten teklif verdiniz · sohbet açılıyor'),
+                content: L10nText('Bu ilana zaten teklif verdiniz · sohbet açılıyor'),
               ),
             );
           }
@@ -782,7 +874,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
         if (!mounted) return true;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
+            content: L10nText(
               '${k.ad} adlı ilan sahibine teklif bildirimi gönderildi · 1 puan harcandı',
             ),
           ),
@@ -1005,6 +1097,10 @@ class _IlanlarPageState extends State<IlanlarPage> {
               if (!_isAileRole) _buildCreditBar(),
               _buildLocationFilter(),
               if (_kategori != IlanKategori.ikinciel) _buildKmFilter(),
+              if (_kategori == IlanKategori.ikinciel) ...[
+                _buildIkincielAltFilter(),
+                _buildIkincielDurumFilter(),
+              ],
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                 child: Column(
@@ -1213,7 +1309,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                L10nText(
                   'İlanlar',
                   style: TextStyle(
                     fontSize: 20,
@@ -1221,8 +1317,8 @@ class _IlanlarPageState extends State<IlanlarPage> {
                     color: MetoColors.foreground,
                   ),
                 ),
-                Text(
-                  'Uzman / bakıcı arayan ilanlar · 2. el',
+                L10nText(
+                  'Uzman / bakıcı-temizlik arayan ilanlar · 2. el',
                   style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
                 ),
               ],
@@ -1240,7 +1336,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
                 children: [
                   const Icon(Icons.chat_bubble, size: 13, color: Colors.white),
                   const SizedBox(width: 6),
-                  Text(
+                  L10nText(
                     '$_totalUnread yeni',
                     style: const TextStyle(
                       fontSize: 12,
@@ -1253,7 +1349,19 @@ class _IlanlarPageState extends State<IlanlarPage> {
             ),
           ],
           FilledButton.icon(
-            onPressed: () => setState(() => _showVerForm = true),
+            onPressed: () async {
+              if (widget.isGuest) {
+                await ensureMemberAccess(
+                  context,
+                  isGuest: true,
+                  onRequireLogin: widget.onRequireLogin ?? () {},
+                  message:
+                      'İlan vermek için giriş yapmanız veya üye olmanız gerekiyor.',
+                );
+                return;
+              }
+              setState(() => _showVerForm = true);
+            },
             style: FilledButton.styleFrom(
               backgroundColor: MetoColors.primary,
               foregroundColor: Colors.white,
@@ -1263,7 +1371,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
               ),
             ),
             icon: const Icon(Icons.add, size: 16),
-            label: const Text(
+            label: const L10nText(
               'İlan Ver',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
             ),
@@ -1275,9 +1383,14 @@ class _IlanlarPageState extends State<IlanlarPage> {
 
   Widget _buildCategoryTabs() {
     final tabs = [
-      (IlanKategori.uzmanlar, 'Uzman Ara', '🏃', _filteredUzman.length),
-      (IlanKategori.bakici, 'Bakıcı Ara', '🤝', _filteredBakici.length),
-      (IlanKategori.ikinciel, '2. El Aletler', '♻️', _allIkinciel.length),
+      (IlanKategori.uzmanlar, S.t('ilan_tab_uzman'), '🏃', _filteredUzman.length),
+      (
+        IlanKategori.bakici,
+        S.t('ilan_tab_bakici'),
+        '🤝',
+        _filteredBakici.length,
+      ),
+      (IlanKategori.ikinciel, S.t('ilan_tab_ikinciel'), '♻️', _allIkinciel.length),
     ];
 
     return Padding(
@@ -1310,6 +1423,9 @@ class _IlanlarPageState extends State<IlanlarPage> {
                         Text(t.$3, style: const TextStyle(fontSize: 20)),
                         Text(
                           t.$2,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
@@ -1319,7 +1435,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
                           ),
                         ),
                         Text(
-                          '${t.$4} ilan',
+                          S.n('ilan_count', {'n': '${t.$4}'}),
                           style: TextStyle(
                             fontSize: 12,
                             color: selected
@@ -1356,7 +1472,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                L10nText(
                   '${widget.userKredi} puanınız var',
                   style: const TextStyle(
                     fontSize: 12,
@@ -1364,8 +1480,8 @@ class _IlanlarPageState extends State<IlanlarPage> {
                     color: Color(0xFF92400E),
                   ),
                 ),
-                const Text(
-                  '1 puan = 1 teklif = ₺49,90',
+                const L10nText(
+                  '1 puan = 1 teklif = ₺69,90',
                   style: TextStyle(fontSize: 12, color: Color(0xFFD97706)),
                 ),
               ],
@@ -1381,7 +1497,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
-            child: const Text(
+            child: const L10nText(
               'Satın Al',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
             ),
@@ -1392,14 +1508,6 @@ class _IlanlarPageState extends State<IlanlarPage> {
   }
 
   Widget _buildLocationFilter() {
-    final ilceValue = _filterIl == _kAllIller
-        ? kAllIlceler
-        : (_filterIlceOptions.contains(_filterIlce)
-            ? _filterIlce
-            : kAllIlceler);
-    final ilceItems = _filterIl == _kAllIller
-        ? const <String>[]
-        : _filterIlceOptions.where((e) => e != kAllIlceler).toList();
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
@@ -1408,36 +1516,15 @@ class _IlanlarPageState extends State<IlanlarPage> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: MetoColors.border),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _IlanlarLocDropdown(
-              value: _filterIl,
-              hint: 'İl',
-              allValue: _kAllIller,
-              items: kCityNames,
-              onChanged: (v) => setState(() {
-                _filterIl = v;
-                _filterIlce = kAllIlceler;
-                _listPage = 0;
-              }),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _IlanlarLocDropdown(
-              value: ilceValue,
-              hint: 'İlçe',
-              allValue: kAllIlceler,
-              items: ilceItems,
-              enabled: _filterIl != _kAllIller,
-              onChanged: (v) => setState(() {
-                _filterIlce = v;
-                _listPage = 0;
-              }),
-            ),
-          ),
-        ],
+      child: LocationCascadePicker(
+        value: _filterLoc,
+        showAnywhereOption: true,
+        requireFullSelection: false,
+        compact: true,
+        onChanged: (loc) => setState(() {
+          _filterLoc = loc;
+          _listPage = 0;
+        }),
       ),
     );
   }
@@ -1464,7 +1551,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
       if (total == 0) {
         return const Padding(
           padding: EdgeInsets.symmetric(vertical: 16),
-          child: Text(
+          child: L10nText(
             'Bu filtrede ilan yok',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, color: MetoColors.mutedFg),
@@ -1473,7 +1560,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
       }
       return Padding(
         padding: const EdgeInsets.only(top: 8, bottom: 8),
-        child: Text(
+        child: L10nText(
           '$total ilan',
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
@@ -1486,7 +1573,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
       padding: const EdgeInsets.only(top: 12, bottom: 8),
       child: Column(
         children: [
-          Text(
+          L10nText(
             'Sayfa ${page + 1} / $pageCount · $total ilan',
             style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
           ),
@@ -1507,7 +1594,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
                       width: 32,
                       height: 32,
                       child: Center(
-                        child: Text(
+                        child: L10nText(
                           '${i + 1}',
                           style: TextStyle(
                             fontSize: 12,
@@ -1534,7 +1621,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
         children: [
           const Icon(Icons.location_on, size: 13, color: MetoColors.primary),
           const SizedBox(width: 4),
-          const Text(
+          const L10nText(
             'Mesafe',
             style: TextStyle(
               fontSize: 11,
@@ -1571,6 +1658,151 @@ class _IlanlarPageState extends State<IlanlarPage> {
               fontSize: 11,
               fontWeight: FontWeight.w800,
               color: MetoColors.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static const _ikincielDurumFiltreleri = <String>[
+    'Tümü',
+    'Sıfır',
+    'Az Kullanılmış',
+    'İyi',
+    'Kötü',
+  ];
+
+  String _ikincielAltLabel(String key) => switch (key) {
+        'Tümü' => S.t('ilan_alt_all'),
+        kIkincielAltMedikal => S.t('ilan_alt_medikal'),
+        kIkincielAltDiger => S.t('ilan_alt_diger'),
+        _ => key,
+      };
+
+  Widget _buildIkincielAltFilter() {
+    const keys = <String>['Tümü', kIkincielAltMedikal, kIkincielAltDiger];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            S.t('ilan_ikinciel_alt'),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: MetoColors.mutedFg,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (var i = 0; i < keys.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  Builder(
+                    builder: (context) {
+                      final key = keys[i];
+                      final active = _ikincielAltFilter == key;
+                      return Material(
+                        color: active ? MetoColors.primary : MetoColors.muted,
+                        borderRadius: BorderRadius.circular(999),
+                        child: InkWell(
+                          onTap: () => setState(() {
+                            _ikincielAltFilter = key;
+                            _listPage = 0;
+                          }),
+                          borderRadius: BorderRadius.circular(999),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 7,
+                            ),
+                            child: Text(
+                              _ikincielAltLabel(key),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: active
+                                    ? Colors.white
+                                    : MetoColors.mutedFg,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIkincielDurumFilter() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            S.t('ilan_condition'),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: MetoColors.mutedFg,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (var i = 0; i < _ikincielDurumFiltreleri.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  Builder(
+                    builder: (context) {
+                      final label = _ikincielDurumFiltreleri[i];
+                      final active = _ikincielDurumFilter == label;
+                      final shown = label == 'Tümü'
+                          ? S.t('ilan_alt_all')
+                          : label;
+                      return Material(
+                        color: active ? MetoColors.primary : MetoColors.muted,
+                        borderRadius: BorderRadius.circular(999),
+                        child: InkWell(
+                          onTap: () => setState(() {
+                            _ikincielDurumFilter = label;
+                            _listPage = 0;
+                          }),
+                          borderRadius: BorderRadius.circular(999),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 7,
+                            ),
+                            child: Text(
+                              shown,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: active
+                                    ? Colors.white
+                                    : MetoColors.mutedFg,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ],
             ),
           ),
         ],
@@ -1652,7 +1884,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
                                   size: 14, color: Colors.red),
                             ),
                           Expanded(
-                            child: Text(
+                            child: L10nText(
                               ilan.title,
                               style: const TextStyle(
                                 fontSize: 14,
@@ -1685,7 +1917,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
+                      child: L10nText(
                         ilan.poster.name,
                         style: const TextStyle(
                           fontSize: 12,
@@ -1701,13 +1933,13 @@ class _IlanlarPageState extends State<IlanlarPage> {
                       style: const TextStyle(
                           fontSize: 12, fontWeight: FontWeight.w700),
                     ),
-                    Text(
+                    L10nText(
                       ' (${ilan.poster.reviewCount})',
                       style: const TextStyle(
                           fontSize: 12, color: MetoColors.mutedFg),
                     ),
                     const SizedBox(width: 6),
-                    const Text(
+                    const L10nText(
                       'Profil',
                       style: TextStyle(
                         fontSize: 11,
@@ -1734,7 +1966,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
           const SizedBox(height: 8),
           GestureDetector(
             onTap: openDetail,
-            child: Text(
+            child: L10nText(
               ilan.note,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -1830,27 +2062,33 @@ class _IlanlarPageState extends State<IlanlarPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (ilan.urgent)
-                            const Padding(
-                              padding: EdgeInsets.only(top: 2, right: 4),
-                              child: Icon(Icons.auto_awesome,
-                                  size: 14, color: Colors.red),
-                            ),
-                          Expanded(
-                            child: Text(
-                              ilan.title,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: MetoColors.foreground,
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (ilan.urgent)
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 2, right: 4),
+                                  child: Icon(Icons.auto_awesome,
+                                      size: 14, color: Colors.red),
+                                ),
+                              Expanded(
+                                child: L10nText(
+                                  ilan.title,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: MetoColors.foreground,
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
+                          const SizedBox(height: 6),
                           const _Badge(
-                            text: '🤝 Bakıcı Aranıyor',
+                            text: '🤝 Bakıcı/Temizlik Görevlisi Aranıyor',
                             bg: Color(0xFFEFF6FF),
                             fg: Color(0xFF1D4ED8),
                           ),
@@ -1873,7 +2111,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
+                      child: L10nText(
                         ilan.poster.name,
                         style: const TextStyle(
                           fontSize: 12,
@@ -1889,13 +2127,13 @@ class _IlanlarPageState extends State<IlanlarPage> {
                       style: const TextStyle(
                           fontSize: 12, fontWeight: FontWeight.w700),
                     ),
-                    Text(
+                    L10nText(
                       ' (${ilan.poster.reviewCount})',
                       style: const TextStyle(
                           fontSize: 12, color: MetoColors.mutedFg),
                     ),
                     const SizedBox(width: 6),
-                    const Text(
+                    const L10nText(
                       'Profil',
                       style: TextStyle(
                         fontSize: 11,
@@ -1926,12 +2164,12 @@ class _IlanlarPageState extends State<IlanlarPage> {
             ],
           ),
           const SizedBox(height: 8),
-          Text('📅 ${ilan.hours}',
+          L10nText('📅 ${ilan.hours}',
               style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg)),
           const SizedBox(height: 4),
           GestureDetector(
             onTap: openDetail,
-            child: Text(
+            child: L10nText(
               ilan.note,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -2019,7 +2257,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      L10nText(
                         ilan.title,
                         style: const TextStyle(
                           fontSize: 14,
@@ -2027,8 +2265,8 @@ class _IlanlarPageState extends State<IlanlarPage> {
                           color: MetoColors.foreground,
                         ),
                       ),
-                      Text(
-                        '${ilan.brand} · ${ilan.category}',
+                      L10nText(
+                        '${ilan.brand} · ${ikincielAltDisplayLabel(ilan.category)}',
                         style: const TextStyle(
                             fontSize: 12, color: MetoColors.mutedFg),
                       ),
@@ -2058,7 +2296,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
                         color: ilan.poster.avatarColor),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
+                      child: L10nText(
                         ilan.poster.name,
                         style: const TextStyle(
                           fontSize: 12,
@@ -2074,13 +2312,13 @@ class _IlanlarPageState extends State<IlanlarPage> {
                       style: const TextStyle(
                           fontSize: 12, fontWeight: FontWeight.w700),
                     ),
-                    Text(
+                    L10nText(
                       ' (${ilan.poster.reviewCount})',
                       style: const TextStyle(
                           fontSize: 12, color: MetoColors.mutedFg),
                     ),
                     const SizedBox(width: 6),
-                    const Text(
+                    const L10nText(
                       'Profil',
                       style: TextStyle(
                         fontSize: 11,
@@ -2104,7 +2342,7 @@ class _IlanlarPageState extends State<IlanlarPage> {
           const SizedBox(height: 8),
           GestureDetector(
             onTap: openDetail,
-            child: Text(
+            child: L10nText(
               ilan.note,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -2201,7 +2439,7 @@ class _RatingBreakdown extends StatelessWidget {
             children: [
               SizedBox(
                 width: 12,
-                child: Text(
+                child: L10nText(
                   '${c.star}',
                   textAlign: TextAlign.right,
                   style:
@@ -2224,7 +2462,7 @@ class _RatingBreakdown extends StatelessWidget {
               const SizedBox(width: 8),
               SizedBox(
                 width: 12,
-                child: Text(
+                child: L10nText(
                   '${c.count}',
                   style:
                       const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
@@ -2480,7 +2718,7 @@ class _CardFooter extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          price,
+          formatPriceTl(price),
           style: TextStyle(
             fontSize: priceLarge ? 16 : 12,
             fontWeight: FontWeight.w800,
@@ -2500,11 +2738,13 @@ class _CardFooter extends StatelessWidget {
   }
 }
 
+ImageProvider? _ilanPhotoProvider(IlanPhoto photo) =>
+    galleryImageProvider(photo.dataUrl);
+
 List<ImageProvider> _ilanGalleryImages(List<IlanPhoto> photos) {
   return [
     for (final p in photos)
-      if (galleryImageProvider(p.dataUrl) != null)
-        galleryImageProvider(p.dataUrl)!,
+      if (_ilanPhotoProvider(p) != null) _ilanPhotoProvider(p)!,
   ];
 }
 
@@ -2548,7 +2788,6 @@ class _PhotoStrip extends StatelessWidget {
           children: photos.asMap().entries.map((e) {
             final i = e.key;
             final photo = e.value;
-            final bytes = _photoBytes(photo);
             return Expanded(
               child: GestureDetector(
                 onTap: gallery.isEmpty
@@ -2565,16 +2804,20 @@ class _PhotoStrip extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: photo.swatchColor,
                     borderRadius: BorderRadius.circular(14),
-                    image: bytes == null
-                        ? null
-                        : DecorationImage(
-                            image: MemoryImage(bytes),
-                            fit: BoxFit.cover,
-                          ),
                   ),
+                  clipBehavior: Clip.antiAlias,
                   alignment: Alignment.center,
-                  child: bytes != null
-                      ? null
+                  child: photo.hasImage
+                      ? FillPhoto(
+                          source: photo.dataUrl,
+                          placeholder: Text(
+                            emoji,
+                            style: TextStyle(
+                              fontSize: photos.length == 1 ? 48 : 32,
+                              color: Colors.black.withValues(alpha: 0.85),
+                            ),
+                          ),
+                        )
                       : Text(
                           emoji,
                           style: TextStyle(
@@ -2589,17 +2832,6 @@ class _PhotoStrip extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  static Uint8List? _photoBytes(IlanPhoto photo) {
-    if (!photo.hasImage) return null;
-    try {
-      var raw = photo.dataUrl!;
-      if (raw.contains(',')) raw = raw.split(',').last;
-      return Uint8List.fromList(base64Decode(raw));
-    } catch (_) {
-      return null;
-    }
   }
 }
 
@@ -2651,10 +2883,10 @@ class _KrediSheetState extends State<_KrediSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Teklif Gönderildi!',
+                      L10nText('Teklif Gönderildi!',
                           style: TextStyle(
                               fontWeight: FontWeight.w800, fontSize: 16)),
-                      Text('1 puan harcandı · Sohbet hazır',
+                      L10nText('1 puan harcandı · Sohbet hazır',
                           style: TextStyle(
                               fontSize: 12, color: MetoColors.mutedFg)),
                     ],
@@ -2684,7 +2916,7 @@ class _KrediSheetState extends State<_KrediSheet> {
               onPressed: widget.onUnlocked,
               style: _primaryBtn,
               icon: const Icon(Icons.chat_bubble_outline, size: 18),
-              label: const Text('Sohbete Git',
+              label: const L10nText('Sohbete Git',
                   style: TextStyle(fontWeight: FontWeight.w800)),
             ),
           ],
@@ -2703,10 +2935,10 @@ class _KrediSheetState extends State<_KrediSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('İletişim Bilgisini Aç',
+                    L10nText('İletişim Bilgisini Aç',
                         style: TextStyle(
                             fontSize: 18, fontWeight: FontWeight.w800)),
-                    Text('1 puan harcayarak iletişim bilgisine ulaş',
+                    L10nText('1 puan harcayarak iletişim bilgisine ulaş',
                         style:
                             TextStyle(fontSize: 12, color: MetoColors.mutedFg)),
                   ],
@@ -2724,7 +2956,7 @@ class _KrediSheetState extends State<_KrediSheet> {
                     const Icon(Icons.monetization_on,
                         size: 14, color: Color(0xFFD97706)),
                     const SizedBox(width: 4),
-                    Text('${widget.credits} puan',
+                    L10nText('${widget.credits} puan',
                         style: const TextStyle(
                             fontWeight: FontWeight.w800,
                             color: Color(0xFFB45309))),
@@ -2742,7 +2974,7 @@ class _KrediSheetState extends State<_KrediSheet> {
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Açıldığında ne görürsünüz:',
+                L10nText('Açıldığında ne görürsünüz:',
                     style:
                         TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                 SizedBox(height: 12),
@@ -2774,7 +3006,7 @@ class _KrediSheetState extends State<_KrediSheet> {
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text(
+                            content: L10nText(
                               'Teklif gönderilemedi. Tekrar deneyin.',
                             ),
                           ),
@@ -2816,7 +3048,7 @@ class _KrediSheetState extends State<_KrediSheet> {
           ),
           TextButton(
               onPressed: _busy ? null : widget.onClose,
-              child: const Text('Vazgeç',
+              child: const L10nText('Vazgeç',
                   style: TextStyle(fontWeight: FontWeight.w700))),
         ],
       ),
@@ -2963,7 +3195,7 @@ class _DrawerShellState extends State<_DrawerShell> {
                                   child: Align(
                                     alignment: Alignment.centerRight,
                                     child: IconButton(
-                                      tooltip: 'Kapat',
+                                      tooltip: S.auto('Kapat'),
                                       onPressed: widget.onClose,
                                       icon: const Icon(Icons.close, size: 20),
                                     ),
@@ -3062,21 +3294,21 @@ class _ReviewSection extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Yorumlar',
+            const L10nText('Yorumlar',
                 style: TextStyle(fontWeight: FontWeight.w800)),
             if (canWrite && !yorumYaz && !submitted)
               TextButton(
                   onPressed: onToggleYorum,
-                  child: const Text('+ Yorum Yaz',
+                  child: const L10nText('+ Yorum Yaz',
                       style: TextStyle(fontWeight: FontWeight.w800))),
             if (!canWrite)
-              const Text('Bu ilana rolünüzle yorum yazılamaz',
+              const L10nText('Bu ilana rolünüzle yorum yazılamaz',
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: MetoColors.mutedFg)),
             if (submitted)
-              const Text('✓ Yorumunuz eklendi',
+              const L10nText('✓ Yorumunuz eklendi',
                   style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -3093,7 +3325,7 @@ class _ReviewSection extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Puanınız',
+                const L10nText('Puanınız',
                     style:
                         TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                 Row(
@@ -3113,7 +3345,7 @@ class _ReviewSection extends StatelessWidget {
                   controller: myText,
                   maxLines: 3,
                   decoration: InputDecoration(
-                    hintText: 'Deneyiminizi paylaşın...',
+                    hintText: S.auto('Deneyiminizi paylaşın...'),
                     filled: true,
                     fillColor: MetoColors.card,
                     border: OutlineInputBorder(
@@ -3126,12 +3358,12 @@ class _ReviewSection extends StatelessWidget {
                     Expanded(
                       child: FilledButton(
                           onPressed: onSubmit,
-                          child: const Text('Gönder',
+                          child: const L10nText('Gönder',
                               style: TextStyle(fontWeight: FontWeight.w800))),
                     ),
                     const SizedBox(width: 8),
                     OutlinedButton(
-                        onPressed: onToggleYorum, child: const Text('İptal')),
+                        onPressed: onToggleYorum, child: const L10nText('İptal')),
                   ],
                 ),
               ],
@@ -3247,13 +3479,13 @@ class _ProfilDrawerState extends State<_ProfilDrawer> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(widget.poster.name,
+                      L10nText(widget.poster.name,
                           style: const TextStyle(
                               fontWeight: FontWeight.w800, fontSize: 16)),
                       Row(children: [
                         StarRow(rating: _avg, size: 13),
                         const SizedBox(width: 4),
-                        Text(
+                        L10nText(
                             '${_avg.toStringAsFixed(1)} (${_reviews.length} uzman yorumu)',
                             style: const TextStyle(fontSize: 12)),
                       ]),
@@ -3284,6 +3516,8 @@ class _ProfilDrawerState extends State<_ProfilDrawer> {
               onRating: (r) => setState(() => _myRating = r),
               onSubmit: () {
                 if (_myRating == 0 || _myText.text.trim().isEmpty) return;
+                final text = _myText.text.trim();
+                final rating = _myRating;
                 setState(() {
                   _reviews.insert(
                       0,
@@ -3291,9 +3525,9 @@ class _ProfilDrawerState extends State<_ProfilDrawer> {
                         author: 'Sen',
                         avatar: 'BN',
                         avatarColor: MetoColors.primary,
-                        rating: _myRating,
+                        rating: rating,
                         date: 'Az önce',
-                        text: _myText.text.trim(),
+                        text: text,
                       ));
                   _submitted = true;
                   _yorumYaz = false;
@@ -3351,17 +3585,6 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
     super.dispose();
   }
 
-  Uint8List? _bytes(IlanPhoto photo) {
-    if (!photo.hasImage) return null;
-    try {
-      var raw = photo.dataUrl!;
-      if (raw.contains(',')) raw = raw.split(',').last;
-      return Uint8List.fromList(base64Decode(raw));
-    } catch (_) {
-      return null;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final renk = uzmanRenkFor(widget.ilan.uzmanlik);
@@ -3400,7 +3623,6 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                   child: Builder(builder: (context) {
                     final idx = _photoIndex.clamp(0, photos.length - 1);
                     final current = photos[idx];
-                    final bytes = _bytes(current);
                     return GestureDetector(
                       onTap: () => _openIlanPhotoGallery(
                         context,
@@ -3410,11 +3632,12 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                       child: Container(
                         color: current.swatchColor,
                         alignment: Alignment.center,
-                        child: bytes != null
-                            ? Image.memory(bytes,
-                                fit: BoxFit.cover,
-                                width: double.infinity,
-                                height: double.infinity)
+                        child: current.hasImage
+                            ? FillPhoto(
+                                source: current.dataUrl,
+                                placeholder: Text(renk.emoji,
+                                    style: const TextStyle(fontSize: 64)),
+                              )
                             : Text(renk.emoji,
                                 style: const TextStyle(fontSize: 64)),
                       ),
@@ -3432,7 +3655,6 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                     separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (context, i) {
                       final p = photos[i];
-                      final b = _bytes(p);
                       final selected = i == _photoIndex.clamp(0, photos.length - 1);
                       return GestureDetector(
                         onTap: () {
@@ -3450,13 +3672,11 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                                   : MetoColors.border,
                               width: selected ? 2 : 1,
                             ),
-                            image: b == null
-                                ? null
-                                : DecorationImage(
-                                    image: MemoryImage(b),
-                                    fit: BoxFit.cover,
-                                  ),
                           ),
+                          clipBehavior: Clip.antiAlias,
+                          child: p.hasImage
+                              ? FillPhoto(source: p.dataUrl)
+                              : null,
                         ),
                       );
                     },
@@ -3469,7 +3689,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Text(
+                  child: L10nText(
                     ilan.title,
                     style: const TextStyle(
                       fontSize: 18,
@@ -3480,7 +3700,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                 ),
                 if (widget.onEdit != null)
                   IconButton(
-                    tooltip: 'Düzenle',
+                    tooltip: S.auto('Düzenle'),
                     onPressed: widget.onEdit,
                     icon: const Icon(
                       Icons.edit_outlined,
@@ -3494,7 +3714,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                   ),
                 if (widget.onDelete != null)
                   IconButton(
-                    tooltip: 'Sil',
+                    tooltip: S.auto('Sil'),
                     onPressed: widget.onDelete,
                     icon: const Icon(
                       Icons.delete_outline,
@@ -3516,7 +3736,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
             ),
             const SizedBox(height: 10),
             Text(
-              ilan.budget,
+              formatPriceTl(ilan.budget),
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
@@ -3550,12 +3770,12 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  const L10nText(
                     'İlan açıklaması',
                     style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
                   ),
                   const SizedBox(height: 6),
-                  Text(
+                  L10nText(
                     ilan.note,
                     style: const TextStyle(
                       fontSize: 14,
@@ -3582,7 +3802,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        L10nText(
                           ilan.poster.name,
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
@@ -3592,12 +3812,12 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                         ),
                         Row(children: [
                           StarRow(rating: avgR, size: 12),
-                          Text(
+                          L10nText(
                             ' ${avgR.toStringAsFixed(1)} (${_reviews.length} yorum)',
                             style: const TextStyle(fontSize: 12),
                           ),
                         ]),
-                        const Text(
+                        const L10nText(
                           'İlan sahibi profilini gör',
                           style: TextStyle(
                             fontSize: 12,
@@ -3654,22 +3874,36 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                 onToggleYorum: () => setState(() => _yorumYaz = !_yorumYaz),
                 onRating: (r) => setState(() => _myRating = r),
                 onSubmit: () {
-                  if (_myRating == 0 || _myText.text.trim().isEmpty) return;
-                  setState(() {
-                    _reviews.insert(
-                        0,
-                        IlanReview(
-                            author: 'Sen',
-                            avatar: 'BN',
-                            avatarColor: MetoColors.primary,
-                            rating: _myRating,
-                            date: 'Az önce',
-                            text: _myText.text.trim()));
-                    _yorumYaz = false;
-                    _myText.clear();
-                    _myRating = 0;
-                  });
-                },
+                if (_myRating == 0 || _myText.text.trim().isEmpty) return;
+                final text = _myText.text.trim();
+                final rating = _myRating;
+                final owner =
+                    (ilanOwnerById[widget.ilan.id] ?? '').trim().toLowerCase();
+                setState(() {
+                  _reviews.insert(
+                      0,
+                      IlanReview(
+                          author: 'Sen',
+                          avatar: 'BN',
+                          avatarColor: MetoColors.primary,
+                          rating: rating,
+                          date: 'Az önce',
+                          text: text));
+                  _yorumYaz = false;
+                  _myText.clear();
+                  _myRating = 0;
+                });
+                if (owner.isNotEmpty) {
+                  unawaited(notifyIlanYorum(
+                    ownerEmail: owner,
+                    actorName: 'Bir kullanıcı',
+                    ilanTitle: widget.ilan.title,
+                    reviewText: text,
+                    ilanId: widget.ilan.id,
+                    rating: rating,
+                  ));
+                }
+              },
               ),
             ] else ...[
               _CvBlock(
@@ -3734,17 +3968,6 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
     super.dispose();
   }
 
-  Uint8List? _bytes(IlanPhoto photo) {
-    if (!photo.hasImage) return null;
-    try {
-      var raw = photo.dataUrl!;
-      if (raw.contains(',')) raw = raw.split(',').last;
-      return Uint8List.fromList(base64Decode(raw));
-    } catch (_) {
-      return null;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final cv = bakiciCvFor(widget.ilan.poster);
@@ -3779,7 +4002,6 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                   child: Builder(builder: (context) {
                     final idx = _photoIndex.clamp(0, photos.length - 1);
                     final current = photos[idx];
-                    final bytes = _bytes(current);
                     return GestureDetector(
                       onTap: () => _openIlanPhotoGallery(
                         context,
@@ -3789,12 +4011,13 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                       child: Container(
                         color: current.swatchColor,
                         alignment: Alignment.center,
-                        child: bytes != null
-                            ? Image.memory(bytes,
-                                fit: BoxFit.cover,
-                                width: double.infinity,
-                                height: double.infinity)
-                            : const Text('🤝',
+                        child: current.hasImage
+                            ? FillPhoto(
+                                source: current.dataUrl,
+                                placeholder: const L10nText('🤝',
+                                    style: TextStyle(fontSize: 64)),
+                              )
+                            : const L10nText('🤝',
                                 style: TextStyle(fontSize: 64)),
                       ),
                     );
@@ -3811,7 +4034,6 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                     separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (context, i) {
                       final p = photos[i];
-                      final b = _bytes(p);
                       final selected =
                           i == _photoIndex.clamp(0, photos.length - 1);
                       return GestureDetector(
@@ -3830,13 +4052,11 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                                   : MetoColors.border,
                               width: selected ? 2 : 1,
                             ),
-                            image: b == null
-                                ? null
-                                : DecorationImage(
-                                    image: MemoryImage(b),
-                                    fit: BoxFit.cover,
-                                  ),
                           ),
+                          clipBehavior: Clip.antiAlias,
+                          child: p.hasImage
+                              ? FillPhoto(source: p.dataUrl)
+                              : null,
                         ),
                       );
                     },
@@ -3849,7 +4069,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Text(
+                  child: L10nText(
                     ilan.title,
                     style: const TextStyle(
                       fontSize: 18,
@@ -3860,7 +4080,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                 ),
                 if (widget.onEdit != null)
                   IconButton(
-                    tooltip: 'Düzenle',
+                    tooltip: S.auto('Düzenle'),
                     onPressed: widget.onEdit,
                     icon: const Icon(
                       Icons.edit_outlined,
@@ -3874,7 +4094,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                   ),
                 if (widget.onDelete != null)
                   IconButton(
-                    tooltip: 'Sil',
+                    tooltip: S.auto('Sil'),
                     onPressed: widget.onDelete,
                     icon: const Icon(
                       Icons.delete_outline,
@@ -3890,13 +4110,13 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
             ),
             const SizedBox(height: 6),
             const _Badge(
-              text: '🤝 Bakıcı Aranıyor',
+              text: '🤝 Bakıcı/Temizlik Görevlisi Aranıyor',
               bg: Color(0xFFEFF6FF),
               fg: Color(0xFF1D4ED8),
             ),
             const SizedBox(height: 10),
             Text(
-              ilan.budget,
+              formatPriceTl(ilan.budget),
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
@@ -3930,12 +4150,12 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  const L10nText(
                     'İlan açıklaması',
                     style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
                   ),
                   const SizedBox(height: 6),
-                  Text(
+                  L10nText(
                     ilan.note,
                     style: const TextStyle(
                       fontSize: 14,
@@ -3962,7 +4182,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        L10nText(
                           ilan.poster.name,
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
@@ -3972,12 +4192,12 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                         ),
                         Row(children: [
                           StarRow(rating: avgR, size: 12),
-                          Text(
+                          L10nText(
                             ' ${avgR.toStringAsFixed(1)} (${_reviews.length} yorum)',
                             style: const TextStyle(fontSize: 12),
                           ),
                         ]),
-                        const Text(
+                        const L10nText(
                           'İlan sahibi profilini gör',
                           style: TextStyle(
                             fontSize: 12,
@@ -4032,22 +4252,36 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                 onToggleYorum: () => setState(() => _yorumYaz = !_yorumYaz),
                 onRating: (r) => setState(() => _myRating = r),
                 onSubmit: () {
-                  if (_myRating == 0 || _myText.text.trim().isEmpty) return;
-                  setState(() {
-                    _reviews.insert(
-                        0,
-                        IlanReview(
-                            author: 'Sen',
-                            avatar: 'BN',
-                            avatarColor: MetoColors.primary,
-                            rating: _myRating,
-                            date: 'Az önce',
-                            text: _myText.text.trim()));
-                    _yorumYaz = false;
-                    _myText.clear();
-                    _myRating = 0;
-                  });
-                },
+                if (_myRating == 0 || _myText.text.trim().isEmpty) return;
+                final text = _myText.text.trim();
+                final rating = _myRating;
+                final owner =
+                    (ilanOwnerById[widget.ilan.id] ?? '').trim().toLowerCase();
+                setState(() {
+                  _reviews.insert(
+                      0,
+                      IlanReview(
+                          author: 'Sen',
+                          avatar: 'BN',
+                          avatarColor: MetoColors.primary,
+                          rating: rating,
+                          date: 'Az önce',
+                          text: text));
+                  _yorumYaz = false;
+                  _myText.clear();
+                  _myRating = 0;
+                });
+                if (owner.isNotEmpty) {
+                  unawaited(notifyIlanYorum(
+                    ownerEmail: owner,
+                    actorName: 'Bir kullanıcı',
+                    ilanTitle: widget.ilan.title,
+                    reviewText: text,
+                    ilanId: widget.ilan.id,
+                    rating: rating,
+                  ));
+                }
+              },
               ),
             ] else ...[
               _CvBlock(
@@ -4095,17 +4329,6 @@ class _IkincielDrawer extends StatefulWidget {
 class _IkincielDrawerState extends State<_IkincielDrawer> {
   int _photoIndex = 0;
 
-  Uint8List? _bytes(IlanPhoto photo) {
-    if (!photo.hasImage) return null;
-    try {
-      var raw = photo.dataUrl!;
-      if (raw.contains(',')) raw = raw.split(',').last;
-      return Uint8List.fromList(base64Decode(raw));
-    } catch (_) {
-      return null;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final ilan = widget.ilan;
@@ -4114,7 +4337,6 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
         : ilan.photos;
     final idx = _photoIndex.clamp(0, photos.length - 1);
     final current = photos[idx];
-    final bytes = _bytes(current);
 
     return _DrawerShell(
       onClose: widget.onClose,
@@ -4146,9 +4368,14 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                   child: Container(
                     color: current.swatchColor,
                     alignment: Alignment.center,
-                    child: bytes != null
-                        ? Image.memory(bytes, fit: BoxFit.cover, width: double.infinity, height: double.infinity)
-                        : Text(ilan.emoji, style: const TextStyle(fontSize: 64)),
+                    child: current.hasImage
+                        ? FillPhoto(
+                            source: current.dataUrl,
+                            placeholder: Text(ilan.emoji,
+                                style: const TextStyle(fontSize: 64)),
+                          )
+                        : Text(ilan.emoji,
+                            style: const TextStyle(fontSize: 64)),
                   ),
                 ),
               ),
@@ -4163,7 +4390,6 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (context, i) {
                     final p = photos[i];
-                    final b = _bytes(p);
                     final selected = i == idx;
                     return GestureDetector(
                       onTap: () {
@@ -4181,16 +4407,11 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                                 : MetoColors.border,
                             width: selected ? 2 : 1,
                           ),
-                          image: b == null
-                              ? null
-                              : DecorationImage(
-                                  image: MemoryImage(b),
-                                  fit: BoxFit.cover,
-                                ),
                         ),
+                        clipBehavior: Clip.antiAlias,
                         alignment: Alignment.center,
-                        child: b != null
-                            ? null
+                        child: p.hasImage
+                            ? FillPhoto(source: p.dataUrl)
                             : Text(ilan.emoji,
                                 style: const TextStyle(fontSize: 18)),
                       ),
@@ -4204,7 +4425,7 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Text(
+                  child: L10nText(
                     ilan.title,
                     style: const TextStyle(
                       fontSize: 18,
@@ -4215,7 +4436,7 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                 ),
                 if (widget.onEdit != null)
                   IconButton(
-                    tooltip: 'Düzenle',
+                    tooltip: S.auto('Düzenle'),
                     onPressed: widget.onEdit,
                     icon: const Icon(
                       Icons.edit_outlined,
@@ -4229,7 +4450,7 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                   ),
                 if (widget.onDelete != null)
                   IconButton(
-                    tooltip: 'Sil',
+                    tooltip: S.auto('Sil'),
                     onPressed: widget.onDelete,
                     icon: const Icon(
                       Icons.delete_outline,
@@ -4249,13 +4470,13 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
               ],
             ),
             const SizedBox(height: 4),
-            Text(
-              '${ilan.brand} · ${ilan.category}',
+            L10nText(
+              '${ilan.brand} · ${ikincielAltDisplayLabel(ilan.category)}',
               style: const TextStyle(fontSize: 13, color: MetoColors.mutedFg),
             ),
             const SizedBox(height: 10),
             Text(
-              ilan.price,
+              formatPriceTl(ilan.price),
               style: const TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
@@ -4264,7 +4485,7 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
             ),
             if (ilan.originalPrice.trim().isNotEmpty)
               Text(
-                ilan.originalPrice,
+                formatPriceTl(ilan.originalPrice),
                 style: const TextStyle(
                   fontSize: 13,
                   color: MetoColors.mutedFg,
@@ -4288,12 +4509,12 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  const L10nText(
                     'İlan açıklaması',
                     style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
                   ),
                   const SizedBox(height: 6),
-                  Text(
+                  L10nText(
                     ilan.note,
                     style: const TextStyle(
                       fontSize: 14,
@@ -4319,14 +4540,14 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        L10nText(
                           ilan.poster.name,
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 14,
                           ),
                         ),
-                        const Text(
+                        const L10nText(
                           'Satıcı profilini gör',
                           style: TextStyle(
                             fontSize: 12,
@@ -4619,17 +4840,17 @@ class _SohbetPageState extends State<SohbetPage> {
     final onay = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Mesajı sil'),
-        content: const Text('Bu mesaj kalıcı olarak silinecek. Emin misiniz?'),
+        title: const L10nText('Mesajı sil'),
+        content: const L10nText('Bu mesaj kalıcı olarak silinecek. Emin misiniz?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Vazgeç'),
+            child: const L10nText('Vazgeç'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
-            child: const Text('Sil'),
+            child: const L10nText('Sil'),
           ),
         ],
       ),
@@ -4640,7 +4861,7 @@ class _SohbetPageState extends State<SohbetPage> {
       if (!mounted) return;
       setState(() => _messages.removeWhere((x) => x.id == m.id));
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mesaj silindi')),
+        const SnackBar(content: L10nText('Mesaj silindi')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -4660,19 +4881,19 @@ class _SohbetPageState extends State<SohbetPage> {
     final onay = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Sohbeti sil'),
-        content: Text(
+        title: const L10nText('Sohbeti sil'),
+        content: L10nText(
           '${widget.kisi.ad} ile olan tüm mesajlar silinecek. Bu işlem geri alınamaz.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Vazgeç'),
+            child: const L10nText('Vazgeç'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
-            child: const Text('Tümünü sil'),
+            child: const L10nText('Tümünü sil'),
           ),
         ],
       ),
@@ -4683,7 +4904,7 @@ class _SohbetPageState extends State<SohbetPage> {
       if (!mounted) return;
       setState(() => _messages.clear());
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sohbet silindi')),
+        const SnackBar(content: L10nText('Sohbet silindi')),
       );
       Navigator.of(context).pop();
     } catch (e) {
@@ -4739,7 +4960,7 @@ class _SohbetPageState extends State<SohbetPage> {
             else
               const Padding(
                 padding: EdgeInsets.all(20),
-                child: Text(
+                child: L10nText(
                   'Karşı tarafın mesajını silemezsiniz. Tüm sohbeti silmek için üstteki menüyü kullanın.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
@@ -4754,7 +4975,9 @@ class _SohbetPageState extends State<SohbetPage> {
 
   @override
   Widget build(BuildContext context) {
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: MetoColors.background,
       appBar: AppBar(
         backgroundColor: MetoColors.card,
@@ -4808,19 +5031,42 @@ class _SohbetPageState extends State<SohbetPage> {
           ],
         ),
         actions: [
-          if (_peer.isNotEmpty)
+          if (_peer.isNotEmpty && _peer.contains('@'))
             PopupMenuButton<String>(
               onSelected: (v) {
-                if (v == 'sil') _silSohbet();
+                if (v == 'sil') {
+                  _silSohbet();
+                } else if (v == 'guvenlik') {
+                  showUserSafetySheet(
+                    context,
+                    targetEmail: _peer,
+                    targetDisplayName: widget.kisi.ad,
+                    contextLabel: 'sohbet',
+                    onBlocked: () {
+                      if (mounted) Navigator.of(context).maybePop();
+                    },
+                  );
+                }
               },
               itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'guvenlik',
+                  child: Row(
+                    children: [
+                      Icon(Icons.flag_outlined, size: 20),
+                      SizedBox(width: 8),
+                      L10nText('Şikayet / Engelle'),
+                    ],
+                  ),
+                ),
                 PopupMenuItem(
                   value: 'sil',
                   child: Row(
                     children: [
-                      Icon(Icons.delete_outline, color: Color(0xFFEF4444), size: 20),
+                      Icon(Icons.delete_outline,
+                          color: Color(0xFFEF4444), size: 20),
                       SizedBox(width: 8),
-                      Text('Sohbeti sil',
+                      L10nText('Sohbeti sil',
                           style: TextStyle(color: Color(0xFFEF4444))),
                     ],
                   ),
@@ -4938,9 +5184,10 @@ class _SohbetPageState extends State<SohbetPage> {
             color: MetoColors.card,
             child: SafeArea(
               top: false,
-              minimum: const EdgeInsets.only(bottom: 8),
+              // Klavye açıkken SafeArea alt padding'i ekleme (çift boşluk)
+              bottom: !keyboardOpen,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                 child: !_canSend
                     ? Text(
                         _isAdmin
@@ -4953,13 +5200,18 @@ class _SohbetPageState extends State<SohbetPage> {
                         ),
                       )
                     : Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Expanded(
                             child: TextField(
                               controller: _draft,
                               enabled: true,
+                              minLines: 1,
+                              maxLines: 5,
+                              textInputAction: TextInputAction.newline,
+                              keyboardType: TextInputType.multiline,
                               decoration: InputDecoration(
-                                hintText: 'Mesaj yaz…',
+                                hintText: S.auto('Mesaj yaz…'),
                                 filled: true,
                                 fillColor: MetoColors.muted,
                                 border: OutlineInputBorder(
@@ -4968,7 +5220,16 @@ class _SohbetPageState extends State<SohbetPage> {
                                 contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 16, vertical: 10),
                               ),
-                              onSubmitted: (_) => _gonder(),
+                              onTap: () {
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  if (!_scroll.hasClients) return;
+                                  _scroll.animateTo(
+                                    _scroll.position.maxScrollExtent,
+                                    duration: const Duration(milliseconds: 200),
+                                    curve: Curves.easeOut,
+                                  );
+                                });
+                              },
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -5009,8 +5270,10 @@ class _IlanEditDraft {
     required this.district,
     required this.note,
     required this.budgetOrPrice,
+    this.countryCode = 'TR',
     this.uzmanlik = 'Uzman',
     this.condition = 'İyi',
+    this.category = kIkincielAltDiger,
     this.photos = const [],
   });
 
@@ -5019,10 +5282,12 @@ class _IlanEditDraft {
   final String title;
   final String city;
   final String district;
+  final String countryCode;
   final String note;
   final String budgetOrPrice;
   final String uzmanlik;
   final String condition;
+  final String category;
   final List<IlanPhoto> photos;
 }
 
@@ -5049,13 +5314,17 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
   String _formKategori = 'Uzman Arıyorum';
   String _formUzmanlik = CatalogAdapters.uzmanlikSecenekleri().first;
   String _formCondition = 'İyi';
+  String _formAltKategori = kIkincielAltMedikal;
   final List<IlanPhoto> _formPhotos = [];
+  /// Anlık önizleme (URL açılmasa bile formda görünsün).
+  final List<Uint8List?> _formPhotoBytes = [];
   final _formBaslik = TextEditingController();
   final _formButce = TextEditingController();
   final _formAciklama = TextEditingController();
   String _aciklamaUyari = '';
-  String? _formIl;
-  String? _formIlce;
+  late LocationData _formLoc = LocationData(
+    countryCode: countryCodeForLang(LocaleController.instance.lang),
+  );
   bool _pickingPhoto = false;
 
   bool get _isEditing => widget.editDraft != null;
@@ -5063,20 +5332,14 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
   bool get _isUzmanArama =>
       _formKategori == 'Uzman Arıyorum' || _formKategori == 'Uzman';
   bool get _isBakiciArama =>
-      _formKategori == 'Bakıcı Arıyorum' || _formKategori == 'Bakıcı';
+      _formKategori == 'Bakıcı/Temizlik Görevlisi Arıyorum' ||
+      _formKategori == 'Bakıcı Arıyorum' ||
+      _formKategori == 'Bakıcı';
   bool get _isUzmanOrBakici => _isUzmanArama || _isBakiciArama;
   /// Uzman / bakıcı: en fazla 2; 2. el: en fazla 4.
   int get _maxPhotos =>
       _isUzmanOrBakici ? kUzmanBakiciMaxPhotos : 4;
   bool get _showPhotoPicker => _isIkinciel || _isUzmanOrBakici;
-
-  List<String> get _ilceOptions {
-    final city = _formIl;
-    if (city == null) return const [];
-    final info = kTurkishCities[city];
-    if (info == null) return const [];
-    return info.ilceler.where((i) => i != kAllIlceler).toList();
-  }
 
   @override
   void initState() {
@@ -5084,15 +5347,18 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
     final d = widget.editDraft;
     if (d == null) return;
     _formKategori = switch (d.kind) {
-      'bakici' => 'Bakıcı Arıyorum',
+      'bakici' => 'Bakıcı/Temizlik Görevlisi Arıyorum',
       'ikinciel' => '2. El Alet',
       _ => 'Uzman Arıyorum',
     };
     _formBaslik.text = d.title;
     _formButce.text = d.budgetOrPrice;
     _formAciklama.text = d.note;
-    _formIl = d.city.isEmpty ? null : d.city;
-    _formIlce = d.district.isEmpty ? null : d.district;
+    _formLoc = LocationData.fromLegacy(
+      city: d.city,
+      district: d.district,
+      countryCode: d.countryCode,
+    );
     if (d.uzmanlik.isNotEmpty) {
       final opts = CatalogAdapters.uzmanlikSecenekleri();
       _formUzmanlik = opts.contains(d.uzmanlik) ? d.uzmanlik : opts.first;
@@ -5114,7 +5380,9 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
         _formCondition = 'İyi';
       }
     }
+    _formAltKategori = ikincielAltKategoriOf(d.category);
     _formPhotos.addAll(d.photos);
+    _formPhotoBytes.addAll(List<Uint8List?>.filled(d.photos.length, null));
   }
 
   @override
@@ -5129,22 +5397,42 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
 
   Future<void> _publish() async {
     if (_publishing) return;
+    if (_pickingPhoto) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: L10nText('Fotoğraf yükleniyor, lütfen biraz bekleyin.')),
+      );
+      return;
+    }
+    // Optimistic önizleme / yarım kalmış yükleme kontrolü
+    final pending = _formPhotos.any((p) => !p.hasImage);
+    if (pending) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: L10nText(
+                'Fotoğraf henüz yüklenmedi. Birkaç saniye bekleyip tekrar deneyin.')),
+      );
+      return;
+    }
+
     final baslik = _formBaslik.text.trim();
-    final butce = _formButce.text.trim();
+    final butce = formatPriceTl(_formButce.text.trim());
     final aciklama = _formAciklama.text.trim();
-    final city = _formIl;
-    final district = _formIlce;
+    final loc = _formLoc;
+    final cityName = loc.legacyCity;
+    final districtName = loc.legacyDistrict;
 
     final eksik = <String>[];
     if (baslik.isEmpty) eksik.add('Başlık');
-    if (city == null || city.isEmpty) eksik.add('İl');
-    if (district == null || district.isEmpty) eksik.add('İlçe');
+    if (loc.countryCode.isEmpty) eksik.add('Ülke');
+    if (cityName.isEmpty) eksik.add('Bölge / İl');
+    if (districtName.isEmpty) eksik.add('Şehir / İlçe');
     if (butce.isEmpty) {
       eksik.add(_isIkinciel ? 'Fiyat' : 'Bütçe');
     }
     if (eksik.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lütfen doldurun: ${eksik.join(', ')}')),
+        SnackBar(content: L10nText('Lütfen doldurun: ${eksik.join(', ')}')),
       );
       return;
     }
@@ -5155,8 +5443,6 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
     final avatar = isAvatarImageSource(photo)
         ? photo
         : posterAvatarInitials(maskPersonDisplayName(name));
-    final cityName = city!;
-    final districtName = district!;
     final note = aciklama.isEmpty ? '—' : aciklama;
     final email = widget.userEmail.trim();
     final edit = widget.editDraft;
@@ -5175,6 +5461,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               title: baslik,
               city: cityName,
               district: districtName,
+              location: loc,
               note: note,
               budget: butce,
               uzmanlik: _formUzmanlik,
@@ -5189,6 +5476,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               title: baslik,
               city: cityName,
               district: districtName,
+              location: loc,
               note: note,
               budget: butce,
               uzmanlik: _formUzmanlik,
@@ -5201,6 +5489,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             );
           }
           break;
+        case 'Bakıcı/Temizlik Görevlisi Arıyorum':
         case 'Bakıcı Arıyorum':
         case 'Bakıcı':
           kategori = IlanKategori.bakici;
@@ -5211,6 +5500,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               title: baslik,
               city: cityName,
               district: districtName,
+              location: loc,
               note: note,
               budget: butce,
               photos: List<IlanPhoto>.from(
@@ -5224,6 +5514,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               title: baslik,
               city: cityName,
               district: districtName,
+              location: loc,
               note: note,
               budget: butce,
               photos: List<IlanPhoto>.from(
@@ -5244,9 +5535,11 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               title: baslik,
               city: cityName,
               district: districtName,
+              location: loc,
               note: note,
               price: butce,
               condition: _formCondition,
+              category: _formAltKategori,
               photos: _formPhotos.isEmpty
                   ? const [IlanPhoto.swatch(Color(0xFFDCE8F5))]
                   : List<IlanPhoto>.from(_formPhotos),
@@ -5258,9 +5551,11 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               title: baslik,
               city: cityName,
               district: districtName,
+              location: loc,
               note: note,
               price: butce,
               condition: _formCondition,
+              category: _formAltKategori,
               photos: _formPhotos.isEmpty
                   ? const [IlanPhoto.swatch(Color(0xFFDCE8F5))]
                   : List<IlanPhoto>.from(_formPhotos),
@@ -5297,7 +5592,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
         );
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
+            content: L10nText(
               'İlan kaydedildi ama henüz diğer kullanıcılara açılmadı. '
               'Supabase ilanlar tablosunu oluşturun.',
             ),
@@ -5310,7 +5605,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
           lower.contains('exceeded')) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
+            content: L10nText(
               'Tarayıcı önbelleği dolu. Daha az/küçük fotoğrafla tekrar deneyin '
               'veya site verilerini temizleyip yenileyin.',
             ),
@@ -5319,7 +5614,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('İlan yayınlanamadı: $e')),
+          SnackBar(content: L10nText('İlan yayınlanamadı: $e')),
         );
       }
     } finally {
@@ -5343,15 +5638,17 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
     });
   }
 
-  Uint8List? _decodePhoto(IlanPhoto photo) {
-    if (!photo.hasImage) return null;
-    try {
-      var raw = photo.dataUrl!;
-      if (raw.contains(',')) raw = raw.split(',').last;
-      return Uint8List.fromList(base64Decode(raw));
-    } catch (_) {
-      return null;
+  ImageProvider? _formPhotoProviderAt(int index) {
+    if (index >= 0 &&
+        index < _formPhotoBytes.length &&
+        _formPhotoBytes[index] != null &&
+        _formPhotoBytes[index]!.isNotEmpty) {
+      return MemoryImage(_formPhotoBytes[index]!);
     }
+    if (index >= 0 && index < _formPhotos.length) {
+      return _ilanPhotoProvider(_formPhotos[index]);
+    }
+    return null;
   }
 
   Future<void> _pickProductPhoto() async {
@@ -5380,18 +5677,18 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               ListTile(
                 leading: const Icon(Icons.photo_library_outlined,
                     color: MetoColors.primary),
-                title: const Text('Galeriden seç'),
+                title: const L10nText('Galeriden seç'),
                 onTap: () => Navigator.pop(ctx, ImageSource.gallery),
               ),
               ListTile(
                 leading: const Icon(Icons.photo_camera_outlined,
                     color: MetoColors.primary),
-                title: const Text('Kamerayla çek'),
+                title: const L10nText('Kamerayla çek'),
                 onTap: () => Navigator.pop(ctx, ImageSource.camera),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Vazgeç'),
+                child: const L10nText('Vazgeç'),
               ),
               const SizedBox(height: 8),
             ],
@@ -5403,39 +5700,68 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
 
     setState(() => _pickingPhoto = true);
     try {
-      // Oranı koruyarak küçült — kırpma yok.
       final file = await ImagePicker().pickImage(
         source: source,
-        maxWidth: 1600,
-        maxHeight: 1600,
-        imageQuality: 75,
+        maxWidth: 1400,
+        maxHeight: 1400,
+        imageQuality: 85,
       );
       if (file == null || !mounted) return;
-      final bytes = await file.readAsBytes();
-      if (bytes.isEmpty) {
+      final raw = await file.readAsBytes();
+      if (raw.isEmpty) {
         throw StateError('Boş görsel seçildi.');
       }
-      var mime = 'image/jpeg';
-      final encoded = base64Encode(bytes);
-      if (encoded.length > 500000) {
-        throw StateError(
-          'Fotoğraf çok büyük. Daha küçük / daha az fotoğraf ekleyin.',
-        );
-      }
-      final dataUrl = 'data:$mime;base64,$encoded';
+
+      final optimized = await ImageOptimizeService.forListing(raw);
+      // Önce anlık önizleme (R2 beklemeden görünsün)
       if (!mounted) return;
-      setState(() => _formPhotos.add(IlanPhoto.data(dataUrl)));
+      final previewIndex = _formPhotos.length;
+      setState(() {
+        _formPhotos.add(const IlanPhoto.swatch(Color(0xFFDCE8F5)));
+        _formPhotoBytes.add(optimized.bytes);
+      });
+
+      final publicUrl = await R2StorageService.uploadBytes(
+        bytes: optimized.bytes,
+        fileName: optimized.fileName,
+        contentType: optimized.contentType,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        if (previewIndex < _formPhotos.length) {
+          _formPhotos[previewIndex] = IlanPhoto.data(publicUrl);
+        }
+      });
     } catch (e) {
+      // Yükleme başarısızsa geçici önizlemeyi geri al
+      if (mounted &&
+          _formPhotoBytes.isNotEmpty &&
+          _formPhotos.isNotEmpty &&
+          (_formPhotos.last.dataUrl == null ||
+              !(_formPhotos.last.dataUrl!.startsWith('http') ||
+                  _formPhotos.last.dataUrl!.startsWith('data:')))) {
+        setState(() {
+          _formPhotos.removeLast();
+          _formPhotoBytes.removeLast();
+        });
+      }
       if (!mounted) return;
-      final msg = e.toString().toLowerCase();
-      final friendly = msg.contains('büyük') || msg.contains('boş')
-          ? e.toString().replaceFirst('Bad state: ', '')
-          : (msg.contains('quota') ||
-                  msg.contains('ön bellek') ||
-                  msg.contains('localstorage') ||
-                  msg.contains('exceeded'))
-              ? 'Tarayıcı önbelleği dolu. Daha az / daha küçük fotoğraf deneyin.'
-              : 'Fotoğraf eklenemedi. Galeri/kamera iznini kontrol edin.';
+      final raw = e.toString().replaceFirst('Bad state: ', '');
+      final msg = raw.toLowerCase();
+      final friendly = msg.contains('giriş')
+          ? 'Fotoğraf yüklemek için giriş yapın.'
+          : (msg.contains('ilan_photos_storage') || msg.contains('bucket'))
+              ? raw
+              : (msg.contains('8 mb') ||
+                      msg.contains('büyük') ||
+                      msg.contains('boş') ||
+                      msg.contains('okunamadı') ||
+                      msg.contains('sıkıştır') ||
+                      msg.contains('yüklen') ||
+                      msg.contains('depolama'))
+                  ? raw
+                  : 'Fotoğraf eklenemedi. Galeri/kamera iznini ve interneti kontrol edin.';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(friendly)),
       );
@@ -5487,7 +5813,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             ],
           ),
           const SizedBox(height: 16),
-          const Text('İLAN KATEGORİSİ',
+          const L10nText('İLAN KATEGORİSİ',
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -5500,18 +5826,26 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                     OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
                 fillColor: MetoColors.card),
-            items: const [
-              'Uzman Arıyorum',
-              'Bakıcı Arıyorum',
-              '2. El Alet',
-            ]
-                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                .toList(),
+            items: [
+              DropdownMenuItem(
+                value: 'Uzman Arıyorum',
+                child: Text(S.t('ilan_cat_uzman')),
+              ),
+              DropdownMenuItem(
+                value: 'Bakıcı/Temizlik Görevlisi Arıyorum',
+                child: Text(S.t('ilan_cat_bakici')),
+              ),
+              DropdownMenuItem(
+                value: '2. El Alet',
+                child: Text(S.t('ilan_cat_ikinciel')),
+              ),
+            ],
             onChanged: _isEditing
                 ? null
                 : (v) => setState(() {
                       _formKategori = v!;
                       _formPhotos.clear();
+                      _formPhotoBytes.clear();
                     }),
           ),
           const SizedBox(height: 8),
@@ -5527,7 +5861,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               _isIkinciel
                   ? '2. el ürün satışı için ilan oluşturursunuz. Hesap rolünüz değişmez.'
                   : _isBakiciArama
-                      ? 'Bu ilan “bakıcı arıyorum” ilanıdır. Aile hesabınız bakıcı olmaz; bakıcılar size teklif verir.'
+                      ? 'Bu ilan “bakıcı/temizlik görevlisi arıyorum” ilanıdır. Aile hesabınız bu rolde olmaz; bakıcılar ve temizlik görevlileri size teklif verir.'
                       : 'Bu ilan “uzman arıyorum” ilanıdır. Aile hesabınız uzman olmaz; uzmanlar size teklif verir.',
               style: const TextStyle(
                 fontSize: 12,
@@ -5538,7 +5872,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
           ),
           if (_isUzmanArama) ...[
             const SizedBox(height: 16),
-            const Text('UZMANLIK ALANI',
+            const L10nText('UZMANLIK ALANI',
                 style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -5567,53 +5901,11 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
           const SizedBox(height: 16),
           _formField(
               'Başlık', 'İlanınıza kısa bir başlık', _formBaslik),
-          const Text('İL',
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: MetoColors.mutedFg)),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            value: _formIl,
-            isExpanded: true,
-            decoration: InputDecoration(
-              hintText: 'İl seçin',
-              border:
-                  OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              filled: true,
-              fillColor: MetoColors.card,
-            ),
-            items: kCityNames
-                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                .toList(),
-            onChanged: (v) => setState(() {
-              _formIl = v;
-              _formIlce = null;
-            }),
-          ),
-          const SizedBox(height: 16),
-          const Text('İLÇE',
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: MetoColors.mutedFg)),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            value: _formIlce,
-            isExpanded: true,
-            decoration: InputDecoration(
-              hintText: _formIl == null ? 'Önce il seçin' : 'İlçe seçin',
-              border:
-                  OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              filled: true,
-              fillColor: MetoColors.card,
-            ),
-            items: _ilceOptions
-                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                .toList(),
-            onChanged: _formIl == null
-                ? null
-                : (v) => setState(() => _formIlce = v),
+          LocationCascadePicker(
+            value: _formLoc,
+            requireFullSelection: true,
+            showAnywhereOption: false,
+            onChanged: (loc) => setState(() => _formLoc = loc),
           ),
           const SizedBox(height: 16),
           _formField(
@@ -5622,8 +5914,48 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             _formButce,
           ),
           if (_isIkinciel) ...[
-            const Text(
-              'ÜRÜN DURUMU',
+            Text(
+              S.t('ilan_ikinciel_alt').toUpperCase(),
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: MetoColors.mutedFg,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final opt in kIkincielAltKategoriler)
+                  ChoiceChip(
+                    label: Text(
+                      opt == kIkincielAltMedikal
+                          ? S.t('ilan_alt_medikal')
+                          : S.t('ilan_alt_diger'),
+                    ),
+                    selected: _formAltKategori == opt,
+                    onSelected: (_) =>
+                        setState(() => _formAltKategori = opt),
+                    selectedColor: MetoColors.primary.withValues(alpha: 0.18),
+                    labelStyle: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: _formAltKategori == opt
+                          ? MetoColors.primary
+                          : MetoColors.mutedFg,
+                    ),
+                    side: BorderSide(
+                      color: _formAltKategori == opt
+                          ? MetoColors.primary
+                          : MetoColors.border,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              S.t('ilan_condition').toUpperCase(),
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -5680,7 +6012,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               runSpacing: 8,
               children: [
                 ..._formPhotos.asMap().entries.map((e) {
-                  final bytes = _decodePhoto(e.value);
+                  final provider = _formPhotoProviderAt(e.key);
                   return Stack(
                     children: [
                       Container(
@@ -5690,14 +6022,14 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                           color: e.value.swatchColor,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: MetoColors.border),
-                          image: bytes == null
+                          image: provider == null
                               ? null
                               : DecorationImage(
-                                  image: MemoryImage(bytes),
+                                  image: provider,
                                   fit: BoxFit.cover,
                                 ),
                         ),
-                        child: bytes != null
+                        child: provider != null
                             ? null
                             : const Center(
                                 child: Icon(Icons.image_outlined,
@@ -5708,7 +6040,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                         const Positioned(
                             left: 4,
                             bottom: 4,
-                            child: Text('Kapak',
+                            child: L10nText('Kapak',
                                 style: TextStyle(
                                     fontSize: 9,
                                     color: Colors.white,
@@ -5717,8 +6049,12 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                         top: 2,
                         right: 2,
                         child: GestureDetector(
-                          onTap: () =>
-                              setState(() => _formPhotos.removeAt(e.key)),
+                          onTap: () => setState(() {
+                            _formPhotos.removeAt(e.key);
+                            if (e.key < _formPhotoBytes.length) {
+                              _formPhotoBytes.removeAt(e.key);
+                            }
+                          }),
                           child: Container(
                             width: 20,
                             height: 20,
@@ -5760,7 +6096,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                               children: [
                                 Icon(Icons.add_a_photo_outlined),
                                 SizedBox(height: 4),
-                                Text('Ekle',
+                                L10nText('Ekle',
                                     style: TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.w700))
@@ -5782,7 +6118,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               ),
             const SizedBox(height: 16),
           ],
-          const Text('AÇIKLAMA',
+          const L10nText('AÇIKLAMA',
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -5793,8 +6129,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             maxLines: 4,
             onChanged: _handleAciklama,
             decoration: InputDecoration(
-              hintText:
-                  'Detaylı bilgi, tercihleriniz... (telefon/e-posta yazmayın)',
+              hintText: S.auto('Detaylı bilgi, tercihleriniz... (telefon/e-posta yazmayın)'),
               border:
                   OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               filled: true,
@@ -5826,7 +6161,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                     size: 16, color: MetoColors.primary),
                 SizedBox(width: 8),
                 Expanded(
-                    child: Text(
+                    child: L10nText(
                         'Telefon, e-posta ve adres bilgileri otomatik olarak engellenir. İletişim yalnızca puan sistemi üzerinden kurulur.',
                         style: TextStyle(
                             fontSize: 12,
@@ -5862,81 +6197,6 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _IlanlarLocDropdown extends StatelessWidget {
-  const _IlanlarLocDropdown({
-    required this.value,
-    required this.items,
-    required this.onChanged,
-    required this.hint,
-    this.enabled = true,
-    this.allValue,
-  });
-
-  final String? value;
-  final List<String> items;
-  final ValueChanged<String> onChanged;
-  final String hint;
-  final bool enabled;
-  /// Seçilince kutuda hint gösterilir (örn. "Tümü" → İl).
-  final String? allValue;
-
-  @override
-  Widget build(BuildContext context) {
-    final showHint = value == null ||
-        value!.isEmpty ||
-        (allValue != null && value == allValue);
-    final safeValue = showHint
-        ? null
-        : (items.contains(value) ? value : null);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: enabled ? MetoColors.background : MetoColors.muted,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: MetoColors.border),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: safeValue,
-          isExpanded: true,
-          hint: Text(
-            hint,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: enabled ? MetoColors.mutedFg : MetoColors.border,
-            ),
-          ),
-          icon: Icon(
-            Icons.expand_more,
-            size: 18,
-            color: enabled ? MetoColors.mutedFg : MetoColors.border,
-          ),
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: enabled ? MetoColors.foreground : MetoColors.mutedFg,
-          ),
-          dropdownColor: MetoColors.card,
-          borderRadius: BorderRadius.circular(12),
-          items: [
-            if (allValue != null)
-              DropdownMenuItem(value: allValue, child: Text('Tümü')),
-            for (final item in items)
-              if (item != allValue)
-                DropdownMenuItem(value: item, child: Text(item)),
-          ],
-          onChanged: enabled
-              ? (v) {
-                  if (v != null) onChanged(v);
-                }
-              : null,
-        ),
       ),
     );
   }

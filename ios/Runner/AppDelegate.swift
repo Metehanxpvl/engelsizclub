@@ -1,5 +1,6 @@
 import Flutter
 import UIKit
+import GoogleMaps
 import UserNotifications
 
 @main
@@ -8,6 +9,7 @@ import UserNotifications
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    GMSServices.provideAPIKey("AIzaSyAHDu7hYJInYdPhrg8i0YdEzgfl0lL502o")
     // FCM / APNs: bildirim merkezi + uzaktan bildirim kaydı
     UNUserNotificationCenter.current().delegate = self
     application.registerForRemoteNotifications()

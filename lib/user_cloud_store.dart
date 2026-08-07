@@ -11,18 +11,23 @@ class BildirimAyarlari {
     this.ilanlar = true,
     this.mesajlar = true,
     this.duyurular = true,
+    this.forum = true,
   });
 
   final bool ilanlar;
   final bool mesajlar;
   final bool duyurular;
+  final bool forum;
 
   int get acikSayisi =>
-      (ilanlar ? 1 : 0) + (mesajlar ? 1 : 0) + (duyurular ? 1 : 0);
+      (ilanlar ? 1 : 0) +
+      (mesajlar ? 1 : 0) +
+      (duyurular ? 1 : 0) +
+      (forum ? 1 : 0);
 
   String get menuSub {
     if (acikSayisi == 0) return 'Kapalı';
-    if (acikSayisi == 3) return 'Tümü açık';
+    if (acikSayisi == 4) return 'Tümü açık';
     return '$acikSayisi bildirim açık';
   }
 
@@ -30,6 +35,7 @@ class BildirimAyarlari {
         'ilanlar': ilanlar,
         'mesajlar': mesajlar,
         'duyurular': duyurular,
+        'forum': forum,
       };
 
   factory BildirimAyarlari.fromJson(Map<String, dynamic>? json) {
@@ -38,6 +44,7 @@ class BildirimAyarlari {
       ilanlar: json['ilanlar'] != false,
       mesajlar: json['mesajlar'] != false,
       duyurular: json['duyurular'] != false,
+      forum: json['forum'] != false,
     );
   }
 
@@ -45,11 +52,13 @@ class BildirimAyarlari {
     bool? ilanlar,
     bool? mesajlar,
     bool? duyurular,
+    bool? forum,
   }) =>
       BildirimAyarlari(
         ilanlar: ilanlar ?? this.ilanlar,
         mesajlar: mesajlar ?? this.mesajlar,
         duyurular: duyurular ?? this.duyurular,
+        forum: forum ?? this.forum,
       );
 }
 

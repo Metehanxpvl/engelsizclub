@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,34 +14,50 @@ import 'package:url_launcher/url_launcher.dart';
 import 'admin_config.dart';
 import 'bildirim_store.dart';
 import 'feed_seen_store.dart';
+import 'guest_limit_store.dart';
 import 'home_page.dart';
 import 'cocuk_profil_store.dart';
-import 'data/centers_data.dart' show kAllIlceler;
 import 'data/ilanlar_data.dart'
     show
         SohbetKisi,
         contactAvatarLetter,
         publicContactLabel,
         scrubEmailsInText;
-import 'data/turkish_cities_data.dart';
+import 'data/location_models.dart';
 import 'ilan_store.dart';
 import 'kredi_store.dart';
 import 'kullanici_profil_store.dart';
+import 'l10n/app_strings.dart';
+import 'l10n/locale_controller.dart';
+import 'medical_disclaimer_store.dart';
 import 'meto_theme.dart';
+import 'cvi/cvi_entry.dart';
+import 'aile_kocu/aile_kocu_entry.dart';
+import 'mchat/mchat_entry.dart';
 import 'pages/forum_page.dart';
 import 'pages/haklar_page.dart';
 import 'pages/ilanlar_page.dart';
+import 'pages/legal_document_page.dart';
+import 'widgets/location_picker.dart';
+import 'legal/legal_texts.dart';
 import 'pages/kartlar_page.dart';
 import 'pages/merkezler_page.dart';
+import 'pages/tibbi_sorumluluk_reddi_page.dart';
 import 'presence_store.dart';
 import 'profil_foto_store.dart';
 import 'services/play_billing_service.dart';
+import 'services/push_notification_service.dart';
 import 'sohbet_store.dart';
 import 'user_cloud_store.dart';
+import 'user_safety_store.dart';
+import 'utils/price_format.dart';
 import 'widgets/user_avatar.dart';
+import 'widgets/user_safety_sheet.dart';
+import 'widgets/admin_iyilik_liderleri_panel.dart';
 import 'package:showcaseview/showcaseview.dart';
+import 'l10n/l10n_text.dart';
 
-enum MetoTab { home, merkezler, ilanlar, forum, mesajlar, haklar, kartlar }
+enum MetoTab { home, merkezler, ilanlar, forum, haklar, kartlar }
 
 enum _KrediStep { paket, odeme }
 
@@ -59,11 +76,14 @@ class MainShell extends StatefulWidget {
     required this.user,
     required this.onLogout,
     this.onUserChanged,
+    this.onRequireLogin,
   });
 
   final AuthUser user;
   final VoidCallback onLogout;
   final ValueChanged<AuthUser>? onUserChanged;
+  /// Misafir kısıtında Giriş/Üye Ol ekranına dön.
+  final VoidCallback? onRequireLogin;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -71,6 +91,9 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   MetoTab _activeTab = MetoTab.home;
+  /// Alt menüden hedef sekmeye giderken ara sayfaların (ör. Mesajlar) guest
+  /// kilidini tetiklememesi için.
+  MetoTab? _programmaticNavTarget;
   late final PageController _tabPageController;
   bool _showProfilPanel = false;
   bool _krediSatin = false;
@@ -81,6 +104,11 @@ class _MainShellState extends State<MainShell> {
   bool _showKaydedilenler = false;
   bool _showBildirimler = false;
   bool _showHakkinda = false;
+  bool _showEngellenenler = false;
+  bool _showIyilikLiderleri = false;
+  bool _showDilSecimi = false;
+  /// Android geri: ana sayfadayken ikinci basışta çıkış için zaman damgası.
+  DateTime? _lastExitBackAt;
   /// Profil panelini aşağı kaydırarak kapatırken biriken dikey ofset.
   double _profilDragY = 0;
   CocukProfil _cocukProfil = const CocukProfil();
@@ -89,6 +117,9 @@ class _MainShellState extends State<MainShell> {
   String? _openIlanKind;
   int? _openIlanId;
   int _openIlanToken = 0;
+  int? _openForumPostId;
+  int? _openForumCommentId;
+  int _openForumToken = 0;
   String? _openEditIlanKind;
   int? _openEditIlanId;
   int _openEditIlanToken = 0;
@@ -104,8 +135,13 @@ class _MainShellState extends State<MainShell> {
   final _navTourKeys = <MetoTab, GlobalKey>{
     for (final t in MetoTab.values) t: GlobalKey(),
   };
+  final _moreNavTourKey = GlobalKey();
+  final _messagesTourKey = GlobalKey();
+  final _forumPageKey = GlobalKey<ForumPageState>();
+  final _ilanlarPageKey = GlobalKey<IlanlarPageState>();
+  bool _showMesajlar = false;
 
-  static const _navTourDoneKey = 'nav_feature_tour_v1';
+  static const _navTourDoneKey = 'nav_feature_tour_v2';
 
   _KrediStep _krediStep = _KrediStep.paket;
   _KrediPaket? _seciliPaket;
@@ -120,19 +156,70 @@ class _MainShellState extends State<MainShell> {
   Map<String, bool> _peerOnline = const {};
   Timer? _sohbetTimer;
   RealtimeChannel? _inboxChannel;
+  Timer? _guestTabTimer;
+
+  bool get _isGuest => widget.user.isGuest;
+
+  void _requireLogin([String? message]) {
+    if (!_isGuest) return;
+    final msg = message ??
+        'Bu özellik için giriş yapmanız veya üye olmanız gerekiyor.';
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
+    );
+    widget.onRequireLogin?.call();
+  }
+
+  Future<bool> _gateTimedTab(MetoTab t) async {
+    if (!_isGuest) return true;
+    final key = t == MetoTab.haklar
+        ? 'haklar'
+        : t == MetoTab.kartlar
+            ? 'kartlar'
+            : null;
+    if (key == null) return true;
+    final ok = await GuestLimitStore.allowTimedTab(key);
+    if (ok) return true;
+    if (!mounted) return false;
+    // Süre dolmuş — uyarı + üyelik ekranı
+    _requireLogin(
+      'Misafir erişimi 2 dakika ile sınırlıdır. Devam etmek için üye olun.',
+    );
+    return false;
+  }
+
+  void _armGuestTabTimer(MetoTab t) {
+    _guestTabTimer?.cancel();
+    _guestTabTimer = null;
+    if (!_isGuest) return;
+    if (t != MetoTab.haklar && t != MetoTab.kartlar) return;
+    _guestTabTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      if (!mounted || !_isGuest) return;
+      if (_activeTab != MetoTab.haklar && _activeTab != MetoTab.kartlar) {
+        _guestTabTimer?.cancel();
+        return;
+      }
+      final key = _activeTab == MetoTab.haklar ? 'haklar' : 'kartlar';
+      final left = await GuestLimitStore.remainingTimedSeconds(key);
+      if (!mounted) return;
+      if (left <= 0) {
+        _guestTabTimer?.cancel();
+        _requireLogin(
+          'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
+        );
+      }
+    });
+  }
 
   int get _sohbetUnreadCount =>
       _sohbetOzetleri.fold<int>(0, (s, o) => s + o.unreadCount);
 
-  bool get _yeniMesajVar => _sohbetUnreadCount > 0;
-
-  int get _mesajUnreadCount {
-    // Mesaj bildirimleri sohbet sayacına yansıdığı için burada yalnız
-    // mesaj dışı (teklif vb.) bildirimler eklenir.
-    final digerBildirim =
-        _bildirimlerInbox.where((b) => !b.read && !b.isMesaj).length;
-    return (digerBildirim + _sohbetUnreadCount).clamp(0, 99);
-  }
+  /// Header zil rozeti: mesaj haricindeki okunmamis bildirimler.
+  int get _bellUnreadCount => _bildirimlerInbox
+      .where((b) => !b.read && !b.isMesaj)
+      .length
+      .clamp(0, 99);
 
   int get _teklifBildirimUnread =>
       _bildirimlerInbox.where((b) => !b.read && b.isTeklif).length;
@@ -144,23 +231,30 @@ class _MainShellState extends State<MainShell> {
   static const List<_KrediPaket> _krediPaketleri = [
     (
       adet: 1,
-      fiyat: '₺49,90',
-      birim: '₺49,90/puan',
+      fiyat: '₺69,90',
+      birim: '₺69,90/puan',
       desc: '1 teklif = 1 puan',
       popular: false,
     ),
     (
       adet: 5,
-      fiyat: '₺199,90',
-      birim: '₺39,98/puan',
-      desc: 'En çok tercih edilen · %20 indirim',
+      fiyat: '₺314,55',
+      birim: '₺62,91/puan',
+      desc: 'En çok tercih edilen · %10 indirim',
       popular: true,
     ),
     (
       adet: 10,
-      fiyat: '₺349,90',
-      birim: '₺34,99/puan',
-      desc: 'Avantajlı paket · %30 indirim',
+      fiyat: '₺559,20',
+      birim: '₺55,92/puan',
+      desc: 'Avantajlı paket · %20 indirim',
+      popular: false,
+    ),
+    (
+      adet: 20,
+      fiyat: '₺978,60',
+      birim: '₺48,93/puan',
+      desc: 'En avantajlı paket · %30 indirim',
       popular: false,
     ),
   ];
@@ -186,10 +280,23 @@ class _MainShellState extends State<MainShell> {
 
   String get _welcomeDismissKey => '${_krediPrefsKey}_welcome_dismissed';
 
+  void _onLocaleChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
+    LocaleController.instance.addListener(_onLocaleChanged);
+    unawaited(LocaleController.instance.ensureLoaded());
     _tabPageController = PageController(initialPage: MetoTab.home.index);
+    if (_isGuest) {
+      _userKredi = 0;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_maybeShowMedicalWelcome());
+      });
+      return;
+    }
     // Herkese rolüne göre başlangıç · Admin: 10000
     _userKredi = startingKrediFor(widget.user.email, userType: widget.user.userType);
     _loadKredi();
@@ -214,8 +321,21 @@ class _MainShellState extends State<MainShell> {
     unawaited(_initStoreBilling());
     unawaited(_refreshFeedDots());
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_maybeStartNavTour());
+      unawaited(_maybeShowMedicalWelcome());
     });
+  }
+
+  Future<void> _maybeShowMedicalWelcome() async {
+    if (!mounted) return;
+    final accepted = await isMedicalWelcomeAccepted();
+    if (accepted || !mounted) {
+      unawaited(_maybeStartNavTour());
+      return;
+    }
+    await showMedicalWelcomeDialog(context);
+    await acceptMedicalWelcome();
+    if (!mounted) return;
+    unawaited(_maybeStartNavTour());
   }
 
   Future<void> _refreshFeedDots() async {
@@ -237,7 +357,12 @@ class _MainShellState extends State<MainShell> {
     await Future<void>.delayed(const Duration(milliseconds: 600));
     if (!mounted) return;
     ShowcaseView.get().startShowCase([
-      for (final t in MetoTab.values) _navTourKeys[t]!,
+      _navTourKeys[MetoTab.home]!,
+      _navTourKeys[MetoTab.merkezler]!,
+      _navTourKeys[MetoTab.ilanlar]!,
+      _navTourKeys[MetoTab.forum]!,
+      _moreNavTourKey,
+      _messagesTourKey,
     ]);
   }
 
@@ -324,6 +449,7 @@ class _MainShellState extends State<MainShell> {
         if (!mounted) return;
         setState(() => _userKredi += adet);
         await _saveKredi();
+        // Admin bildirimi: DB trigger (kredi_admin_notify.sql) yazar.
         if (!mounted) return;
         _showCenteredNotice(
           '${StoreBillingService.instance.storeName} ödemesi alındı · +$adet $_krediBirimLabel',
@@ -343,20 +469,258 @@ class _MainShellState extends State<MainShell> {
 
   @override
   void dispose() {
+    LocaleController.instance.removeListener(_onLocaleChanged);
     unawaited(StoreBillingService.instance.dispose());
     stopPresenceHeartbeat();
     _sohbetTimer?.cancel();
+    _guestTabTimer?.cancel();
     unawaited(unsubscribeRealtime(_inboxChannel));
     _inboxChannel = null;
     _tabPageController.dispose();
     super.dispose();
   }
 
+  void _openMesajlar() {
+    if (_isGuest) {
+      _requireLogin('Mesajlar için giriş yapmanız gerekiyor.');
+      return;
+    }
+    if (_showMesajlar) {
+      _closeMesajlar();
+      return;
+    }
+    _lastExitBackAt = null;
+    setState(() {
+      _showMesajlar = true;
+      _showProfilPanel = false;
+      _showCocukProfil = false;
+      _showIlanlarim = false;
+      _showKullaniciProfil = false;
+      _showKaydedilenler = false;
+      _showBildirimler = false;
+      _showHakkinda = false;
+      _showEngellenenler = false;
+      _showIyilikLiderleri = false;
+      _showDilSecimi = false;
+      _profilDragY = 0;
+    });
+    _loadSohbetOzetleri();
+  }
+
+  void _closeMesajlar() {
+    if (!_showMesajlar) return;
+    setState(() => _showMesajlar = false);
+  }
+
+  void _openMoreSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: MetoColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: MetoColors.border,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      S.t('nav_more'),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: MetoColors.foreground,
+                      ),
+                    ),
+                  ),
+                ),
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: MetoColors.primary.withValues(alpha: 0.12),
+                    child: const Icon(
+                      Icons.balance_outlined,
+                      color: MetoColors.primary,
+                    ),
+                  ),
+                  title: Text(
+                    S.t('more_rights'),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    S.t('more_rights_sub'),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _goToTab(MetoTab.haklar);
+                  },
+                ),
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: MetoColors.primary.withValues(alpha: 0.12),
+                    child: const Icon(
+                      Icons.grid_view_outlined,
+                      color: MetoColors.primary,
+                    ),
+                  ),
+                  title: Text(
+                    S.t('more_cards'),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    S.t('more_cards_sub'),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _goToTab(MetoTab.kartlar);
+                  },
+                ),
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: MetoColors.primary.withValues(alpha: 0.12),
+                    child: const Icon(
+                      Icons.search,
+                      color: MetoColors.primary,
+                    ),
+                  ),
+                  title: Text(
+                    S.t('more_mchat'),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    S.t('more_mchat_sub'),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    unawaited(
+                      openMchatFlow(
+                        context,
+                        isGuest: _isGuest,
+                        onRequireLogin: () => _requireLogin(
+                          'Otizm tarama için giriş yapmanız veya üye olmanız gerekiyor.',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: MetoColors.primary.withValues(alpha: 0.12),
+                    child: SvgPicture.asset(
+                      'assets/cvi/eye_icon.svg',
+                      width: 22,
+                      height: 22,
+                    ),
+                  ),
+                  title: Text(
+                    S.t('more_cvi'),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    S.t('more_cvi_sub'),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    unawaited(
+                      openCviFlow(
+                        context,
+                        isGuest: _isGuest,
+                        onRequireLogin: () => _requireLogin(
+                          'CVI egzersizi için giriş yapmanız veya üye olmanız gerekiyor.',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: const Color(0xFFE8F5E9),
+                    child: Icon(
+                      Icons.family_restroom,
+                      color: Colors.green.shade700,
+                    ),
+                  ),
+                  title: Text(
+                    S.t('more_aile_kocu'),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    S.t('more_aile_kocu_sub'),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    unawaited(openAileKocu(context));
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   /// Alt menü / kaydırma / bildirimlerden sekme değiştir.
   void _goToTab(MetoTab t, {bool animate = true}) {
-    final changed = _activeTab != t;
+    if (t != MetoTab.home) {
+      _lastExitBackAt = null;
+    }
+    // Misafir: haklar/kartlar süreye bağlı
+    if (_isGuest && (t == MetoTab.haklar || t == MetoTab.kartlar)) {
+      unawaited(() async {
+        final ok = await _gateTimedTab(t);
+        if (!ok || !mounted) return;
+        _applyGoToTab(t, animate: animate);
+        _armGuestTabTimer(t);
+        final key = t == MetoTab.haklar ? 'haklar' : 'kartlar';
+        final left = await GuestLimitStore.remainingTimedSeconds(key);
+        if (!mounted || left <= 0) return;
+        final mins = (left / 60).ceil().clamp(1, 2);
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: L10nText(
+              'Misafir erişimi: yaklaşık $mins dk. Süre bitince üyelik gerekir.',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }());
+      return;
+    }
+    _applyGoToTab(t, animate: animate);
+    _armGuestTabTimer(t);
+  }
+
+  void _applyGoToTab(MetoTab t, {bool animate = true}) {
+    final changed = _activeTab != t || _showMesajlar;
     if (changed) {
       setState(() {
+        _showMesajlar = false;
         _activeTab = t;
         if (t == MetoTab.ilanlar) {
           _ilanlarUnread = 0;
@@ -372,7 +736,6 @@ class _MainShellState extends State<MainShell> {
       if (t == MetoTab.forum) {
         unawaited(FeedSeenStore.markForumSeen());
       }
-      // Sekmeden çıkınca / değişince sayıyı tazele (yeni paylaşım rozeti)
       if (t != MetoTab.ilanlar && t != MetoTab.forum) {
         unawaited(_refreshFeedDots());
       }
@@ -380,26 +743,39 @@ class _MainShellState extends State<MainShell> {
     if (_tabPageController.hasClients) {
       final current = _tabPageController.page?.round() ?? _activeTab.index;
       if (current != t.index) {
-        if (animate) {
-          unawaited(
-            _tabPageController.animateToPage(
-              t.index,
-              duration: const Duration(milliseconds: 280),
-              curve: Curves.easeOutCubic,
-            ),
-          );
-        } else {
+        _programmaticNavTarget = t;
+        // Misafirde animasyon ara sekmelerden geçirip yanlış uyarı verir.
+        final useJump = _isGuest || !animate;
+        if (useJump) {
           _tabPageController.jumpToPage(t.index);
+          _programmaticNavTarget = null;
+        } else {
+          unawaited(
+            _tabPageController
+                .animateToPage(
+                  t.index,
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
+                )
+                .whenComplete(() {
+              if (_programmaticNavTarget == t) {
+                _programmaticNavTarget = null;
+              }
+            }),
+          );
         }
       }
     }
-    if (t == MetoTab.ilanlar) {
+    if (t == MetoTab.ilanlar && !_isGuest) {
       loadAllIlanlar(preferEmail: widget.user.email).then((_) {
         if (mounted) setState(() {});
       });
     }
-    if (t == MetoTab.mesajlar) {
-      _loadSohbetOzetleri();
+    if (t == MetoTab.forum && !_isGuest) {
+      // forum kendi yükler
+    }
+    if (t != MetoTab.ilanlar && t != MetoTab.forum && !_isGuest) {
+      unawaited(_refreshFeedDots());
     }
   }
 
@@ -407,7 +783,37 @@ class _MainShellState extends State<MainShell> {
     if (index < 0 || index >= MetoTab.values.length) return;
     final t = MetoTab.values[index];
     if (_activeTab == t) return;
+
+    // Programatik geçişte ara sayfalar (home→haklar iken mesajlar) yok sayılır.
+    final target = _programmaticNavTarget;
+    if (target != null && t != target) {
+      return;
+    }
+    if (target != null && t == target) {
+      _programmaticNavTarget = null;
+    }
+
+    if (_isGuest && (t == MetoTab.haklar || t == MetoTab.kartlar)) {
+      unawaited(() async {
+        final ok = await _gateTimedTab(t);
+        if (!ok || !mounted) {
+          if (_tabPageController.hasClients) {
+            _tabPageController.jumpToPage(_activeTab.index);
+          }
+          return;
+        }
+        _finishTabPageChange(t);
+        _armGuestTabTimer(t);
+      }());
+      return;
+    }
+    _finishTabPageChange(t);
+    _armGuestTabTimer(t);
+  }
+
+  void _finishTabPageChange(MetoTab t) {
     setState(() {
+      _showMesajlar = false;
       _activeTab = t;
       if (t == MetoTab.ilanlar) {
         _ilanlarUnread = 0;
@@ -419,17 +825,15 @@ class _MainShellState extends State<MainShell> {
     });
     if (t == MetoTab.ilanlar) {
       unawaited(FeedSeenStore.markIlanlarSeen());
-      loadAllIlanlar(preferEmail: widget.user.email).then((_) {
-        if (mounted) setState(() {});
-      });
+      if (!_isGuest) {
+        loadAllIlanlar(preferEmail: widget.user.email).then((_) {
+          if (mounted) setState(() {});
+        });
+      }
     }
     if (t == MetoTab.forum) {
       unawaited(FeedSeenStore.markForumSeen());
     }
-    if (t == MetoTab.mesajlar) {
-      _loadSohbetOzetleri();
-    }
-    // İlanlar/Forum dışına çıkınca yeni paylaşım sayısını güncelle
     if (t != MetoTab.ilanlar && t != MetoTab.forum) {
       unawaited(_refreshFeedDots());
     }
@@ -440,11 +844,17 @@ class _MainShellState extends State<MainShell> {
     final results = await Future.wait([
       loadSohbetOzetleri(widget.user.email),
       loadBildirimler(),
+      loadBlockedEmails(forceRefresh: true),
     ]);
     if (!mounted) return;
     final ozetler = results[0] as List<SohbetOzet>;
     final bildirimler = results[1] as List<AppBildirim>;
-    final merged = _mergeUnreadFromBildirim(ozetler, bildirimler);
+    final blocked = results[2] as Set<String>;
+    final filtered = [
+      for (final o in ozetler)
+        if (!blocked.contains(o.peerEmail.trim().toLowerCase())) o,
+    ];
+    final merged = _mergeUnreadFromBildirim(filtered, bildirimler);
     final online = await loadPresenceOnlineMap(
       merged.map((o) => o.peerEmail),
     );
@@ -588,7 +998,7 @@ class _MainShellState extends State<MainShell> {
     final onay = await showDialog<bool>(
       context: context,
       builder: (dCtx) => AlertDialog(
-        title: const Text('Bildirimi sil'),
+        title: const L10nText('Bildirimi sil'),
         content: Text(
           b.body.isNotEmpty
               ? '"${scrubEmailsInText(b.body)}" bildirimini silmek istiyor musunuz?'
@@ -597,14 +1007,14 @@ class _MainShellState extends State<MainShell> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dCtx, false),
-            child: const Text('Vazgeç'),
+            child: const L10nText('Vazgeç'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dCtx, true),
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFEF4444),
             ),
-            child: const Text('Sil'),
+            child: const L10nText('Sil'),
           ),
         ],
       ),
@@ -618,7 +1028,59 @@ class _MainShellState extends State<MainShell> {
             _bildirimlerInbox.where((x) => x.id != b.id).toList();
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bildirim silindi')),
+        const SnackBar(content: L10nText('Bildirim silindi')),
+      );
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().contains('policy') || e.toString().contains('42501')
+                ? 'Silme yetkisi yok. bildirimler_delete.sql çalıştırın.'
+                : 'Silinemedi: $e',
+          ),
+        ),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> _confirmDeleteAllBildirimler() async {
+    final visible =
+        _bildirimlerInbox.where((b) => !b.isMesaj).toList(growable: false);
+    if (visible.isEmpty) return false;
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const L10nText('Tüm bildirimleri sil'),
+        content: L10nText(
+          '${visible.length} bildirim kalıcı olarak silinecek. Emin misiniz?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const L10nText('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dCtx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+            ),
+            child: const L10nText('Tümünü sil'),
+          ),
+        ],
+      ),
+    );
+    if (onay != true) return false;
+    try {
+      await deleteAllBildirimler();
+      if (!mounted) return true;
+      setState(() {
+        _bildirimlerInbox = const [];
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: L10nText('Tüm bildirimler silindi')),
       );
       return true;
     } catch (e) {
@@ -655,20 +1117,20 @@ class _MainShellState extends State<MainShell> {
     final onay = await showDialog<bool>(
       context: context,
       builder: (dCtx) => AlertDialog(
-        title: const Text('Sohbeti sil'),
-        content: Text(
+        title: const L10nText('Sohbeti sil'),
+        content: L10nText(
           '${_peerDisplayName(o.peerEmail)} ile olan tüm mesajlar silinecek.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dCtx, false),
-            child: const Text('Vazgeç'),
+            child: const L10nText('Vazgeç'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dCtx, true),
             style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFFEF4444)),
-            child: const Text('Sil'),
+            child: const L10nText('Sil'),
           ),
         ],
       ),
@@ -682,7 +1144,7 @@ class _MainShellState extends State<MainShell> {
             _sohbetOzetleri.where((x) => x.sohbetKey != o.sohbetKey).toList();
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sohbet silindi')),
+        const SnackBar(content: L10nText('Sohbet silindi')),
       );
       return true;
     } catch (e) {
@@ -699,6 +1161,244 @@ class _MainShellState extends State<MainShell> {
       }
       return false;
     }
+  }
+
+  Future<void> _openBildirimInbox() async {
+    await _loadSohbetOzetleri();
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final list =
+                _bildirimlerInbox.where((b) => !b.isMesaj).toList();
+            final unread = list.where((b) => !b.read).length;
+            return DraggableScrollableSheet(
+              initialChildSize: 0.72,
+              minChildSize: 0.45,
+              maxChildSize: 0.94,
+              builder: (context, scrollController) {
+                return Container(
+                  decoration: const BoxDecoration(
+                    color: MetoColors.card,
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(20)),
+                  ),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 10),
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: MetoColors.border,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              child: L10nText(
+                                'Bildirimler',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            if (unread > 0)
+                              TextButton(
+                                onPressed: () async {
+                                  await markAllBildirimlerOkundu();
+                                  await _loadSohbetOzetleri();
+                                  if (mounted) setState(() {});
+                                  setModalState(() {});
+                                },
+                                child: const L10nText('Tümünü okundu'),
+                              ),
+                            IconButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              icon: const Icon(Icons.close),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: list.isEmpty
+                            ? const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(24),
+                                  child: L10nText(
+                                    'Henüz bildiriminiz yok.',
+                                    style:
+                                        TextStyle(color: MetoColors.mutedFg),
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                controller: scrollController,
+                                padding:
+                                    const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                                itemCount: list.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 8),
+                                itemBuilder: (context, i) {
+                                  final b = list[i];
+                                  return Dismissible(
+                                    key: ValueKey('bell_bildirim_${b.id}'),
+                                    direction: DismissDirection.endToStart,
+                                    background: _bildirimSwipeDeleteBg(
+                                      alignStart: false,
+                                    ),
+                                    confirmDismiss: (_) async {
+                                      final ok =
+                                          await _confirmDeleteBildirim(b);
+                                      if (ok) setModalState(() {});
+                                      return ok;
+                                    },
+                                    child: Material(
+                                      color: b.read
+                                          ? MetoColors.background
+                                          : const Color(0xFFFFF7ED),
+                                      borderRadius: BorderRadius.circular(14),
+                                      child: ListTile(
+                                        onTap: () async {
+                                          Navigator.pop(ctx);
+                                          await _openBildirim(b);
+                                        },
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(14),
+                                          side: BorderSide(
+                                            color: b.read
+                                                ? MetoColors.border
+                                                : const Color(0xFFFDBA74),
+                                          ),
+                                        ),
+                                        leading: CircleAvatar(
+                                          backgroundColor: b.read
+                                              ? MetoColors.muted
+                                              : (b.isForumLike
+                                                  ? const Color(0xFFEC4899)
+                                                  : b.isForumFollow
+                                                      ? const Color(
+                                                          0xFF2563EB)
+                                                      : b.isForum
+                                                          ? const Color(
+                                                              0xFF7C3AED)
+                                                          : b.isKredi
+                                                              ? const Color(
+                                                                  0xFF16A34A)
+                                                              : b.isGorus
+                                                                  ? const Color(
+                                                                      0xFF0EA5E9)
+                                                                  : const Color(
+                                                                      0xFFEF4444)),
+                                          child: Icon(
+                                            b.isForumLike
+                                                ? Icons.favorite
+                                                : b.isForumFollow
+                                                    ? Icons
+                                                        .notifications_active
+                                                    : b.isForumReply
+                                                        ? Icons.reply
+                                                        : b.isForum
+                                                            ? Icons
+                                                                .forum_outlined
+                                                            : b.isKredi
+                                                                ? Icons
+                                                                    .payments_outlined
+                                                                : b.isGorus
+                                                                    ? Icons
+                                                                        .feedback_outlined
+                                                                    : Icons
+                                                                        .campaign_outlined,
+                                            color: b.read
+                                                ? MetoColors.mutedFg
+                                                : Colors.white,
+                                            size: 18,
+                                          ),
+                                        ),
+                                        title: L10nText(
+                                          b.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                        subtitle: L10nText(
+                                          b.body,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                        trailing: b.read
+                                            ? null
+                                            : Container(
+                                                width: 8,
+                                                height: 8,
+                                                decoration:
+                                                    const BoxDecoration(
+                                                  color: Color(0xFFEF4444),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                      if (list.isNotEmpty)
+                        SafeArea(
+                          top: false,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () async {
+                                  final ok =
+                                      await _confirmDeleteAllBildirimler();
+                                  if (ok) setModalState(() {});
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFFEF4444),
+                                  side: const BorderSide(
+                                    color: Color(0xFFEF4444),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                ),
+                                icon: const Icon(Icons.delete_outline),
+                                label: const L10nText(
+                                  'Tüm bildirimleri sil',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _openBildirim(AppBildirim b) async {
@@ -729,12 +1429,12 @@ class _MainShellState extends State<MainShell> {
       }
     }
 
-    if (b.isGorus) {
+    if (b.isGorus || b.isKredi) {
       if (!mounted) return;
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: Text(b.title),
+          title: L10nText(b.title),
           content: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -786,15 +1486,30 @@ class _MainShellState extends State<MainShell> {
                     ),
                   );
                 },
-                child: const Text('Yanıtla'),
+                child: const L10nText('Yanıtla'),
               ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Tamam'),
+              child: const L10nText('Tamam'),
             ),
           ],
         ),
       );
+      return;
+    }
+
+    if (b.isForum) {
+      if (!mounted) return;
+      final postId = b.forumPostId;
+      final commentId = b.forumCommentId;
+      if (postId != null && postId > 0) {
+        setState(() {
+          _openForumPostId = postId;
+          _openForumCommentId = commentId;
+          _openForumToken++;
+        });
+      }
+      _goToTab(MetoTab.forum);
       return;
     }
 
@@ -832,19 +1547,24 @@ class _MainShellState extends State<MainShell> {
 
   Widget _buildMesajlarPage() {
     final list = _sohbetOzetleri;
-    final bildirimler = _bildirimlerInbox;
-    final unreadBildirim = bildirimler.where((b) => !b.read).length;
-    final empty = list.isEmpty && bildirimler.isEmpty;
+    final empty = list.isEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          padding: const EdgeInsets.fromLTRB(8, 12, 16, 8),
           child: Row(
             children: [
+              IconButton(
+                tooltip: S.auto('Geri'),
+                onPressed: _closeMesajlar,
+                style: IconButton.styleFrom(backgroundColor: MetoColors.muted),
+                icon: const Icon(Icons.arrow_back, size: 18),
+              ),
+              const SizedBox(width: 8),
               const Expanded(
-                child: Text(
+                child: L10nText(
                   'Mesajlarım',
                   style: TextStyle(
                     fontSize: 22,
@@ -862,7 +1582,7 @@ class _MainShellState extends State<MainShell> {
                     color: MetoColors.primary,
                     borderRadius: BorderRadius.circular(99),
                   ),
-                  child: const Text(
+                  child: const L10nText(
                     'Admin',
                     style: TextStyle(
                       color: Colors.white,
@@ -871,16 +1591,8 @@ class _MainShellState extends State<MainShell> {
                     ),
                   ),
                 ),
-              if (unreadBildirim > 0)
-                TextButton(
-                  onPressed: () async {
-                    await markAllBildirimlerOkundu();
-                    await _loadSohbetOzetleri();
-                  },
-                  child: const Text('Tümünü okundu'),
-                ),
               IconButton(
-                tooltip: 'Yenile',
+                tooltip: S.auto('Yenile'),
                 onPressed: _loadSohbetOzetleri,
                 icon: const Icon(Icons.refresh, color: MetoColors.primary),
               ),
@@ -892,7 +1604,7 @@ class _MainShellState extends State<MainShell> {
               ? const Center(
                   child: Padding(
                     padding: EdgeInsets.all(32),
-                    child: Text(
+                    child: L10nText(
                       'Henüz mesajınız yok.\nBir ilana teklif vererek sohbet başlatabilirsiniz.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
@@ -906,300 +1618,195 @@ class _MainShellState extends State<MainShell> {
               : RefreshIndicator(
                   color: MetoColors.primary,
                   onRefresh: _loadSohbetOzetleri,
-                  child: ListView(
+                  child: ListView.separated(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-                    children: [
-                      if (bildirimler.isNotEmpty) ...[
-                        const Padding(
-                          padding: EdgeInsets.fromLTRB(4, 4, 4, 8),
-                          child: Text(
-                            'BİLDİRİMLER',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.6,
-                              color: MetoColors.mutedFg,
-                            ),
+                    itemCount: list.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, i) {
+                      final o = list[i];
+                      return Dismissible(
+                        key: ValueKey(o.sohbetKey),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444),
+                            borderRadius: BorderRadius.circular(14),
                           ),
+                          child: const Icon(Icons.delete_outline,
+                              color: Colors.white),
                         ),
-                        for (final b in bildirimler) ...[
-                          Dismissible(
-                            key: ValueKey('bildirim_${b.id}'),
-                            direction: DismissDirection.endToStart,
-                            background: _bildirimSwipeDeleteBg(alignStart: false),
-                            confirmDismiss: (_) => _confirmDeleteBildirim(b),
-                            child: Material(
-                              color: b.read
-                                  ? MetoColors.card
-                                  : const Color(0xFFFFF7ED),
-                              borderRadius: BorderRadius.circular(14),
-                              child: ListTile(
-                                onTap: () => _openBildirim(b),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  side: BorderSide(
-                                    color: b.read
-                                        ? MetoColors.border
-                                        : const Color(0xFFFDBA74),
-                                  ),
-                                ),
-                                leading: CircleAvatar(
-                                  backgroundColor: b.read
-                                      ? MetoColors.muted
-                                      : (b.isMesaj
-                                          ? MetoColors.primary
-                                          : b.isForum
-                                              ? const Color(0xFF7C3AED)
-                                              : b.isGorus
-                                                  ? const Color(0xFF0EA5E9)
-                                                  : const Color(0xFFEF4444)),
-                                  child: Icon(
-                                    b.isMesaj
-                                        ? Icons.chat_bubble_outline
-                                        : b.isForum
-                                            ? Icons.forum_outlined
-                                            : b.isGorus
-                                                ? Icons.feedback_outlined
-                                                : Icons.campaign_outlined,
-                                    color: b.read
-                                        ? MetoColors.mutedFg
-                                        : Colors.white,
-                                    size: 20,
-                                  ),
-                                ),
-                                title: Text(
-                                  b.title,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w800,
-                                    color: MetoColors.foreground,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  b.body,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: MetoColors.mutedFg,
-                                  ),
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      '${b.createdAt.toLocal().hour.toString().padLeft(2, '0')}:${b.createdAt.toLocal().minute.toString().padLeft(2, '0')}',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: MetoColors.mutedFg,
-                                      ),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Sil',
-                                      onPressed: () =>
-                                          _confirmDeleteBildirim(b),
-                                      icon: const Icon(
-                                        Icons.delete_outline,
-                                        size: 20,
-                                        color: MetoColors.mutedFg,
-                                      ),
-                                    ),
-                                  ],
+                        confirmDismiss: (_) => _confirmDeleteSohbet(o),
+                        child: Material(
+                          color: o.hasUnread
+                              ? const Color(0xFFE8F5EF)
+                              : MetoColors.card,
+                          borderRadius: BorderRadius.circular(14),
+                          child: InkWell(
+                            onTap: () => _openSohbet(o),
+                            onLongPress: () {
+                              final peer = o.peerEmail.trim().toLowerCase();
+                              if (!peer.contains('@')) return;
+                              showUserSafetySheet(
+                                context,
+                                targetEmail: peer,
+                                targetDisplayName: _peerDisplayName(peer),
+                                contextLabel: 'mesajlar',
+                                onBlocked: () => _loadSohbetOzetleri(),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(14),
+                            child: Container(
+                              padding:
+                                  const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: o.hasUnread
+                                      ? MetoColors.primary
+                                      : MetoColors.border,
+                                  width: o.hasUnread ? 2 : 1,
                                 ),
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                        ],
-                        const SizedBox(height: 8),
-                      ],
-                      if (list.isNotEmpty)
-                        const Padding(
-                          padding: EdgeInsets.fromLTRB(4, 4, 4, 8),
-                          child: Text(
-                            'SOHBETLER',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.6,
-                              color: MetoColors.mutedFg,
-                            ),
-                          ),
-                        ),
-                      for (final o in list) ...[
-                        Dismissible(
-                          key: ValueKey(o.sohbetKey),
-                          direction: DismissDirection.endToStart,
-                          background: Container(
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.only(right: 20),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEF4444),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: const Icon(Icons.delete_outline,
-                                color: Colors.white),
-                          ),
-                          confirmDismiss: (_) => _confirmDeleteSohbet(o),
-                          child: Material(
-                            color: o.hasUnread
-                                ? const Color(0xFFE8F5EF)
-                                : MetoColors.card,
-                            borderRadius: BorderRadius.circular(14),
-                            child: InkWell(
-                              onTap: () => _openSohbet(o),
-                              borderRadius: BorderRadius.circular(14),
-                              child: Container(
-                                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: o.hasUnread
-                                        ? MetoColors.primary
-                                        : MetoColors.border,
-                                    width: o.hasUnread ? 2 : 1,
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Stack(
-                                      clipBehavior: Clip.none,
-                                      children: [
-                                        CircleAvatar(
-                                          backgroundColor: o.hasUnread
-                                              ? MetoColors.primary
-                                              : MetoColors.primary
-                                                  .withValues(alpha: 0.75),
-                                          child: Text(
-                                            contactAvatarLetter(
-                                              _peerDisplayName(o.peerEmail),
-                                            ),
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                        ),
-                                        Positioned(
-                                          right: -1,
-                                          bottom: -1,
-                                          child: Container(
-                                            width: 12,
-                                            height: 12,
-                                            decoration: BoxDecoration(
-                                              color: (_peerOnline[o.peerEmail
-                                                          .trim()
-                                                          .toLowerCase()] ==
-                                                      true)
-                                                  ? const Color(0xFF22C55E)
-                                                  : const Color(0xFFEF4444),
-                                              shape: BoxShape.circle,
-                                              border: Border.all(
-                                                color: Colors.white,
-                                                width: 2,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
+                              child: Row(
+                                children: [
+                                  Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      CircleAvatar(
+                                        backgroundColor: o.hasUnread
+                                            ? MetoColors.primary
+                                            : MetoColors.primary
+                                                .withValues(alpha: 0.75),
+                                        child: Text(
+                                          contactAvatarLetter(
                                             _peerDisplayName(o.peerEmail),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: o.hasUnread
-                                                  ? FontWeight.w900
-                                                  : FontWeight.w500,
-                                              color: o.hasUnread
-                                                  ? const Color(0xFF111827)
-                                                  : MetoColors.mutedFg,
-                                            ),
                                           ),
-                                          const SizedBox(height: 3),
-                                          Text(
-                                            scrubEmailsInText(o.lastMsg),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: o.hasUnread
-                                                  ? FontWeight.w800
-                                                  : FontWeight.w400,
-                                              color: o.hasUnread
-                                                  ? const Color(0xFF111827)
-                                                  : MetoColors.mutedFg,
-                                            ),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w800,
                                           ),
-                                        ],
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
+                                      Positioned(
+                                        right: -1,
+                                        bottom: -1,
+                                        child: Container(
+                                          width: 12,
+                                          height: 12,
+                                          decoration: BoxDecoration(
+                                            color: (_peerOnline[o.peerEmail
+                                                        .trim()
+                                                        .toLowerCase()] ==
+                                                    true)
+                                                ? const Color(0xFF22C55E)
+                                                : const Color(0xFFEF4444),
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: Colors.white,
+                                              width: 2,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
                                       crossAxisAlignment:
-                                          CrossAxisAlignment.end,
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          '${o.lastTime.toLocal().hour.toString().padLeft(2, '0')}:${o.lastTime.toLocal().minute.toString().padLeft(2, '0')}',
+                                          _peerDisplayName(o.peerEmail),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
-                                            fontSize: 11,
+                                            fontSize: 14,
+                                            fontWeight: o.hasUnread
+                                                ? FontWeight.w900
+                                                : FontWeight.w500,
+                                            color: o.hasUnread
+                                                ? const Color(0xFF111827)
+                                                : MetoColors.mutedFg,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          scrubEmailsInText(o.lastMsg),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 13,
                                             fontWeight: o.hasUnread
                                                 ? FontWeight.w800
                                                 : FontWeight.w400,
                                             color: o.hasUnread
-                                                ? MetoColors.primary
+                                                ? const Color(0xFF111827)
                                                 : MetoColors.mutedFg,
                                           ),
                                         ),
-                                        if (o.hasUnread) ...[
-                                          const SizedBox(height: 6),
-                                          Container(
-                                            constraints: const BoxConstraints(
-                                              minWidth: 20,
-                                              minHeight: 20,
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: MetoColors.primary,
-                                              borderRadius:
-                                                  BorderRadius.circular(99),
-                                            ),
-                                            alignment: Alignment.center,
-                                            child: Text(
-                                              o.unreadCount > 99
-                                                  ? '99+'
-                                                  : '${o.unreadCount.clamp(1, 99)}',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w900,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
                                       ],
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Column(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.end,
+                                    children: [
+                                      L10nText(
+                                        '${o.lastTime.toLocal().hour.toString().padLeft(2, '0')}:${o.lastTime.toLocal().minute.toString().padLeft(2, '0')}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: o.hasUnread
+                                              ? FontWeight.w800
+                                              : FontWeight.w400,
+                                          color: o.hasUnread
+                                              ? MetoColors.primary
+                                              : MetoColors.mutedFg,
+                                        ),
+                                      ),
+                                      if (o.hasUnread) ...[
+                                        const SizedBox(height: 6),
+                                        Container(
+                                          constraints: const BoxConstraints(
+                                            minWidth: 20,
+                                            minHeight: 20,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: MetoColors.primary,
+                                            borderRadius:
+                                                BorderRadius.circular(99),
+                                          ),
+                                          alignment: Alignment.center,
+                                          child: Text(
+                                            o.unreadCount > 99
+                                                ? '99+'
+                                                : '${o.unreadCount.clamp(1, 99)}',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ],
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 6),
-                      ],
-                    ],
+                      );
+                    },
                   ),
                 ),
         ),
@@ -1218,6 +1825,9 @@ class _MainShellState extends State<MainShell> {
       _favoriler = cloud.favorites;
       _bildirimler = cloud.notifications;
     });
+    unawaited(
+      PushNotificationService.instance.syncTopics(cloud.notifications),
+    );
   }
 
   Future<void> _loadIlanlarVeFoto() async {
@@ -1269,7 +1879,7 @@ class _MainShellState extends State<MainShell> {
     if (!mounted) return;
     setState(() => _profilFoto = dataUrl);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Profil fotoğrafı kaydedildi ✅')),
+      const SnackBar(content: L10nText('Profil fotoğrafı kaydedildi ✅')),
     );
   }
 
@@ -1345,7 +1955,7 @@ class _MainShellState extends State<MainShell> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Rol değiştirilemedi: $e')),
+        SnackBar(content: L10nText('Rol değiştirilemedi: $e')),
       );
     } finally {
       if (mounted) setState(() => _roleSwitching = false);
@@ -1368,7 +1978,7 @@ class _MainShellState extends State<MainShell> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          const L10nText(
             'Hesap rolü',
             style: TextStyle(
               fontSize: 12,
@@ -1491,15 +2101,20 @@ class _MainShellState extends State<MainShell> {
           child: HomePage(
             key: ValueKey('home_$_homeRefreshToken'),
             userEmail: widget.user.email,
+            isGuest: _isGuest,
+            onRequireLogin: () => _requireLogin(),
           ),
         ),
         const _KeepAliveTab(child: MerkezlerPage()),
         IlanlarPage(
+          key: _ilanlarPageKey,
           userKredi: _userKredi,
           userEmail: widget.user.email,
           userName: _publicDisplayName,
           userType: _role,
           profilFoto: _profilFoto,
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(),
           onKrediHarca: _harcaBirKredi,
           onUnreadChange: (n) {
             if (_ilanlarUnread == n) return;
@@ -1519,12 +2134,17 @@ class _MainShellState extends State<MainShell> {
           openEditIlanToken: _openEditIlanToken,
         ),
         ForumPage(
+          key: _forumPageKey,
           userName: widget.user.name,
           userEmail: widget.user.email,
           userType: _role,
           profilFoto: _profilFoto,
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(),
+          openPostId: _openForumPostId,
+          openCommentId: _openForumCommentId,
+          openPostToken: _openForumToken,
         ),
-        _buildMesajlarPage(),
         const HaklarPage(),
         const KartlarPage(),
       ],
@@ -1538,6 +2158,7 @@ class _MainShellState extends State<MainShell> {
     setState(() {
       _activeTab = MetoTab.home;
       _homeRefreshToken++;
+      _showMesajlar = false;
       _showProfilPanel = false;
       _showCocukProfil = false;
       _showIlanlarim = false;
@@ -1545,6 +2166,9 @@ class _MainShellState extends State<MainShell> {
       _showKaydedilenler = false;
       _showBildirimler = false;
       _showHakkinda = false;
+      _showEngellenenler = false;
+      _showIyilikLiderleri = false;
+      _showDilSecimi = false;
       _profilDragY = 0;
       _resetKredi();
     });
@@ -1557,6 +2181,10 @@ class _MainShellState extends State<MainShell> {
   }
 
   void _openProfilPanel() {
+    if (_isGuest) {
+      _requireLogin('Profil için giriş yapmanız gerekiyor.');
+      return;
+    }
     _loadUserCloud();
     _loadSohbetOzetleri();
     setState(() {
@@ -1571,7 +2199,7 @@ class _MainShellState extends State<MainShell> {
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bağlantı açılamadı')),
+        const SnackBar(content: L10nText('Bağlantı açılamadı')),
       );
     }
   }
@@ -1602,7 +2230,7 @@ class _MainShellState extends State<MainShell> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                const L10nText(
                   'Sosyal medya hesaplarımız',
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -1612,7 +2240,7 @@ class _MainShellState extends State<MainShell> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                const L10nText(
                   'Takip etmek için bir hesap seçin',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
@@ -1628,11 +2256,11 @@ class _MainShellState extends State<MainShell> {
                     width: 28,
                     height: 28,
                   ),
-                  title: const Text(
+                  title: const L10nText(
                     'Instagram',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
-                  subtitle: const Text('@engelsizclub'),
+                  subtitle: const L10nText('@engelsizclub'),
                   trailing: const Icon(Icons.open_in_new, size: 18),
                   onTap: () {
                     Navigator.pop(ctx);
@@ -1652,11 +2280,11 @@ class _MainShellState extends State<MainShell> {
                     width: 28,
                     height: 28,
                   ),
-                  title: const Text(
+                  title: const L10nText(
                     'Facebook',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
-                  subtitle: const Text('Engelsiz Club'),
+                  subtitle: const L10nText('Engelsiz Club'),
                   trailing: const Icon(Icons.open_in_new, size: 18),
                   onTap: () {
                     Navigator.pop(ctx);
@@ -1682,51 +2310,134 @@ class _MainShellState extends State<MainShell> {
       _showKaydedilenler = false;
       _showBildirimler = false;
       _showHakkinda = false;
+      _showEngellenenler = false;
+      _showIyilikLiderleri = false;
+      _showDilSecimi = false;
       _profilDragY = 0;
       _resetKredi();
     });
   }
 
+  /// Android sistem geri tuşu:
+  /// 1) profil paneli açıksa kapat
+  /// 2) ana sayfada değilse ana sayfaya dön (bu 1. basış sayılır)
+  /// 3) kısa süre içinde 2. basışta uygulamadan çık
+  void _handleSystemBack() {
+    if (_showProfilPanel) {
+      _lastExitBackAt = null;
+      _closeProfilPanel();
+      return;
+    }
+
+    if (_showMesajlar) {
+      _lastExitBackAt = null;
+      _closeMesajlar();
+      return;
+    }
+
+    // Alt sekme içi detay (ilan / forum) önce kapansın
+    if (_activeTab == MetoTab.ilanlar &&
+        (_ilanlarPageKey.currentState?.consumeBack() ?? false)) {
+      _lastExitBackAt = null;
+      return;
+    }
+    if (_activeTab == MetoTab.forum &&
+        (_forumPageKey.currentState?.consumeBack() ?? false)) {
+      _lastExitBackAt = null;
+      return;
+    }
+
+    if (_activeTab != MetoTab.home) {
+      _goToTab(MetoTab.home);
+      _lastExitBackAt = DateTime.now();
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: L10nText('Çıkmak için tekrar geri tuşuna basın'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final now = DateTime.now();
+    final last = _lastExitBackAt;
+    if (last != null && now.difference(last) <= const Duration(seconds: 2)) {
+      SystemNavigator.pop();
+      return;
+    }
+
+    _lastExitBackAt = now;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: L10nText('Çıkmak için tekrar geri tuşuna basın'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ShowCaseWidget(
-      onFinish: () {
-        unawaited(_finishNavTour());
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _handleSystemBack();
       },
-      builder: (context) => Scaffold(
-        backgroundColor: MetoColors.background,
-        body: Stack(
-          children: [
-            Column(
-              children: [
-                _BrandBar(
-                  initials: _initials,
-                  avatarColor: widget.user.avatarColor,
-                  photoBytes: _profilFotoBytes,
-                  notificationBadge:
-                      _teklifBildirimUnread + (_yeniMesajVar ? 1 : 0),
-                  onAvatarTap: _openProfilPanel,
-                  onMenuTap: _openProfilPanel,
-                  onHomeTap: _goHomeAndRefresh,
-                ),
-                Expanded(child: _body),
-                _BottomNav(
-                  active: _activeTab,
-                  tourKeys: _navTourKeys,
-                  ilanlarNewCount: _newIlanlarCount,
-                  forumNewCount: _newForumCount,
-                  mesajlarUnread: _mesajUnreadCount,
-                  onSelect: (t) => _goToTab(t),
-                  onSkipTour: () {
-                    ShowcaseView.get().dismiss();
-                    unawaited(_finishNavTour());
-                  },
-                ),
-              ],
-            ),
-            if (_showProfilPanel) _buildProfilOverlay(),
-          ],
-        ),
+      child: ShowCaseWidget(
+        onFinish: () {
+          unawaited(_finishNavTour());
+        },
+        builder: (context) {
+          final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+          return Scaffold(
+          resizeToAvoidBottomInset: true,
+          backgroundColor: MetoColors.background,
+          body: Stack(
+            children: [
+              Column(
+                children: [
+                  _BrandBar(
+                    initials: _initials,
+                    avatarColor: widget.user.avatarColor,
+                    photoBytes: _profilFotoBytes,
+                    notificationBadge: _bellUnreadCount,
+                    messageBadge: _sohbetUnreadCount,
+                    messagesTourKey: _messagesTourKey,
+                    messagesSelected: _showMesajlar,
+                    onBellTap: _openBildirimInbox,
+                    onMessagesTap: _openMesajlar,
+                    onAvatarTap: _openProfilPanel,
+                    onMenuTap: _openProfilPanel,
+                    onHomeTap: _goHomeAndRefresh,
+                  ),
+                  Expanded(child: _showMesajlar ? _buildMesajlarPage() : _body),
+                  // Klavye açıkken alt menüyü gizle — yazı alanı yukarı kaçmasın
+                  if (!keyboardOpen)
+                    _BottomNav(
+                      active: _activeTab,
+                      tourKeys: _navTourKeys,
+                      moreTourKey: _moreNavTourKey,
+                      moreActive: !_showMesajlar &&
+                          (_activeTab == MetoTab.haklar ||
+                              _activeTab == MetoTab.kartlar),
+                      ilanlarNewCount: _newIlanlarCount,
+                      forumNewCount: _newForumCount,
+                      onSelect: (t) => _goToTab(t),
+                      onMoreTap: _openMoreSheet,
+                      onSkipTour: () {
+                        ShowcaseView.get().dismiss();
+                        unawaited(_finishNavTour());
+                      },
+                    ),
+                ],
+              ),
+              if (_showProfilPanel) _buildProfilOverlay(),
+            ],
+          ),
+        );
+        },
       ),
     );
   }
@@ -1800,7 +2511,7 @@ class _MainShellState extends State<MainShell> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                'Aşağı kaydırarak kapat',
+                                S.t('profile_swipe_close'),
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w600,
@@ -1856,7 +2567,7 @@ class _MainShellState extends State<MainShell> {
                                           ScaffoldMessenger.of(context)
                                               .showSnackBar(
                                             const SnackBar(
-                                              content: Text(
+                                              content: L10nText(
                                                   'Çocuk profili kaydedildi ✅'),
                                             ),
                                           );
@@ -1887,7 +2598,7 @@ class _MainShellState extends State<MainShell> {
                                                           context)
                                                       .showSnackBar(
                                                     const SnackBar(
-                                                      content: Text(
+                                                      content: L10nText(
                                                         'Profiliniz kaydedildi ✅',
                                                       ),
                                                     ),
@@ -1898,9 +2609,20 @@ class _MainShellState extends State<MainShell> {
                                                 ? _buildKaydedilenler()
                                                 : _showBildirimler
                                                     ? _buildBildirimler()
-                                                    : _showHakkinda
-                                                        ? _buildHakkinda()
-                                                        : _buildProfilMenu(),
+                                                    : _showDilSecimi
+                                                        ? _buildDilSecimi()
+                                                        : _showEngellenenler
+                                                        ? _buildEngellenenler()
+                                                        : _showHakkinda
+                                                            ? _buildHakkinda()
+                                                            : _showIyilikLiderleri
+                                                                ? AdminIyilikLiderleriPanel(
+                                                                    onBack: () =>
+                                                                        setState(() =>
+                                                                            _showIyilikLiderleri =
+                                                                                false),
+                                                                  )
+                                                                : _buildProfilMenu(),
                           ),
                         ),
                       ),
@@ -1970,7 +2692,7 @@ class _MainShellState extends State<MainShell> {
       ...myBakiciIlanlar(email).map((i) => (
             kind: 'bakici',
             id: i.id,
-            kategori: 'Bakıcı Arıyorum',
+            kategori: 'Bakıcı/Temizlik Görevlisi Arıyorum',
             emoji: '🤝',
             title: i.title,
             konum: '${i.district.isEmpty ? '' : '${i.district}, '}${i.city}',
@@ -2001,7 +2723,7 @@ class _MainShellState extends State<MainShell> {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
+                child: L10nText(
                   'İlanlarım (${entries.length})',
                   style: const TextStyle(
                     fontSize: 16,
@@ -2018,7 +2740,7 @@ class _MainShellState extends State<MainShell> {
                     color: const Color(0xFFEF4444),
                     borderRadius: BorderRadius.circular(99),
                   ),
-                  child: Text(
+                  child: L10nText(
                     '$_teklifBildirimUnread teklif',
                     style: const TextStyle(
                       color: Colors.white,
@@ -2031,7 +2753,7 @@ class _MainShellState extends State<MainShell> {
           ),
         ),
         if (_bildirimlerInbox.any((b) => b.isTeklif)) ...[
-          const Text(
+          const L10nText(
             'TEKLİF BİLDİRİMLERİ',
             style: TextStyle(
               fontSize: 11,
@@ -2058,11 +2780,8 @@ class _MainShellState extends State<MainShell> {
                     setState(() {
                       _showIlanlarim = false;
                       _showProfilPanel = false;
-                      _activeTab = MetoTab.mesajlar;
                     });
-                    if (_tabPageController.hasClients) {
-                      _tabPageController.jumpToPage(MetoTab.mesajlar.index);
-                    }
+                    _openMesajlar();
                     _openBildirim(b);
                   },
                   shape: RoundedRectangleBorder(
@@ -2102,7 +2821,7 @@ class _MainShellState extends State<MainShell> {
                     ),
                   ),
                   trailing: IconButton(
-                    tooltip: 'Sil',
+                    tooltip: S.auto('Sil'),
                     onPressed: () => _confirmDeleteBildirim(b),
                     icon: Icon(
                       Icons.delete_outline,
@@ -2118,7 +2837,7 @@ class _MainShellState extends State<MainShell> {
             const SizedBox(height: 6),
           ],
           const SizedBox(height: 12),
-          const Text(
+          const L10nText(
             'İLANLARIM',
             style: TextStyle(
               fontSize: 11,
@@ -2138,9 +2857,9 @@ class _MainShellState extends State<MainShell> {
             ),
             child: Column(
               children: [
-                const Text('📋', style: TextStyle(fontSize: 32)),
+                const L10nText('📋', style: TextStyle(fontSize: 32)),
                 const SizedBox(height: 12),
-                const Text(
+                const L10nText(
                   'Henüz ilanınız yok',
                   style: TextStyle(
                     fontSize: 14,
@@ -2149,7 +2868,7 @@ class _MainShellState extends State<MainShell> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                const L10nText(
                   'İlanlar sekmesinden "İlan Ver" ile ücretsiz ilan yayınlayabilirsiniz.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -2178,7 +2897,7 @@ class _MainShellState extends State<MainShell> {
                     ),
                   ),
                   icon: const Icon(Icons.add, size: 16),
-                  label: const Text(
+                  label: const L10nText(
                     'İlan Ver',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
@@ -2228,7 +2947,7 @@ class _MainShellState extends State<MainShell> {
                               color: const Color(0xFFEF4444),
                               borderRadius: BorderRadius.circular(99),
                             ),
-                            child: Text(
+                            child: L10nText(
                               '$yeniTeklif',
                               style: const TextStyle(
                                 color: Colors.white,
@@ -2269,7 +2988,7 @@ class _MainShellState extends State<MainShell> {
                           ],
                         ),
                         const SizedBox(height: 4),
-                        Text(
+                        L10nText(
                           e.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -2280,8 +2999,8 @@ class _MainShellState extends State<MainShell> {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          '${e.konum} · ${e.fiyat}',
+                        L10nText(
+                          '${e.konum} · ${formatPriceTl(e.fiyat)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -2291,7 +3010,7 @@ class _MainShellState extends State<MainShell> {
                         ),
                         if (teklifler.isNotEmpty) ...[
                           const SizedBox(height: 6),
-                          Text(
+                          L10nText(
                             teklifler.first.body,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -2311,17 +3030,14 @@ class _MainShellState extends State<MainShell> {
                   ),
                   if (teklifler.isNotEmpty)
                     IconButton(
-                      tooltip: 'Teklifleri gör',
+                      tooltip: S.auto('Teklifleri gör'),
                       onPressed: () {
                         final b = teklifler.first;
                         setState(() {
                           _showIlanlarim = false;
                           _showProfilPanel = false;
-                          _activeTab = MetoTab.mesajlar;
                         });
-                        if (_tabPageController.hasClients) {
-                          _tabPageController.jumpToPage(MetoTab.mesajlar.index);
-                        }
+                        _openMesajlar();
                         _openBildirim(b);
                       },
                       icon: const Icon(
@@ -2332,26 +3048,26 @@ class _MainShellState extends State<MainShell> {
                       visualDensity: VisualDensity.compact,
                     ),
                   IconButton(
-                    tooltip: 'Satıldı olarak işaretle',
+                    tooltip: S.auto('Satıldı olarak işaretle'),
                     onPressed: () async {
                       final ok = await showDialog<bool>(
                         context: context,
                         builder: (ctx) => AlertDialog(
-                          title: const Text('Satıldığını onaylıyor musunuz?'),
-                          content: Text(
+                          title: const L10nText('Satıldığını onaylıyor musunuz?'),
+                          content: L10nText(
                             '"${e.title}" ilanı satıldı olarak işaretlenecek ve yayından kalkacak.',
                           ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('Vazgeç'),
+                              child: const L10nText('Vazgeç'),
                             ),
                             FilledButton(
                               onPressed: () => Navigator.pop(ctx, true),
                               style: FilledButton.styleFrom(
                                 backgroundColor: const Color(0xFFCA8A04),
                               ),
-                              child: const Text('Evet, satıldı'),
+                              child: const L10nText('Evet, satıldı'),
                             ),
                           ],
                         ),
@@ -2367,7 +3083,7 @@ class _MainShellState extends State<MainShell> {
                       _persistIlanlar();
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text(
+                          content: L10nText(
                             'İlan satıldı olarak işaretlendi ve yayından kaldırıldı',
                           ),
                         ),
@@ -2381,7 +3097,7 @@ class _MainShellState extends State<MainShell> {
                     visualDensity: VisualDensity.compact,
                   ),
                   IconButton(
-                    tooltip: 'İlanı düzenle',
+                    tooltip: S.auto('İlanı düzenle'),
                     onPressed: () => _openEditIlanFromProfil(e.kind, e.id),
                     icon: const Icon(
                       Icons.edit_outlined,
@@ -2391,26 +3107,26 @@ class _MainShellState extends State<MainShell> {
                     visualDensity: VisualDensity.compact,
                   ),
                   IconButton(
-                    tooltip: 'İlanı sil',
+                    tooltip: S.auto('İlanı sil'),
                     onPressed: () async {
                       final ok = await showDialog<bool>(
                         context: context,
                         builder: (ctx) => AlertDialog(
-                          title: const Text('İlanı sil'),
-                          content: Text(
+                          title: const L10nText('İlanı sil'),
+                          content: L10nText(
                             '"${e.title}" ilanını silmek istediğinize emin misiniz?',
                           ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('Vazgeç'),
+                              child: const L10nText('Vazgeç'),
                             ),
                             FilledButton(
                               onPressed: () => Navigator.pop(ctx, true),
                               style: FilledButton.styleFrom(
                                 backgroundColor: const Color(0xFFDC2626),
                               ),
-                              child: const Text('Sil'),
+                              child: const L10nText('Sil'),
                             ),
                           ],
                         ),
@@ -2425,7 +3141,7 @@ class _MainShellState extends State<MainShell> {
                       setState(() {});
                       _persistIlanlar();
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('İlan silindi')),
+                        const SnackBar(content: L10nText('İlan silindi')),
                       );
                     },
                     icon: const Icon(
@@ -2460,7 +3176,7 @@ class _MainShellState extends State<MainShell> {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
+                child: L10nText(
                   'Kaydedilenler (${_favoriler.length})',
                   style: const TextStyle(
                     fontSize: 16,
@@ -2481,9 +3197,9 @@ class _MainShellState extends State<MainShell> {
             ),
             child: const Column(
               children: [
-                Text('❤️', style: TextStyle(fontSize: 28)),
+                L10nText('❤️', style: TextStyle(fontSize: 28)),
                 SizedBox(height: 8),
-                Text(
+                L10nText(
                   'Henüz favori ilan yok',
                   style: TextStyle(
                     fontSize: 14,
@@ -2492,7 +3208,7 @@ class _MainShellState extends State<MainShell> {
                   ),
                 ),
                 SizedBox(height: 4),
-                Text(
+                L10nText(
                   'İlanlar sekmesinde beğendiğiniz ilanı kalp ile kaydedin.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
@@ -2528,7 +3244,7 @@ class _MainShellState extends State<MainShell> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        L10nText(
                           f.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -2542,7 +3258,7 @@ class _MainShellState extends State<MainShell> {
                           Text(
                             [
                               if (f.konum.isNotEmpty) f.konum,
-                              if (f.fiyat.isNotEmpty) f.fiyat,
+                              if (f.fiyat.isNotEmpty) formatPriceTl(f.fiyat),
                             ].join(' · '),
                             style: const TextStyle(
                               fontSize: 11,
@@ -2553,7 +3269,7 @@ class _MainShellState extends State<MainShell> {
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Favoriden çıkar',
+                    tooltip: S.auto('Favoriden çıkar'),
                     onPressed: () async {
                       final next =
                           _favoriler.where((e) => e.key != f.key).toList();
@@ -2639,6 +3355,7 @@ class _MainShellState extends State<MainShell> {
       );
       if (!mounted) return;
       setState(() => _bildirimler = next);
+      unawaited(PushNotificationService.instance.syncTopics(next));
     }
 
     return Column(
@@ -2655,7 +3372,7 @@ class _MainShellState extends State<MainShell> {
               ),
               const SizedBox(width: 8),
               const Expanded(
-                child: Text(
+                child: L10nText(
                   'Bildirimler',
                   style: TextStyle(
                     fontSize: 16,
@@ -2677,19 +3394,26 @@ class _MainShellState extends State<MainShell> {
           child: Text(
             _bildirimler.acikSayisi == 0
                 ? 'Tüm bildirimler kapalı. İsterseniz aşağıdan açabilirsiniz.'
-                : 'Tercihleriniz hesabınıza kaydedilir; çıkış yapınca da korunur.',
+                : 'Tercihleriniz hesabınıza kaydedilir; çıkış yapınca da korunur. Push bildirimleri (telefon) bu anahtarlara bağlıdır.',
             style: const TextStyle(fontSize: 12, color: MetoColors.foreground),
           ),
         ),
         toggleRow(
           emoji: '📋',
           title: 'Yeni ilanlar',
-          sub: 'İlginizi çekebilecek ilan bildirimleri',
+          sub: 'Yeni ilan paylaşıldığında bildirim',
           value: _bildirimler.ilanlar,
           onChanged: (v) => save(_bildirimler.copyWith(ilanlar: v)),
         ),
         toggleRow(
           emoji: '💬',
+          title: 'Forum paylaşımları',
+          sub: 'Yeni forum gönderisi bildirimi',
+          value: _bildirimler.forum,
+          onChanged: (v) => save(_bildirimler.copyWith(forum: v)),
+        ),
+        toggleRow(
+          emoji: '✉️',
           title: 'Mesajlar',
           sub: 'Teklif ve sohbet bildirimleri',
           value: _bildirimler.mesajlar,
@@ -2697,8 +3421,8 @@ class _MainShellState extends State<MainShell> {
         ),
         toggleRow(
           emoji: '📣',
-          title: 'Duyurular',
-          sub: 'Kampanya ve platform haberleri',
+          title: 'Duyurular / Haberler',
+          sub: 'Görselli haber ve duyuru bildirimleri',
           value: _bildirimler.duyurular,
           onChanged: (v) => save(_bildirimler.copyWith(duyurular: v)),
         ),
@@ -2708,9 +3432,9 @@ class _MainShellState extends State<MainShell> {
 
   Widget _buildProfilMenu() {
     final tip = switch (_role) {
-      'uzman' => '💼 Uzman',
-      'bakici' => '🤝 Bakıcı',
-      _ => '👨‍👩‍👧 Aile',
+      'uzman' => S.t('profile_role_expert'),
+      'bakici' => S.t('profile_role_care'),
+      _ => S.t('profile_role_family'),
     };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2784,7 +3508,7 @@ class _MainShellState extends State<MainShell> {
                   children: [
                     Text(
                       _kullaniciProfil.adSoyad.trim().isEmpty
-                          ? 'Profilinizi tamamlayın'
+                          ? S.t('profile_complete')
                           : _kullaniciProfil.adSoyad.trim(),
                       style: const TextStyle(
                         fontSize: 16,
@@ -2805,8 +3529,8 @@ class _MainShellState extends State<MainShell> {
                     const SizedBox(height: 4),
                     Text(
                       _profilFoto == null
-                          ? 'Fotoğraf eklemek için avatara dokun'
-                          : 'Değiştir: dokun · Kaldır: basılı tut',
+                          ? S.t('profile_photo_add')
+                          : S.t('profile_photo_hint'),
                       style: const TextStyle(
                         fontSize: 11,
                         color: MetoColors.mutedFg,
@@ -2818,7 +3542,7 @@ class _MainShellState extends State<MainShell> {
                         _chip(tip, MetoColors.selectedBg, MetoColors.primary),
                         const SizedBox(width: 6),
                         _chip(
-                          '✓ Doğrulandı',
+                          S.t('profile_verified'),
                           const Color(0xFFF0FDF4),
                           const Color(0xFF15803D),
                         ),
@@ -2832,6 +3556,18 @@ class _MainShellState extends State<MainShell> {
         ),
         _buildRoleSwitcher(),
         const SizedBox(height: 12),
+        if (isAppAdmin(widget.user.email)) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '💚',
+              label: 'İyilik Puanı Liderleri',
+              sub: 'En yüksek 10 · ekran görüntüsü için',
+              highlight: true,
+              onTap: () => setState(() => _showIyilikLiderleri = true),
+            ),
+          ),
+        ],
         if (_isProf && !_krediHosBonusGosterildi) ...[
           Container(
             padding: const EdgeInsets.all(16),
@@ -2851,13 +3587,13 @@ class _MainShellState extends State<MainShell> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('🎁', style: TextStyle(fontSize: 24)),
+                const L10nText('🎁', style: TextStyle(fontSize: 24)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      const L10nText(
                         'Hoş Geldin Hediyesi!',
                         style: TextStyle(
                           fontSize: 14,
@@ -2866,7 +3602,7 @@ class _MainShellState extends State<MainShell> {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
+                      L10nText(
                         'Sisteme kayıt olduğunuz için hesabınıza $kWelcomeKredi ücretsiz puan tanımlandı.',
                         style: TextStyle(
                           fontSize: 12,
@@ -2875,8 +3611,8 @@ class _MainShellState extends State<MainShell> {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        '1 teklif = 1 puan = ₺49,90',
+                      L10nText(
+                        '1 teklif = 1 puan = ₺69,90',
                         style: TextStyle(
                           fontSize: 10,
                           color: Colors.white.withValues(alpha: 0.7),
@@ -2952,8 +3688,8 @@ class _MainShellState extends State<MainShell> {
                         ),
                       ),
                       if (!_isAileRole)
-                        Text(
-                          '1 teklif = 1 puan = ₺49,90 · Uzman & bakıcı ortak bakiye',
+                        L10nText(
+                          '1 teklif = 1 puan = ₺69,90 · Uzman & bakıcı ortak bakiye',
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.white.withValues(alpha: 0.6),
@@ -2993,7 +3729,7 @@ class _MainShellState extends State<MainShell> {
           padding: const EdgeInsets.only(bottom: 8),
           child: _menuTile(
             emoji: '👤',
-            label: 'Profilim & Özgeçmişim',
+            label: S.t('menu_my_profile'),
             sub: _kullaniciProfil.menuSub,
             onTap: () => setState(() => _showKullaniciProfil = true),
           ),
@@ -3003,7 +3739,7 @@ class _MainShellState extends State<MainShell> {
             padding: const EdgeInsets.only(bottom: 8),
             child: _menuTile(
               emoji: '👶',
-              label: 'Çocuk Profilim',
+              label: S.t('menu_child_profile'),
               sub: _cocukProfil.menuSub,
               onTap: () => setState(() => _showCocukProfil = true),
             ),
@@ -3012,12 +3748,12 @@ class _MainShellState extends State<MainShell> {
           padding: const EdgeInsets.only(bottom: 8),
           child: _menuTile(
             emoji: '📋',
-            label: 'İlanlarım',
+            label: S.t('menu_my_listings'),
             sub: _teklifBildirimUnread > 0
-                ? '$_teklifBildirimUnread yeni teklif'
+                ? S.t('menu_new_offers').replaceAll('{n}', '$_teklifBildirimUnread')
                 : (_ilanlarimCount == 0
-                    ? 'Henüz ilanınız yok'
-                    : '$_ilanlarimCount aktif ilan'),
+                    ? S.t('menu_my_listings_empty')
+                    : S.t('menu_my_listings_active').replaceAll('{n}', '$_ilanlarimCount')),
             badge: _teklifBildirimUnread,
             highlight: _teklifBildirimUnread > 0,
             onTap: () {
@@ -3030,10 +3766,10 @@ class _MainShellState extends State<MainShell> {
           padding: const EdgeInsets.only(bottom: 8),
           child: _menuTile(
             emoji: '❤️',
-            label: 'Kaydedilenler',
+            label: S.t('menu_saved'),
             sub: _favoriler.isEmpty
-                ? 'Henüz favori yok'
-                : '${_favoriler.length} ilan favorilendi',
+                ? S.t('menu_saved_empty')
+                : S.t('menu_saved_count').replaceAll('{n}', '${_favoriler.length}'),
             onTap: () => setState(() => _showKaydedilenler = true),
           ),
         ),
@@ -3041,7 +3777,7 @@ class _MainShellState extends State<MainShell> {
           padding: const EdgeInsets.only(bottom: 8),
           child: _menuTile(
             emoji: '🔔',
-            label: 'Bildirimler',
+            label: S.t('menu_notifications'),
             sub: _bildirimler.menuSub,
             onTap: () => setState(() => _showBildirimler = true),
           ),
@@ -3049,33 +3785,85 @@ class _MainShellState extends State<MainShell> {
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: _menuTile(
+            emoji: '🗣️',
+            label: S.t('menu_language'),
+            sub:
+                '${LocaleController.instance.lang.flagEmoji} ${LocaleController.instance.lang.nativeLabel}',
+            onTap: () => setState(() => _showDilSecimi = true),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _menuTile(
             emoji: '🌐',
-            label: 'Sosyal medya hesaplarımız',
-            sub: 'Instagram · Facebook',
+            label: S.t('menu_social'),
+            sub: S.t('menu_social_sub'),
             onTap: _showSosyalMedyaSheet,
           ),
         ),
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: _menuTile(
+            emoji: '🚫',
+            label: S.t('menu_blocked'),
+            sub: S.t('menu_blocked_sub'),
+            onTap: () => setState(() => _showEngellenenler = true),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _menuTile(
             emoji: 'ℹ️',
-            label: 'Hakkında',
-            sub: 'Engelsiz Club nedir?',
+            label: S.t('menu_about'),
+            sub: S.t('menu_about_sub'),
             onTap: () => setState(() => _showHakkinda = true),
           ),
         ),
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: _menuTile(
-            emoji: '🔒',
-            label: 'Gizlilik & Güvenlik',
-            sub: 'Ayarlarınız',
+            emoji: '⚖️',
+            label: S.t('menu_terms'),
+            sub: S.t('menu_terms_sub'),
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Hesabınız Supabase ile korunuyor. İletişim bilgileri ilanlarda gizlenir.',
-                  ),
+              _closeProfilPanel();
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      const LegalDocumentPage(kind: LegalDocKind.terms),
+                ),
+              );
+            },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _menuTile(
+            emoji: '⚕️',
+            label: S.t('menu_info_note'),
+            sub: S.t('menu_info_note_sub'),
+            onTap: () {
+              _closeProfilPanel();
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const TibbiSorumlulukReddiPage(),
+                ),
+              );
+            },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _menuTile(
+            emoji: '🔒',
+            label: S.t('menu_privacy'),
+            sub: S.t('menu_privacy_sub'),
+            onTap: () {
+              _closeProfilPanel();
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      const LegalDocumentPage(kind: LegalDocKind.privacy),
                 ),
               );
             },
@@ -3085,15 +3873,25 @@ class _MainShellState extends State<MainShell> {
           padding: const EdgeInsets.only(bottom: 8),
           child: _menuTile(
             emoji: '💬',
-            label: 'Dilek, Şikayet & Öneri',
-            sub: 'Görüşlerinizi ekibimizle paylaşın',
+            label: S.t('menu_feedback'),
+            sub: S.t('menu_feedback_sub'),
             highlight: true,
             onTap: () => _showIletisimModal(),
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _menuTile(
+            emoji: '🗑️',
+            label: S.t('menu_delete'),
+            sub: S.t('menu_delete_sub'),
+            danger: true,
+            onTap: _showHesapSilDialog,
+          ),
+        ),
         _menuTile(
           emoji: '🚪',
-          label: 'Çıkış Yap',
+          label: S.t('logout'),
           sub: null,
           danger: true,
           onTap: () {
@@ -3105,12 +3903,226 @@ class _MainShellState extends State<MainShell> {
               _showKaydedilenler = false;
               _showBildirimler = false;
               _showHakkinda = false;
+              _showEngellenenler = false;
+              _showIyilikLiderleri = false;
+      _showDilSecimi = false;
             });
             clearRuntimeIlanlar();
             widget.onLogout();
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildDilSecimi() {
+    final current = LocaleController.instance.lang;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 12),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: () => setState(() => _showDilSecimi = false),
+                icon: const Icon(Icons.arrow_back),
+                tooltip: S.t('back'),
+              ),
+              Expanded(
+                child: Text(
+                  S.t('lang_title'),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: MetoColors.foreground,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Text(
+          S.t('lang_hint'),
+          style: const TextStyle(
+            fontSize: 13,
+            color: MetoColors.mutedFg,
+            height: 1.35,
+          ),
+        ),
+        const SizedBox(height: 16),
+        for (final lang in AppLang.values) ...[
+          Material(
+            color: lang == current
+                ? MetoColors.primary.withValues(alpha: 0.10)
+                : MetoColors.background,
+            borderRadius: BorderRadius.circular(14),
+            child: ListTile(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(
+                  color: lang == current
+                      ? MetoColors.primary
+                      : MetoColors.border,
+                ),
+              ),
+              leading: Text(lang.flagEmoji, style: const TextStyle(fontSize: 22)),
+              title: Text(
+                lang.nativeLabel,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              trailing: lang == current
+                  ? const Icon(Icons.check_circle, color: MetoColors.primary)
+                  : null,
+              onTap: () async {
+                await LocaleController.instance.setLang(lang);
+                if (!mounted) return;
+                setState(() => _showDilSecimi = false);
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(S.t('lang_applied'))),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildEngellenenler() {
+    return FutureBuilder<List<BlockedUser>>(
+      future: loadBlockedUsers(forceRefresh: true),
+      builder: (context, snap) {
+        final list = snap.data ?? const <BlockedUser>[];
+        final loading = snap.connectionState == ConnectionState.waiting;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 16, bottom: 16),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () =>
+                        setState(() => _showEngellenenler = false),
+                    style:
+                        IconButton.styleFrom(backgroundColor: MetoColors.muted),
+                    icon: const Icon(Icons.arrow_back, size: 18),
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: L10nText(
+                      'Engellenenler',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: S.auto('Yenile'),
+                    onPressed: () => setState(() {}),
+                    icon: const Icon(Icons.refresh, size: 20),
+                  ),
+                ],
+              ),
+            ),
+            const L10nText(
+              'Engellediğiniz kullanıcılar size mesaj gönderemez; sohbetleri listede görünmez.',
+              style: TextStyle(
+                fontSize: 12,
+                color: MetoColors.mutedFg,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (list.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: L10nText(
+                  'Engellenen kullanıcı yok.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: MetoColors.mutedFg),
+                ),
+              )
+            else
+              ...list.map((b) {
+                final name = _peerDisplayName(b.email);
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: MetoColors.card,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: MetoColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor:
+                            MetoColors.primary.withValues(alpha: 0.85),
+                        child: Text(
+                          contactAvatarLetter(name),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          try {
+                            await unblockUser(b.email);
+                            if (!mounted) return;
+                            setState(() {});
+                            unawaited(_loadSohbetOzetleri());
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: L10nText('$name engeli kaldırıldı.'),
+                              ),
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: L10nText('Kaldırılamadı: $e')),
+                            );
+                          }
+                        },
+                        child: const L10nText(
+                          'Engeli kaldır',
+                          style: TextStyle(
+                            color: MetoColors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        );
+      },
     );
   }
 
@@ -3181,7 +4193,7 @@ class _MainShellState extends State<MainShell> {
               ),
               const SizedBox(width: 8),
               const Expanded(
-                child: Text(
+                child: L10nText(
                   'Hakkında',
                   style: TextStyle(
                     fontSize: 16,
@@ -3221,41 +4233,104 @@ class _MainShellState extends State<MainShell> {
               const SizedBox(height: 20),
               sectionTitle('Uygulamamızda Neler Bulabilirsiniz?'),
               feature(
-                title: 'Hastalıklar & Durumlar Rehberi',
+                title: 'Bilgi Kütüphanesi',
                 desc:
-                    'Otizm, Serebral Palsi, Down Sendromu, SMA, Prematüre Doğum '
-                    've DMD gibi pek çok özel durum hakkında anlaşılır, bilimsel '
-                    've güncel bilgilere hızlıca ulaşabilirsiniz.',
+                    'Özel gereksinimli bireyler ve aileler için bilgilendirme '
+                    'amaçlı içerikler sunar. Bu bölüm klinik hizmet değildir; '
+                    'kaynaklara ve topluluk bilgisine erişimi kolaylaştırır.',
               ),
               feature(
                 title: 'Harita ve Lokasyonlar',
                 desc:
-                    'Çevrenizdeki erişilebilir mekanları, kurumsal destek '
-                    'merkezlerini ve ihtiyaç duyabileceğiniz noktaları harita '
-                    'üzerinden kolayca bulabilirsiniz.',
+                    'Yakındaki destek merkezlerini ve kamuya açık konumları '
+                    'bulmanıza yardımcı olur.',
               ),
               feature(
                 title: 'İlanlar Platformu',
                 desc:
-                    'İhtiyaç fazlası medikal malzemeler, tekerlekli sandalyeler '
-                    'veya eğitim materyalleri için güvenli bir paylaşım ve '
-                    'dayanışma alanı sunar.',
+                    'Yardımcı ekipman satıcılarını bulmak, bakıcı ilanları yayınlamak '
+                    've ikinci el ekipman paylaşımı için dayanışma alanı sunar.',
               ),
               feature(
                 title: 'Topluluk & Forum',
                 desc:
-                    'Deneyimlerinizi paylaşabileceğiniz, sorularınıza yanıt '
-                    'bulabileceğiniz ve diğer ailelerle iletişim kurabileceğiniz '
-                    'sıcak bir topluluk alanıdır.',
+                    'Ailelerin birbirleriyle iletişim kurmasını ve bilgi '
+                    'paylaşımını destekleyen topluluk alanıdır.',
               ),
               feature(
                 title: 'Haklar ve Mevzuat',
                 desc:
-                    'Engelli hakları, sosyal yardımlar, maaşlar ve yasal '
-                    'düzenlemeler hakkında güncel ve anlaşılır rehberlik '
-                    'bilgilerini inceleyebilirsiniz.',
+                    'Engelli hakları, sosyal yardımlar ve yasal düzenlemeler '
+                    'hakkında bilgilendirme amaçlı rehberlik sunar.',
               ),
               const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: MetoColors.card,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: MetoColors.primary.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.info_outline,
+                          color: MetoColors.primary,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 8),
+                        const L10nText(
+                          'Platform Hakkında',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: MetoColors.foreground,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    body(
+                      'Engelsiz Club sosyal destek ve topluluk platformudur; '
+                      'klinik hizmet sunmaz.\n\n'
+                      'Uygulamanın amacı;\n'
+                      '• ailelerin birbirleriyle iletişim kurmasını sağlamak\n'
+                      '• bilgi paylaşımını desteklemek\n'
+                      '• destek merkezlerini bulmak\n'
+                      '• yardımcı ekipman satıcılarını bulmak\n'
+                      '• bakıcı ilanları yayınlamak\n'
+                      '• ikinci el ekipman paylaşımını sağlamak\n'
+                      '• açık bilimsel kaynaklarda arama kolaylığı sunmaktır.\n\n'
+                      'Uygulama hiçbir şekilde kişisel tavsiye üretmez.',
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const TibbiSorumlulukReddiPage(),
+                            ),
+                          );
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: MetoColors.primary,
+                          side: const BorderSide(color: MetoColors.primary),
+                        ),
+                        child: const L10nText('Bilgilendirme Notu'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
@@ -3263,7 +4338,7 @@ class _MainShellState extends State<MainShell> {
                   color: MetoColors.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text(
+                child: const L10nText(
                   'Engelsiz Club ile kimse yalnız değil; engelleri birlikte aşıyoruz.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -3279,6 +4354,66 @@ class _MainShellState extends State<MainShell> {
         ),
       ],
     );
+  }
+
+  Future<void> _showHesapSilDialog() async {
+    final email = widget.user.email.trim();
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const L10nText('Hesabımı sil'),
+        content: const L10nText(
+          'Hesabınız ve ilişkili verileriniz silme sürecine alınır. '
+          'Bu işlem geri alınamaz.\n\n'
+          'Onayladığınızda destek ekibimize e-posta ile talep gönderilir. '
+          'Detaylı bilgi için hesap silme sayfasını da inceleyebilirsiniz.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const L10nText('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final uri = Uri.parse(
+                'https://engelsizclub-e5842.web.app/delete-account.html',
+              );
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            },
+            child: const L10nText('Bilgi sayfası'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dCtx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+            ),
+            child: const L10nText('Silme talebi gönder'),
+          ),
+        ],
+      ),
+    );
+    if (onay != true || !mounted) return;
+
+    final mailto = Uri.parse(
+      'mailto:sakir.caykara@gmail.com'
+      '?subject=${Uri.encodeComponent('Engelsiz Club Hesap Silme Talebi')}'
+      '&body=${Uri.encodeComponent(
+        'Merhaba,\n\nEngelsiz Club hesabımın ve ilişkili verilerimin '
+        'silinmesini talep ediyorum.\n\nHesap e-posta adresim: $email\n\n'
+        'Teşekkürler.',
+      )}',
+    );
+    final ok = await launchUrl(mailto);
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'E-posta açılamadı. sakir.caykara@gmail.com adresine yazın.',
+          ),
+        ),
+      );
+    }
   }
 
   void _showIletisimModal() {
@@ -3359,7 +4494,7 @@ class _MainShellState extends State<MainShell> {
                 _isAileRole ? 'Mevcut iyilik puanınız' : 'Mevcut puanınız',
                 style: const TextStyle(fontSize: 14, color: MetoColors.mutedFg),
               ),
-              Text(
+              L10nText(
                 '${_isAileRole ? '💚' : '🪙'} $_userKredi $_krediBirimLabel',
                 style: const TextStyle(
                   fontSize: 16,
@@ -3371,7 +4506,7 @@ class _MainShellState extends State<MainShell> {
           ),
         ),
         const SizedBox(height: 20),
-        const Text(
+        const L10nText(
           'PAKET SEÇ',
           style: TextStyle(
             fontSize: 11,
@@ -3412,7 +4547,7 @@ class _MainShellState extends State<MainShell> {
                           children: [
                             Row(
                               children: [
-                                Text(
+                                L10nText(
                                   '${p.adet} $_krediBirimLabelCap',
                                   style: const TextStyle(
                                     fontSize: 16,
@@ -3431,7 +4566,7 @@ class _MainShellState extends State<MainShell> {
                                       color: MetoColors.primary,
                                       borderRadius: BorderRadius.circular(99),
                                     ),
-                                    child: const Text(
+                                    child: const L10nText(
                                       'Popüler',
                                       style: TextStyle(
                                         fontSize: 11,
@@ -3444,7 +4579,7 @@ class _MainShellState extends State<MainShell> {
                               ],
                             ),
                             const SizedBox(height: 2),
-                            Text(
+                            L10nText(
                               p.desc,
                               style: const TextStyle(
                                 fontSize: 12,
@@ -3481,7 +4616,7 @@ class _MainShellState extends State<MainShell> {
             ),
           );
         }),
-        Text(
+        L10nText(
           'Ödeme ${StoreBillingService.instance.storeName} üzerinden alınır',
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
@@ -3510,7 +4645,7 @@ class _MainShellState extends State<MainShell> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    L10nText(
                       'Ödenecek Tutar',
                       style: TextStyle(
                         fontSize: 12,
@@ -3519,7 +4654,7 @@ class _MainShellState extends State<MainShell> {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
+                    L10nText(
                       '${paket.adet} $_krediBirimLabelCap',
                       style: const TextStyle(
                         fontSize: 16,
@@ -3556,8 +4691,8 @@ class _MainShellState extends State<MainShell> {
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Mağaza ödemesi'),
-          content: const Text(
+          title: const L10nText('Mağaza ödemesi'),
+          content: const L10nText(
             'Ödeme yalnızca Android (Google Play) veya iPhone/iPad (App Store) '
             'uygulamasında yapılır.\n\n'
             'Play Console / App Store Connect’te kredi_1, kredi_5, kredi_10 '
@@ -3567,7 +4702,7 @@ class _MainShellState extends State<MainShell> {
           actions: [
             FilledButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Tamam'),
+              child: const L10nText('Tamam'),
             ),
           ],
         ),
@@ -3781,8 +4916,7 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
   late final TextEditingController _sertifikalar;
   late final TextEditingController _calismaSekli;
   late final TextEditingController _hakkimda;
-  String? _sehir;
-  String? _ilce;
+  late LocationData _loc;
   bool _saving = false;
 
   bool get _isUzman => widget.role == 'uzman';
@@ -3794,16 +4928,6 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
       : _isBakici
           ? 'Bakıcı'
           : 'Aile';
-
-  List<String> get _ilceler {
-    final city = _sehir;
-    if (city == null) return const [];
-    return kTurkishCities[city]
-            ?.ilceler
-            .where((item) => item != kAllIlceler)
-            .toList() ??
-        const [];
-  }
 
   @override
   void initState() {
@@ -3817,8 +4941,11 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
     _sertifikalar = TextEditingController(text: p.sertifikalar);
     _calismaSekli = TextEditingController(text: p.calismaSekli);
     _hakkimda = TextEditingController(text: p.hakkimda);
-    _sehir = p.sehir.isEmpty ? null : p.sehir;
-    _ilce = p.ilce.isEmpty ? null : p.ilce;
+    _loc = p.location.countryCode.isEmpty && p.sehir.isEmpty
+        ? LocationData(
+            countryCode: countryCodeForLang(LocaleController.instance.lang),
+          )
+        : p.location;
   }
 
   @override
@@ -3892,15 +5019,16 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
   Future<void> _save() async {
     if (_adSoyad.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lütfen ad ve soyadınızı girin')),
+        const SnackBar(content: L10nText('Lütfen ad ve soyadınızı girin')),
       );
       return;
     }
     setState(() => _saving = true);
     widget.onSaved(KullaniciProfil(
       adSoyad: _adSoyad.text.trim(),
-      sehir: _sehir ?? '',
-      ilce: _ilce ?? '',
+      countryCode: _loc.countryCode,
+      sehir: _loc.legacyCity,
+      ilce: _loc.legacyDistrict,
       meslek: _meslek.text.trim(),
       egitim: _egitim.text.trim(),
       deneyimYili: _deneyim.text.trim(),
@@ -3928,7 +5056,7 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
+                child: L10nText(
                   '$_roleLabel Profili & Özgeçmiş',
                   style: const TextStyle(
                     fontSize: 16,
@@ -3947,7 +5075,7 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
             color: MetoColors.selectedBg,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Text(
+          child: L10nText(
             'Profiliniz başlangıçta boştur. Bilgileri siz doldurur ve istediğiniz zaman güncellersiniz.',
             style: const TextStyle(
               fontSize: 12,
@@ -3970,55 +5098,11 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
             style: const TextStyle(fontSize: 14, color: MetoColors.mutedFg),
           ),
         ),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _label('İl'),
-                  DropdownButtonFormField<String>(
-                    initialValue: _sehir,
-                    isExpanded: true,
-                    decoration: _dec('İl seçin'),
-                    items: kCityNames
-                        .map((city) =>
-                            DropdownMenuItem(value: city, child: Text(city)))
-                        .toList(),
-                    onChanged: (value) => setState(() {
-                      _sehir = value;
-                      _ilce = null;
-                    }),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _label('İlçe'),
-                  DropdownButtonFormField<String>(
-                    key: ValueKey('$_sehir-$_ilce'),
-                    initialValue: _ilce,
-                    isExpanded: true,
-                    decoration: _dec(_sehir == null ? 'Önce il' : 'İlçe seçin'),
-                    items: _ilceler
-                        .map((district) => DropdownMenuItem(
-                              value: district,
-                              child: Text(district),
-                            ))
-                        .toList(),
-                    onChanged: _sehir == null
-                        ? null
-                        : (value) => setState(() => _ilce = value),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        LocationCascadePicker(
+          value: _loc,
+          requireFullSelection: false,
+          showAnywhereOption: false,
+          onChanged: (loc) => setState(() => _loc = loc),
         ),
         const SizedBox(height: 14),
         if (_isUzman) ...[
@@ -4027,7 +5111,7 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
           _field('Eğitim', _egitim, 'Okul, bölüm ve mezuniyet yılı'),
           _field('Deneyim', _deneyim, 'Örn. 8 yıl'),
           _field('Çalışma Alanları', _uzmanliklar,
-              'Tanılar, terapi ve uzmanlık alanları',
+              'Durumlar, destek ve uzmanlık alanları',
               maxLines: 3),
           _field('Sertifikalar', _sertifikalar, 'Sertifika ve eğitimleri yazın',
               maxLines: 3),
@@ -4153,7 +5237,7 @@ class _CocukProfilFormState extends State<_CocukProfilForm> {
     final ad = _ad.text.trim();
     if (ad.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lütfen çocuğun adını girin')),
+        const SnackBar(content: L10nText('Lütfen çocuğun adını girin')),
       );
       return;
     }
@@ -4216,7 +5300,7 @@ class _CocukProfilFormState extends State<_CocukProfilForm> {
               ),
               const SizedBox(width: 8),
               const Expanded(
-                child: Text(
+                child: L10nText(
                   'Çocuk Profilim',
                   style: TextStyle(
                     fontSize: 16,
@@ -4236,8 +5320,8 @@ class _CocukProfilFormState extends State<_CocukProfilForm> {
             border:
                 Border.all(color: MetoColors.primary.withValues(alpha: 0.2)),
           ),
-          child: const Text(
-            'Tanı ve gelişim bilgileri yalnızca sizin hesabınızda saklanır; ilan ve tekliflerde otomatik paylaşılmaz.',
+          child: const L10nText(
+            'Durum ve gelişim bilgileri yalnızca sizin hesabınızda saklanır; ilan ve tekliflerde otomatik paylaşılmaz.',
             style: TextStyle(
               fontSize: 12,
               color: MetoColors.primary,
@@ -4286,7 +5370,7 @@ class _CocukProfilFormState extends State<_CocukProfilForm> {
           }).toList(),
         ),
         const SizedBox(height: 14),
-        _label('Tanı(lar)'),
+        _label('Durum(lar)'),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -4401,7 +5485,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
       if (!mounted) return;
       setState(() => _sending = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gönderilemedi: $e')),
+        SnackBar(content: L10nText('Gönderilemedi: $e')),
       );
     }
   }
@@ -4438,7 +5522,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          L10nText(
                             'İletişim',
                             style: TextStyle(
                               fontSize: 16,
@@ -4446,7 +5530,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                               color: MetoColors.foreground,
                             ),
                           ),
-                          Text(
+                          L10nText(
                             'Dilek, şikayet ve önerilerinizi iletin',
                             style: TextStyle(
                               fontSize: 12,
@@ -4483,7 +5567,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                         child: const Text('✅', style: TextStyle(fontSize: 28)),
                       ),
                       const SizedBox(height: 12),
-                      const Text(
+                      const L10nText(
                         'İletildi!',
                         style: TextStyle(
                           fontSize: 16,
@@ -4492,7 +5576,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      const Text(
+                      const L10nText(
                         'Mesajınız ekibimize ulaştı. En kısa sürede dönüş yapacağız.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
@@ -4514,7 +5598,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: const Text(
+                        child: const L10nText(
                           'Kapat',
                           style: TextStyle(fontWeight: FontWeight.w800),
                         ),
@@ -4529,7 +5613,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
+                        const L10nText(
                           'Mesaj Türü',
                           style: TextStyle(
                             fontSize: 12,
@@ -4622,7 +5706,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                           onChanged: (_) => setState(() {}),
                           decoration: InputDecoration(
                             counterText: '',
-                            hintText: 'Kısaca konuyu yazın...',
+                            hintText: S.auto('Kısaca konuyu yazın...'),
                             filled: true,
                             fillColor: MetoColors.muted,
                             border: OutlineInputBorder(
@@ -4668,7 +5752,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                           maxLines: 5,
                           onChanged: (_) => setState(() {}),
                           decoration: InputDecoration(
-                            hintText: 'Detaylı olarak açıklayın...',
+                            hintText: S.auto('Detaylı olarak açıklayın...'),
                             filled: true,
                             fillColor: MetoColors.muted,
                             border: OutlineInputBorder(
@@ -4695,10 +5779,10 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                           child: const Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('📧', style: TextStyle(fontSize: 14)),
+                              L10nText('📧', style: TextStyle(fontSize: 14)),
                               SizedBox(width: 8),
                               Expanded(
-                                child: Text(
+                                child: L10nText(
                                   'Yanıt için hesabınızdaki e-posta adresiniz kullanılacaktır. Lütfen güncel tutun.',
                                   style: TextStyle(
                                     fontSize: 11,
@@ -4751,8 +5835,13 @@ class _BrandBar extends StatelessWidget {
     required this.onAvatarTap,
     required this.onMenuTap,
     required this.onHomeTap,
+    this.onBellTap,
+    this.onMessagesTap,
     this.photoBytes,
     this.notificationBadge = 0,
+    this.messageBadge = 0,
+    this.messagesTourKey,
+    this.messagesSelected = false,
   });
 
   final String initials;
@@ -4760,12 +5849,79 @@ class _BrandBar extends StatelessWidget {
   final VoidCallback onAvatarTap;
   final VoidCallback onMenuTap;
   final VoidCallback onHomeTap;
+  final VoidCallback? onBellTap;
+  final VoidCallback? onMessagesTap;
   final Uint8List? photoBytes;
   final int notificationBadge;
+  final int messageBadge;
+  final GlobalKey? messagesTourKey;
+  final bool messagesSelected;
+
+  Widget _badgeIcon({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback? onPressed,
+    required int badge,
+    bool selected = false,
+  }) {
+    return IconButton(
+      onPressed: onPressed,
+      tooltip: tooltip,
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+      style: IconButton.styleFrom(
+        foregroundColor: Colors.white,
+        backgroundColor: selected
+            ? Colors.white.withValues(alpha: 0.18)
+            : Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Icon(icon, color: Colors.white, size: 26),
+          if (badge > 0)
+            Positioned(
+              right: -6,
+              top: -4,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 16),
+                height: 16,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444),
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(color: const Color(0xFF1A6B4A), width: 1.5),
+                ),
+                child: Text(
+                  badge > 9 ? '9+' : '$badge',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.paddingOf(context).top;
+    final messagesButton = _badgeIcon(
+      icon: messagesSelected ? Icons.chat_bubble : Icons.chat_bubble_outline,
+      tooltip: S.auto('Mesajlar'),
+      onPressed: onMessagesTap,
+      badge: messageBadge,
+      selected: messagesSelected,
+    );
+
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(16, topInset + 10, 12, 12),
@@ -4815,7 +5971,7 @@ class _BrandBar extends StatelessWidget {
                     ),
                     const SizedBox(width: 10),
                     Flexible(
-                      child: Text(
+                      child: L10nText(
                         'Engelsiz Club',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -4833,70 +5989,56 @@ class _BrandBar extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          _badgeIcon(
+            icon: Icons.notifications_outlined,
+            tooltip: S.auto('Bildirimler'),
+            onPressed: onBellTap,
+            badge: notificationBadge,
+          ),
+          if (messagesTourKey != null)
+            Showcase(
+              key: messagesTourKey!,
+              title: 'Mesajlar',
+              description:
+                  'Anlaştığın uzmanlar ve bakıcılarla güvenle mesajlaş, iletişimde kal.',
+              child: messagesButton,
+            )
+          else
+            messagesButton,
+          const SizedBox(width: 4),
           GestureDetector(
             onTap: onAvatarTap,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: avatarColor,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white70, width: 2),
-                    image: photoBytes != null
-                        ? DecorationImage(
-                            image: MemoryImage(photoBytes!),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                  ),
-                  child: photoBytes == null
-                      ? Text(
-                          initials,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        )
-                      : null,
-                ),
-                if (notificationBadge > 0)
-                  Positioned(
-                    right: -4,
-                    top: -4,
-                    child: Container(
-                      constraints: const BoxConstraints(minWidth: 16),
-                      height: 16,
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444),
-                        borderRadius: BorderRadius.circular(99),
-                        border: Border.all(color: Colors.white, width: 1.5),
+            child: Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: avatarColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white70, width: 2),
+                image: photoBytes != null
+                    ? DecorationImage(
+                        image: MemoryImage(photoBytes!),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+              ),
+              child: photoBytes == null
+                  ? Text(
+                      initials,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
                       ),
-                      child: Text(
-                        notificationBadge > 9 ? '9+' : '$notificationBadge',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          height: 1,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+                    )
+                  : null,
             ),
           ),
           const SizedBox(width: 4),
           IconButton(
             onPressed: onMenuTap,
-            tooltip: 'Menü',
+            tooltip: S.auto('Menü'),
             icon: const Icon(Icons.menu, color: Colors.white, size: 26),
             visualDensity: VisualDensity.compact,
           ),
@@ -4931,75 +6073,65 @@ class _BottomNav extends StatelessWidget {
   const _BottomNav({
     required this.active,
     required this.onSelect,
+    required this.onMoreTap,
     required this.tourKeys,
+    required this.moreTourKey,
+    this.moreActive = false,
     this.ilanlarNewCount = 0,
     this.forumNewCount = 0,
-    this.mesajlarUnread = 0,
     this.onSkipTour,
   });
 
   final MetoTab active;
   final ValueChanged<MetoTab> onSelect;
+  final VoidCallback onMoreTap;
   final Map<MetoTab, GlobalKey> tourKeys;
+  final GlobalKey moreTourKey;
+  final bool moreActive;
   final int ilanlarNewCount;
   final int forumNewCount;
-  final int mesajlarUnread;
   final VoidCallback? onSkipTour;
 
-  static const _items = [
+  static List<(MetoTab, String, IconData, IconData, String)> get _primaryItems => [
     (
       MetoTab.home,
-      'Ana',
+      S.t('nav_home'),
       Icons.home_outlined,
       Icons.home,
-      'Uygulamanın ana akışına, duyurulara ve genel içeriklere buradan ulaşabilirsin.'
+      S.t('tour_home'),
     ),
     (
       MetoTab.merkezler,
-      'Harita',
+      S.t('nav_map'),
       Icons.place_outlined,
       Icons.place,
-      'Yakınındaki özel gereksinimli kahramanları, uzmanları ve hizmet noktalarını harita üzerinden kolayca görüntüle.'
+      S.t('tour_map'),
     ),
     (
       MetoTab.ilanlar,
-      'İlanlar',
+      S.t('nav_listings'),
       Icons.work_outline,
       Icons.work,
-      'Bakıcı arayanlar veya hizmet vermek isteyenler için ilanları incele ya da kendi ilanını oluştur.'
+      S.t('tour_listings'),
     ),
     (
       MetoTab.forum,
-      'Forum',
+      S.t('nav_forum'),
       Icons.forum_outlined,
       Icons.forum,
-      'Diğer aileler ve uzmanlarla deneyimlerini paylaş, sorularına topluluktan destek bul.'
-    ),
-    (
-      MetoTab.mesajlar,
-      'Mesaj',
-      Icons.chat_bubble_outline,
-      Icons.chat_bubble,
-      'Anlaştığın uzmanlar ve bakıcılarla güvenle mesajlaş, iletişimde kal.'
-    ),
-    (
-      MetoTab.haklar,
-      'Haklar',
-      Icons.balance_outlined,
-      Icons.balance,
-      'Özel gereksinimli bireylerin ve ailelerinin yasal hakları, yönetmelikler ve devlet destekleri hakkında rehber bilgiler.'
-    ),
-    (
-      MetoTab.kartlar,
-      'Kartlar',
-      Icons.grid_view_outlined,
-      Icons.grid_view,
-      'Acil durum kartları ve hayatı kolaylaştıran dijital kartvizit/bilgi araçlarına buradan eriş.'
+      S.t('tour_forum'),
     ),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final primaryItems = _primaryItems;
+    final primaryActive =
+        active == MetoTab.home ||
+        active == MetoTab.merkezler ||
+        active == MetoTab.ilanlar ||
+        active == MetoTab.forum;
+
     return Container(
       decoration: const BoxDecoration(
         color: MetoColors.card,
@@ -5020,7 +6152,7 @@ class _BottomNav extends StatelessWidget {
       ),
       child: Row(
         children: [
-          for (final item in _items)
+          for (final item in primaryItems)
             Expanded(
               child: Showcase(
                 key: tourKeys[item.$1]!,
@@ -5029,25 +6161,46 @@ class _BottomNav extends StatelessWidget {
                 tooltipActions: [
                   TooltipActionButton(
                     type: TooltipDefaultActionType.skip,
-                    name: 'Geç',
+                    name: S.t('nav_skip'),
                     onTap: onSkipTour,
                   ),
                 ],
                 child: _NavItem(
                   label: item.$2,
-                  icon: active == item.$1 ? item.$4 : item.$3,
-                  active: active == item.$1,
-                  badge: item.$1 == MetoTab.mesajlar
-                      ? mesajlarUnread
-                      : item.$1 == MetoTab.ilanlar
-                          ? ilanlarNewCount
-                          : item.$1 == MetoTab.forum
-                              ? forumNewCount
-                              : 0,
+                  icon: (primaryActive && active == item.$1)
+                      ? item.$4
+                      : item.$3,
+                  active: primaryActive && active == item.$1,
+                  badge: item.$1 == MetoTab.ilanlar
+                      ? ilanlarNewCount
+                      : item.$1 == MetoTab.forum
+                          ? forumNewCount
+                          : 0,
                   onTap: () => onSelect(item.$1),
                 ),
               ),
             ),
+          Expanded(
+            child: Showcase(
+              key: moreTourKey,
+              title: S.t('nav_more'),
+              description: S.t('tour_more'),
+              tooltipActions: [
+                TooltipActionButton(
+                  type: TooltipDefaultActionType.skip,
+                  name: S.t('nav_skip'),
+                  onTap: onSkipTour,
+                ),
+              ],
+              child: _NavItem(
+                label: S.t('nav_more'),
+                icon: Icons.more_horiz,
+                iconSize: 34,
+                active: moreActive,
+                onTap: onMoreTap,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -5061,6 +6214,7 @@ class _NavItem extends StatelessWidget {
     required this.active,
     required this.onTap,
     this.badge = 0,
+    this.iconSize,
   });
 
   final String label;
@@ -5068,9 +6222,11 @@ class _NavItem extends StatelessWidget {
   final bool active;
   final VoidCallback onTap;
   final int badge;
+  final double? iconSize;
 
   @override
   Widget build(BuildContext context) {
+    final resolvedSize = iconSize ?? (active ? 27.0 : 26.0);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -5084,12 +6240,12 @@ class _NavItem extends StatelessWidget {
               children: [
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  width: 48,
-                  height: 36,
+                  width: 52,
+                  height: 40,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: active ? MetoColors.primary : Colors.transparent,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(18),
                     boxShadow: active
                         ? const [
                             BoxShadow(
@@ -5102,14 +6258,14 @@ class _NavItem extends StatelessWidget {
                   ),
                   child: Icon(
                     icon,
-                    size: active ? 23 : 22,
+                    size: resolvedSize,
                     color: active ? Colors.white : MetoColors.mutedFg,
                   ),
                 ),
                 if (badge > 0 && !active)
                   Positioned(
                     top: -4,
-                    right: -4,
+                    right: -2,
                     child: Container(
                       constraints: const BoxConstraints(minWidth: 16),
                       height: 16,
@@ -5133,11 +6289,14 @@ class _NavItem extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 5),
             Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: label.length > 7 ? 10 : 11,
                 fontWeight: FontWeight.w700,
                 height: 1,
                 color: active ? MetoColors.primary : MetoColors.mutedFg,

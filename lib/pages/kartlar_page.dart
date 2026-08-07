@@ -12,6 +12,8 @@ import '../meto_theme.dart';
 import '../services/app_catalog_service.dart';
 import '../services/catalog_adapters.dart';
 import '../widgets/catalog_media.dart';
+import '../l10n/app_strings.dart';
+import '../l10n/l10n_text.dart';
 
 /// Klavye tuşu gibi kısa titreşim (cihaz destekliyorsa).
 void _kartHaptic() {
@@ -200,7 +202,7 @@ class _KartlarPageState extends State<KartlarPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          const L10nText(
                             'İletişim Kartları',
                             style: TextStyle(
                               fontSize: 20,
@@ -361,7 +363,7 @@ class _KartlarPageState extends State<KartlarPage> {
                                   color: MetoColors.primary,
                                 ),
                                 SizedBox(width: 8),
-                                Text(
+                                L10nText(
                                   'Sesli Okuma',
                                   style: TextStyle(
                                     fontSize: 14,
@@ -372,7 +374,7 @@ class _KartlarPageState extends State<KartlarPage> {
                               ],
                             ),
                             SizedBox(height: 8),
-                            Text(
+                            L10nText(
                               'Karta dokunduğunuzda tam ekran açılır ve Türkçe sesli okuma başlar.',
                               style: TextStyle(
                                 fontSize: 12,
@@ -404,7 +406,7 @@ class _KartlarPageState extends State<KartlarPage> {
                                   color: MetoColors.primary,
                                 ),
                                 SizedBox(width: 6),
-                                Text(
+                                L10nText(
                                   'Kartları Kişiselleştir',
                                   style: TextStyle(
                                     fontSize: 12,
@@ -592,7 +594,7 @@ class _CardTile extends StatelessWidget {
                   else
                     Text(card.emoji, style: const TextStyle(fontSize: 32)),
                   const SizedBox(height: 4),
-                  Text(
+                  L10nText(
                     card.label,
                     textAlign: TextAlign.center,
                     maxLines: 2,
@@ -605,7 +607,7 @@ class _CardTile extends StatelessWidget {
                     ),
                   ),
                   if (card.isCustom)
-                    Text(
+                    L10nText(
                       'özel',
                       style: TextStyle(
                         fontSize: 8,
@@ -662,7 +664,7 @@ class _AddCardTile extends StatelessWidget {
               children: [
                 Icon(Icons.add, size: 24, color: MetoColors.primary),
                 SizedBox(height: 4),
-                Text(
+                L10nText(
                   'Yeni Kart',
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -898,7 +900,7 @@ class _CardOverlayState extends State<_CardOverlay>
                                 color: Colors.white,
                               ),
                               SizedBox(width: 10),
-                              Text(
+                              L10nText(
                                 'Sesli Oku',
                                 style: TextStyle(
                                   fontSize: 16,
@@ -912,7 +914,7 @@ class _CardOverlayState extends State<_CardOverlay>
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Text(
+                    L10nText(
                       'Kapatmak için X’e veya dışarıya bas',
                       style: TextStyle(
                         fontSize: 13,
@@ -1053,7 +1055,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Text(
+                          const L10nText(
                             'Fotoğraf (isteğe bağlı)',
                             style: TextStyle(
                               fontSize: 12,
@@ -1121,7 +1123,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                                           style: const TextStyle(fontSize: 28),
                                         ),
                                         const SizedBox(height: 4),
-                                        Text(
+                                        L10nText(
                                           'Fotoğraf ekle',
                                           style: TextStyle(
                                             fontSize: 12,
@@ -1129,7 +1131,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                                             color: _draft.color,
                                           ),
                                         ),
-                                        const Text(
+                                        const L10nText(
                                           'Galeriden seç',
                                           style: TextStyle(
                                             fontSize: 10,
@@ -1141,7 +1143,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          const Text(
+                          const L10nText(
                             'İfade (Kart yazısı)',
                             style: TextStyle(
                               fontSize: 12,
@@ -1156,7 +1158,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                               _draft = _draft.copyWith(label: v);
                             }),
                             decoration: InputDecoration(
-                              hintText: 'Örn: Elma, Salıncak, Dede...',
+                              hintText: S.auto('Örn: Elma, Salıncak, Dede...'),
                               filled: true,
                               fillColor: MetoColors.muted,
                               border: OutlineInputBorder(
@@ -1175,7 +1177,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          const Text(
+                          const L10nText(
                             'Açıklama (isteğe bağlı)',
                             style: TextStyle(
                               fontSize: 12,
@@ -1194,8 +1196,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                             }),
                             maxLines: 2,
                             decoration: InputDecoration(
-                              hintText:
-                                  'Bu kartın ne anlama geldiğini yazın...',
+                              hintText: S.auto('Bu kartın ne anlama geldiğini yazın...'),
                               filled: true,
                               fillColor: MetoColors.muted,
                               border: OutlineInputBorder(
@@ -1214,7 +1215,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                           ),
                           if (photoBytes == null) ...[
                             const SizedBox(height: 16),
-                            const Text(
+                            const L10nText(
                               'Simge',
                               style: TextStyle(
                                 fontSize: 12,
@@ -1260,7 +1261,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                             ),
                           ],
                           const SizedBox(height: 16),
-                          const Text(
+                          const L10nText(
                             'Renk',
                             style: TextStyle(
                               fontSize: 12,
@@ -1309,7 +1310,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                             ],
                           ),
                           const SizedBox(height: 16),
-                          const Text(
+                          const L10nText(
                             'Kategori',
                             style: TextStyle(
                               fontSize: 12,
@@ -1362,7 +1363,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                             },
                           ),
                           const SizedBox(height: 16),
-                          const Text(
+                          const L10nText(
                             'Önizleme',
                             style: TextStyle(
                               fontSize: 12,

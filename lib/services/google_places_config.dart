@@ -1,29 +1,29 @@
-/// Google Places API anahtarı.
+/// Google Maps / Places API anahtar yapılandırması.
 ///
-/// Kullanım:
-/// 1) Aşağıdaki [apiKeyFallback] alanına anahtarı yazın, VEYA
-/// 2) Çalıştırırken / build alırken:
-///    flutter run --dart-define=GOOGLE_PLACES_API_KEY=AIza...
-///    flutter build web --dart-define=GOOGLE_PLACES_API_KEY=AIza...
+/// Cloud Console'da açık olmalı:
+///   Places API (New), Maps SDK for Android, Maps SDK for iOS, Maps JavaScript API
 ///
-/// Google Cloud Console → APIs & Services → Credentials
-/// → Places API (Nearby Search / Place Details) etkinleştirin.
-/// Web'de tarayıcı CORS kısıtı olabilir; mobil/desktop'ta tam çalışır.
+/// dart-define ile override:
+///   flutter build appbundle --dart-define=GOOGLE_MAPS_API_KEY=AIza...
 class GooglePlacesConfig {
   GooglePlacesConfig._();
 
-  /// dart-define ile gelen anahtar (öncelikli).
   static const _fromEnv = String.fromEnvironment(
+    'GOOGLE_MAPS_API_KEY',
+    defaultValue: '',
+  );
+
+  static const _fromEnvLegacy = String.fromEnvironment(
     'GOOGLE_PLACES_API_KEY',
     defaultValue: '',
   );
 
-  /// Sabit alan — anahtarınızı buraya yapıştırabilirsiniz.
-  /// Örnek: 'AIzaSy................'
-  static const apiKeyFallback = 'YOUR_GOOGLE_PLACES_API_KEY';
+  /// Proje anahtarı (Android / iOS / Places / Maps JS).
+  static const apiKeyFallback = 'AIzaSyAHDu7hYJInYdPhrg8i0YdEzgfl0lL502o';
 
   static String get apiKey {
     if (_fromEnv.trim().isNotEmpty) return _fromEnv.trim();
+    if (_fromEnvLegacy.trim().isNotEmpty) return _fromEnvLegacy.trim();
     return apiKeyFallback.trim();
   }
 

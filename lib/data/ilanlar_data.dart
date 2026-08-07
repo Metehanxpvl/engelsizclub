@@ -106,6 +106,64 @@ class SohbetKisi {
 
 enum IlanKategori { uzmanlar, bakici, ikinciel }
 
+/// 2. el ilan alt kategorisi (filtre + form).
+const kIkincielAltMedikal = 'Medikal Malzemeler';
+const kIkincielAltDiger = 'Diğer';
+const kIkincielAltKategoriler = <String>[
+  kIkincielAltMedikal,
+  kIkincielAltDiger,
+];
+
+String _normTrIkinciel(String s) => s
+    .trim()
+    .toLowerCase()
+    .replaceAll('ı', 'i')
+    .replaceAll('İ', 'i')
+    .replaceAll('ş', 's')
+    .replaceAll('ğ', 'g')
+    .replaceAll('ü', 'u')
+    .replaceAll('ö', 'o')
+    .replaceAll('ç', 'c');
+
+/// Kayıtlı `category` değerini Medikal / Diğer altına çözer.
+String ikincielAltKategoriOf(String category) {
+  final c = _normTrIkinciel(category);
+  if (c.isEmpty) return kIkincielAltDiger;
+  if (c == 'diger' || c == 'other' || c == 'autres' || c == 'sonstiges') {
+    return kIkincielAltDiger;
+  }
+  if (c.contains('medikal') ||
+      c.contains('medical') ||
+      c.contains('medizin')) {
+    return kIkincielAltMedikal;
+  }
+  // Eski demo / serbest kategori etiketleri
+  const medicalHints = <String>[
+    'tekerlekli',
+    'sandalye',
+    'yurutec',
+    'yürütec',
+    'ortez',
+    'protez',
+    'terapi',
+    'adaptif',
+    'iletisim',
+    'cihaz',
+    'medikal',
+    'walker',
+    'wheelchair',
+    'isi',
+    'oksijen',
+    'dinleme',
+    'isime',
+  ];
+  for (final h in medicalHints) {
+    if (c.contains(_normTrIkinciel(h))) return kIkincielAltMedikal;
+  }
+  return kIkincielAltDiger;
+}
+
+
 class UzmanRenk {
   const UzmanRenk({
     required this.color,
@@ -154,6 +212,7 @@ class UzmanIlani {
     required this.urgent,
     required this.poster,
     this.photos = const [],
+    this.countryCode = 'TR',
   });
 
   final int id;
@@ -173,6 +232,7 @@ class UzmanIlani {
   final IlanPoster poster;
   /// Uzman / bakıcı ilanlarında en fazla 2 fotoğraf.
   final List<IlanPhoto> photos;
+  final String countryCode;
 }
 
 class BakiciIlani {
@@ -191,6 +251,7 @@ class BakiciIlani {
     required this.urgent,
     required this.poster,
     this.photos = const [],
+    this.countryCode = 'TR',
   });
 
   final int id;
@@ -208,6 +269,7 @@ class BakiciIlani {
   final IlanPoster poster;
   /// Uzman / bakıcı ilanlarında en fazla 2 fotoğraf.
   final List<IlanPhoto> photos;
+  final String countryCode;
 }
 
 /// 2. el ürün durumu seçenekleri (ilan formu + badge).
@@ -255,6 +317,7 @@ class IkincielIlani {
     required this.emoji,
     required this.photos,
     required this.poster,
+    this.countryCode = 'TR',
   });
 
   final int id;
@@ -272,6 +335,7 @@ class IkincielIlani {
   final String emoji;
   final List<IlanPhoto> photos;
   final IlanPoster poster;
+  final String countryCode;
 }
 
 /// 2. el ilan görseli — gerçek foto (data URL) veya örnek renk kutusu.
@@ -335,6 +399,11 @@ const uzmanRenk = <String, UzmanRenk>{
     bg: Color(0xFFEEF5FB),
     emoji: '📚',
   ),
+  'Gölge Öğretmen': UzmanRenk(
+    color: Color(0xFF0D9488),
+    bg: Color(0xFFECFDF5),
+    emoji: '🧑‍🏫',
+  ),
   'Dil Terapisti': UzmanRenk(
     color: _e07,
     bg: Color(0xFFFDF0EC),
@@ -358,6 +427,7 @@ const kUzmanlikSecenekleri = <String>[
   'Ergoterapist',
   'Dil Konuşma Terapisti',
   'Özel Eğitim Öğretmeni',
+  'Gölge Öğretmen',
   'Psikolog',
 ];
 

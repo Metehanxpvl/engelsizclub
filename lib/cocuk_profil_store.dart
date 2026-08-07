@@ -30,8 +30,8 @@ class CocukProfil {
   bool get isFilled => ad.trim().isNotEmpty;
 
   String get menuSub {
-    if (!isFilled) return 'Tanı ve gelişim bilgileri';
-    final tani = tanilar.isEmpty ? 'Tanı eklenmedi' : tanilar.take(2).join(', ');
+    if (!isFilled) return 'Durum ve gelişim bilgileri';
+    final tani = tanilar.isEmpty ? 'Durum eklenmedi' : tanilar.take(2).join(', ');
     return '$ad · $tani';
   }
 
@@ -103,7 +103,7 @@ const kCocukTaniSecenekleri = <String>[
   'Gelişim Geriliği',
   'Duyu Bütünleme Sorunları',
   'İletişim Bozuklukları',
-  'Nadir Hastalıklar',
+  'Nadir Durumlar',
   'Diğer',
 ];
 

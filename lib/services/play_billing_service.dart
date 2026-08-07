@@ -8,13 +8,15 @@ abstract final class StoreProductIds {
   static const kredi1 = 'kredi_1';
   static const kredi5 = 'kredi_5';
   static const kredi10 = 'kredi_10';
+  static const kredi20 = 'kredi_20';
 
-  static const all = <String>{kredi1, kredi5, kredi10};
+  static const all = <String>{kredi1, kredi5, kredi10, kredi20};
 
   static String? forAdet(int adet) => switch (adet) {
         1 => kredi1,
         5 => kredi5,
         10 => kredi10,
+        20 => kredi20,
         _ => null,
       };
 
@@ -22,6 +24,7 @@ abstract final class StoreProductIds {
         kredi1 => 1,
         kredi5 => 5,
         kredi10 => 10,
+        kredi20 => 20,
         _ => null,
       };
 }

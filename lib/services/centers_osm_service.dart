@@ -28,15 +28,13 @@ class CentersOsmService {
   static const _searchQueries = <String>[
     'özel eğitim ve rehabilitasyon merkezi',
     'özel eğitim rehabilitasyon merkezi',
-    'özel eğitim ve rehabilitasyon',
     'özel eğitim merkezi',
     'özel rehabilitasyon merkezi',
     'rehabilitasyon merkezi',
-    'fizyoterapi merkezi çocuk',
-    'dil ve konuşma terapisi',
-    'ergoterapi merkezi',
-    'duyu bütünleme merkezi',
-    'ABA terapi merkezi',
+    'fizyoterapi merkezi',
+    'fizik tedavi merkezi',
+    'medikal malzeme',
+    'ortopedik medikal',
   ];
 
   static final Map<String, ({double lat, double lng})> _geoCache = {};
@@ -254,6 +252,7 @@ class CentersOsmService {
         addressParts.add('$ilce / $city');
 
         final category = _categoryFromName(name);
+        if (category == 'SKIP') continue;
         out.add(MetoCenter(
           id: id++,
           city: city,
@@ -288,16 +287,14 @@ class CentersOsmService {
     final query = '''
 [out:json][timeout:40];
 (
-  nwr["name"~"özel eğitim|ozel egitim|özel egitim|eğitim ve rehabilitasyon|egitim ve rehabilitasyon|eğitim rehabilitasyon|rehabilitasyon merkezi|rehabilitasyon|fizyoterapi|fizik tedavi|ergoterapi|dil ve konuşma|dil terapi|konuşma terapi|çocuk gelişim|cocuk gelisim|aba terapi|duyu bütünleme|duyu butunleme|özel rehabilitasyon|oerm",i](around:$radiusM,$lat,$lng);
+  nwr["name"~"özel eğitim|ozel egitim|eğitim ve rehabilitasyon|egitim ve rehabilitasyon|rehabilitasyon merkezi|fizyoterapi|fizik tedavi|özel rehabilitasyon|oerm|medikal|ortopedik|ortez|protez",i](around:$radiusM,$lat,$lng);
   nwr["healthcare"="rehabilitation"](around:$radiusM,$lat,$lng);
   nwr["healthcare"="physiotherapist"](around:$radiusM,$lat,$lng);
-  nwr["healthcare"="speech_therapist"](around:$radiusM,$lat,$lng);
-  nwr["healthcare"="occupational_therapist"](around:$radiusM,$lat,$lng);
-  nwr["amenity"="clinic"]["name"~"özel|rehab|fizyo|terapi|eğitim|egitim|dil|ergo",i](around:$radiusM,$lat,$lng);
-  nwr["amenity"="school"]["name"~"özel eğitim|rehabilitasyon|ozel egitim|eğitim ve rehabilitasyon",i](around:$radiusM,$lat,$lng);
+  nwr["shop"="medical_supply"](around:$radiusM,$lat,$lng);
+  nwr["shop"="orthopedic"](around:$radiusM,$lat,$lng);
+  nwr["amenity"="clinic"]["name"~"özel|rehab|fizyo|eğitim|egitim|medikal",i](around:$radiusM,$lat,$lng);
+  nwr["amenity"="school"]["name"~"özel eğitim|rehabilitasyon|ozel egitim",i](around:$radiusM,$lat,$lng);
   nwr["amenity"="special_school"](around:$radiusM,$lat,$lng);
-  nwr["office"="therapist"](around:$radiusM,$lat,$lng);
-  nwr["social_facility:for"~"child|disabled|mental_health",i](around:$radiusM,$lat,$lng);
 );
 out center tags 120;
 ''';
@@ -348,6 +345,7 @@ out center tags 120;
 
           final ilce = _districtFromTags(tags) ?? 'Merkez';
           final category = _categoryFromTags(tags, name);
+          if (category == 'SKIP') continue;
           out.add(MetoCenter(
             id: id++,
             city: city,
@@ -419,21 +417,16 @@ out center tags 120;
       'rehabilitasyon',
       'fizyoterapi',
       'fizik tedavi',
-      'ergoterapi',
-      'dil terapi',
-      'dil ve konusma',
-      'konusma terapi',
-      'duyu butunleme',
-      'aba',
-      'cocuk gelisim',
+      'medikal',
+      'ortoped',
+      'ortez',
+      'protez',
+      'saglik malzem',
       'ozel rehabilitasyon',
       'oerm',
       'special school',
-      'speech',
-      'occupational',
       'physiotherapist',
       'rehabilitation',
-      'therapist',
     ];
     const negatives = [
       'otel',
@@ -482,69 +475,66 @@ out center tags 120;
   }
 
   static String _categoryFromTags(Map<String, dynamic> tags, String name) {
-    final hc = tags['healthcare']?.toString().toLowerCase() ?? '';
-    if (hc.contains('speech')) return 'Dil & Konuşma Terapisi';
-    if (hc.contains('occupational')) return 'Ergoterapi';
-    if (hc.contains('physio')) return 'Fizik Tedavi & Rehabilitasyon';
+    final shop = (tags['shop']?.toString() ?? '').toLowerCase();
+    final hc = (tags['healthcare']?.toString() ?? '').toLowerCase();
+    if (shop.contains('medical') || shop.contains('orthopedic')) {
+      return 'Medikal';
+    }
+    if (hc.contains('speech')) return 'SKIP';
+    if (hc.contains('physio')) return 'Fizik Tedavi';
+    if (hc.contains('rehab')) return 'Özel Eğitim';
     return _categoryFromName(name);
   }
 
   static String _categoryFromName(String name) {
     final n = _norm(name);
+    if (n.contains('medikal') ||
+        n.contains('ortoped') ||
+        n.contains('ortez') ||
+        n.contains('protez') ||
+        n.contains('saglik malzem')) {
+      return 'Medikal';
+    }
+    if (n.contains('fizyo') || n.contains('fizik')) {
+      return 'Fizik Tedavi';
+    }
+    if (n.contains('dil') ||
+        n.contains('konusma') ||
+        n.contains('noro') ||
+        n.contains('ergo') ||
+        n.contains('duyu') ||
+        n.contains('gelisim')) {
+      return 'SKIP';
+    }
     if (n.contains('ozel egitim') ||
         n.contains('egitim ve rehabilitasyon') ||
         n.contains('egitim rehabilitasyon') ||
         n.contains('ozel rehabilitasyon') ||
         n.contains('aba') ||
-        n.contains('oerm')) {
-      return 'Özel Eğitim & Rehabilitasyon';
+        n.contains('oerm') ||
+        n.contains('rehabilitasyon')) {
+      return 'Özel Eğitim';
     }
-    if (n.contains('dil') || n.contains('konusma')) {
-      return 'Dil & Konuşma Terapisi';
-    }
-    if (n.contains('ergo') || n.contains('duyu')) {
-      return 'Ergoterapi';
-    }
-    if (n.contains('noro')) {
-      return 'Çocuk Nörolojisi';
-    }
-    if (n.contains('fizyo') || n.contains('fizik')) {
-      return 'Fizik Tedavi & Rehabilitasyon';
-    }
-    if (n.contains('rehabilitasyon')) {
-      return 'Özel Eğitim & Rehabilitasyon';
-    }
-    if (n.contains('gelisim')) {
-      return 'Çocuk Gelişimi';
-    }
-    return 'Özel Eğitim & Rehabilitasyon';
+    return 'Özel Eğitim';
   }
 
   static List<String> _servicesFrom(String category) {
     if (category.contains('Özel Eğitim')) {
-      return const ['Özel Eğitim', 'ABA Terapisi', 'Sosyal Beceri'];
+      return const ['Özel Eğitim', 'Destek Eğitimi'];
     }
-    if (category.contains('Dil')) {
-      return const ['Konuşma Terapisi', 'Dil Terapisi', 'AAC'];
+    if (category.contains('Medikal')) {
+      return const ['Medikal Malzeme', 'Ortez / Protez'];
     }
-    if (category.contains('Ergo')) {
-      return const ['Ergoterapi', 'Duyu Bütünleme'];
+    if (category.contains('Fizik')) {
+      return const ['Fizik Tedavi', 'Rehabilitasyon'];
     }
-    if (category.contains('Nöro')) {
-      return const ['Çocuk Nöroloji', 'Gelişim Değerlendirme'];
-    }
-    if (category.contains('Gelişim')) {
-      return const ['Gelişim Değerlendirme', 'Oyun Terapisi'];
-    }
-    return const ['Fizik Tedavi', 'Rehabilitasyon', 'Ergoterapi'];
+    return const ['Rehabilitasyon'];
   }
 
   static Color _colorFor(String category) {
-    if (category.contains('Özel Eğitim')) return const Color(0xFFE07A5F);
-    if (category.contains('Dil')) return const Color(0xFF9C6DB3);
-    if (category.contains('Ergo')) return const Color(0xFFF4A832);
-    if (category.contains('Nöro')) return const Color(0xFF6B9AC4);
-    if (category.contains('Gelişim')) return const Color(0xFF1A6B4A);
+    if (category.contains('Özel Eğitim')) return const Color(0xFF2563EB);
+    if (category.contains('Medikal')) return const Color(0xFFF4A832);
+    if (category.contains('Fizik')) return const Color(0xFF1A6B4A);
     return const Color(0xFF1A6B4A);
   }
 

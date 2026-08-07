@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Engelsiz Club">
+  <!-- Solid pure white app-icon canvas -->
+  <rect width="1024" height="1024" fill="#FFFFFF"/>
+
+  <!--
+    Faithful recreation of the dark-green wheelchair + stick figure logo.
+    Character sits on an "e"-shaped wheelchair; raised hand makes OK gesture.
+    Uniform rounded stroke, centered with ~12% padding.
+  -->
+  <g fill="none" stroke="#2D4A3E" stroke-width="52" stroke-linecap="round" stroke-linejoin="round" transform="translate(512 540) scale(1.05)">
+    <!-- Wheelchair "e" wheel (large open loop) -->
+    <path d="M -210,-40
+             C -210,-170  -90,-250  40,-250
+             C 190,-250  290,-150  290,-20
+             C 290,130  170,230  20,230
+             C -110,230 -210,130 -210,10"/>
+
+    <!-- Seat / crossbar of the "e" -->
+    <path d="M -210,10 H 120"/>
+
+    <!-- Front footrest -->
+    <path d="M 120,10 L 195,95 L 255,95"/>
+
+    <!-- Backrest + push handle -->
+    <path d="M -150,10 V -210 H -230"/>
+
+    <!-- Armrest -->
+    <path d="M -150,-70 H -20" stroke-width="40"/>
+
+    <!-- Torso -->
+    <path d="M -95,10 V -115" stroke-width="48"/>
+
+    <!-- Raised arm to OK hand -->
+    <path d="M -95,-90 C -40,-110  20,-70  55,-20" stroke-width="44"/>
+
+    <!-- OK gesture: thumb-index circle + fingers -->
+    <circle cx="85" cy="-5" r="28" stroke-width="36"/>
+    <path d="M 105,-25 L 130,-70" stroke-width="34"/>
+    <path d="M 112,-10 L 150,-45" stroke-width="34"/>
+    <path d="M 108,10 L 145,-15" stroke-width="34"/>
+  </g>
+
+  <!-- Head (outline circle) -->
+  <g fill="none" stroke="#2D4A3E" stroke-width="44" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="430" cy="290" r="88"/>
+    <!-- Messy tufted hair -->
+    <path d="M 372,230
+             C 380,185  405,170  430,185
+             C 450,165  480,170  488,210
+             C 510,195  530,215  515,245"/>
+    <!-- Eyes -->
+    <path d="M 400,285 v 18" stroke-width="28"/>
+    <path d="M 455,285 v 18" stroke-width="28"/>
+    <!-- Nose -->
+    <path d="M 428,300 c 8,6 8,14 0,18" stroke-width="22"/>
+    <!-- Smile -->
+    <path d="M 395,325 Q 430,355 465,325" stroke-width="26"/>
+  </g>
+</svg>

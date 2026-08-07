@@ -5,14 +5,32 @@ import 'package:flutter/material.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 
+const _r2ServeBase =
+    'https://qycrkqwqrysypvqaipqn.supabase.co/functions/v1/r2-serve';
+
+/// Eski pub-*.r2.dev linklerini CORS'lu proxy'ye çevirir.
+String? resolveIlanPhotoUrl(String? source) {
+  final src = (source ?? '').trim();
+  if (src.isEmpty) return src;
+  final uri = Uri.tryParse(src);
+  if (uri == null || !uri.hasScheme) return src;
+  if (uri.host.endsWith('.r2.dev')) {
+    final key = uri.path.replaceFirst(RegExp(r'^/+'), '');
+    if (key.startsWith('ilanlar/')) {
+      return '$_r2ServeBase?key=${Uri.encodeQueryComponent(key)}';
+    }
+  }
+  return src;
+}
+
 /// data: / http(s) / asset yolundan [ImageProvider] üretir.
 ImageProvider? galleryImageProvider(String? source) {
-  final src = (source ?? '').trim();
+  final src = resolveIlanPhotoUrl(source) ?? '';
   if (src.isEmpty) return null;
   if (src.startsWith('http://') || src.startsWith('https://')) {
     return NetworkImage(src);
   }
-  if (src.startsWith('data:image')) {
+  if (src.startsWith('data:image') || src.startsWith('data:')) {
     try {
       final b64 = src.contains(',') ? src.split(',').last : src;
       return MemoryImage(Uint8List.fromList(base64Decode(b64)));
@@ -32,6 +50,68 @@ List<ImageProvider> galleryProvidersFromSources(Iterable<String> sources) {
       if (galleryImageProvider(s) != null) galleryImageProvider(s)!,
   ];
 }
+
+/// Kapak/kart fotoğrafı.
+/// Web'de NetworkImage CORS kırılmasını `webHtmlElementStrategy` ile aşar.
+class FillPhoto extends StatelessWidget {
+  const FillPhoto({
+    super.key,
+    required this.source,
+    this.fit = BoxFit.cover,
+    this.width = double.infinity,
+    this.height = double.infinity,
+    this.placeholder,
+  });
+
+  final String? source;
+  final BoxFit fit;
+  final double? width;
+  final double? height;
+  final Widget? placeholder;
+
+  @override
+  Widget build(BuildContext context) {
+    final src = resolveIlanPhotoUrl(source) ?? '';
+    if (src.isEmpty) return placeholder ?? const SizedBox.shrink();
+
+    if (src.startsWith('http://') || src.startsWith('https://')) {
+      return Image.network(
+        src,
+        fit: fit,
+        width: width,
+        height: height,
+        gaplessPlayback: true,
+        webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+        errorBuilder: (_, __, ___) =>
+            placeholder ?? const SizedBox.shrink(),
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return placeholder ??
+              const Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              );
+        },
+      );
+    }
+
+    final provider = galleryImageProvider(src);
+    if (provider == null) return placeholder ?? const SizedBox.shrink();
+    return Image(
+      image: provider,
+      fit: fit,
+      width: width,
+      height: height,
+      gaplessPlayback: true,
+      errorBuilder: (_, __, ___) =>
+          placeholder ?? const SizedBox.shrink(),
+    );
+  }
+}
+
 
 /// Tam ekran galeri / lightbox (pinch-zoom, swipe, oklar, X, aşağı kaydırarak kapat).
 Future<void> openPhotoGallery(

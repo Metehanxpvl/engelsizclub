@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,10 +13,18 @@ import 'package:showcaseview/showcaseview.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 
 import 'firebase_options.dart';
+import 'apple_auth_service.dart';
 import 'google_auth_service.dart';
+import 'guest_limit_store.dart';
 import 'kredi_store.dart';
+import 'legal/legal_texts.dart';
+import 'l10n/content_translator.dart';
+import 'l10n/locale_controller.dart';
+import 'l10n/app_strings.dart';
+import 'l10n/l10n_text.dart';
 import 'main_shell.dart';
 import 'meto_theme.dart';
+import 'pages/legal_document_page.dart';
 import 'services/app_catalog_service.dart';
 import 'services/push_notification_service.dart';
 
@@ -205,7 +214,7 @@ Future<void> main() async {
       statusBarIconBrightness: Brightness.light,
     ),
   );
-  runApp(const MetoCareApp());
+  runApp(const ProviderScope(child: MetoCareApp()));
 }
 
 class MetoCareApp extends StatefulWidget {
@@ -226,6 +235,8 @@ class _MetoCareAppState extends State<MetoCareApp> {
   void initState() {
     super.initState();
     try {
+      unawaited(LocaleController.instance.ensureLoaded());
+      unawaited(ContentTranslator.instance.ensureLoaded());
       _restoreSession();
       _authSub =
           Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
@@ -266,11 +277,18 @@ class _MetoCareAppState extends State<MetoCareApp> {
           }
           final notice = googleAuthNotice;
           googleAuthNotice = null;
+          final auth = authUserFromSupabase(
+            user,
+            fallbackUserType: pendingRole,
+          );
+          final safe =
+              (auth.userType == null || auth.userType!.isEmpty) &&
+                      pendingRole != null &&
+                      pendingRole.isNotEmpty
+                  ? auth.copyWith(userType: pendingRole)
+                  : auth;
           setState(() {
-            _user = authUserFromSupabase(
-              user,
-              fallbackUserType: pendingRole,
-            );
+            _user = safe;
             _booting = false;
           });
           if (notice != null && notice.isNotEmpty) {
@@ -304,18 +322,38 @@ class _MetoCareAppState extends State<MetoCareApp> {
   Future<void> _restoreSession() async {
     try {
       // Firebase redirect dönüşü (popup engellendiğinde)
+      final pendingBefore = await readPendingGoogleRole();
       final redirected = await GoogleAuthService.completeRedirectIfAny();
       if (redirected?.user != null) {
         final user = await finalizePendingGoogleRole(redirected!.user!);
         if (mounted) {
+          final notice = googleAuthNotice;
+          googleAuthNotice = null;
+          final auth = user == null
+              ? null
+              : authUserFromSupabase(
+                  user,
+                  fallbackUserType: pendingBefore,
+                );
+          final safe = auth == null
+              ? null
+              : ((auth.userType == null || auth.userType!.isEmpty) &&
+                      pendingBefore != null)
+                  ? auth.copyWith(userType: pendingBefore)
+                  : auth;
           setState(() {
-            _user = user == null ? null : authUserFromSupabase(user);
+            _user = safe;
             _booting = false;
           });
+          if (notice != null && notice.isNotEmpty) {
+            _messengerKey.currentState
+                ?.showSnackBar(SnackBar(content: Text(notice)));
+          }
         }
         return;
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Google redirect restore: $e');
       // Redirect yok / başarısız → normal oturum kontrolüne devam
     }
 
@@ -330,10 +368,17 @@ class _MetoCareAppState extends State<MetoCareApp> {
       if (mounted) {
         final notice = googleAuthNotice;
         googleAuthNotice = null;
+        final auth = user == null
+            ? null
+            : authUserFromSupabase(user, fallbackUserType: pendingRole);
+        final safe = auth == null
+            ? null
+            : ((auth.userType == null || auth.userType!.isEmpty) &&
+                    pendingRole != null)
+                ? auth.copyWith(userType: pendingRole)
+                : auth;
         setState(() {
-          _user = user == null
-              ? null
-              : authUserFromSupabase(user, fallbackUserType: pendingRole);
+          _user = safe;
           _booting = false;
         });
         if (notice != null && notice.isNotEmpty) {
@@ -344,8 +389,14 @@ class _MetoCareAppState extends State<MetoCareApp> {
     } catch (_) {
       if (mounted) {
         final still = Supabase.instance.client.auth.currentSession;
+        final pendingRole = await readPendingGoogleRole();
         setState(() {
-          _user = still == null ? null : authUserFromSupabase(still.user);
+          _user = still == null
+              ? null
+              : authUserFromSupabase(
+                  still.user,
+                  fallbackUserType: pendingRole,
+                );
           _booting = false;
         });
       }
@@ -365,52 +416,81 @@ class _MetoCareAppState extends State<MetoCareApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'EngelsizClub',
-      debugShowCheckedModeBanner: false,
-      scaffoldMessengerKey: _messengerKey,
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: MetoColors.background,
-        textTheme: GoogleFonts.nunitoTextTheme(),
-        primaryTextTheme: GoogleFonts.nunitoTextTheme(),
-        colorScheme: const ColorScheme.light(
-          primary: MetoColors.primary,
-          onPrimary: Colors.white,
-          surface: MetoColors.card,
-          onSurface: MetoColors.foreground,
-        ),
-      ),
-      home: _booting
-          ? const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            )
-          : _needsPasswordReset
-              ? _NewPasswordScreen(
-                  onDone: () async {
-                    final u = Supabase.instance.client.auth.currentUser;
-                    if (!mounted) return;
-                    setState(() {
-                      _needsPasswordReset = false;
-                      _user = u == null ? null : authUserFromSupabase(u);
-                    });
-                  },
-                  onCancel: () async {
-                    await Supabase.instance.client.auth.signOut();
-                    if (!mounted) return;
-                    setState(() {
-                      _needsPasswordReset = false;
-                      _user = null;
-                    });
-                  },
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        LocaleController.instance,
+        ContentTranslator.instance,
+      ]),
+      builder: (context, _) {
+        final lang = LocaleController.instance.lang;
+        return MaterialApp(
+          title: 'EngelsizClub',
+          debugShowCheckedModeBanner: false,
+          scaffoldMessengerKey: _messengerKey,
+          locale: lang.locale,
+          theme: ThemeData(
+            useMaterial3: true,
+            scaffoldBackgroundColor: MetoColors.background,
+            textTheme: GoogleFonts.nunitoTextTheme(),
+            primaryTextTheme: GoogleFonts.nunitoTextTheme(),
+            colorScheme: const ColorScheme.light(
+              primary: MetoColors.primary,
+              onPrimary: Colors.white,
+              surface: MetoColors.card,
+              onSurface: MetoColors.foreground,
+            ),
+          ),
+          builder: (context, child) {
+            return Directionality(
+              textDirection:
+                  lang.isRtl ? TextDirection.rtl : TextDirection.ltr,
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
+          home: _booting
+              ? const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
                 )
-              : _user == null
-                  ? AuthScreen(onLogin: (u) => setState(() => _user = u))
-                  : MainShell(
-                      user: _user!,
-                      onLogout: _logout,
-                      onUserChanged: (u) => setState(() => _user = u),
-                    ),
+              : _needsPasswordReset
+                  ? _NewPasswordScreen(
+                      onDone: () async {
+                        final u = Supabase.instance.client.auth.currentUser;
+                        if (!mounted) return;
+                        setState(() {
+                          _needsPasswordReset = false;
+                          _user = u == null ? null : authUserFromSupabase(u);
+                        });
+                      },
+                      onCancel: () async {
+                        await Supabase.instance.client.auth.signOut();
+                        if (!mounted) return;
+                        setState(() {
+                          _needsPasswordReset = false;
+                          _user = null;
+                        });
+                      },
+                    )
+                  : _user == null
+                      ? AuthScreen(
+                          onLogin: (u) async {
+                            if (u.isGuest) {
+                              await GuestLimitStore
+                                  .resetTimedTabsForGuestSession();
+                            } else {
+                              await GuestLimitStore.clearAll();
+                            }
+                            if (!mounted) return;
+                            setState(() => _user = u);
+                          },
+                        )
+                      : MainShell(
+                          user: _user!,
+                          onLogout: _logout,
+                          onUserChanged: (u) => setState(() => _user = u),
+                          onRequireLogin: () => setState(() => _user = null),
+                        ),
+        );
+      },
     );
   }
 }
@@ -420,6 +500,7 @@ const _uzmanlikAlanlari = [
   'Ergoterapist',
   'Dil ve Konuşma Terapisti',
   'Özel Eğitim Öğretmeni',
+  'Gölge Öğretmen',
   'Çocuk Psikologu',
   'Çocuk Psikiyatristi',
   'Nörolog',
@@ -458,13 +539,13 @@ class _NewPasswordScreenState extends State<_NewPasswordScreen> {
     final p2 = _sifre2.text;
     if (p1.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Şifre en az 6 karakter olmalı.')),
+        const SnackBar(content: L10nText('Şifre en az 6 karakter olmalı.')),
       );
       return;
     }
     if (p1 != p2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Şifreler eşleşmiyor.')),
+        const SnackBar(content: L10nText('Şifreler eşleşmiyor.')),
       );
       return;
     }
@@ -475,7 +556,7 @@ class _NewPasswordScreenState extends State<_NewPasswordScreen> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Şifreniz güncellendi.')),
+        const SnackBar(content: L10nText('Şifreniz güncellendi.')),
       );
       await widget.onDone();
     } catch (e) {
@@ -503,7 +584,7 @@ class _NewPasswordScreenState extends State<_NewPasswordScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text(
+                  const L10nText(
                     'Yeni şifre belirle',
                     textAlign: TextAlign.center,
                     style: TextStyle(
@@ -513,7 +594,7 @@ class _NewPasswordScreenState extends State<_NewPasswordScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  const L10nText(
                     'E-postadaki bağlantı ile geldiniz. Hesabınız için yeni bir şifre girin.',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
@@ -523,7 +604,7 @@ class _NewPasswordScreenState extends State<_NewPasswordScreen> {
                     controller: _sifre,
                     obscureText: _obscure,
                     decoration: InputDecoration(
-                      hintText: 'Yeni şifre',
+                      hintText: S.auto('Yeni şifre'),
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
                         onPressed: () =>
@@ -538,8 +619,8 @@ class _NewPasswordScreenState extends State<_NewPasswordScreen> {
                   TextField(
                     controller: _sifre2,
                     obscureText: _obscure,
-                    decoration: const InputDecoration(
-                      hintText: 'Yeni şifre (tekrar)',
+                    decoration: InputDecoration(
+                      hintText: S.auto('Yeni şifre (tekrar)'),
                       border: OutlineInputBorder(),
                     ),
                     onSubmitted: (_) => _loading ? null : _submit(),
@@ -565,7 +646,7 @@ class _NewPasswordScreenState extends State<_NewPasswordScreen> {
                                 color: Colors.white,
                               ),
                             )
-                          : const Text(
+                          : const L10nText(
                               'Şifreyi kaydet',
                               style: TextStyle(fontWeight: FontWeight.w800),
                             ),
@@ -573,7 +654,7 @@ class _NewPasswordScreenState extends State<_NewPasswordScreen> {
                   ),
                   TextButton(
                     onPressed: _loading ? null : () => widget.onCancel(),
-                    child: const Text('Vazgeç'),
+                    child: const L10nText('Vazgeç'),
                   ),
                 ],
               ),
@@ -794,12 +875,12 @@ class _AuthScreenState extends State<AuthScreen> {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: const Text('Parolamı unuttum'),
+          title: const L10nText('Parolamı unuttum'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
+              const L10nText(
                 'Şifre sıfırlama bağlantısını göndereceğimiz e-posta adresinizi girin.',
                 style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
               ),
@@ -808,8 +889,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 controller: emailCtrl,
                 keyboardType: TextInputType.emailAddress,
                 autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: 'E-posta adresiniz',
+                decoration: InputDecoration(
+                  hintText: S.auto('E-posta adresiniz'),
                   border: OutlineInputBorder(),
                 ),
                 onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
@@ -819,11 +900,11 @@ class _AuthScreenState extends State<AuthScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('İptal'),
+              child: const L10nText('İptal'),
             ),
             FilledButton(
               onPressed: () => Navigator.of(ctx).pop(emailCtrl.text.trim()),
-              child: const Text('Gönder'),
+              child: const L10nText('Gönder'),
             ),
           ],
         );
@@ -888,19 +969,40 @@ class _AuthScreenState extends State<AuthScreen> {
         finalized,
         fallbackUserType: role,
       );
-      widget.onLogin?.call(authUser);
-      _snack(notice ?? 'Hoş geldin, ${authUser.name}!');
+      // Rol metadata bazen gecikir — yerel rolü her zaman kullan
+      final safeUser = authUser.userType == null || authUser.userType!.isEmpty
+          ? authUser.copyWith(userType: role)
+          : authUser;
+      widget.onLogin?.call(safeUser);
+      _snack(notice ?? 'Hoş geldin, ${safeUser.name}!');
       if (mounted) setState(() => _step = 'signin');
+    } on GoogleAuthRedirecting {
+      // Redirect sonrası sayfa yenilenecek; pending rol SharedPreferences’ta
+      if (mounted) {
+        setState(() => _step = 'loading');
+        _snack('Google’a yönlendiriliyorsunuz…');
+      }
+      return;
     } catch (e) {
-      await clearPendingGoogleRole();
-      // Session varken UI'ı login'de bırakma — parent dinleyici alır
+      // Redirect değilse pending temizle; aksi halde dönüşte rol kaybolur
+      if (e is! GoogleAuthRedirecting) {
+        // Session varken silme — auth listener rolü yazar
+        final still = Supabase.instance.client.auth.currentSession;
+        if (still == null) {
+          await clearPendingGoogleRole();
+        }
+      }
       final still = Supabase.instance.client.auth.currentSession;
       if (still != null) {
         final authUser = authUserFromSupabase(
           still.user,
           fallbackUserType: role,
         );
-        widget.onLogin?.call(authUser);
+        final safeUser =
+            authUser.userType == null || authUser.userType!.isEmpty
+                ? authUser.copyWith(userType: role)
+                : authUser;
+        widget.onLogin?.call(safeUser);
         if (mounted) {
           setState(() => _step = 'signin');
           _snack(_googleErrorMessage(e));
@@ -910,6 +1012,57 @@ class _AuthScreenState extends State<AuthScreen> {
       if (mounted) {
         setState(() => _step = 'signin');
         _snack(_googleErrorMessage(e));
+      }
+    } finally {
+      if (mounted && _step != 'loading') {
+        setState(() {
+          _girisLoading = false;
+          _kayitLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _signInWithApple(String? role) async {
+    if (role == null || role.isEmpty) {
+      _snack('Devam etmek için önce hesap türünü seçin.');
+      return;
+    }
+    setState(() {
+      _girisLoading = true;
+      _kayitLoading = true;
+      _step = 'loading';
+    });
+    try {
+      await savePendingGoogleRole(role);
+      final res = await AppleAuthService.signIn();
+      final user = res?.user ?? Supabase.instance.client.auth.currentUser;
+      if (user == null) {
+        if (mounted) {
+          setState(() => _step = 'signin');
+          _snack('Apple girişi iptal edildi.');
+        }
+        return;
+      }
+      final finalized = await finalizePendingGoogleRole(user);
+      if (finalized == null) {
+        throw StateError('Apple oturumu tamamlanamadı.');
+      }
+      final authUser = authUserFromSupabase(
+        finalized,
+        fallbackUserType: role,
+      );
+      final safeUser = authUser.userType == null || authUser.userType!.isEmpty
+          ? authUser.copyWith(userType: role)
+          : authUser;
+      widget.onLogin?.call(safeUser);
+      _snack('Hoş geldin, ${safeUser.name}!');
+      if (mounted) setState(() => _step = 'signin');
+    } catch (e) {
+      await clearPendingGoogleRole();
+      if (mounted) {
+        setState(() => _step = 'signin');
+        _snack(e.toString().replaceFirst('StateError: ', ''));
       }
     } finally {
       if (mounted) {
@@ -928,6 +1081,11 @@ class _AuthScreenState extends State<AuthScreen> {
             ? (error.message ?? error.code)
             : error.toString());
     final lower = raw.toLowerCase();
+    if (lower.contains('signup') &&
+        (lower.contains('disabled') || lower.contains('not allowed'))) {
+      return 'Yeni Google üyelikleri kapalı. Supabase Dashboard → '
+          'Authentication → Settings: “Allow new users to sign up” açın.';
+    }
     if (lower.contains('popup-closed') ||
         lower.contains('cancelled') ||
         lower.contains('canceled')) {
@@ -995,7 +1153,10 @@ class _AuthScreenState extends State<AuthScreen> {
       return;
     }
     if (!_kayitSozlesme) {
-      _snack('Devam etmek için sözleşmeyi kabul edin.');
+      _snack(
+        'Devam etmek için Kullanım Koşulları, Gizlilik Politikası ve '
+        'Sorumluluk Reddi’ni onaylayın.',
+      );
       return;
     }
     if (tip == 'uzman' &&
@@ -1194,7 +1355,10 @@ class _AuthScreenState extends State<AuthScreen> {
                   width: double.infinity,
                   height: MediaQuery.sizeOf(context).height - pad.vertical,
                   child: switch (_step) {
-                    'splash' => _SplashStep(onStart: _goToSignIn),
+                    'splash' => _SplashStep(
+                        onStart: _goToSignIn,
+                        onGuest: () => widget.onLogin?.call(AuthUser.guest),
+                      ),
                     'loading' => const _LoadingStep(),
                     'verify_email' => _VerifyEmailStep(
                         email: _verifyEmail,
@@ -1220,6 +1384,8 @@ class _AuthScreenState extends State<AuthScreen> {
                         onSignIn: _signIn,
                         onForgotPassword: _forgotPassword,
                         onGoogleSignIn: _signInWithGoogle,
+                        onAppleSignIn: _signInWithApple,
+                        onGuest: () => widget.onLogin?.call(AuthUser.guest),
                         roleTourKey: _roleTourKey,
                         googleTourKey: _googleTourKey,
                         showTourFinger: _authTourActive,
@@ -1289,7 +1455,7 @@ class _VerifyEmailStep extends StatelessWidget {
             child: TextButton.icon(
               onPressed: loading ? null : onBack,
               icon: const Icon(Icons.chevron_left, size: 20),
-              label: const Text('Geri'),
+              label: const L10nText('Geri'),
               style: TextButton.styleFrom(
                 foregroundColor: MetoColors.primary,
                 padding: EdgeInsets.zero,
@@ -1297,13 +1463,13 @@ class _VerifyEmailStep extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
+          const L10nText(
             '✉️',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 40),
           ),
           const SizedBox(height: 12),
-          Text(
+          L10nText(
             'E-posta doğrulama',
             textAlign: TextAlign.center,
             style: GoogleFonts.nunito(
@@ -1313,7 +1479,7 @@ class _VerifyEmailStep extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
+          L10nText(
             'Hesabınıza girmeden önce e-postanıza gelen 6 haneli kodu girin.',
             textAlign: TextAlign.center,
             style: GoogleFonts.nunito(
@@ -1345,7 +1511,7 @@ class _VerifyEmailStep extends StatelessWidget {
             ),
             decoration: InputDecoration(
               counterText: '',
-              hintText: '••••••',
+              hintText: S.auto('••••••'),
               hintStyle: GoogleFonts.nunito(
                 letterSpacing: 6,
                 color: MetoColors.mutedFg,
@@ -1379,7 +1545,7 @@ class _VerifyEmailStep extends StatelessWidget {
                         color: Colors.white,
                       ),
                     )
-                  : Text(
+                  : L10nText(
                       'Doğrula ve devam et',
                       style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
                     ),
@@ -1394,7 +1560,7 @@ class _VerifyEmailStep extends StatelessWidget {
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : Text(
+                : L10nText(
                     'Kodu tekrar gönder',
                     style: GoogleFonts.nunito(
                       fontWeight: FontWeight.w700,
@@ -1403,7 +1569,7 @@ class _VerifyEmailStep extends StatelessWidget {
                   ),
           ),
           const SizedBox(height: 8),
-          Text(
+          L10nText(
             'Kod gelmediyse spam/gereksiz klasörünü kontrol edin.',
             textAlign: TextAlign.center,
             style: GoogleFonts.nunito(
@@ -1420,12 +1586,13 @@ class _VerifyEmailStep extends StatelessWidget {
 // ─── Splash (Başlayalım) ─────────────────────────────────────────────────────
 
 class _SplashStep extends StatelessWidget {
-  const _SplashStep({required this.onStart});
+  const _SplashStep({required this.onStart, required this.onGuest});
 
   final VoidCallback onStart;
+  final VoidCallback onGuest;
 
   static const _features = [
-    ('🏥', 'Hastalık & Tanı Bilgisi', '100+ tanı için güvenilir rehber'),
+    ('📚', 'Bilgi Kütüphanesi', 'Aileler için bilgilendirme içerikleri'),
     ('🗺️', 'Yakınımdaki Merkezler', 'Terapi merkezi ve uzman bul'),
     ('🗣️', 'AAC İletişim Kartları', 'Görsel iletişim desteği'),
     ('⚖️', 'Yasal Haklar & Destek', 'Devlet yardımlarına kolayca ulaş'),
@@ -1511,7 +1678,27 @@ class _SplashStep extends StatelessWidget {
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  child: const Text('Başlayalım'),
+                  child: const L10nText('Başlayalım'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton(
+                  onPressed: onGuest,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: MetoColors.primary,
+                    side: const BorderSide(color: MetoColors.primary),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    textStyle: GoogleFonts.nunito(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  child: const L10nText('Üye olmadan keşfet'),
                 ),
               ),
               const SizedBox(height: 12),
@@ -1539,6 +1726,8 @@ class _SignInStep extends StatelessWidget {
     required this.onSignIn,
     required this.onForgotPassword,
     required this.onGoogleSignIn,
+    required this.onAppleSignIn,
+    required this.onGuest,
     required this.roleTourKey,
     required this.googleTourKey,
     required this.showTourFinger,
@@ -1573,6 +1762,8 @@ class _SignInStep extends StatelessWidget {
   final VoidCallback onSignIn;
   final VoidCallback onForgotPassword;
   final ValueChanged<String?> onGoogleSignIn;
+  final ValueChanged<String?> onAppleSignIn;
+  final VoidCallback onGuest;
   final GlobalKey roleTourKey;
   final GlobalKey googleTourKey;
   final bool showTourFinger;
@@ -1608,7 +1799,7 @@ class _SignInStep extends StatelessWidget {
         ),
         const Padding(
           padding: EdgeInsets.only(bottom: 4),
-          child: Text(
+          child: L10nText(
             'v1.0.21',
             style: TextStyle(
               fontSize: 11,
@@ -1644,7 +1835,7 @@ class _SignInStep extends StatelessWidget {
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-            child: authTab == 'giris' ? _buildGiris() : _buildKayit(),
+            child: authTab == 'giris' ? _buildGiris() : _buildKayit(context),
           ),
         ),
       ],
@@ -1655,7 +1846,7 @@ class _SignInStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
+        const L10nText(
           'Hesap Türü',
           style: TextStyle(
             fontSize: 12,
@@ -1753,10 +1944,18 @@ class _SignInStep extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(height: 10),
+        _AppleSignInButton(
+          enabled: !girisLoading && girisHesapTip != null,
+          label: girisHesapTip == null
+              ? 'Apple ile giriş (önce hesap türü seçin)'
+              : 'Apple ile ${_roleLabel(girisHesapTip)} olarak giriş',
+          onPressed: () => onAppleSignIn(girisHesapTip),
+        ),
         if (girisHesapTip == null) ...[
           const SizedBox(height: 10),
-          const Text(
-            'Google butonu için önce Aile, Uzman veya Bakıcı seçin.',
+          const L10nText(
+            'Sosyal giriş için önce Aile, Uzman veya Bakıcı seçin.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
           ),
@@ -1788,7 +1987,7 @@ class _SignInStep extends StatelessWidget {
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: const Text(
+              child: const L10nText(
                 'Parolamı unuttum?',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
               ),
@@ -1820,7 +2019,7 @@ class _SignInStep extends StatelessWidget {
                         color: Colors.white,
                       ),
                     )
-                  : const Text('E-posta ile Giriş Yap'),
+                  : const L10nText('E-posta ile Giriş Yap'),
             ),
           ),
           const SizedBox(height: 12),
@@ -1840,16 +2039,27 @@ class _SignInStep extends StatelessWidget {
             ),
             textAlign: TextAlign.center,
           ),
+          const SizedBox(height: 16),
+          TextButton(
+            onPressed: onGuest,
+            child: const L10nText(
+              'Üye olmadan keşfet',
+              style: TextStyle(
+                color: MetoColors.primary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
         ],
       ],
     );
   }
 
-  Widget _buildKayit() {
+  Widget _buildKayit(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
+        const L10nText(
           'Yeni hesap oluşturun',
           style: TextStyle(
             fontSize: 13,
@@ -1858,7 +2068,7 @@ class _SignInStep extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        const Text(
+        const L10nText(
           'Hesap Türü',
           style: TextStyle(
             fontSize: 12,
@@ -1898,23 +2108,14 @@ class _SignInStep extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        _GoogleSignInButton(
-          enabled: !kayitLoading && kayitTip != null,
-          label: kayitTip == null
-              ? 'Google ile üye ol (önce hesap türü seçin)'
-              : 'Google ile ${_roleLabel(kayitTip)} olarak üye ol',
-          onPressed: () => onGoogleSignIn(kayitTip),
-        ),
         if (kayitTip == null) ...[
-          const SizedBox(height: 10),
-          const Text(
-            'Google ile üye olmak için önce Aile, Uzman veya Bakıcı seçin.',
+          const L10nText(
+            'Üye olmak için önce Aile, Uzman veya Bakıcı seçin.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
           ),
         ] else ...[
         if (kayitTip == 'uzman' || kayitTip == 'bakici') ...[
-          const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
@@ -1923,7 +2124,7 @@ class _SignInStep extends StatelessWidget {
               border:
                   Border.all(color: MetoColors.primary.withValues(alpha: 0.25)),
             ),
-            child: Text(
+            child: L10nText(
               '🎁 Hoş geldin hediyesi: hesabınıza $kWelcomeKredi ücretsiz puan tanımlanır.',
               style: const TextStyle(
                 fontSize: 12,
@@ -1932,17 +2133,8 @@ class _SignInStep extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 12),
         ],
-        const SizedBox(height: 8),
-        Text(
-          'Google ile devam ederseniz ${_roleLabel(kayitTip)} rolüyle hesap '
-          'oluşturulur ve sözleşmeleri kabul etmiş sayılırsınız.',
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
-        ),
-        const SizedBox(height: 16),
-        const _OrDivider(label: 'veya e-posta ile'),
-        const SizedBox(height: 12),
         _AuthField(hint: 'Ad Soyad', value: kayitAd, onChanged: onKayitAd),
         const SizedBox(height: 12),
         _AuthField(
@@ -1965,6 +2157,11 @@ class _SignInStep extends StatelessWidget {
           onChanged: onKayitSifre2,
           obscure: true,
         ),
+        const SizedBox(height: 12),
+        _KayitLegalCheckbox(
+          accepted: kayitSozlesme,
+          onToggle: onKayitSozlesme,
+        ),
         if (kayitTip == 'uzman') ...[
           const SizedBox(height: 12),
           Container(
@@ -1978,7 +2175,7 @@ class _SignInStep extends StatelessWidget {
               child: DropdownButton<String>(
                 isExpanded: true,
                 value: kayitUzmanlik,
-                hint: const Text(
+                hint: const L10nText(
                   'Uzmanlık Alanı Seçin',
                   style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
                 ),
@@ -1996,73 +2193,6 @@ class _SignInStep extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 12),
-        GestureDetector(
-          onTap: onKayitSozlesme,
-          behavior: HitTestBehavior.opaque,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                width: 20,
-                height: 20,
-                margin: const EdgeInsets.only(top: 2),
-                decoration: BoxDecoration(
-                  color:
-                      kayitSozlesme ? MetoColors.primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color:
-                        kayitSozlesme ? MetoColors.primary : MetoColors.mutedFg,
-                    width: 2,
-                  ),
-                ),
-                child: kayitSozlesme
-                    ? const Icon(Icons.check, size: 12, color: Colors.white)
-                    : null,
-              ),
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Text.rich(
-                  TextSpan(
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: MetoColors.mutedFg,
-                      height: 1.45,
-                    ),
-                    children: [
-                      TextSpan(
-                        text: "Kullanım Koşulları",
-                        style: TextStyle(
-                          color: MetoColors.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      TextSpan(text: "'nı, "),
-                      TextSpan(
-                        text: 'Gizlilik Politikası',
-                        style: TextStyle(
-                          color: MetoColors.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      TextSpan(text: "'nı ve "),
-                      TextSpan(
-                        text: 'KVKK Aydınlatma Metni',
-                        style: TextStyle(
-                          color: MetoColors.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      TextSpan(text: "'ni okudum, kabul ediyorum."),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
@@ -2077,7 +2207,7 @@ class _SignInStep extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    L10nText(
                       'Kişisel verileriniz güvende',
                       style: TextStyle(
                         fontSize: 12,
@@ -2085,7 +2215,7 @@ class _SignInStep extends StatelessWidget {
                         color: MetoColors.foreground,
                       ),
                     ),
-                    Text(
+                    L10nText(
                       '256-bit şifreleme · KVKK uyumlu · Reklam yok',
                       style: TextStyle(fontSize: 10, color: MetoColors.mutedFg),
                     ),
@@ -2129,13 +2259,157 @@ class _SignInStep extends StatelessWidget {
                         ),
                       ),
                       SizedBox(width: 8),
-                      Text('Hesap Oluşturuluyor…'),
+                      L10nText('Hesap Oluşturuluyor…'),
                     ],
                   )
-                : const Text('Hesap Oluştur'),
+                : const L10nText('Hesap Oluştur'),
           ),
         ),
+        const SizedBox(height: 12),
+        const _OrDivider(label: 'veya'),
+        const SizedBox(height: 12),
+        _GoogleSignInButton(
+          enabled: !kayitLoading && kayitTip != null && kayitSozlesme,
+          label: !kayitSozlesme
+              ? 'Google ile üye ol (önce koşulları onaylayın)'
+              : 'Google ile ${_roleLabel(kayitTip)} olarak üye ol',
+          onPressed: () {
+            if (!kayitSozlesme) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: L10nText(
+                    'Google ile devam etmek için Kullanım Koşulları, '
+                    'Gizlilik Politikası ve Sorumluluk Reddi’ni onaylayın.',
+                  ),
+                ),
+              );
+              return;
+            }
+            onGoogleSignIn(kayitTip);
+          },
+        ),
+        const SizedBox(height: 10),
+        _AppleSignInButton(
+          enabled: !kayitLoading && kayitTip != null && kayitSozlesme,
+          label: !kayitSozlesme
+              ? 'Apple ile üye ol (önce koşulları onaylayın)'
+              : 'Apple ile ${_roleLabel(kayitTip)} olarak üye ol',
+          onPressed: () {
+            if (!kayitSozlesme) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: L10nText(
+                    'Apple ile devam etmek için Kullanım Koşulları, '
+                    'Gizlilik Politikası ve Sorumluluk Reddi’ni onaylayın.',
+                  ),
+                ),
+              );
+              return;
+            }
+            onAppleSignIn(kayitTip);
+          },
+        ),
         ],
+      ],
+    );
+  }
+}
+
+// ─── Kayıt yasal onay ────────────────────────────────────────────────────────
+
+class _KayitLegalCheckbox extends StatelessWidget {
+  const _KayitLegalCheckbox({
+    required this.accepted,
+    required this.onToggle,
+  });
+
+  final bool accepted;
+  final VoidCallback onToggle;
+
+  static const _linkStyle = TextStyle(
+    color: MetoColors.primary,
+    fontWeight: FontWeight.w700,
+    fontSize: 12,
+    height: 1.45,
+    decoration: TextDecoration.underline,
+    decorationColor: MetoColors.primary,
+  );
+
+  static const _baseStyle = TextStyle(
+    fontSize: 12,
+    color: MetoColors.mutedFg,
+    height: 1.45,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: onToggle,
+          behavior: HitTestBehavior.opaque,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 22,
+            height: 22,
+            margin: const EdgeInsets.only(top: 1),
+            decoration: BoxDecoration(
+              color: accepted ? MetoColors.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: accepted ? MetoColors.primary : MetoColors.mutedFg,
+                width: 2,
+              ),
+            ),
+            child: accepted
+                ? const Icon(Icons.check, size: 14, color: Colors.white)
+                : null,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text.rich(
+            TextSpan(
+              style: _baseStyle,
+              children: [
+                const TextSpan(text: ''),
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.baseline,
+                  baseline: TextBaseline.alphabetic,
+                  child: GestureDetector(
+                    onTap: () =>
+                        LegalDocumentPage.open(context, LegalDocKind.terms),
+                    child: const Text('Kullanım Koşulları', style: _linkStyle),
+                  ),
+                ),
+                const TextSpan(text: ', '),
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.baseline,
+                  baseline: TextBaseline.alphabetic,
+                  child: GestureDetector(
+                    onTap: () =>
+                        LegalDocumentPage.open(context, LegalDocKind.privacy),
+                    child: const Text('Gizlilik Politikası', style: _linkStyle),
+                  ),
+                ),
+                const TextSpan(text: ' ve '),
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.baseline,
+                  baseline: TextBaseline.alphabetic,
+                  child: GestureDetector(
+                    onTap: () => LegalDocumentPage.open(
+                      context,
+                      LegalDocKind.disclaimer,
+                    ),
+                    child: const Text('Sorumluluk Reddi Beyanı', style: _linkStyle),
+                  ),
+                ),
+                const TextSpan(text: '’nı okudum, onaylıyorum.'),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -2230,6 +2504,75 @@ class _GoogleSignInButton extends StatelessWidget {
   }
 }
 
+/// iOS/macOS’ta native Apple; diğer platformlarda gizlenir.
+class _AppleSignInButton extends StatefulWidget {
+  const _AppleSignInButton({
+    required this.enabled,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final bool enabled;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  State<_AppleSignInButton> createState() => _AppleSignInButtonState();
+}
+
+class _AppleSignInButtonState extends State<_AppleSignInButton> {
+  bool? _available;
+
+  @override
+  void initState() {
+    super.initState();
+    AppleAuthService.isNativeAvailable.then((v) {
+      if (mounted) setState(() => _available = v);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_available != true) return const SizedBox.shrink();
+    return SizedBox(
+      height: 48,
+      child: ElevatedButton(
+        onPressed: widget.enabled ? widget.onPressed : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: const Color(0xFF444444),
+          disabledForegroundColor: const Color(0xFFBDBDBD),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.apple, size: 22, color: Colors.white),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                widget.label,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _LoadingStep extends StatefulWidget {
   const _LoadingStep();
 
@@ -2280,7 +2623,7 @@ class _LoadingStepState extends State<_LoadingStep>
             child: const _EngelsizLogo(),
           ),
           const SizedBox(height: 20),
-          const Text(
+          const L10nText(
             'Giriş yapılıyor…',
             style: TextStyle(
               fontSize: 18,
@@ -2289,7 +2632,7 @@ class _LoadingStepState extends State<_LoadingStep>
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
+          const L10nText(
             'Hesabınız doğrulanıyor',
             style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
           ),
@@ -2406,7 +2749,7 @@ class _BrandHeader extends StatelessWidget {
                     child: const _EngelsizLogo(),
                   ),
                   SizedBox(height: height > 200 ? 16 : 8),
-                  Text(
+                  L10nText(
                     'EngelsizClub',
                     style: GoogleFonts.nunito(
                       color: Colors.white,

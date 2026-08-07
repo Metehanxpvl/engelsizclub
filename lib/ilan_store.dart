@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -6,7 +7,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_config.dart';
 import 'data/ilanlar_data.dart';
+import 'data/location_models.dart';
 import 'meto_theme.dart';
+import 'services/broadcast_push_service.dart';
+import 'utils/price_format.dart';
 import 'widgets/user_avatar.dart';
 
 /// İlan sahibi e-postası (id → email). Ortak listede "İlanlarım" için.
@@ -16,6 +20,40 @@ String ilanPrefsKey(String email, {String fallback = 'anon'}) {
   final e = email.trim().toLowerCase();
   return 'user_ilanlar_${e.isEmpty ? fallback : e}';
 }
+
+LocationData locationFromIlanJson(Map<String, dynamic> j) {
+  final raw = j['location_data'] ?? j['locationData'];
+  if (raw is Map && raw.isNotEmpty) {
+    final loc = LocationData.fromJson(raw);
+    if (loc.countryCode.isNotEmpty || loc.state.isNotEmpty) return loc;
+  }
+  final code = (j['country_code'] ?? j['countryCode'] ?? 'TR')
+      .toString()
+      .trim()
+      .toUpperCase();
+  return LocationData.fromLegacy(
+    city: j['city']?.toString() ?? '',
+    district: (j['district'] ?? '').toString(),
+    countryCode: code.isEmpty ? 'TR' : code,
+  );
+}
+
+String _countryCodeOf(Map<String, dynamic> j) {
+  final loc = locationFromIlanJson(j);
+  return loc.countryCode.isEmpty ? 'TR' : loc.countryCode;
+}
+
+Map<String, dynamic> locationDbFields(LocationData loc) {
+  final code = loc.countryCode.isEmpty ? 'TR' : loc.countryCode.toUpperCase();
+  final normalized = loc.copyWith(countryCode: code);
+  return {
+    'country_code': code,
+    'location_data': normalized.toJson(),
+    'city': normalized.legacyCity,
+    'district': normalized.legacyDistrict,
+  };
+}
+
 
 String _relativePosted(DateTime? createdAt) {
   if (createdAt == null) return 'Az önce';
@@ -52,6 +90,13 @@ Map<String, dynamic> _uzmanToJson(UzmanIlani i, {bool forLocalCache = false}) =>
       'tani': i.tani,
       'city': i.city,
       'district': i.district,
+      'country_code': i.countryCode,
+      'countryCode': i.countryCode,
+      'location_data': LocationData.fromLegacy(
+        city: i.city,
+        district: i.district,
+        countryCode: i.countryCode,
+      ).toJson(),
       'age': i.age,
       'frequency': i.frequency,
       'note': i.note,
@@ -74,6 +119,13 @@ Map<String, dynamic> _bakiciToJson(BakiciIlani i, {bool forLocalCache = false}) 
       'title': i.title,
       'city': i.city,
       'district': i.district,
+      'country_code': i.countryCode,
+      'countryCode': i.countryCode,
+      'location_data': LocationData.fromLegacy(
+        city: i.city,
+        district: i.district,
+        countryCode: i.countryCode,
+      ).toJson(),
       'tani': i.tani,
       'age': i.age,
       'hours': i.hours,
@@ -110,6 +162,13 @@ Map<String, dynamic> _ikincielToJson(
       'category': i.category,
       'city': i.city,
       'district': i.district,
+      'country_code': i.countryCode,
+      'countryCode': i.countryCode,
+      'location_data': LocationData.fromLegacy(
+        city: i.city,
+        district: i.district,
+        countryCode: i.countryCode,
+      ).toJson(),
       'condition': i.condition,
       'brand': i.brand,
       'note': i.note,
@@ -150,13 +209,16 @@ IlanPoster _posterFrom(Map<String, dynamic> j) {
 
 UzmanIlani _uzmanFromJson(Map<String, dynamic> j) {
   final photos = _photosFromJson(j['photos']);
+  final loc = locationFromIlanJson(j);
   return UzmanIlani(
     id: (j['id'] as num?)?.toInt() ?? nextIlanId(),
     title: j['title']?.toString() ?? '',
     uzmanlik: (j['uzmanlik'] ?? 'Uzman').toString(),
     tani: (j['tani'] ?? 'Belirtilmedi').toString(),
-    city: j['city']?.toString() ?? '',
-    district: j['district']?.toString() ?? '',
+    city: loc.state.isNotEmpty ? loc.state : (j['city']?.toString() ?? ''),
+    district:
+        loc.city.isNotEmpty ? loc.city : ((j['district'] ?? '').toString()),
+    countryCode: _countryCodeOf(j),
     age: (j['age'] ?? 'Belirtilmedi').toString(),
     frequency: (j['frequency'] ?? 'Belirtilmedi').toString(),
     note: (j['note'] ?? '—').toString(),
@@ -174,11 +236,14 @@ UzmanIlani _uzmanFromJson(Map<String, dynamic> j) {
 
 BakiciIlani _bakiciFromJson(Map<String, dynamic> j) {
   final photos = _photosFromJson(j['photos']);
+  final loc = locationFromIlanJson(j);
   return BakiciIlani(
     id: (j['id'] as num?)?.toInt() ?? nextIlanId(),
     title: j['title']?.toString() ?? '',
-    city: j['city']?.toString() ?? '',
-    district: j['district']?.toString() ?? '',
+    city: loc.state.isNotEmpty ? loc.state : (j['city']?.toString() ?? ''),
+    district:
+        loc.city.isNotEmpty ? loc.city : ((j['district'] ?? '').toString()),
+    countryCode: _countryCodeOf(j),
     tani: (j['tani'] ?? 'Belirtilmedi').toString(),
     age: (j['age'] ?? 'Belirtilmedi').toString(),
     hours: (j['hours'] ?? 'Belirtilmedi').toString(),
@@ -196,12 +261,15 @@ BakiciIlani _bakiciFromJson(Map<String, dynamic> j) {
 
 IkincielIlani _ikincielFromJson(Map<String, dynamic> j) {
   final photoVals = _photosFromJson(j['photos']);
+  final loc = locationFromIlanJson(j);
   return IkincielIlani(
     id: (j['id'] as num?)?.toInt() ?? nextIlanId(),
     title: j['title']?.toString() ?? '',
     category: (j['category'] ?? 'Diğer').toString(),
-    city: j['city']?.toString() ?? '',
-    district: (j['district'] ?? '').toString(),
+    city: loc.state.isNotEmpty ? loc.state : (j['city']?.toString() ?? ''),
+    district:
+        loc.city.isNotEmpty ? loc.city : ((j['district'] ?? '').toString()),
+    countryCode: _countryCodeOf(j),
     condition: (j['condition'] ?? 'İyi').toString(),
     brand: (j['brand'] ?? '—').toString(),
     note: (j['note'] ?? '—').toString(),
@@ -500,6 +568,8 @@ Future<void> publishIlanToCloud({
   required String posterName,
   required String posterAvatar,
   required String ownerEmail,
+  String countryCode = 'TR',
+  LocationData? location,
   String budget = '',
   String price = '',
   String originalPrice = '',
@@ -540,15 +610,22 @@ Future<void> publishIlanToCloud({
           : photos)
       : photos;
 
+  final loc = location ??
+      LocationData.fromLegacy(
+        city: city,
+        district: district,
+        countryCode: countryCode,
+      );
+  final locFields = locationDbFields(loc);
+
   final payload = <String, dynamic>{
     'kind': kind,
     'title': title,
-    'city': city,
-    'district': district,
+    ...locFields,
     'note': note,
-    'budget': budget,
-    'price': price,
-    'original_price': originalPrice,
+    'budget': formatPriceTl(budget),
+    'price': formatPriceTl(price),
+    'original_price': formatPriceTl(originalPrice),
     'uzmanlik': uzmanlik,
     'tani': tani,
     'age': age,
@@ -569,12 +646,31 @@ Future<void> publishIlanToCloud({
   };
 
   try {
-    await Supabase.instance.client.from('ilanlar').insert(payload);
+    try {
+      await Supabase.instance.client.from('ilanlar').insert(payload);
+    } catch (e) {
+      // Kolonlar henüz yoksa (SQL çalıştırılmadı) klasik alanlarla dene
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('country_code') || msg.contains('location_data')) {
+        final legacy = Map<String, dynamic>.from(payload)
+          ..remove('country_code')
+          ..remove('location_data');
+        await Supabase.instance.client.from('ilanlar').insert(legacy);
+      } else {
+        rethrow;
+      }
+    }
     try {
       await loadAllIlanlar(preferEmail: resolvedEmail);
     } catch (_) {
       // Ön bellek / ağ yenilemesi başarısız olsa da ilan buluta yazıldı.
     }
+    unawaited(
+      BroadcastPushService.instance.yeniIlan(
+        title: title,
+        kind: kind,
+      ),
+    );
     return;
   } catch (e) {
     // Supabase yoksa yerel düş — yine de cihazlar arası paylaşılmaz.
@@ -599,8 +695,9 @@ Future<void> publishIlanToCloud({
             title: title,
             uzmanlik: uzmanlik,
             tani: tani,
-            city: city,
-            district: district,
+            city: loc.legacyCity,
+            district: loc.legacyDistrict,
+            countryCode: loc.countryCode,
             age: age,
             frequency: frequency,
             note: note,
@@ -620,8 +717,9 @@ Future<void> publishIlanToCloud({
           BakiciIlani(
             id: id,
             title: title,
-            city: city,
-            district: district,
+            city: loc.legacyCity,
+            district: loc.legacyDistrict,
+            countryCode: loc.countryCode,
             tani: tani,
             age: age,
             hours: hours,
@@ -642,8 +740,9 @@ Future<void> publishIlanToCloud({
             id: id,
             title: title,
             category: category,
-            city: city,
-            district: district,
+            city: loc.legacyCity,
+            district: loc.legacyDistrict,
+            countryCode: loc.countryCode,
             condition: condition,
             brand: brand,
             note: note,
@@ -676,10 +775,13 @@ Future<void> updateIlanInCloud({
   required String district,
   required String note,
   required String ownerEmail,
+  String countryCode = 'TR',
+  LocationData? location,
   String budget = '',
   String price = '',
   String uzmanlik = 'Uzman',
   String condition = 'İyi',
+  String category = kIkincielAltDiger,
   List<IlanPhoto> photos = const [],
 }) async {
   final user = Supabase.instance.client.auth.currentUser;
@@ -698,17 +800,27 @@ Future<void> updateIlanInCloud({
           : photos)
       : photos;
 
+  final loc = location ??
+      LocationData.fromLegacy(
+        city: city,
+        district: district,
+        countryCode: countryCode,
+      );
+  final locFields = locationDbFields(loc);
+
   final myEmail = (user.email ?? '').trim().toLowerCase();
   final payload = <String, dynamic>{
     'title': title,
-    'city': city,
-    'district': district,
+    ...locFields,
     'note': note,
     'budget': budget,
     'price': price,
     'uzmanlik': uzmanlik,
     'photos': cappedPhotos.map((p) => p.toJson()).toList(),
-    if (kind == 'ikinciel') 'condition': condition,
+    if (kind == 'ikinciel') ...{
+      'condition': condition,
+      'category': category,
+    },
     // Legacy kayıtlarda boş owner_id varsa sahipliği bağla
     'owner_id': user.id,
   };

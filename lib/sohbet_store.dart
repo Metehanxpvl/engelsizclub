@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_config.dart';
+import 'user_safety_store.dart';
 
 class SohbetMesaj {
   const SohbetMesaj({
@@ -106,6 +107,11 @@ Future<SohbetMesaj> sendSohbetMesaj({
   }
   if (peer == myEmail) {
     throw StateError('Kendi ilanınıza teklif veremezsiniz.');
+  }
+  if (await isEitherBlocked(peer)) {
+    throw StateError(
+      'Bu kullanıcıyla mesajlaşamazsınız (engel aktif).',
+    );
   }
   final text = body.trim();
   if (text.isEmpty) throw StateError('Boş mesaj gönderilemez.');

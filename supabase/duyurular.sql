@@ -1,5 +1,10 @@
 -- Güncel Duyurular & Haberler (Instagram story tarzı)
 -- Supabase Dashboard → SQL Editor → çalıştır
+--
+-- Instagram story/gönderi kaydı (DB yükü yok):
+--   image_url = 'instagram:embed'   -- kısa işaretçi, medya YOK
+--   source_url = 'https://www.instagram.com/reel/...'  -- yalnız metin link
+-- Video/dosya Supabase'e yazılmaz; oynatma istemcide Instagram üzerinden yapılır.
 
 create table if not exists public.duyurular (
   id bigint generated always as identity primary key,
@@ -8,6 +13,10 @@ create table if not exists public.duyurular (
   image_url text not null default '',
   source_url text,
   created_by text not null default '',
+  is_active boolean not null default true,
+  is_popup boolean not null default false,
+  publish_at timestamptz,
+  expires_at timestamptz,
   created_at timestamptz not null default now()
 );
 

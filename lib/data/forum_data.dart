@@ -12,6 +12,8 @@ class ForumPost {
     required this.likes,
     required this.comments,
     required this.time,
+    this.createdAt,
+    this.tags = const [],
     this.pinned = false,
     this.expert = false,
     this.likedByMe = false,
@@ -31,6 +33,8 @@ class ForumPost {
   final int likes;
   final int comments;
   final String time;
+  final DateTime? createdAt;
+  final List<String> tags;
   final bool pinned;
   final bool expert;
   final bool likedByMe;
@@ -54,6 +58,8 @@ class ForumPost {
     List<String>? photos,
     String? avatar,
     bool? anon,
+    DateTime? createdAt,
+    List<String>? tags,
   }) =>
       ForumPost(
         id: id,
@@ -66,6 +72,8 @@ class ForumPost {
         likes: likes ?? this.likes,
         comments: comments ?? this.comments,
         time: time,
+        createdAt: createdAt ?? this.createdAt,
+        tags: tags ?? this.tags,
         pinned: pinned,
         expert: expert ?? this.expert,
         likedByMe: likedByMe ?? this.likedByMe,
@@ -129,22 +137,22 @@ int nextForumId() => ++_forumIdSeq;
 
 const forumPosts = <ForumPost>[];
 
-const forumCategories = [
-  'Tümü',
-  'Otizm',
-  'Serebral Palsi',
-  'DEHB',
-  'Uzman',
-  'Köşe Yazısı',
-];
-
 const newPostCategories = [
-  'Otizm',
   'Serebral Palsi',
+  'Otizm',
   'Down Sendromu',
   'DEHB',
   'Genel',
   'Uzman',
+];
+
+const forumCategories = [
+  'Tümü',
+  'Serebral Palsi',
+  'Otizm',
+  'DEHB',
+  'Uzman',
+  'Köşe Yazısı',
 ];
 
 /// Uzman köşe yazısı meslekleri (Aile: aileler de köşe yazısı paylaşabilir)
@@ -153,6 +161,7 @@ const uzmanMeslekler = [
   'Fizyoterapist',
   'Ergoterapist',
   'Özel Eğitim Öğretmeni',
+  'Gölge Öğretmen',
   'Dil Terapisti',
   'Aile',
 ];
@@ -167,6 +176,7 @@ const forumCategoryColors = <String, Color>{
   'Fizyoterapist': Color(0xFF0F766E),
   'Ergoterapist': Color(0xFF7C3AED),
   'Özel Eğitim Öğretmeni': Color(0xFFB45309),
+  'Gölge Öğretmen': Color(0xFF0D9488),
   'Dil Terapisti': Color(0xFFBE185D),
   'Aile': Color(0xFFF4A832),
 };

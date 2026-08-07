@@ -2,7 +2,7 @@ name: engelsizclub
 description: MetoCare — özel gereksinimli kahramanlarımız için rehber
 publish_to: "none"
 # Play: versionName+versionCode — her AAB yüklemesinde code artır (ör. 1.0.1+2)
-version: 1.0.26+27
+version: 1.0.52+53
 
 environment:
   sdk: ^3.5.0
@@ -13,10 +13,16 @@ dependencies:
   supabase_flutter: ^2.16.0
   http: ^1.2.2
   url_launcher: ^6.3.1
+  webview_flutter: ^4.13.0
+  webview_flutter_android: ^4.10.1
+  webview_flutter_wkwebview: ^3.23.0
   app_links: ^7.2.0
   shared_preferences: ^2.5.5
+  flutter_riverpod: ^2.6.1
   image_picker: ^1.2.3
+  image: ^4.5.4
   geolocator: ^14.0.3
+  google_maps_flutter: ^2.12.3
   flutter_map: ^8.3.1
   latlong2: ^0.10.1
   flutter_tts: ^4.2.5
@@ -31,6 +37,16 @@ dependencies:
   flutter_local_notifications: ^22.2.0
   reorderable_grid_view: ^2.2.8
   photo_view: ^0.15.0
+  video_player: ^2.13.0
+  pdf: ^3.13.0
+  printing: ^5.15.0
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  path_provider: ^2.1.4
+  timezone: ^0.11.0
+  intl: ^0.20.2
+  sign_in_with_apple: ^8.1.0
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:
@@ -43,13 +59,16 @@ flutter_launcher_icons:
   ios: true
   web:
     generate: true
-  image_path: assets/icon/app_icon_safe.png
+  image_path: assets/icon/app_icon_clean.png
   # Adaptive kapalı: tam logo görünsün (sistem maskesinde kırpılmasın)
   min_sdk_android: 21
   remove_alpha_ios: true
+  background_color_ios: "#FFFFFF"
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - assets/cvi/
+    - assets/aile_kocu/
     - src/imports/119686.png

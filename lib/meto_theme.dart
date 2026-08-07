@@ -25,11 +25,22 @@ class AuthUser {
     this.userType,
   });
 
+  /// Üye olmadan gezinme.
+  static const guest = AuthUser(
+    name: 'Misafir',
+    email: '',
+    avatar: 'M',
+    avatarColor: Color(0xFF94A3B8),
+    userType: 'guest',
+  );
+
   final String name;
   final String email;
   final String avatar;
   final Color avatarColor;
   final String? userType;
+
+  bool get isGuest => userType == 'guest';
 
   AuthUser copyWith({
     String? name,

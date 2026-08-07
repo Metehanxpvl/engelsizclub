@@ -2,9 +2,12 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'data/location_models.dart';
+
 class KullaniciProfil {
   const KullaniciProfil({
     this.adSoyad = '',
+    this.countryCode = 'TR',
     this.sehir = '',
     this.ilce = '',
     this.meslek = '',
@@ -17,6 +20,7 @@ class KullaniciProfil {
   });
 
   final String adSoyad;
+  final String countryCode;
   final String sehir;
   final String ilce;
   final String meslek;
@@ -26,6 +30,12 @@ class KullaniciProfil {
   final String sertifikalar;
   final String calismaSekli;
   final String hakkimda;
+
+  LocationData get location => LocationData.fromLegacy(
+        city: sehir,
+        district: ilce,
+        countryCode: countryCode.isEmpty ? 'TR' : countryCode,
+      );
 
   bool get isEmpty =>
       adSoyad.trim().isEmpty &&
@@ -48,6 +58,8 @@ class KullaniciProfil {
 
   Map<String, dynamic> toJson() => {
         'adSoyad': adSoyad,
+        'countryCode': countryCode,
+        'location_data': location.toJson(),
         'sehir': sehir,
         'ilce': ilce,
         'meslek': meslek,
@@ -59,19 +71,36 @@ class KullaniciProfil {
         'hakkimda': hakkimda,
       };
 
-  factory KullaniciProfil.fromJson(Map<String, dynamic> json) =>
-      KullaniciProfil(
-        adSoyad: json['adSoyad']?.toString() ?? '',
-        sehir: json['sehir']?.toString() ?? '',
-        ilce: json['ilce']?.toString() ?? '',
-        meslek: json['meslek']?.toString() ?? '',
-        egitim: json['egitim']?.toString() ?? '',
-        deneyimYili: json['deneyimYili']?.toString() ?? '',
-        uzmanliklar: json['uzmanliklar']?.toString() ?? '',
-        sertifikalar: json['sertifikalar']?.toString() ?? '',
-        calismaSekli: json['calismaSekli']?.toString() ?? '',
-        hakkimda: json['hakkimda']?.toString() ?? '',
-      );
+  factory KullaniciProfil.fromJson(Map<String, dynamic> json) {
+    final locRaw = json['location_data'] ?? json['locationData'];
+    LocationData? loc;
+    if (locRaw is Map) {
+      loc = LocationData.fromJson(locRaw);
+    }
+    final code = (json['countryCode'] ??
+            json['country_code'] ??
+            loc?.countryCode ??
+            'TR')
+        .toString()
+        .toUpperCase();
+    return KullaniciProfil(
+      adSoyad: json['adSoyad']?.toString() ?? '',
+      countryCode: code.isEmpty ? 'TR' : code,
+      sehir: (loc != null && loc.state.isNotEmpty)
+          ? loc.state
+          : (json['sehir']?.toString() ?? ''),
+      ilce: (loc != null && loc.city.isNotEmpty)
+          ? loc.city
+          : (json['ilce']?.toString() ?? ''),
+      meslek: json['meslek']?.toString() ?? '',
+      egitim: json['egitim']?.toString() ?? '',
+      deneyimYili: json['deneyimYili']?.toString() ?? '',
+      uzmanliklar: json['uzmanliklar']?.toString() ?? '',
+      sertifikalar: json['sertifikalar']?.toString() ?? '',
+      calismaSekli: json['calismaSekli']?.toString() ?? '',
+      hakkimda: json['hakkimda']?.toString() ?? '',
+    );
+  }
 }
 
 String kullaniciProfilPrefsKey(String email, {String fallback = 'anon'}) {
@@ -79,26 +108,31 @@ String kullaniciProfilPrefsKey(String email, {String fallback = 'anon'}) {
   return 'kullanici_profil_${normalized.isEmpty ? fallback : normalized}';
 }
 
-Future<KullaniciProfil> loadKullaniciProfil(String email) async {
+Future<KullaniciProfil> loadKullaniciProfil(
+  String email, {
+  String fallback = 'anon',
+}) async {
   final prefs = await SharedPreferences.getInstance();
-  final raw = prefs.getString(kullaniciProfilPrefsKey(email));
+  final raw = prefs.getString(kullaniciProfilPrefsKey(email, fallback: fallback));
   if (raw == null || raw.isEmpty) return const KullaniciProfil();
   try {
-    return KullaniciProfil.fromJson(
-      Map<String, dynamic>.from(jsonDecode(raw) as Map),
-    );
-  } catch (_) {
-    return const KullaniciProfil();
-  }
+    final map = jsonDecode(raw);
+    if (map is Map<String, dynamic>) return KullaniciProfil.fromJson(map);
+    if (map is Map) {
+      return KullaniciProfil.fromJson(Map<String, dynamic>.from(map));
+    }
+  } catch (_) {}
+  return const KullaniciProfil();
 }
 
 Future<void> saveKullaniciProfil(
   String email,
-  KullaniciProfil profil,
-) async {
+  KullaniciProfil profil, {
+  String fallback = 'anon',
+}) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString(
-    kullaniciProfilPrefsKey(email),
+    kullaniciProfilPrefsKey(email, fallback: fallback),
     jsonEncode(profil.toJson()),
   );
 }

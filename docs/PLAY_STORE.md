@@ -8,11 +8,14 @@
 
 Hepsi **Consumable (tüketilebilir)** olmalı. Kimlikler uygulamayla birebir aynı:
 
-| Product ID | Önerilen fiyat | Puan |
-|------------|----------------|------|
-| `kredi_1`  | ₺49,90         | 1    |
-| `kredi_5`  | ₺199,90        | 5    |
-| `kredi_10` | ₺349,90        | 10   |
+| Product ID | Önerilen fiyat | Puan | İndirim |
+|------------|----------------|------|---------|
+| `kredi_1`  | ₺69,90         | 1    | —       |
+| `kredi_5`  | ₺314,55        | 5    | %10     |
+| `kredi_10` | ₺559,20        | 10   | %20     |
+| `kredi_20` | ₺978,60        | 20   | %30     |
+
+Birim fiyat: ₺69,90/puan. Paket fiyatı = adet × ₺69,90 × (1 − indirim).
 
 Ödeme Google Play Billing ile alınır; onaylanınca uygulama bakiyeyi Supabase `user_profiles.kredi` alanına yazar.
 

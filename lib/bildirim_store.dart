@@ -33,14 +33,31 @@ class AppBildirim {
 
   bool get isTeklif => type == 'teklif';
   bool get isMesaj => type == 'mesaj';
-  bool get isForum => type == 'forum';
+  bool get isForum =>
+      type == 'forum' ||
+      type == 'forum_comment' ||
+      type == 'forum_reply' ||
+      type == 'forum_like' ||
+      type == 'forum_follow';
+  bool get isForumLike => type == 'forum_like';
+  bool get isForumReply => type == 'forum_reply';
+  bool get isForumComment =>
+      type == 'forum_comment' || type == 'forum';
+  bool get isForumFollow => type == 'forum_follow';
 
+  /// Forum bildiriminde `ilan_id` → gönderi id.
+  int? get forumPostId => ilanId;
+
+  /// Forum bildiriminden yorum id (sohbet_key = c:123).
+  int? get forumCommentId => parseForumCommentRef(sohbetKey);
   bool get isGorus =>
       type == 'gorus' ||
       type == 'dilek' ||
       type == 'sikayet' ||
       type == 'oneri' ||
       type == 'diger';
+
+  bool get isKredi => type == 'kredi' || type == 'kredi_odeme';
 
   factory AppBildirim.fromJson(Map<String, dynamic> json) => AppBildirim(
         id: (json['id'] as num?)?.toInt() ?? 0,
@@ -326,6 +343,60 @@ Future<void> submitGorusToAdmin({
   await client.from('bildirimler').insert(rows);
 }
 
+/// İyilik puanı / puan yükleme → admin hesabına bildirim.
+Future<void> notifyAdminKrediYukleme({
+  required int adet,
+  required String birimLabel,
+  String? actorName,
+  String kaynak = 'mağaza',
+  String? paketFiyat,
+  String? referansKodu,
+}) async {
+  final client = Supabase.instance.client;
+  final user = client.auth.currentUser;
+  final actorEmail = (user?.email ?? '').trim().toLowerCase();
+  if (user == null || actorEmail.isEmpty || adet <= 0) return;
+
+  final name = publicContactLabel(
+    actorEmail,
+    preferredName: actorName ?? '',
+  );
+  final birim = birimLabel.trim().isEmpty ? 'puan' : birimLabel.trim();
+  final kaynakLabel = kaynak.trim().isEmpty ? 'mağaza' : kaynak.trim();
+  final fiyat = (paketFiyat ?? '').trim();
+  final ref = (referansKodu ?? '').trim();
+
+  final bodyParts = <String>[
+    '$name ($actorEmail)',
+    '+$adet $birim yüklendi',
+    'Kaynak: $kaynakLabel',
+    if (fiyat.isNotEmpty) 'Tutar: $fiyat',
+    if (ref.isNotEmpty) 'Referans: $ref',
+  ];
+  final body = bodyParts.join('\n');
+
+  final rows = <Map<String, dynamic>>[
+    for (final admin in kAppAdminEmails)
+      if (admin.trim().isNotEmpty &&
+          admin.trim().toLowerCase() != actorEmail)
+        {
+          'owner_email': admin.trim().toLowerCase(),
+          'actor_email': actorEmail,
+          'actor_name': name,
+          'type': 'kredi',
+          'title': kaynakLabel.contains('onay bekliyor')
+              ? 'Ödeme bildirimi: +$adet $birim'
+              : 'Puan yükleme: +$adet $birim',
+          'body': body.length > 1800 ? '${body.substring(0, 1800)}…' : body,
+          'ilan_id': null,
+          'sohbet_key': null,
+          'read': false,
+        },
+  ];
+  if (rows.isEmpty) return;
+  await client.from('bildirimler').insert(rows);
+}
+
 Future<List<AppBildirim>> loadBildirimler() async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
@@ -395,4 +466,163 @@ Future<void> deleteBildirim(int id) async {
       .delete()
       .eq('id', id)
       .eq('owner_email', me);
+}
+
+/// Alıcının tüm bildirimlerini siler (mesaj tipi dahil).
+Future<void> deleteAllBildirimler() async {
+  final client = Supabase.instance.client;
+  final user = client.auth.currentUser;
+  final me = (user?.email ?? '').trim().toLowerCase();
+  if (user == null || me.isEmpty) {
+    throw StateError('Bildirim silmek için giriş yapın.');
+  }
+  await client.from('bildirimler').delete().eq('owner_email', me);
+}
+
+Future<void> _insertBildirim({
+  required String ownerEmail,
+  required String actorName,
+  required String type,
+  required String title,
+  required String body,
+  int? ilanId,
+  String? sohbetKey,
+}) async {
+  final client = Supabase.instance.client;
+  final user = client.auth.currentUser;
+  final actorEmail = (user?.email ?? '').trim().toLowerCase();
+  final owner = ownerEmail.trim().toLowerCase();
+  if (user == null || actorEmail.isEmpty || owner.isEmpty) return;
+  if (owner == actorEmail) return;
+  try {
+    await client.from('bildirimler').insert({
+      'owner_email': owner,
+      'actor_email': actorEmail,
+      'actor_name': actorName.trim().isEmpty
+          ? actorEmail.split('@').first
+          : actorName.trim(),
+      'type': type,
+      'title': title,
+      'body': body.length > 1800 ? '${body.substring(0, 1800)}…' : body,
+      'ilan_id': ilanId,
+      'sohbet_key': sohbetKey,
+      'read': false,
+    });
+  } catch (_) {}
+}
+
+/// Forum yorum referansı (bildirim → deep link).
+String? forumCommentRef(int? commentId) {
+  if (commentId == null || commentId <= 0) return null;
+  return 'c:$commentId';
+}
+
+int? parseForumCommentRef(String? key) {
+  final k = (key ?? '').trim();
+  if (!k.startsWith('c:')) return null;
+  return int.tryParse(k.substring(2));
+}
+
+/// Forum gönderisine yorum → gönderi sahibine.
+Future<void> notifyForumPostComment({
+  required String postOwnerEmail,
+  required String actorName,
+  required String postTitle,
+  required String commentPreview,
+  int? postId,
+  int? commentId,
+}) async {
+  final title = postTitle.trim().isEmpty ? 'Forum gönderisi' : postTitle.trim();
+  await _insertBildirim(
+    ownerEmail: postOwnerEmail,
+    actorName: actorName,
+    type: 'forum_comment',
+    title: 'Yeni yorum: $title',
+    body: commentPreview.trim().isEmpty
+        ? '$actorName gönderinize yorum yaptı.'
+        : commentPreview.trim(),
+    ilanId: postId,
+    sohbetKey: forumCommentRef(commentId),
+  );
+}
+
+/// Yoruma yanıt → yorum sahibine.
+Future<void> notifyForumCommentReply({
+  required String commentOwnerEmail,
+  required String actorName,
+  required String replyPreview,
+  int? postId,
+  int? commentId,
+}) async {
+  await _insertBildirim(
+    ownerEmail: commentOwnerEmail,
+    actorName: actorName,
+    type: 'forum_reply',
+    title: 'Yorumunuza yanıt geldi',
+    body: replyPreview.trim().isEmpty
+        ? '$actorName yorumunuza yanıt yazdı.'
+        : replyPreview.trim(),
+    ilanId: postId,
+    sohbetKey: forumCommentRef(commentId),
+  );
+}
+
+/// Yorum beğenisi → yorum sahibine (Facebook tarzı).
+Future<void> notifyForumCommentLike({
+  required String commentOwnerEmail,
+  required String actorName,
+  required String commentPreview,
+  int? postId,
+  int? commentId,
+}) async {
+  final preview = commentPreview.trim();
+  await _insertBildirim(
+    ownerEmail: commentOwnerEmail,
+    actorName: actorName,
+    type: 'forum_like',
+    title: '$actorName yorumunuzu beğendi',
+    body: preview.isEmpty ? 'Yorumunuz beğenildi.' : preview,
+    ilanId: postId,
+    sohbetKey: forumCommentRef(commentId),
+  );
+}
+
+/// Gönderi beğenisi → gönderi sahibine.
+Future<void> notifyForumPostLike({
+  required String postOwnerEmail,
+  required String actorName,
+  required String postTitle,
+  int? postId,
+}) async {
+  final title = postTitle.trim().isEmpty ? 'Forum gönderisi' : postTitle.trim();
+  await _insertBildirim(
+    ownerEmail: postOwnerEmail,
+    actorName: actorName,
+    type: 'forum_like',
+    title: '$actorName gönderinizi beğendi',
+    body: title,
+    ilanId: postId,
+  );
+}
+
+/// İlan değerlendirme/yorumu → ilan sahibine.
+Future<void> notifyIlanYorum({
+  required String ownerEmail,
+  required String actorName,
+  required String ilanTitle,
+  required String reviewText,
+  int? ilanId,
+  int rating = 0,
+}) async {
+  final stars = rating > 0 ? ' ($rating★)' : '';
+  await _insertBildirim(
+    ownerEmail: ownerEmail,
+    actorName: actorName,
+    type: 'forum_comment',
+    title: 'İlanınıza yorum$stars',
+    body: reviewText.trim().isEmpty
+        ? '$actorName “$ilanTitle” ilanınıza yorum yaptı.'
+        : reviewText.trim(),
+    ilanId: ilanId,
+  );
 }

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_config.dart';
+import 'bildirim_store.dart';
 import 'data/forum_data.dart';
+import 'forum_post_follow_store.dart';
 import 'meto_theme.dart';
 
 String forumRelativeTime(DateTime createdAt) {
@@ -30,6 +32,14 @@ ForumPost forumPostFromRow(
       if (s.isNotEmpty) photos.add(s);
     }
   }
+  final tagsRaw = json['tags'];
+  final tags = <String>[];
+  if (tagsRaw is List) {
+    for (final item in tagsRaw) {
+      final s = item?.toString().trim() ?? '';
+      if (s.isNotEmpty) tags.add(s.startsWith('#') ? s : '#$s');
+    }
+  }
   return ForumPost(
     id: (json['id'] as num?)?.toInt() ?? 0,
     author: json['author']?.toString() ?? 'Anonim',
@@ -41,6 +51,8 @@ ForumPost forumPostFromRow(
     likes: (json['likes'] as num?)?.toInt() ?? 0,
     comments: (json['comments'] as num?)?.toInt() ?? 0,
     time: forumRelativeTime(created),
+    createdAt: created,
+    tags: tags,
     pinned: json['pinned'] == true,
     expert: json['expert'] == true,
     likedByMe: likedByMe,
@@ -78,7 +90,6 @@ ForumComment forumCommentFromRow(
 Future<List<ForumPost>> loadForumPosts() async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
-  if (user == null) return const [];
   try {
     final rows = await client
         .from('forum_posts')
@@ -91,16 +102,18 @@ Future<List<ForumPost>> loadForumPosts() async {
         .toList();
 
     Set<int> liked = {};
-    try {
-      final likeRows = await client
-          .from('forum_likes')
-          .select('post_id')
-          .eq('owner_id', user.id);
-      liked = {
-        for (final e in (likeRows as List).whereType<Map>())
-          if ((e['post_id'] as num?) != null) (e['post_id'] as num).toInt(),
-      };
-    } catch (_) {}
+    if (user != null) {
+      try {
+        final likeRows = await client
+            .from('forum_likes')
+            .select('post_id')
+            .eq('owner_id', user.id);
+        liked = {
+          for (final e in (likeRows as List).whereType<Map>())
+            if ((e['post_id'] as num?) != null) (e['post_id'] as num).toInt(),
+        };
+      } catch (_) {}
+    }
 
     return list
         .map((e) => forumPostFromRow(
@@ -123,6 +136,7 @@ Future<ForumPost> publishForumPost({
   bool expert = false,
   String meslek = '',
   List<String> photos = const [],
+  List<String> tags = const [],
   String? avatarPhoto,
 }) async {
   final client = Supabase.instance.client;
@@ -162,6 +176,10 @@ Future<ForumPost> publishForumPost({
   if (meslek.trim().isNotEmpty) {
     payload['meslek'] = meslek.trim();
   }
+  final diseaseId = _forumDiseaseIdFromCategory(category);
+  if (diseaseId != null) {
+    payload['disease_id'] = diseaseId;
+  }
   final safePhotos = photos
       .map((p) => p.trim())
       .where((p) => p.isNotEmpty)
@@ -169,6 +187,9 @@ Future<ForumPost> publishForumPost({
       .toList(growable: false);
   if (safePhotos.isNotEmpty) {
     payload['photos'] = safePhotos;
+  }
+  if (tags.isNotEmpty) {
+    payload['tags'] = tags;
   }
 
   try {
@@ -178,10 +199,32 @@ Future<ForumPost> publishForumPost({
   } catch (_) {
     payload.remove('meslek');
     payload.remove('photos');
+    payload.remove('disease_id');
+    payload.remove('tags');
     final row =
         await client.from('forum_posts').insert(payload).select().single();
     return forumPostFromRow(Map<String, dynamic>.from(row));
   }
+}
+
+String? _forumDiseaseIdFromCategory(String category) {
+  final c = category.trim().toLowerCase();
+  if (c.isEmpty) return 'genel';
+  if (c.contains('otizm')) return 'otizm';
+  if (c.contains('serebral') || c.contains('palsi')) return 'serebral-palsi';
+  if (c.contains('down')) return 'down-sendromu';
+  if (c.contains('sma')) return 'sma';
+  if (c.contains('dehb')) return 'dehb';
+  if (c.contains('gelişim') || c.contains('gelisim')) return 'gelisim-geriligi';
+  if (c.contains('duyu')) return 'duyu-butunleme';
+  if (c.contains('iletişim') || c.contains('iletisim')) {
+    return 'iletisim-bozukluklari';
+  }
+  if (c.contains('nadir')) return 'nadir-hastaliklar';
+  if (c.contains('genel') || c.contains('köşe') || c.contains('kose')) {
+    return 'genel';
+  }
+  return 'genel';
 }
 
 Future<List<ForumComment>> loadForumComments(int postId) async {
@@ -236,6 +279,65 @@ Future<List<ForumComment>> loadForumComments(int postId) async {
   }
 }
 
+Future<ForumComment?> _findRecentDuplicateComment({
+  required String ownerId,
+  required int postId,
+  required String body,
+  int? parentId,
+}) async {
+  try {
+    final since = DateTime.now()
+        .toUtc()
+        .subtract(const Duration(seconds: 30))
+        .toIso8601String();
+    late final dynamic rows;
+    if (parentId != null && parentId > 0) {
+      rows = await Supabase.instance.client
+          .from('forum_comments')
+          .select()
+          .eq('post_id', postId)
+          .eq('owner_id', ownerId)
+          .eq('body', body)
+          .eq('parent_id', parentId)
+          .gte('created_at', since)
+          .order('created_at', ascending: false)
+          .limit(1);
+    } else {
+      rows = await Supabase.instance.client
+          .from('forum_comments')
+          .select()
+          .eq('post_id', postId)
+          .eq('owner_id', ownerId)
+          .eq('body', body)
+          .gte('created_at', since)
+          .order('created_at', ascending: false)
+          .limit(1);
+    }
+    final list = (rows as List).whereType<Map>().toList();
+    if (list.isEmpty) return null;
+    return forumCommentFromRow(Map<String, dynamic>.from(list.first));
+  } catch (_) {
+    return null;
+  }
+}
+
+bool _isMissingOptionalCommentColumn(Object e) {
+  final msg = e.toString().toLowerCase();
+  // FK / constraint hataları parent_id içerir ama sütun vardır — tekrar insert etme
+  if (msg.contains('foreign key') ||
+      msg.contains('_fkey') ||
+      msg.contains('violates')) {
+    return false;
+  }
+  return (msg.contains('could not find') &&
+          (msg.contains('parent_id') || msg.contains("'likes'"))) ||
+      msg.contains('pgrst204') ||
+      (msg.contains('42703') &&
+          (msg.contains('parent_id') || msg.contains('likes'))) ||
+      (msg.contains('schema cache') &&
+          (msg.contains('parent_id') || msg.contains('likes')));
+}
+
 Future<ForumComment> addForumComment({
   required int postId,
   required String body,
@@ -250,6 +352,16 @@ Future<ForumComment> addForumComment({
   if (user == null) throw StateError('Yorum için giriş yapın.');
   final text = body.trim();
   if (text.isEmpty) throw StateError('Boş yorum gönderilemez.');
+
+  // Aynı metin az önce yazıldıysa ikinci insert yapma (çift gönderim koruması)
+  final dup = await _findRecentDuplicateComment(
+    ownerId: user.id,
+    postId: postId,
+    body: text,
+    parentId: parentId,
+  );
+  if (dup != null) return dup;
+
   final name = anon
       ? 'Anonim'
       : (authorName.trim().isEmpty
@@ -285,10 +397,29 @@ Future<ForumComment> addForumComment({
     row = Map<String, dynamic>.from(
       await client.from('forum_comments').insert(payload).select().single(),
     );
-  } catch (_) {
-    // parent_id / likes sütunu yoksa sade insert
+  } catch (e) {
+    // Insert belki oldu, select patladı → önce kopyayı bul
+    final afterFail = await _findRecentDuplicateComment(
+      ownerId: user.id,
+      postId: postId,
+      body: text,
+      parentId: parentId,
+    );
+    if (afterFail != null) return afterFail;
+
+    if (!_isMissingOptionalCommentColumn(e)) rethrow;
+
     payload.remove('parent_id');
     payload.remove('likes');
+    // Sade insert öncesi bir kez daha kontrol
+    final again = await _findRecentDuplicateComment(
+      ownerId: user.id,
+      postId: postId,
+      body: text,
+      parentId: null,
+    );
+    if (again != null) return again;
+
     row = Map<String, dynamic>.from(
       await client.from('forum_comments').insert(payload).select().single(),
     );
@@ -297,13 +428,72 @@ Future<ForumComment> addForumComment({
   try {
     final post = await client
         .from('forum_posts')
-        .select('comments')
+        .select('comments, owner_email, title')
         .eq('id', postId)
         .maybeSingle();
     final current = (post?['comments'] as num?)?.toInt() ?? 0;
     await client
         .from('forum_posts')
         .update({'comments': current + 1}).eq('id', postId);
+
+    final me = authorEmail.trim().toLowerCase();
+    final postOwner = (post?['owner_email']?.toString() ?? '').toLowerCase();
+    final postTitle = post?['title']?.toString() ?? '';
+    final newCommentId = (row['id'] as num?)?.toInt();
+    String? parentOwner;
+    final effectiveParentId =
+        (row['parent_id'] as num?)?.toInt() ?? parentId;
+    if (effectiveParentId != null && effectiveParentId > 0) {
+      try {
+        final parent = await client
+            .from('forum_comments')
+            .select('owner_email')
+            .eq('id', effectiveParentId)
+            .maybeSingle();
+        parentOwner = (parent?['owner_email']?.toString() ?? '').toLowerCase();
+      } catch (_) {}
+      if (parentOwner != null &&
+          parentOwner.isNotEmpty &&
+          parentOwner != me) {
+        await notifyForumCommentReply(
+          commentOwnerEmail: parentOwner,
+          actorName: name,
+          replyPreview: text,
+          postId: postId,
+          commentId: newCommentId,
+        );
+      }
+    }
+    if (postOwner.isNotEmpty &&
+        postOwner != me &&
+        postOwner != parentOwner) {
+      await notifyForumPostComment(
+        postOwnerEmail: postOwner,
+        actorName: name,
+        postTitle: postTitle,
+        commentPreview: text,
+        postId: postId,
+        commentId: newCommentId,
+      );
+    }
+    // Gönderiyi takip edenlere + daha önce yorum yazanlara
+    await ForumPostFollowStore.notifyFollowersOfComment(
+      postId: postId,
+      postTitle: postTitle,
+      actorName: name,
+      actorEmail: me,
+      commentPreview: text,
+      commentId: newCommentId,
+      excludeEmails: {
+        if (postOwner.isNotEmpty) postOwner,
+        if (parentOwner != null && parentOwner.isNotEmpty) parentOwner,
+      },
+    );
+    // Yorum yazan, bu gönderiden bildirim almaya başlar (mute değilse)
+    await ForumPostFollowStore.ensureFollowingAfterComment(
+      email: me,
+      postId: postId,
+    );
   } catch (_) {}
 
   return forumCommentFromRow(row);
@@ -352,6 +542,33 @@ Future<({bool liked, int likes})> toggleForumCommentLike(int commentId) async {
   await client
       .from('forum_comments')
       .update({'likes': likes}).eq('id', commentId);
+
+  try {
+    final full = await client
+        .from('forum_comments')
+        .select('owner_email, body, post_id, author')
+        .eq('id', commentId)
+        .maybeSingle();
+    final owner = (full?['owner_email']?.toString() ?? '').toLowerCase();
+    final preview = full?['body']?.toString() ?? '';
+    final postId = (full?['post_id'] as num?)?.toInt();
+    final me = (user.email ?? '').trim().toLowerCase();
+    final actorName = (user.userMetadata?['name']?.toString() ?? '')
+            .trim()
+            .isNotEmpty
+        ? user.userMetadata!['name'].toString().trim()
+        : (user.email ?? 'Birisi').split('@').first;
+    if (owner.isNotEmpty && owner != me) {
+      await notifyForumCommentLike(
+        commentOwnerEmail: owner,
+        actorName: actorName,
+        commentPreview: preview,
+        postId: postId,
+        commentId: commentId,
+      );
+    }
+  } catch (_) {}
+
   return (liked: true, likes: likes);
 }
 
@@ -371,7 +588,7 @@ Future<({bool liked, int likes})> toggleForumLike(int postId) async {
 
   final post = await client
       .from('forum_posts')
-      .select('likes')
+      .select('likes, owner_email, title')
       .eq('id', postId)
       .maybeSingle();
   var likes = (post?['likes'] as num?)?.toInt() ?? 0;
@@ -394,6 +611,26 @@ Future<({bool liked, int likes})> toggleForumLike(int postId) async {
   });
   likes = likes + 1;
   await client.from('forum_posts').update({'likes': likes}).eq('id', postId);
+
+  try {
+    final owner = (post?['owner_email']?.toString() ?? '').toLowerCase();
+    final title = post?['title']?.toString() ?? '';
+    final me = (user.email ?? '').trim().toLowerCase();
+    final actorName = (user.userMetadata?['name']?.toString() ?? '')
+            .trim()
+            .isNotEmpty
+        ? user.userMetadata!['name'].toString().trim()
+        : (user.email ?? 'Birisi').split('@').first;
+    if (owner.isNotEmpty && owner != me) {
+      await notifyForumPostLike(
+        postOwnerEmail: owner,
+        actorName: actorName,
+        postTitle: title,
+        postId: postId,
+      );
+    }
+  } catch (_) {}
+
   return (liked: true, likes: likes);
 }
 
@@ -405,6 +642,7 @@ Future<ForumPost> updateForumPost({
   bool expert = false,
   String meslek = '',
   List<String> photos = const [],
+  List<String> tags = const [],
 }) async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
@@ -413,6 +651,7 @@ Future<ForumPost> updateForumPost({
   }
   if (postId <= 0) throw StateError('Geçersiz gönderi.');
 
+  final diseaseId = _forumDiseaseIdFromCategory(category);
   final payload = <String, dynamic>{
     'category': category.trim(),
     'title': title.trim(),
@@ -424,6 +663,8 @@ Future<ForumPost> updateForumPost({
         .where((p) => p.isNotEmpty)
         .take(2)
         .toList(growable: false),
+    'tags': tags,
+    if (diseaseId != null) 'disease_id': diseaseId,
   };
 
   try {
@@ -440,8 +681,10 @@ Future<ForumPost> updateForumPost({
     return forumPostFromRow(Map<String, dynamic>.from(row));
   } catch (e) {
     if (e is StateError) rethrow;
-    // photos sütunu yoksa photos olmadan dene
+    // photos/tags sütunu yoksa düşürerek dene
     payload.remove('photos');
+    payload.remove('tags');
+    payload.remove('disease_id');
     final row = await client
         .from('forum_posts')
         .update(payload)

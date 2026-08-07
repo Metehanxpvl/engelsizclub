@@ -2,6 +2,8 @@ import 'dart:math';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'bildirim_store.dart';
+
 class KrediOdemeBildirimi {
   const KrediOdemeBildirimi({
     required this.id,
@@ -90,7 +92,20 @@ Future<KrediOdemeBildirimi> submitKrediOdemeBildirimi({
       .insert(payload)
       .select()
       .single();
-  return KrediOdemeBildirimi.fromJson(Map<String, dynamic>.from(row));
+  final odeme = KrediOdemeBildirimi.fromJson(Map<String, dynamic>.from(row));
+  // Onay öncesi: admin'e "ödeme bildirimi" (bakiye henüz artmamış olabilir).
+  // Asıl puan yüklenince DB trigger (kredi_admin_notify.sql) ayrıca yazar.
+  try {
+    await notifyAdminKrediYukleme(
+      adet: paketAdet,
+      birimLabel: 'puan',
+      actorName: ad,
+      kaynak: 'havale / ödeme bildirimi (onay bekliyor)',
+      paketFiyat: paketFiyat,
+      referansKodu: odeme.referansKodu,
+    );
+  } catch (_) {}
+  return odeme;
 }
 
 Future<List<KrediOdemeBildirimi>> loadKrediOdemeleri() async {

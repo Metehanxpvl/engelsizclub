@@ -9,6 +9,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'admin_config.dart';
 import 'data/diseases_data.dart';
 import 'data/nadir_data.dart';
+import 'home_hero_store.dart';
+import 'medical_disclaimer_store.dart';
 import 'meto_theme.dart';
 import 'nadir_store.dart';
 import 'services/app_catalog_service.dart';
@@ -17,15 +19,25 @@ import 'widgets/catalog_media.dart';
 import 'widgets/duyurular_section.dart';
 import 'widgets/hastaliklar_section.dart';
 import 'widgets/admin_disease_edit_sheet.dart';
+import 'widgets/home_hero_admin_sheet.dart';
+import 'widgets/medical_info_card.dart';
+import 'widgets/guest_gate.dart';
+import 'pages/tibbi_sorumluluk_reddi_page.dart';
+import 'l10n/app_strings.dart';
+import 'l10n/l10n_text.dart';
 
 /// Figma Make `HomeTab` — birebir Flutter portu.
 class HomePage extends StatefulWidget {
   const HomePage({
     super.key,
     this.userEmail = '',
+    this.isGuest = false,
+    this.onRequireLogin,
   });
 
   final String userEmail;
+  final bool isGuest;
+  final VoidCallback? onRequireLogin;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -39,36 +51,75 @@ class _HomePageState extends State<HomePage> {
   int? _expandedFaq;
   int _heroIdx = 0;
   Timer? _heroTimer;
+  List<HomeHeroSlide> _heroSlides = List<HomeHeroSlide>.from(kDefaultHomeHeroSlides);
 
   List<DiseaseInfo> get _diseases => CatalogAdapters.diseases();
 
   bool get _isAdmin => isAppAdmin(widget.userEmail);
 
-  static const _heroSlides = [
-    _HeroSlide(
-      asset: 'assets/images/118547.png',
-      alt: 'Terapist ve özel gereksinimli çocuk yürüyüş terapisinde',
-    ),
-    _HeroSlide(
-      asset: 'assets/images/118587-1.png',
-      alt: 'Gökkuşağı altında mutlu iki çocuk',
-    ),
-    _HeroSlide(
-      asset: 'assets/images/118600.png',
-      alt: 'Anne ve yeni doğan bebeği hastanede',
-    ),
-  ];
+  List<HomeHeroSlide> get _visibleHeroSlides {
+    final active = _heroSlides.where((s) => s.isActive).toList();
+    return active.isEmpty ? kDefaultHomeHeroSlides : active;
+  }
 
   @override
   void initState() {
     super.initState();
     final cached = cachedNadirItems;
     if (cached != null) _nadirItems = List<NadirItem>.from(cached);
+    final heroCached = cachedHomeHeroSlides;
+    if (heroCached != null && heroCached.isNotEmpty) {
+      _heroSlides = List<HomeHeroSlide>.from(heroCached);
+    }
     _loadNadir();
+    _loadHeroSlides();
     _heroTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (!mounted || _activeDisease != null) return;
-      setState(() => _heroIdx = (_heroIdx + 1) % _heroSlides.length);
+      final slides = _visibleHeroSlides;
+      if (slides.isEmpty) return;
+      setState(() => _heroIdx = (_heroIdx + 1) % slides.length);
     });
+  }
+
+  Future<void> _loadHeroSlides() async {
+    final items = await loadHomeHeroSlides(
+      forceRefresh: !hasFreshHomeHeroCache,
+      viewerEmail: widget.userEmail,
+    );
+    if (!mounted) return;
+    setState(() {
+      _heroSlides = items;
+      final n = _visibleHeroSlides.length;
+      if (n > 0) _heroIdx = _heroIdx % n;
+    });
+  }
+
+  Future<void> _openHeroAdmin() async {
+    if (!_isAdmin) return;
+    final all = await loadHomeHeroSlides(
+      forceRefresh: true,
+      viewerEmail: widget.userEmail,
+    );
+    if (!mounted) return;
+    final result = await showModalBottomSheet<List<HomeHeroSlide>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => HomeHeroAdminSheet(
+        adminEmail: widget.userEmail,
+        slides: all,
+      ),
+    );
+    if (!mounted) return;
+    if (result != null) {
+      setState(() {
+        _heroSlides = result;
+        final n = _visibleHeroSlides.length;
+        if (n > 0) _heroIdx = _heroIdx % n;
+      });
+    } else {
+      await _loadHeroSlides();
+    }
   }
 
   Future<void> _loadNadir() async {
@@ -105,6 +156,29 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  Widget _buildHeroImage(HomeHeroSlide slide) {
+    Widget fallback() => Container(
+          color: MetoColors.primaryDark,
+          alignment: Alignment.center,
+          child: const L10nText('🌱', style: TextStyle(fontSize: 48)),
+        );
+    if (slide.isNetwork) {
+      return Image.network(
+        slide.imageUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback(),
+      );
+    }
+    if (slide.isAsset) {
+      return Image.asset(
+        slide.assetPath,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback(),
+      );
+    }
+    return fallback();
+  }
+
   void _openDisease(DiseaseInfo d) => setState(() {
         _activeDisease = d.id;
         _openedDisease = d;
@@ -125,7 +199,7 @@ class _HomePageState extends State<HomePage> {
       _activeDisease = result.id;
     });
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Hastalık metni kaydedildi.')),
+      const SnackBar(content: L10nText('İçerik kaydedildi.')),
     );
   }
 
@@ -168,19 +242,11 @@ class _HomePageState extends State<HomePage> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                for (var i = 0; i < _heroSlides.length; i++)
+                for (var i = 0; i < _visibleHeroSlides.length; i++)
                   AnimatedOpacity(
                     opacity: i == _heroIdx ? 1 : 0,
                     duration: const Duration(milliseconds: 700),
-                    child: Image.asset(
-                      _heroSlides[i].asset,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: MetoColors.primaryDark,
-                        alignment: Alignment.center,
-                        child: const Text('🌱', style: TextStyle(fontSize: 48)),
-                      ),
-                    ),
+                    child: _buildHeroImage(_visibleHeroSlides[i]),
                   ),
                 const DecoratedBox(
                   decoration: BoxDecoration(
@@ -194,6 +260,41 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
+                if (_isAdmin)
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: Material(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        onTap: _openHeroAdmin,
+                        borderRadius: BorderRadius.circular(12),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.photo_library_outlined,
+                                  size: 16, color: Colors.white),
+                              SizedBox(width: 6),
+                              L10nText(
+                                'Görselleri yönet',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 Positioned(
                   left: 16,
                   right: 16,
@@ -203,9 +304,9 @@ class _HomePageState extends State<HomePage> {
                     children: [
                       Row(
                         children: [
-                          Text('👋', style: GoogleFonts.nunito(fontSize: 16)),
+                          L10nText('👋', style: GoogleFonts.nunito(fontSize: 16)),
                           const SizedBox(width: 6),
-                          Text(
+                          L10nText(
                             'Hoş geldiniz',
                             style: GoogleFonts.nunito(
                               fontSize: 12,
@@ -216,7 +317,7 @@ class _HomePageState extends State<HomePage> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      L10nText(
                         'Destek, bilgi ve\ntopluluk bir arada',
                         style: GoogleFonts.nunito(
                           fontSize: 20,
@@ -232,7 +333,7 @@ class _HomePageState extends State<HomePage> {
                   right: 16,
                   bottom: 12,
                   child: Row(
-                    children: List.generate(_heroSlides.length, (i) {
+                    children: List.generate(_visibleHeroSlides.length, (i) {
                       final active = i == _heroIdx;
                       return GestureDetector(
                         onTap: () => setState(() => _heroIdx = i),
@@ -256,17 +357,22 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
 
-          // PubMed search
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 12),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
             child: PubMedSearchBar(
-              placeholder: 'Hastalık veya tedavi araştır (PubMed · Klinik)...',
+              placeholder:
+                  'Bilimsel kaynak veya konu araştır (makale · araştırma)...',
+              isGuest: widget.isGuest,
+              onRequireLogin: widget.onRequireLogin,
             ),
           ),
 
           const DisclaimerBanner(),
 
-          DuyurularSection(userEmail: widget.userEmail),
+          DuyurularSection(
+            key: ValueKey('duyurular_${widget.userEmail}'),
+            userEmail: widget.userEmail,
+          ),
 
           HastaliklarSection(
             userEmail: widget.userEmail,
@@ -304,8 +410,8 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  'Uzman Canlı Danışmanlık',
+                L10nText(
+                  'Uzmanlarla Canlı Görüşme',
                   style: GoogleFonts.nunito(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -313,8 +419,8 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  'Çocuk psikiyatristi ve terapistlerle video görüşmesi yapın.',
+                L10nText(
+                  'Eğitim ve destek uzmanlarıyla video görüşmesi (yakında).',
                   style: GoogleFonts.nunito(
                     fontSize: 12,
                     color: MetoColors.mutedFg,
@@ -328,7 +434,7 @@ class _HomePageState extends State<HomePage> {
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Bildirim listesine eklendiniz.'),
+                          content: L10nText('Bildirim listesine eklendiniz.'),
                         ),
                       );
                     },
@@ -336,7 +442,7 @@ class _HomePageState extends State<HomePage> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 6),
-                      child: Text(
+                      child: L10nText(
                         'Bildirim Al',
                         style: GoogleFonts.nunito(
                           fontSize: 12,
@@ -382,7 +488,7 @@ class _HomePageState extends State<HomePage> {
                   TextButton.icon(
                     onPressed: _goBack,
                     icon: Icon(Icons.chevron_left, size: 20, color: d.color),
-                    label: Text(
+                    label: L10nText(
                       'Geri',
                       style: TextStyle(
                         fontSize: 14,
@@ -403,7 +509,7 @@ class _HomePageState extends State<HomePage> {
                       child: TextButton.icon(
                         onPressed: () => _editDiseaseDetail(d),
                         icon: Icon(Icons.edit_outlined, size: 18, color: d.color),
-                        label: Text(
+                        label: L10nText(
                           'Metni düzenle',
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
@@ -433,7 +539,7 @@ class _HomePageState extends State<HomePage> {
                   else
                     Text(d.icon, style: const TextStyle(fontSize: 40)),
                   const SizedBox(height: 12),
-                  Text(
+                  L10nText(
                     d.name,
                     style: const TextStyle(
                       fontSize: 24,
@@ -443,7 +549,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
+                  L10nText(
                     d.desc,
                     style: const TextStyle(
                       fontSize: 14,
@@ -486,8 +592,8 @@ class _HomePageState extends State<HomePage> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            const Text(
-                              'Belirtiler',
+                            const L10nText(
+                              'Sık görülen özellikler',
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
                                 color: MetoColors.foreground,
@@ -530,8 +636,8 @@ class _HomePageState extends State<HomePage> {
                             Icon(Icons.medical_services_outlined,
                                 size: 16, color: d.color),
                             const SizedBox(width: 8),
-                            const Text(
-                              'Tanı Süreci',
+                            const L10nText(
+                              'Bilgilendirme',
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
                                 color: MetoColors.foreground,
@@ -563,7 +669,7 @@ class _HomePageState extends State<HomePage> {
                             Icon(Icons.favorite_outline,
                                 size: 16, color: d.color),
                             const SizedBox(width: 8),
-                            const Text(
+                            const L10nText(
                               'Destek Yolları',
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
@@ -613,7 +719,7 @@ class _HomePageState extends State<HomePage> {
                           Icon(Icons.menu_book_outlined,
                               size: 16, color: d.color),
                           const SizedBox(width: 8),
-                          const Text(
+                          const L10nText(
                             'Sık Sorulan Sorular',
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
@@ -720,7 +826,7 @@ class _HomePageState extends State<HomePage> {
                     onPressed: _goBack,
                     icon: const Icon(Icons.chevron_left,
                         size: 20, color: Color(0xCCFFFFFF)),
-                    label: const Text(
+                    label: const L10nText(
                       'Geri',
                       style: TextStyle(
                         fontSize: 14,
@@ -735,10 +841,10 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text('🔬', style: TextStyle(fontSize: 40)),
+                  const L10nText('🔬', style: TextStyle(fontSize: 40)),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Nadir Hastalıklar',
+                  const L10nText(
+                    'Nadir Durumlar',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
@@ -747,8 +853,8 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    "Dünyada 7.000+ nadir hastalık tanımlanmıştır. Her biri 200.000'den az kişiyi etkiler.",
+                  L10nText(
+                    'Dünyada 7.000+ nadir durum tanımlanmıştır. Her biri 200.000’den az kişiyi etkiler.',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.white.withValues(alpha: 0.60),
@@ -779,8 +885,8 @@ class _HomePageState extends State<HomePage> {
                           size: 14, color: Color(0xFF9333EA)),
                       SizedBox(width: 8),
                       Expanded(
-                        child: Text(
-                          'Nadir hastalıklarda erken tanı hayati önem taşır. Şikayetleriniz için genetik hastalıklar uzmanına başvurun.',
+                        child: L10nText(
+                          'Nadir durumlarda erken bilgilendirme önemlidir. Destek için ilgili uzmanlara başvurabilirsiniz.',
                           style: TextStyle(
                             fontSize: 12,
                             color: Color(0xFF7E22CE),
@@ -825,7 +931,7 @@ class _HomePageState extends State<HomePage> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
+                                    L10nText(
                                       h.name,
                                       style: const TextStyle(
                                         fontSize: 14,
@@ -845,7 +951,7 @@ class _HomePageState extends State<HomePage> {
                                     const SizedBox(height: 8),
                                     const Row(
                                       children: [
-                                        Text(
+                                        L10nText(
                                           'Detay',
                                           style: TextStyle(
                                             fontSize: 12,
@@ -879,7 +985,7 @@ class _HomePageState extends State<HomePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      const L10nText(
                         'Faydalı Kaynaklar',
                         style: TextStyle(
                           fontSize: 12,
@@ -933,7 +1039,7 @@ class _HomePageState extends State<HomePage> {
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bağlantı açılamadı.')),
+        const SnackBar(content: L10nText('Bağlantı açılamadı.')),
       );
     }
   }
@@ -965,8 +1071,8 @@ class _HomePageState extends State<HomePage> {
                         onPressed: _goBack,
                         icon: const Icon(Icons.chevron_left,
                             size: 20, color: Color(0xCCFFFFFF)),
-                        label: const Text(
-                          'Nadir Hastalıklar',
+                        label: const L10nText(
+                          'Nadir Durumlar',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -982,7 +1088,7 @@ class _HomePageState extends State<HomePage> {
                       const Spacer(),
                       if (_isAdmin)
                         IconButton(
-                          tooltip: 'Düzenle',
+                          tooltip: S.auto('Düzenle'),
                           onPressed: () => _openNadirEdit(item),
                           style: IconButton.styleFrom(
                             backgroundColor: Colors.white24,
@@ -995,7 +1101,7 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 12),
                   Text(item.icon, style: const TextStyle(fontSize: 40)),
                   const SizedBox(height: 8),
-                  Text(
+                  L10nText(
                     item.name,
                     style: const TextStyle(
                       fontSize: 22,
@@ -1029,7 +1135,7 @@ class _HomePageState extends State<HomePage> {
                     child: OutlinedButton.icon(
                       onPressed: () => _openNadirEdit(item),
                       icon: const Icon(Icons.edit_outlined, size: 18),
-                      label: const Text('Metni düzenle'),
+                      label: const L10nText('Metni düzenle'),
                     ),
                   ),
                 ],
@@ -1060,7 +1166,7 @@ class _HomePageState extends State<HomePage> {
         _activeNadirId = saved.id;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nadir hastalık metni kaydedildi.')),
+        const SnackBar(content: L10nText('Nadir hastalık metni kaydedildi.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -1115,37 +1221,90 @@ class _DetailCard extends StatelessWidget {
   }
 }
 
-class DisclaimerBanner extends StatelessWidget {
+class DisclaimerBanner extends StatefulWidget {
   const DisclaimerBanner(
       {super.key, this.margin = const EdgeInsets.fromLTRB(16, 0, 16, 16)});
 
   final EdgeInsetsGeometry margin;
 
   @override
+  State<DisclaimerBanner> createState() => _DisclaimerBannerState();
+}
+
+class _DisclaimerBannerState extends State<DisclaimerBanner> {
+  bool _loading = true;
+  bool _dismissed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final gone = await isInfoCardDismissed(kDismissHomeDisclaimer);
+    if (!mounted) return;
+    setState(() {
+      _dismissed = gone;
+      _loading = false;
+    });
+  }
+
+  Future<void> _dismiss() async {
+    setState(() => _dismissed = true);
+    await dismissInfoCard(kDismissHomeDisclaimer);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_loading || _dismissed) return const SizedBox.shrink();
+
     return Container(
-      margin: margin,
-      padding: const EdgeInsets.all(12),
+      margin: widget.margin,
+      padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFBEB),
+        color: MetoColors.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFFDE68A)),
+        border: Border.all(
+          color: MetoColors.primary.withValues(alpha: 0.22),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline, size: 16, color: Color(0xFFD97706)),
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(Icons.info_outline, size: 16, color: MetoColors.primary),
+          ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              'Bu uygulama yalnızca bilgilendirme amaçlıdır. Tanı, tedavi veya tıbbi tavsiye yerine geçmez. Her zaman uzman bir sağlık profesyoneline başvurun.',
-              style: GoogleFonts.nunito(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: const Color(0xFFB45309),
-                height: 1.45,
+            child: InkWell(
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const TibbiSorumlulukReddiPage(),
+                  ),
+                );
+              },
+              child: L10nText(
+                'Engelsiz Club bilgilendirme amaçlı bir topluluk destek platformudur; '
+                'klinik hizmet sunmaz. Ayrıntılar için dokunun.',
+                style: GoogleFonts.nunito(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: MetoColors.mutedFg,
+                  height: 1.45,
+                ),
               ),
             ),
+          ),
+          IconButton(
+            tooltip: S.auto('Kapat'),
+            onPressed: _dismiss,
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            icon: const Icon(Icons.close, size: 18, color: MetoColors.mutedFg),
           ),
         ],
       ),
@@ -1156,10 +1315,17 @@ class DisclaimerBanner extends StatelessWidget {
 // ─── PubMed search bar ───────────────────────────────────────────────────────
 
 class PubMedSearchBar extends StatefulWidget {
-  const PubMedSearchBar(
-      {super.key, this.placeholder = 'Hastalık veya tedavi araştır...'});
+  const PubMedSearchBar({
+    super.key,
+    this.placeholder =
+        'Bilimsel kaynak veya konu araştır (makale · araştırma)...',
+    this.isGuest = false,
+    this.onRequireLogin,
+  });
 
   final String placeholder;
+  final bool isGuest;
+  final VoidCallback? onRequireLogin;
 
   @override
   State<PubMedSearchBar> createState() => _PubMedSearchBarState();
@@ -1335,6 +1501,13 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
   Future<void> _search() async {
     final raw = _controller.text.trim();
     if (raw.isEmpty) return;
+    final allowed = await ensureGuestSearchAllowed(
+      context,
+      isGuest: widget.isGuest,
+      onRequireLogin: widget.onRequireLogin ?? () {},
+    );
+    if (!allowed) return;
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _searched = true;
@@ -1610,6 +1783,18 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        MedicalInfoCard(
+          margin: const EdgeInsets.only(bottom: 10),
+          dismissKey: kDismissPubmedInfo,
+          title: 'Bilgilendirme',
+          body: _tab == 'trials'
+              ? 'Bu bölüm ClinicalTrials.gov üzerinde herkese açık araştırmalarda '
+                  'arama yapmanızı sağlar.\n\n'
+                  'Engelsiz Club araştırmaları değerlendirmez, önermez veya yorumlamaz.'
+              : 'Bu bölüm yalnızca PubMed veri tabanında arama yapmanızı sağlar.\n\n'
+                  'Gösterilen sonuçlar Engelsiz Club tarafından oluşturulmaz.\n\n'
+                  'Makaleler tavsiye niteliğinde değildir.',
+        ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
@@ -1660,7 +1845,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                   borderRadius: BorderRadius.circular(8),
                   child: const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    child: Text(
+                    child: L10nText(
                       'Ara',
                       style: TextStyle(
                         fontSize: 12,
@@ -1710,7 +1895,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                           if (_typoHints[
                                   _controller.text.trim().toLowerCase()] ==
                               _suggestions[i].toLowerCase())
-                            const Text(
+                            const L10nText(
                               'Bunu mu demek istediniz?',
                               style: TextStyle(
                                 fontSize: 10,
@@ -1732,7 +1917,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
             Icon(Icons.open_in_new, size: 10, color: MetoColors.mutedFg),
             SizedBox(width: 4),
             Expanded(
-              child: Text(
+              child: L10nText(
                 'PubMed · ClinicalTrials.gov · Türkçe sonuçlar',
                 style: TextStyle(fontSize: 10, color: MetoColors.mutedFg),
               ),
@@ -1751,14 +1936,14 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                       strokeWidth: 2, color: MetoColors.primary),
                 ),
                 SizedBox(height: 8),
-                Text(
+                L10nText(
                   "Aranıyor ve Türkçe'ye çevriliyor...",
                   style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: MetoColors.mutedFg),
                 ),
-                Text(
+                L10nText(
                   'PubMed · ClinicalTrials.gov',
                   style: TextStyle(fontSize: 10, color: MetoColors.mutedFg),
                 ),
@@ -1770,7 +1955,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
             padding: const EdgeInsets.symmetric(vertical: 32),
             child: Column(
               children: [
-                const Text(
+                const L10nText(
                   'Sonuç bulunamadı',
                   style: TextStyle(
                       fontSize: 14,
@@ -1800,7 +1985,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFFFDE68A)),
               ),
-              child: Text(
+              child: L10nText(
                 '"${_controller.text}" → İngilizce: "$_translatedQ" olarak arandı',
                 style: const TextStyle(fontSize: 11, color: Color(0xFF92400E)),
               ),
@@ -1813,7 +1998,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
               const SizedBox(width: 6),
               Expanded(
                   child: _tabButton(
-                      'trials', '🧪 Klinik (${_trials.length})')),
+                      'trials', '🧪 Araştırmalar (${_trials.length})')),
             ],
           ),
           const SizedBox(height: 12),
@@ -1822,7 +2007,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                 ? [
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16),
-                      child: Text(
+                      child: L10nText(
                         "PubMed'de sonuç bulunamadı.",
                         textAlign: TextAlign.center,
                         style:
@@ -1846,8 +2031,8 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                 ? [
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16),
-                      child: Text(
-                        'Klinik çalışma bulunamadı.',
+                      child: L10nText(
+                        'Araştırma bulunamadı.',
                         textAlign: TextAlign.center,
                         style:
                             TextStyle(fontSize: 12, color: MetoColors.mutedFg),
@@ -1879,7 +2064,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
     if (pageCount <= 1) {
       return Padding(
         padding: const EdgeInsets.only(top: 4, bottom: 8),
-        child: Text(
+        child: L10nText(
           '$total sonuç',
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
@@ -1907,7 +2092,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
       padding: const EdgeInsets.only(top: 8, bottom: 8),
       child: Column(
         children: [
-          Text(
+          L10nText(
             'Sayfa ${page + 1} / $pageCount · $total sonuç',
             style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
           ),
@@ -1943,7 +2128,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                         width: 32,
                         height: 32,
                         child: Center(
-                          child: Text(
+                          child: L10nText(
                             '${p + 1}',
                             style: TextStyle(
                               fontSize: 12,
@@ -2037,7 +2222,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
         children: [
           InkWell(
             onTap: () => launchUrl(url, mode: LaunchMode.externalApplication),
-            child: Text(
+            child: L10nText(
               r.title,
               style: const TextStyle(
                 fontSize: 12,
@@ -2116,7 +2301,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
             onTap: url == null
                 ? null
                 : () => launchUrl(url, mode: LaunchMode.externalApplication),
-            child: Text(
+            child: L10nText(
               t.title,
               style: TextStyle(
                 fontSize: 12,
@@ -2159,12 +2344,6 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
 }
 
 // ─── Models & data ───────────────────────────────────────────────────────────
-
-class _HeroSlide {
-  const _HeroSlide({required this.asset, required this.alt});
-  final String asset;
-  final String alt;
-}
 
 class _NadirSectionCard extends StatelessWidget {
   const _NadirSectionCard({required this.title, required this.body});
@@ -2247,7 +2426,7 @@ class _NadirEditSheetState extends State<_NadirEditSheet> {
     final name = _name.text.trim();
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Başlık gerekli.')),
+        const SnackBar(content: L10nText('Başlık gerekli.')),
       );
       return;
     }
@@ -2289,7 +2468,7 @@ class _NadirEditSheetState extends State<_NadirEditSheet> {
             const SizedBox(height: 14),
             Align(
               alignment: Alignment.centerLeft,
-              child: Text(
+              child: L10nText(
                 'Nadir hastalık düzenle',
                 style: GoogleFonts.nunito(
                   fontSize: 18,
@@ -2306,8 +2485,8 @@ class _NadirEditSheetState extends State<_NadirEditSheet> {
                     TextField(
                       controller: _name,
                       enabled: !_saving,
-                      decoration: const InputDecoration(
-                        labelText: 'Başlık',
+                      decoration: InputDecoration(
+                        labelText: S.auto('Başlık'),
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -2316,8 +2495,8 @@ class _NadirEditSheetState extends State<_NadirEditSheet> {
                       controller: _short,
                       enabled: !_saving,
                       maxLines: 2,
-                      decoration: const InputDecoration(
-                        labelText: 'Kısa özet (liste kartı)',
+                      decoration: InputDecoration(
+                        labelText: S.auto('Kısa özet (liste kartı)'),
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -2327,8 +2506,8 @@ class _NadirEditSheetState extends State<_NadirEditSheet> {
                       enabled: !_saving,
                       minLines: 4,
                       maxLines: 8,
-                      decoration: const InputDecoration(
-                        labelText: 'Tanım ve Gelişim',
+                      decoration: InputDecoration(
+                        labelText: S.auto('Tanım ve Gelişim'),
                         alignLabelWithHint: true,
                         border: OutlineInputBorder(),
                       ),
@@ -2339,8 +2518,8 @@ class _NadirEditSheetState extends State<_NadirEditSheet> {
                       enabled: !_saving,
                       minLines: 4,
                       maxLines: 8,
-                      decoration: const InputDecoration(
-                        labelText: 'Etkileri',
+                      decoration: InputDecoration(
+                        labelText: S.auto('Etkileri'),
                         alignLabelWithHint: true,
                         border: OutlineInputBorder(),
                       ),
@@ -2359,7 +2538,7 @@ class _NadirEditSheetState extends State<_NadirEditSheet> {
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                child: Text(
+                child: L10nText(
                   'Kaydet',
                   style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
                 ),

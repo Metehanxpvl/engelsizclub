@@ -83,7 +83,10 @@ class GoogleAuthService {
     final js = await google_js.firebaseGooglePopupJs();
     if (js == null) return null;
     if (js['cancelled'] == 'true') return null;
-    if (js['redirecting'] == 'true') return null;
+      if (js['redirecting'] == 'true') {
+        // Sayfa Google’a gidiyor — oturum dönüşte completeRedirectIfAny ile kurulur.
+        throw const GoogleAuthRedirecting();
+      }
     final err = js['error'];
     if (err != null && err.isNotEmpty) {
       throw StateError(err);
@@ -100,6 +103,12 @@ class GoogleAuthService {
       );
     } on AuthException catch (e) {
       final m = e.message.toLowerCase();
+      if (m.contains('signup') && m.contains('disabled')) {
+        throw StateError(
+          'Yeni üyelik kapalı. Supabase → Authentication → Providers → '
+          'Google / Settings’te “Allow new users to sign up” açık olmalı.',
+        );
+      }
       if (m.contains('audience') || m.contains('provider')) {
         throw StateError(
           'Supabase Google Client ID eksik. Supabase → Authentication → '
@@ -191,6 +200,18 @@ class GoogleAuthService {
       if (_mobileWait != null && !_mobileWait!.isCompleted) {
         _mobileWait!.complete(res);
       }
+    } on AuthException catch (e) {
+      final m = e.message.toLowerCase();
+      final mapped = (m.contains('signup') &&
+              (m.contains('disabled') || m.contains('not allowed')))
+          ? StateError(
+              'Yeni Google üyelikleri kapalı. Supabase → Authentication → '
+              'Settings: “Allow new users to sign up” açın.',
+            )
+          : e;
+      if (_mobileWait != null && !_mobileWait!.isCompleted) {
+        _mobileWait!.completeError(mapped);
+      }
     } catch (e) {
       if (_mobileWait != null && !_mobileWait!.isCompleted) {
         _mobileWait!.completeError(e);
@@ -200,12 +221,26 @@ class GoogleAuthService {
 
   static Future<AuthResponse?> completeRedirectIfAny() async {
     if (!kIsWeb) return null;
-    if (Firebase.apps.isEmpty) return null;
+
+    // Web’de FlutterFire init edilmiyor — Firebase JS redirect sonucunu kullan.
     try {
-      final result = await _firebaseAuth.getRedirectResult();
-      if (result.user == null) return null;
-      return _exchangeFirebaseForSupabase(result);
-    } catch (_) {
+      final js = await google_js.firebaseGoogleRedirectResultJs();
+      if (js == null) return null;
+      if (js['empty'] == 'true') return null;
+      final err = js['error'];
+      if (err != null && err.isNotEmpty) {
+        throw StateError(err);
+      }
+      final idToken = js['idToken'];
+      if (idToken == null || idToken.isEmpty) return null;
+      return await Supabase.instance.client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: js['accessToken'],
+      );
+    } catch (e) {
+      // Redirect yoksa veya hata — çağıran normal oturuma düşer
+      if (e is StateError) rethrow;
       return null;
     }
   }
@@ -254,4 +289,9 @@ class GoogleAuthService {
       }
     } catch (_) {}
   }
+}
+
+/// Web popup engelli → Firebase redirect sürüyor (sayfa yenilenecek).
+class GoogleAuthRedirecting implements Exception {
+  const GoogleAuthRedirecting();
 }

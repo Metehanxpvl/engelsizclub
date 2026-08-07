@@ -1,0 +1,173 @@
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../../meto_theme.dart';
+import '../aile_kocu_store.dart';
+import '../child_photo.dart';
+import '../models/aile_kocu_models.dart';
+
+class AileKocuAyarlarScreen extends StatefulWidget {
+  const AileKocuAyarlarScreen({super.key});
+
+  @override
+  State<AileKocuAyarlarScreen> createState() => _AileKocuAyarlarScreenState();
+}
+
+class _AileKocuAyarlarScreenState extends State<AileKocuAyarlarScreen> {
+  late final TextEditingController _name;
+  late AileKocuSettings _settings;
+  bool _picking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _settings = loadSettings();
+    _name = TextEditingController(text: _settings.childName);
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickPhoto() async {
+    if (_picking) return;
+    setState(() => _picking = true);
+    try {
+      final file = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        imageQuality: 85,
+      );
+      if (file == null) return;
+      final dataUrl = await encodePickedChildPhoto(file);
+      final next = AileKocuSettings(
+        childName: _settings.childName,
+        photoPath: dataUrl,
+        disclaimerAccepted: _settings.disclaimerAccepted,
+      );
+      await saveSettings(next);
+      if (!mounted) return;
+      setState(() => _settings = next);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Fotoğraf kaydedildi')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fotoğraf seçilemedi: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
+  }
+
+  Future<void> _saveName() async {
+    final next = AileKocuSettings(
+      childName: _name.text.trim().isEmpty ? 'Çocuk' : _name.text.trim(),
+      photoPath: _settings.photoPath,
+      disclaimerAccepted: _settings.disclaimerAccepted,
+    );
+    await saveSettings(next);
+    if (!mounted) return;
+    setState(() => _settings = next);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Kaydedildi')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = childPhotoProvider(_settings.photoPath);
+    return Scaffold(
+      backgroundColor: MetoColors.background,
+      appBar: AppBar(
+        title: const Text('Aile Koçu Ayarları'),
+        backgroundColor: MetoColors.card,
+        foregroundColor: MetoColors.foreground,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          const Text(
+            'Çocuk Adı',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _name,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: MetoColors.card,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            onEditingComplete: _saveName,
+          ),
+          const SizedBox(height: 8),
+          FilledButton(
+            onPressed: _saveName,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(52),
+              backgroundColor: MetoColors.primary,
+            ),
+            child: const Text('Adı Kaydet'),
+          ),
+          const SizedBox(height: 28),
+          const Text(
+            'Çocuk Fotoğrafı',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          Center(
+            child: GestureDetector(
+              onTap: _picking ? null : _pickPhoto,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CircleAvatar(
+                    radius: 56,
+                    backgroundColor: MetoColors.primary.withValues(alpha: 0.15),
+                    backgroundImage: provider,
+                    child: provider == null
+                        ? const Icon(Icons.add_a_photo, size: 36)
+                        : null,
+                  ),
+                  if (_picking)
+                    const SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: CircularProgressIndicator(strokeWidth: 3),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Dokunarak seçin. Ders / ilaç / çocuk notu ekranlarında görünür.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+          ),
+          if (provider != null) ...[
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () async {
+                final next = AileKocuSettings(
+                  childName: _settings.childName,
+                  photoPath: '',
+                  disclaimerAccepted: _settings.disclaimerAccepted,
+                );
+                await saveSettings(next);
+                if (mounted) setState(() => _settings = next);
+              },
+              child: const Text('Fotoğrafı kaldır'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}

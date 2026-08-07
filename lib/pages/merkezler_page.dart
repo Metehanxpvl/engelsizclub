@@ -1,15 +1,19 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../data/centers_data.dart';
 import '../data/turkish_cities_data.dart';
 import '../meto_theme.dart';
+import '../services/centers_google_geocode_service.dart';
 import '../services/centers_google_places_service.dart';
-import '../services/centers_osm_service.dart';
 import '../services/google_places_config.dart';
+import '../widgets/web_google_map.dart';
+import '../l10n/app_strings.dart';
+import '../l10n/l10n_text.dart';
 
 enum _LocStatus { idle, loading, ok, denied }
 
@@ -20,7 +24,7 @@ class _CenterWithDist {
   final double distKm;
 }
 
-/// Merkezler sekmesi — Google Places Nearby Search (ana) + OSM yedek.
+/// Merkezler — Google Maps + Places API (New).
 class MerkezlerPage extends StatefulWidget {
   const MerkezlerPage({super.key});
 
@@ -37,7 +41,10 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
   double? _userLat;
   double? _userLng;
   _LocStatus _locStatus = _LocStatus.idle;
-  final MapController _mapController = MapController();
+  GoogleMapController? _mapController;
+  double? _cameraLat;
+  double? _cameraLng;
+  double _cameraZoom = 12;
 
   List<MetoCenter> _liveCenters = const [];
   bool _centersLoading = false;
@@ -49,14 +56,12 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
   @override
   void initState() {
     super.initState();
-    // Otomatik GPS / ağ araması YOK.
-    // Merkezler yalnız: il-ilçe seçimi veya “Konumumu Bul” ile yüklenir.
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _mapController.dispose();
+    _mapController?.dispose();
     super.dispose();
   }
 
@@ -70,6 +75,13 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       return (lat: _focusLat!, lng: _focusLng!);
     }
     return (lat: _cityInfo.lat, lng: _cityInfo.lng);
+  }
+
+  ({double lat, double lng}) get _mapCamera {
+    if (_cameraLat != null && _cameraLng != null) {
+      return (lat: _cameraLat!, lng: _cameraLng!);
+    }
+    return _mapCenter;
   }
 
   static String _normTr(String s) {
@@ -122,35 +134,44 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     }
     return kCenters
         .where((c) => _normTr(c.city) == _normTr(_selectedCity))
+        .where((c) {
+          final n = _normTr('${c.category} ${c.name}');
+          final dilOrNoro = n.contains('dil') ||
+              n.contains('konusma') ||
+              n.contains('norolo') ||
+              n.contains('neuro');
+          if (!dilOrNoro) return true;
+          return n.contains('fizik') ||
+              n.contains('ozel egitim') ||
+              n.contains('rehabilitasyon') ||
+              n.contains('medikal');
+        })
         .toList();
   }
 
   bool _matchesCategory(MetoCenter c) {
     if (_filter == 'Tümü') return true;
-    final f = _filter.toLowerCase();
-    final hay = [
-      c.category,
-      ...c.services,
-      c.name,
-    ].join(' ').toLowerCase();
-    final key = switch (_filter) {
-      'Fizik Tedavi' => 'fizik',
-      'Özel Eğitim' => 'ozel egitim',
-      'Dil Terapisi' => 'dil',
-      'Nöroloji' => 'noro',
-      _ => f,
+    final hayNorm = _normTr(
+      [c.category, ...c.services, c.name].join(' '),
+    );
+    return switch (_filter) {
+      'Fizik Tedavi' =>
+        hayNorm.contains('fizik') || hayNorm.contains('fizyo'),
+      'Özel Eğitim' =>
+        hayNorm.contains('ozel egitim') ||
+            hayNorm.contains('egitim') ||
+            hayNorm.contains('rehabilitasyon') ||
+            hayNorm.contains('oerm') ||
+            hayNorm.contains('aba'),
+      'Medikal' =>
+        hayNorm.contains('medikal') ||
+            hayNorm.contains('ortoped') ||
+            hayNorm.contains('ortez') ||
+            hayNorm.contains('protez') ||
+            hayNorm.contains('malzeme') ||
+            hayNorm.contains('cihaz'),
+      _ => hayNorm.contains(_normTr(_filter)),
     };
-    final keyAlt = _normTr(key);
-    final hayNorm = _normTr(hay);
-    if (hay.contains(key) || hayNorm.contains(keyAlt)) return true;
-    if (_filter == 'Özel Eğitim') {
-      return hayNorm.contains('rehabilitasyon') ||
-          hayNorm.contains('egitim ve rehabilitasyon') ||
-          hayNorm.contains('egitim rehabilitasyon') ||
-          hayNorm.contains('oerm') ||
-          hayNorm.contains('ozel egitim');
-    }
-    return false;
   }
 
   /// Seçilen il/ilçe için merkezleri döndürür.
@@ -188,7 +209,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
 
     if (_selectedIlce != kAllIlceler) {
       final exact =
-          pool.where((c) => CentersOsmService.matchesIlce(c, _selectedIlce));
+          pool.where((c) => _matchesIlce(c, _selectedIlce));
       if (exact.isNotEmpty) {
         return (items: build(exact), note: _dataNote);
       }
@@ -235,7 +256,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
 
     // İlçe seçildiyse gerçek ilçe merkezini geocode et
     if (_selectedIlce != kAllIlceler) {
-      final geo = await CentersOsmService.geocodePlace(
+      final geo = await CentersGoogleGeocodeService.geocodePlace(
         city: _selectedCity,
         ilce: _selectedIlce,
       );
@@ -244,7 +265,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
         focusLng = geo.lng;
       }
     } else if (_userLat == null) {
-      final geo = await CentersOsmService.geocodePlace(city: _selectedCity);
+      final geo = await CentersGoogleGeocodeService.geocodePlace(city: _selectedCity);
       if (geo != null) {
         focusLat = geo.lat;
         focusLng = geo.lng;
@@ -259,9 +280,12 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
 
     var live = <MetoCenter>[];
     var sourceLabel = '';
+    String? placesError;
 
-    // 1) Google Places Nearby Search (API anahtarı varsa)
-    if (GooglePlacesConfig.isConfigured) {
+    // Google Places API (New) — özel eğitim / fizik tedavi / medikal
+    if (!GooglePlacesConfig.isConfigured) {
+      placesError = 'Google Maps API anahtarı tanımlı değil.';
+    } else {
       try {
         live = await CentersGooglePlacesService.searchNearby(
           latitude: searchLat,
@@ -273,26 +297,14 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
         );
         if (live.isNotEmpty) {
           sourceLabel = 'Google Places';
+        } else {
+          final err = CentersGooglePlacesService.lastError;
+          placesError = err;
+          debugPrint('[Merkezler] Google boş: $err');
         }
       } catch (e) {
         debugPrint('Google Places hata: $e');
-      }
-    }
-
-    // 2) Anahtar yoksa veya sonuç boşsa OSM yedek
-    if (live.isEmpty) {
-      live = await CentersOsmService.fetchNear(
-        lat: searchLat,
-        lng: searchLng,
-        city: _selectedCity,
-        radiusKm: useGps
-            ? 50
-            : (_selectedIlce == kAllIlceler ? 55 : 20),
-      );
-      if (live.isNotEmpty) {
-        sourceLabel = GooglePlacesConfig.isConfigured
-            ? 'OpenStreetMap (Google sonuç vermedi)'
-            : 'OpenStreetMap';
+        placesError = '$e';
       }
     }
 
@@ -314,7 +326,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
         .where((c) => _normTr(c.city) == _normTr(_selectedCity))
         .where((c) {
           if (_selectedIlce == kAllIlceler) return true;
-          return CentersOsmService.matchesIlce(c, _selectedIlce) ||
+          return _matchesIlce(c, _selectedIlce) ||
               geoDistanceKm(searchLat, searchLng, c.lat, c.lng) <= radiusLimit;
         });
     final merged = <String, MetoCenter>{};
@@ -347,9 +359,10 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       _liveCenters = live;
       _centersLoading = false;
       if (live.isEmpty) {
-        _centersError = useGps
-            ? 'Yakınınızda merkez bulunamadı. İl/ilçe seçerek tekrar deneyin.'
-            : '$_selectedCity${_selectedIlce == kAllIlceler ? '' : ' / $_selectedIlce'} için merkez bulunamadı. Başka ilçe deneyin.';
+        _centersError = placesError ??
+            (useGps
+                ? 'Yakınınızda merkez bulunamadı. İl/ilçe seçerek tekrar deneyin.'
+                : '$_selectedCity${_selectedIlce == kAllIlceler ? '' : ' / $_selectedIlce'} için merkez bulunamadı. Başka ilçe deneyin.');
         _dataNote = null;
       } else {
         _centersError = null;
@@ -459,19 +472,41 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     _moveMap(center.lat, center.lng, zoom: 14);
   }
 
+  bool _matchesIlce(MetoCenter c, String selectedIlce) {
+    if (selectedIlce == kAllIlceler) return true;
+    final a = _normTr(selectedIlce);
+    final b = _normTr(c.ilce);
+    if (a.isEmpty || b.isEmpty) return true;
+    return b.contains(a) || a.contains(b);
+  }
+
   void _moveMap(double lat, double lng, {required double zoom}) {
+    setState(() {
+      _cameraLat = lat;
+      _cameraLng = lng;
+      _cameraZoom = zoom;
+    });
+    if (kIsWeb) return;
+    final c = _mapController;
+    if (c == null) return;
     try {
-      _mapController.move(LatLng(lat, lng), zoom);
-    } catch (_) {
-      // Harita henüz mount edilmediyse sessizce geç.
+      c.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: LatLng(lat, lng), zoom: zoom),
+        ),
+      );
+    } catch (e) {
+      debugPrint('[Map] move hata: $e');
     }
   }
 
   Future<void> _openDirections(MetoCenter center) async {
     final from = _mapCenter;
     final uri = Uri.parse(
-      'https://www.openstreetmap.org/directions'
-      '?from=${from.lat},${from.lng}&to=${center.lat},${center.lng}',
+      'https://www.google.com/maps/dir/?api=1'
+      '&origin=${from.lat},${from.lng}'
+      '&destination=${center.lat},${center.lng}'
+      '&travelmode=driving',
     );
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -500,7 +535,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          const L10nText(
                             'Merkezler',
                             style: TextStyle(
                               fontSize: 20,
@@ -514,7 +549,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                             _locStatus == _LocStatus.ok
                                 ? 'Konumunuza göre sıralandı'
                                 : _liveCenters.isEmpty && !_centersLoading
-                                    ? 'İl/ilçe seçin veya Konumumu Bul’a basın'
+                                    ? 'İl/ilçe seçin veya Yakınımdaki merkezleri bul’a basın'
                                     : '$_selectedCity · $_selectedIlce',
                             style: const TextStyle(
                               fontSize: 12,
@@ -585,8 +620,8 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                             fontSize: 14,
                             color: MetoColors.foreground,
                           ),
-                          decoration: const InputDecoration(
-                            hintText: 'Merkez adı veya hizmet ara...',
+                          decoration: InputDecoration(
+                            hintText: S.auto('Merkez adı veya hizmet ara...'),
                             hintStyle: TextStyle(
                               fontSize: 14,
                               color: MetoColors.mutedFg,
@@ -625,12 +660,13 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: Stack(
               children: [
-                _OpenStreetMapView(
-                  mapController: _mapController,
+                _GoogleMapView(
                   centers: _mapCenters,
-                  focus: _mapCenter,
+                  focus: _mapCamera,
+                  zoom: _cameraZoom,
                   userLat: _userLat,
                   userLng: _userLng,
+                  onMapCreated: (c) => _mapController = c,
                   onSelectCenter: _selectCenter,
                 ),
                 if (_centersLoading)
@@ -782,7 +818,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                       size: 18,
                       color: MetoColors.primary,
                     ),
-                    label: const Text(
+                    label: const L10nText(
                       'Geri',
                       style: TextStyle(
                         fontSize: 14,
@@ -812,10 +848,10 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                       ],
                     ),
                     alignment: Alignment.center,
-                    child: const Text('🏥', style: TextStyle(fontSize: 22)),
+                    child: const L10nText('🏥', style: TextStyle(fontSize: 22)),
                   ),
                   const SizedBox(height: 12),
-                  Text(
+                  L10nText(
                     center.name,
                     style: const TextStyle(
                       fontSize: 20,
@@ -889,7 +925,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      const L10nText(
                         'Sunulan Hizmetler',
                         style: TextStyle(
                           fontSize: 12,
@@ -947,7 +983,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            const L10nText(
                               'Değerlendirme',
                               style: TextStyle(
                                 fontSize: 12,
@@ -963,7 +999,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                                   color: MetoColors.accentGold,
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
+                                L10nText(
                                   '${center.rating}',
                                   style: const TextStyle(
                                     fontSize: 18,
@@ -972,7 +1008,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                                   ),
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
+                                L10nText(
                                   '(${center.reviews} yorum)',
                                   style: const TextStyle(
                                     fontSize: 12,
@@ -987,7 +1023,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          const Text(
+                          const L10nText(
                             'Uzaklık',
                             style: TextStyle(
                               fontSize: 12,
@@ -1027,7 +1063,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                           ),
                           elevation: 1,
                         ),
-                        child: const Text('Yol Tarifi'),
+                        child: const L10nText('Yol Tarifi'),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -1049,7 +1085,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        child: const Text('Randevu Al'),
+                        child: const L10nText('Randevu Al'),
                       ),
                     ),
                   ],
@@ -1103,10 +1139,10 @@ class _LocationButton extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 status == _LocStatus.loading
-                    ? 'Alınıyor'
+                    ? 'Aranıyor…'
                     : ok
-                        ? 'Konumum'
-                        : 'Konumumu Bul',
+                        ? 'Yakınımdaki merkezler'
+                        : 'Yakınımdaki merkezleri bul',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -1167,111 +1203,157 @@ class _CityDropdown extends StatelessWidget {
   }
 }
 
-class _OpenStreetMapView extends StatelessWidget {
-  const _OpenStreetMapView({
-    required this.mapController,
+class _GoogleMapView extends StatefulWidget {
+  const _GoogleMapView({
     required this.centers,
     required this.focus,
+    required this.zoom,
     required this.userLat,
     required this.userLng,
+    required this.onMapCreated,
     required this.onSelectCenter,
   });
 
-  final MapController mapController;
   final List<_CenterWithDist> centers;
   final ({double lat, double lng}) focus;
+  final double zoom;
   final double? userLat;
   final double? userLng;
+  final void Function(GoogleMapController controller) onMapCreated;
   final ValueChanged<MetoCenter> onSelectCenter;
 
   @override
+  State<_GoogleMapView> createState() => _GoogleMapViewState();
+}
+
+class _GoogleMapViewState extends State<_GoogleMapView> {
+  GoogleMapController? _controller;
+
+  Set<Marker> get _markers {
+    final markers = <Marker>{};
+    for (var i = 0; i < widget.centers.length; i++) {
+      final item = widget.centers[i];
+      markers.add(
+        Marker(
+          markerId: MarkerId('center_$i-${item.center.name}'),
+          position: LatLng(item.center.lat, item.center.lng),
+          infoWindow: InfoWindow(
+            title: item.center.name,
+            snippet: item.center.category,
+          ),
+          onTap: () => widget.onSelectCenter(item.center),
+        ),
+      );
+    }
+    if (widget.userLat != null && widget.userLng != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('user'),
+          position: LatLng(widget.userLat!, widget.userLng!),
+          infoWindow: const InfoWindow(title: 'Konumun'),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueAzure,
+          ),
+        ),
+      );
+    }
+    return markers;
+  }
+
+  List<WebMapMarker> get _webMarkers {
+    final out = <WebMapMarker>[
+      for (var i = 0; i < widget.centers.length; i++)
+        WebMapMarker(
+          id: 'c_$i',
+          lat: widget.centers[i].center.lat,
+          lng: widget.centers[i].center.lng,
+          title: widget.centers[i].center.name,
+          snippet: widget.centers[i].center.category,
+        ),
+    ];
+    if (widget.userLat != null && widget.userLng != null) {
+      out.add(
+        WebMapMarker(
+          id: 'user',
+          lat: widget.userLat!,
+          lng: widget.userLng!,
+          title: 'Konumun',
+        ),
+      );
+    }
+    return out;
+  }
+
+  @override
+  void didUpdateWidget(covariant _GoogleMapView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (kIsWeb) return;
+    final changed = oldWidget.focus.lat != widget.focus.lat ||
+        oldWidget.focus.lng != widget.focus.lng ||
+        oldWidget.zoom != widget.zoom;
+    if (!changed) return;
+    try {
+      _controller?.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(widget.focus.lat, widget.focus.lng),
+            zoom: widget.zoom,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('[Map] camera update hata: $e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (kIsWeb) {
+      return WebGoogleMapHost(
+        lat: widget.focus.lat,
+        lng: widget.focus.lng,
+        zoom: widget.zoom,
+        markers: _webMarkers,
+        height: 220,
+        onMarkerTap: (id) {
+          if (!id.startsWith('c_')) return;
+          final i = int.tryParse(id.substring(2));
+          if (i == null || i < 0 || i >= widget.centers.length) return;
+          widget.onSelectCenter(widget.centers[i].center);
+        },
+      );
+    }
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        height: 190,
+        width: double.infinity,
+        height: 220,
         decoration: BoxDecoration(
           border: Border.all(color: MetoColors.border),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 4,
-              offset: const Offset(0, 1),
-            ),
-          ],
         ),
-        child: FlutterMap(
-          mapController: mapController,
-          options: MapOptions(
-            initialCenter: LatLng(focus.lat, focus.lng),
-            initialZoom: 12,
-            interactionOptions: const InteractionOptions(
-              // Sayfa kaydırmasını engellemesin; yakınlaştırma pinch/çift dokunuşla.
-              flags: InteractiveFlag.pinchZoom |
-                  InteractiveFlag.doubleTapZoom |
-                  InteractiveFlag.doubleTapDragZoom |
-                  InteractiveFlag.scrollWheelZoom,
-            ),
+        child: GoogleMap(
+          initialCameraPosition: CameraPosition(
+            target: LatLng(widget.focus.lat, widget.focus.lng),
+            zoom: widget.zoom,
           ),
-          children: [
-            TileLayer(
-              urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-              subdomains: const ['a', 'b', 'c'],
-              userAgentPackageName: 'com.engelsizclub.metocare',
-              maxZoom: 19,
+          markers: _markers,
+          onMapCreated: (c) {
+            _controller = c;
+            widget.onMapCreated(c);
+          },
+          myLocationButtonEnabled: false,
+          myLocationEnabled: false,
+          compassEnabled: false,
+          mapToolbarEnabled: false,
+          zoomControlsEnabled: true,
+          rotateGesturesEnabled: false,
+          tiltGesturesEnabled: false,
+          gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+            Factory<OneSequenceGestureRecognizer>(
+              () => EagerGestureRecognizer(),
             ),
-            MarkerLayer(
-              markers: [
-                for (final item in centers)
-                  Marker(
-                    point: LatLng(item.center.lat, item.center.lng),
-                    width: 30,
-                    height: 30,
-                    child: GestureDetector(
-                      onTap: () => onSelectCenter(item.center),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: item.center.color,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 3),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.35),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        alignment: Alignment.center,
-                        child: const Text('🏥', style: TextStyle(fontSize: 11)),
-                      ),
-                    ),
-                  ),
-                if (userLat != null && userLng != null)
-                  Marker(
-                    point: LatLng(userLat!, userLng!),
-                    width: 22,
-                    height: 22,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2563EB),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFF2563EB,
-                            ).withValues(alpha: 0.5),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ],
+          },
         ),
       ),
     );
@@ -1334,7 +1416,7 @@ class _EmptySearch extends StatelessWidget {
             ),
           ),
           SizedBox(height: 16),
-          Text(
+          L10nText(
             'Merkez bulunamadı',
             style: TextStyle(
               fontSize: 14,
@@ -1343,7 +1425,7 @@ class _EmptySearch extends StatelessWidget {
             ),
           ),
           SizedBox(height: 4),
-          Text(
+          L10nText(
             'Bu bölgede kayıtlı merkez yok.',
             style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
           ),
@@ -1399,14 +1481,14 @@ class _CenterListTile extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     alignment: Alignment.center,
-                    child: const Text('🏥', style: TextStyle(fontSize: 18)),
+                    child: const L10nText('🏥', style: TextStyle(fontSize: 18)),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        L10nText(
                           center.name,
                           style: const TextStyle(
                             fontSize: 14,
@@ -1432,7 +1514,7 @@ class _CenterListTile extends StatelessWidget {
                             ),
                             const SizedBox(width: 4),
                             Expanded(
-                              child: Text(
+                              child: L10nText(
                                 '${center.ilce} · ${center.city}',
                                 style: const TextStyle(
                                   fontSize: 12,
@@ -1458,7 +1540,7 @@ class _CenterListTile extends StatelessWidget {
                               color: MetoColors.accentGold,
                             ),
                             const SizedBox(width: 2),
-                            Text(
+                            L10nText(
                               '${center.rating}',
                               style: const TextStyle(
                                 fontSize: 12,
@@ -1467,8 +1549,8 @@ class _CenterListTile extends StatelessWidget {
                               ),
                             ),
                           ] else
-                            const Text(
-                              'OSM',
+                            const L10nText(
+                              'Maps',
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w800,
@@ -1608,8 +1690,8 @@ class _MedicalVendorsSection extends StatelessWidget {
               color: MetoColors.accentGold,
             ),
             SizedBox(width: 8),
-            Text(
-              'Medikal Cihaz Firmaları',
+            L10nText(
+              'Yardımcı Ekipman Firmaları',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
@@ -1670,7 +1752,7 @@ class _VendorCard extends StatelessWidget {
     } else if (context.mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Ara: ${vendor.phone}')));
+      ).showSnackBar(SnackBar(content: L10nText('Ara: ${vendor.phone}')));
     }
   }
 
@@ -1710,7 +1792,7 @@ class _VendorCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    L10nText(
                       vendor.name,
                       style: const TextStyle(
                         fontSize: 14,
@@ -1719,7 +1801,7 @@ class _VendorCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
+                    L10nText(
                       '${vendor.city} / ${vendor.district}',
                       style: const TextStyle(
                         fontSize: 12,
@@ -1760,7 +1842,7 @@ class _VendorCard extends StatelessWidget {
                               color: const Color(0xFFDBEAFE),
                               borderRadius: BorderRadius.circular(999),
                             ),
-                            child: const Text(
+                            child: const L10nText(
                               'Kargo',
                               style: TextStyle(
                                 fontSize: 12,
@@ -1814,7 +1896,7 @@ class _VendorCard extends StatelessWidget {
                     ),
                     elevation: 0,
                   ),
-                  child: Text('Ara: ${vendor.phone}'),
+                  child: L10nText('Ara: ${vendor.phone}'),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1835,7 +1917,7 @@ class _VendorCard extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                child: const Text('Detay'),
+                child: const L10nText('Detay'),
               ),
             ],
           ),

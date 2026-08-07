@@ -1,0 +1,13 @@
+{
+  "name": "engelsizclub-functions",
+  "description": "Places proxy for Engelsiz Club (web CORS bypass)",
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "private": true,
+  "dependencies": {
+    "firebase-admin": "^13.0.2",
+    "firebase-functions": "^6.3.0"
+  }
+}

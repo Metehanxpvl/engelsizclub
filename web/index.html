@@ -117,6 +117,47 @@
         measurementId: 'G-8YPB15NZPJ'
       });
     }
+    function __engelsizExtractGoogleTokens(result) {
+      var idToken = null;
+      var accessToken = null;
+      try {
+        var oauth = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
+        if (oauth) {
+          idToken = oauth.idToken || null;
+          accessToken = oauth.accessToken || null;
+        }
+      } catch (_) {}
+      if (!idToken && result && result.credential) {
+        idToken = result.credential.idToken || idToken;
+        accessToken = result.credential.accessToken || accessToken;
+      }
+      var tr = (result && result._tokenResponse) || {};
+      if (!idToken) idToken = tr.oauthIdToken || tr.idToken || null;
+      if (!accessToken) accessToken = tr.oauthAccessToken || accessToken;
+      return { idToken: idToken, accessToken: accessToken };
+    }
+
+    // Popup engellenince redirect dönüşünü Flutter yakalar
+    window.__engelsizGoogleRedirectResult = async function () {
+      if (typeof firebase === 'undefined' || !firebase.apps.length) {
+        return { empty: true };
+      }
+      try {
+        var result = await firebase.auth().getRedirectResult();
+        if (!result || !result.user) return { empty: true };
+        var t = __engelsizExtractGoogleTokens(result);
+        if (!t.idToken) {
+          return { error: 'Google kimlik jetonu alınamadı (redirect).' };
+        }
+        return {
+          idToken: String(t.idToken),
+          accessToken: t.accessToken ? String(t.accessToken) : null
+        };
+      } catch (e) {
+        return { error: (e && e.message) ? String(e.message) : String(e) };
+      }
+    };
+
     // Flutter → Google popup (supabase.co yok)
     window.__engelsizGoogleSignIn = async function () {
       if (typeof firebase === 'undefined' || !firebase.apps.length) {
@@ -133,39 +174,16 @@
         try { await auth.signOut(); } catch (_) {}
 
         var result = await auth.signInWithPopup(provider);
-        var oauth = null;
-        try {
-          oauth = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
-        } catch (_) {}
+        var t = __engelsizExtractGoogleTokens(result);
 
-        var idToken = null;
-        var accessToken = null;
-        if (oauth) {
-          idToken = oauth.idToken || null;
-          accessToken = oauth.accessToken || null;
-        }
-        // Bazı sürümlerde credential doğrudan result üzerinde
-        if (!idToken && result.credential) {
-          idToken = result.credential.idToken || idToken;
-          accessToken = result.credential.accessToken || accessToken;
-        }
-        // Firebase dahili tokenResponse (oauthIdToken)
-        var tr = result._tokenResponse || {};
-        if (!idToken) {
-          idToken = tr.oauthIdToken || tr.idToken || null;
-        }
-        if (!accessToken) {
-          accessToken = tr.oauthAccessToken || accessToken;
-        }
-
-        if (!idToken) {
+        if (!t.idToken) {
           return {
             error: 'Google kimlik jetonu boş geldi. Firebase Console → Authentication → Sign-in method → Google’ı Enable yapın ve kaydedin.'
           };
         }
         return {
-          idToken: String(idToken),
-          accessToken: accessToken ? String(accessToken) : null
+          idToken: String(t.idToken),
+          accessToken: t.accessToken ? String(t.accessToken) : null
         };
       } catch (e) {
         var code = (e && e.code) ? String(e.code) : '';
@@ -184,7 +202,7 @@
         }
         if (code.indexOf('unauthorized-domain') >= 0) {
           return {
-            error: 'Domain yetkisiz. Firebase → Authentication → Settings → Authorized domains: engelsizclub.com ekleyin.'
+            error: 'Domain yetkisiz. Firebase → Authentication → Settings → Authorized domains: engelsizclub.com ve engelsizclub-e5842.web.app ekleyin.'
           };
         }
         if (msg.toLowerCase().indexOf('redirect_uri') >= 0 || code.indexOf('invalid-login') >= 0) {
@@ -196,6 +214,18 @@
       }
     };
   </script>
+  <!-- Google Maps JavaScript API (Merkezler haritası) -->
+  <script>
+    window.__GM_AUTH_FAILURE__ = false;
+    window.gm_authFailure = function () {
+      window.__GM_AUTH_FAILURE__ = true;
+    };
+  </script>
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAHDu7hYJInYdPhrg8i0YdEzgfl0lL502o&language=tr&region=TR&loading=async"
+    async
+    defer
+  ></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

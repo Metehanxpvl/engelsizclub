@@ -8,13 +8,39 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../admin_config.dart';
 import '../data/forum_data.dart';
+import '../data/forum_tags.dart';
+import '../data/ilanlar_data.dart' show maskPersonDisplayName;
 import '../forum_follow_store.dart';
+import '../forum_post_follow_store.dart';
 import '../forum_store.dart';
 import '../meto_theme.dart';
 import '../services/catalog_adapters.dart';
+import '../services/image_optimize_service.dart';
 import '../sohbet_store.dart';
 import '../widgets/photo_gallery_lightbox.dart';
 import '../widgets/user_avatar.dart';
+import '../widgets/user_safety_sheet.dart';
+import '../user_safety_store.dart';
+import '../widgets/guest_gate.dart';
+import '../l10n/app_strings.dart';
+import '../l10n/l10n_text.dart';
+import '../services/broadcast_push_service.dart';
+
+enum _ForumSort {
+  newest,
+  oldest,
+  mostComments,
+  leastComments,
+}
+
+extension on _ForumSort {
+  String get label => switch (this) {
+        _ForumSort.newest => 'En yeni',
+        _ForumSort.oldest => 'En eski',
+        _ForumSort.mostComments => 'En çok yorum',
+        _ForumSort.leastComments => 'En az yorum',
+      };
+}
 
 /// Figma Make `ForumTab` — Flutter portu.
 class ForumPage extends StatefulWidget {
@@ -24,6 +50,11 @@ class ForumPage extends StatefulWidget {
     this.userEmail = '',
     this.userType = 'aile',
     this.profilFoto,
+    this.isGuest = false,
+    this.onRequireLogin,
+    this.openPostId,
+    this.openCommentId,
+    this.openPostToken = 0,
   });
 
   final String userName;
@@ -31,12 +62,26 @@ class ForumPage extends StatefulWidget {
   final String userType;
   /// data:image… profil fotoğrafı (varsa paylaşımlarda kullanılır).
   final String? profilFoto;
+  final bool isGuest;
+  final VoidCallback? onRequireLogin;
+  /// Bildirimden açılacak gönderi / yorum.
+  final int? openPostId;
+  final int? openCommentId;
+  final int openPostToken;
 
   @override
-  State<ForumPage> createState() => _ForumPageState();
+  State<ForumPage> createState() => ForumPageState();
 }
 
-class _ForumPageState extends State<ForumPage> {
+class ForumPageState extends State<ForumPage> {
+  /// Sistem geri: açık detayı kapatır. true = işlendi.
+  bool consumeBack() {
+    if (_selectedPost != null) {
+      setState(() => _selectedPost = null);
+      return true;
+    }
+    return false;
+  }
   static const _pageSize = 10;
 
   ForumPost? _selectedPost;
@@ -44,6 +89,8 @@ class _ForumPageState extends State<ForumPage> {
   ForumPost? _editingPost;
   String _searchQuery = '';
   String _activeCategory = 'Tümü';
+  String? _filterTag;
+  _ForumSort _sort = _ForumSort.newest;
   int _listPage = 0;
   bool _anon = false;
   String _newPostCategory = 'Genel Konular';
@@ -57,8 +104,12 @@ class _ForumPageState extends State<ForumPage> {
   bool _commentLikeBusy = false;
   Set<String> _followedCats = {};
   bool _followBusy = false;
+  bool _followingPost = false;
+  bool _postFollowBusy = false;
   bool _pickingPhoto = false;
   final List<String> _formPhotos = [];
+  final List<String> _formTags = [];
+  final _tagInputController = TextEditingController();
   List<ForumPost> _cloudPosts = const [];
   List<ForumComment> _postComments = const [];
   bool _commentsLoading = false;
@@ -76,6 +127,64 @@ class _ForumPageState extends State<ForumPage> {
   List<String> get _feedCategories => CatalogAdapters.forumFeedCategories();
   List<String> get _postCategories => CatalogAdapters.forumPostCategories();
 
+  String get _composeCategoryKey {
+    if (_newPostCategory == 'Uzman' || _koseYazisi) return 'Köşe Yazısı';
+    return _newPostCategory;
+  }
+
+  List<String> get _suggestedFormTags =>
+      suggestedTagsForCategory(_composeCategoryKey);
+
+  /// Aktif kategoriye ait öneriler + o kategorideki paylaşılmış etiketler.
+  List<String> get _filterTagOptions {
+    final suggested = _activeCategory == 'Tümü'
+        ? <String>[]
+        : suggestedTagsForCategory(_activeCategory);
+    final fromPosts = <String>{};
+    for (final p in _cloudPosts) {
+      final matchesCat = switch (_activeCategory) {
+        'Tümü' => true,
+        'Köşe Yazısı' => p.expert || p.category == 'Köşe Yazısı',
+        'Doktor' =>
+          p.expert &&
+              (p.meslek == 'Doktor' ||
+                  p.category.toLowerCase().contains('doktor')),
+        'Genel Konular' =>
+          p.category == 'Genel Konular' || p.category == 'Genel',
+        'Uzman' =>
+          p.expert || p.category == 'Uzman' || isUzmanMeslek(p.category),
+        _ => p.category == _activeCategory || p.meslek == _activeCategory,
+      };
+      if (!matchesCat) continue;
+      fromPosts.addAll(normalizeForumTags(p.tags));
+    }
+    return normalizeForumTags([...suggested, ...fromPosts]);
+  }
+
+  void _toggleFormTag(String raw) {
+    final tag = normalizeForumTag(raw);
+    if (tag.isEmpty) return;
+    setState(() {
+      final i = _formTags.indexWhere((t) => t.toLowerCase() == tag.toLowerCase());
+      if (i >= 0) {
+        _formTags.removeAt(i);
+      } else {
+        _formTags.add(tag);
+      }
+    });
+  }
+
+  void _addCustomFormTag() {
+    final tag = normalizeForumTag(_tagInputController.text);
+    if (tag.isEmpty) return;
+    setState(() {
+      if (!_formTags.any((t) => t.toLowerCase() == tag.toLowerCase())) {
+        _formTags.add(tag);
+      }
+      _tagInputController.clear();
+    });
+  }
+
   bool get _isAdmin => isAppAdmin(widget.userEmail);
 
   bool _canModeratePost(ForumPost post) =>
@@ -92,6 +201,26 @@ class _ForumPageState extends State<ForumPage> {
       (c.ownerEmail.isNotEmpty &&
           c.ownerEmail == widget.userEmail.trim().toLowerCase());
 
+  bool get _isGuest => widget.isGuest;
+
+  /// Misafir: ad açık, soyad ****.
+  String _displayName(String name) {
+    final n = name.trim();
+    if (n.isEmpty || n.toLowerCase() == 'anonim') return n;
+    if (!_isGuest) return n;
+    return maskPersonDisplayName(n);
+  }
+
+  Future<bool> _requireMember([String? msg]) async {
+    return ensureMemberAccess(
+      context,
+      isGuest: _isGuest,
+      onRequireLogin: widget.onRequireLogin ?? () {},
+      message: msg ??
+          'Forum etkileşimi için giriş yapmanız veya üye olmanız gerekiyor.',
+    );
+  }
+
   void _startEditPost(ForumPost post) {
     _titleController.text = post.title;
     _contentController.text = post.content;
@@ -102,6 +231,9 @@ class _ForumPageState extends State<ForumPage> {
       _formPhotos
         ..clear()
         ..addAll(post.photos.take(2));
+      _formTags
+        ..clear()
+        ..addAll(normalizeForumTags(post.tags));
       _anon = false;
       if (post.expert) {
         _newPostCategory = 'Uzman';
@@ -121,10 +253,12 @@ class _ForumPageState extends State<ForumPage> {
   void _closePostForm() {
     _titleController.clear();
     _contentController.clear();
+    _tagInputController.clear();
     setState(() {
       _newPost = false;
       _editingPost = null;
       _formPhotos.clear();
+      _formTags.clear();
       _anon = false;
       _koseYazisi = _isProfUser;
       if (_isProfUser) {
@@ -144,7 +278,9 @@ class _ForumPageState extends State<ForumPage> {
       // Aileler köşe yazısında "Aile" olarak paylaşır
       _uzmanMeslek = 'Aile';
     }
-    _loadPosts();
+    _loadPosts().then((_) {
+      if (mounted) unawaited(_tryOpenPostFromShell());
+    });
     unawaited(_loadFollows());
     _forumChannel = Supabase.instance.client.channel('forum-feed');
     _forumChannel!
@@ -162,6 +298,8 @@ class _ForumPageState extends State<ForumPage> {
         table: 'forum_comments',
         callback: (_) {
           if (!mounted) return;
+          // Gönderim sırasında lokal ekleme + realtime çift liste yapmasın
+          if (_commentSending) return;
           if (_selectedPost != null) {
             unawaited(_openPost(_selectedPost!));
           } else {
@@ -180,11 +318,13 @@ class _ForumPageState extends State<ForumPage> {
     _titleController.dispose();
     _contentController.dispose();
     _commentController.dispose();
+    _tagInputController.dispose();
     super.dispose();
   }
 
   Future<void> _loadPosts() async {
     setState(() => _loading = true);
+    unawaited(loadBlockedEmails());
     final posts = await loadForumPosts();
     final photos = await loadUserPhotosByEmail(
       posts.where((p) => !p.isAnonymous).map((p) => p.ownerEmail),
@@ -253,7 +393,12 @@ class _ForumPageState extends State<ForumPage> {
 
   Future<void> _toggleFollowActiveCategory() async {
     final cat = _activeCategory;
-    if (cat == 'Tümü' || widget.userEmail.trim().isEmpty || _followBusy) return;
+    if (cat == 'Tümü' || _followBusy) return;
+    if (!await _requireMember(
+        'Konu takibi için giriş yapmanız veya üye olmanız gerekiyor.')) {
+      return;
+    }
+    if (widget.userEmail.trim().isEmpty) return;
     setState(() => _followBusy = true);
     final next = !_followedCats.contains(cat);
     await ForumFollowStore.setFollowing(
@@ -284,7 +429,9 @@ class _ForumPageState extends State<ForumPage> {
   List<ForumPost> get _filteredPosts {
     final q = _searchQuery.trim().toLowerCase();
     // Yalnızca buluttaki gerçek gönderiler (örnek/bot yok)
-    return _cloudPosts.where((p) {
+    final list = _cloudPosts.where((p) {
+      final owner = p.ownerEmail.trim().toLowerCase();
+      if (owner.isNotEmpty && isBlockedEmail(owner)) return false;
       final matchesCat = switch (_activeCategory) {
         'Tümü' => true,
         'Köşe Yazısı' =>
@@ -300,24 +447,168 @@ class _ForumPageState extends State<ForumPage> {
         _ => p.category == _activeCategory || p.meslek == _activeCategory,
       };
       final matchesQ = q.isEmpty ||
-          [p.title, p.content, p.author, p.category, p.meslek]
+          [p.title, p.content, p.author, p.category, p.meslek, ...p.tags]
               .any((f) => f.toLowerCase().contains(q));
-      return matchesCat && matchesQ;
+      final ft = (_filterTag ?? '').trim().toLowerCase();
+      final matchesTag = ft.isEmpty ||
+          p.tags.any((t) => t.toLowerCase() == ft || t.toLowerCase() == '#$ft');
+      return matchesCat && matchesQ && matchesTag;
     }).toList();
+
+    int cmpDate(ForumPost a, ForumPost b, {required bool ascending}) {
+      final da = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(a.id);
+      final db = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(b.id);
+      final c = da.compareTo(db);
+      return ascending ? c : -c;
+    }
+
+    list.sort((a, b) {
+      // Sabitlenmişler üstte kalsın
+      if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+      switch (_sort) {
+        case _ForumSort.newest:
+          return cmpDate(a, b, ascending: false);
+        case _ForumSort.oldest:
+          return cmpDate(a, b, ascending: true);
+        case _ForumSort.mostComments:
+          final c = b.comments.compareTo(a.comments);
+          return c != 0 ? c : cmpDate(a, b, ascending: false);
+        case _ForumSort.leastComments:
+          final c = a.comments.compareTo(b.comments);
+          return c != 0 ? c : cmpDate(a, b, ascending: false);
+      }
+    });
+    return list;
+  }
+
+  @override
+  void didUpdateWidget(covariant ForumPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.openPostToken != oldWidget.openPostToken) {
+      unawaited(_tryOpenPostFromShell());
+    }
+  }
+
+  Future<void> _tryOpenPostFromShell() async {
+    final id = widget.openPostId;
+    if (id == null || id <= 0) return;
+    ForumPost? found;
+    for (final p in _cloudPosts) {
+      if (p.id == id) {
+        found = p;
+        break;
+      }
+    }
+    if (found == null) {
+      // Liste henüz boşsa / eski — yenile
+      await _loadPosts();
+      if (!mounted) return;
+      for (final p in _cloudPosts) {
+        if (p.id == id) {
+          found = p;
+          break;
+        }
+      }
+    }
+    if (found == null || !mounted) return;
+    await _openPost(found);
+    final commentId = widget.openCommentId;
+    if (commentId != null && commentId > 0 && mounted) {
+      // Yanıt hedefi olarak işaretle (kullanıcı görsün)
+      ForumComment? target;
+      for (final c in _postComments) {
+        if (c.id == commentId) {
+          target = c;
+          break;
+        }
+      }
+      if (target != null) {
+        setState(() => _replyingTo = target);
+      }
+    }
+  }
+
+  Future<void> _togglePostFollow(ForumPost post) async {
+    if (!await _requireMember(
+        'Gönderi bildirimi için giriş yapmanız veya üye olmanız gerekiyor.')) {
+      return;
+    }
+    if (_postFollowBusy || post.id <= 0) return;
+    final next = !_followingPost;
+    setState(() {
+      _postFollowBusy = true;
+      _followingPost = next;
+    });
+    try {
+      await ForumPostFollowStore.setFollowing(
+        email: widget.userEmail,
+        postId: post.id,
+        follow: next,
+      );
+      if (!mounted) return;
+      setState(() => _postFollowBusy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            next
+                ? 'Bu gönderi hakkında bildirim alacaksınız'
+                : 'Gönderi bildirimleri kapatıldı',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _followingPost = !next;
+        _postFollowBusy = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().contains('forum_post_follows') ||
+                    e.toString().contains('42P01')
+                ? 'Takip için forum_post_follows.sql çalıştırın.'
+                : 'Kaydedilemedi: $e',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _openPost(ForumPost post) async {
     setState(() {
       _selectedPost = post;
       _commentsLoading = true;
-      _postComments = const [];
-      _replyingTo = null;
+      _followingPost = false;
+      // Gönderim sonrası yenilemede listeyi boşaltma — çift flaş / kayıp önle
+      if (!_commentSending) {
+        _postComments = const [];
+        _replyingTo = null;
+      }
     });
+    if (!_isGuest && widget.userEmail.trim().isNotEmpty && post.id > 0) {
+      unawaited(() async {
+        final on = await ForumPostFollowStore.isFollowing(
+          email: widget.userEmail,
+          postId: post.id,
+        );
+        if (mounted && _selectedPost?.id == post.id) {
+          setState(() => _followingPost = on);
+        }
+      }());
+    }
     final comments = await loadForumComments(post.id);
     final enriched = await _enrichComments(comments);
     if (!mounted) return;
+    // Aynı id'yi tek tut
+    final deduped = <ForumComment>[];
+    final seen = <int>{};
+    for (final c in enriched) {
+      if (c.id > 0 && !seen.add(c.id)) continue;
+      deduped.add(c);
+    }
     setState(() {
-      _postComments = enriched;
+      _postComments = deduped;
       _commentsLoading = false;
     });
   }
@@ -329,6 +620,10 @@ class _ForumPageState extends State<ForumPage> {
       _postComments.where((c) => c.parentId == parentId).toList();
 
   void _startReply(ForumComment c) {
+    if (_isGuest) {
+      unawaited(_requireMember('Yanıt yazmak için üye olmanız gerekiyor.'));
+      return;
+    }
     setState(() => _replyingTo = c);
   }
 
@@ -337,6 +632,9 @@ class _ForumPageState extends State<ForumPage> {
   }
 
   Future<void> _toggleCommentLike(ForumComment c) async {
+    if (!await _requireMember('Yorum beğenmek için üye olmanız gerekiyor.')) {
+      return;
+    }
     if (_commentLikeBusy || c.id <= 0) return;
     setState(() => _commentLikeBusy = true);
     try {
@@ -370,6 +668,9 @@ class _ForumPageState extends State<ForumPage> {
   }
 
   Future<void> _toggleLike(ForumPost post) async {
+    if (!await _requireMember('Beğenmek için üye olmanız gerekiyor.')) {
+      return;
+    }
     if (_likeBusy) return;
     setState(() => _likeBusy = true);
     try {
@@ -403,7 +704,7 @@ class _ForumPageState extends State<ForumPage> {
   Future<void> _deletePost(ForumPost post) async {
     if (!_canModeratePost(post)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bu gönderi silinemez')),
+        const SnackBar(content: L10nText('Bu gönderi silinemez')),
       );
       return;
     }
@@ -411,18 +712,18 @@ class _ForumPageState extends State<ForumPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(_isAdmin ? 'Gönderiyi sil (Admin)' : 'Gönderiyi sil'),
-        content: Text('"${post.title}" kalıcı silinecek. Emin misiniz?'),
+        content: L10nText('"${post.title}" kalıcı silinecek. Emin misiniz?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Vazgeç'),
+            child: const L10nText('Vazgeç'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFEF4444),
             ),
-            child: const Text('Sil'),
+            child: const L10nText('Sil'),
           ),
         ],
       ),
@@ -439,7 +740,7 @@ class _ForumPageState extends State<ForumPage> {
         }
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gönderi silindi')),
+        const SnackBar(content: L10nText('Gönderi silindi')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -466,18 +767,18 @@ class _ForumPageState extends State<ForumPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(_isAdmin ? 'Yorumu sil (Admin)' : 'Yorumu sil'),
-        content: const Text('Bu yorum kalıcı silinecek.'),
+        content: const L10nText('Bu yorum kalıcı silinecek.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Vazgeç'),
+            child: const L10nText('Vazgeç'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFEF4444),
             ),
-            child: const Text('Sil'),
+            child: const L10nText('Sil'),
           ),
         ],
       ),
@@ -508,7 +809,7 @@ class _ForumPageState extends State<ForumPage> {
         ];
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Yorum silindi')),
+        const SnackBar(content: L10nText('Yorum silindi')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -529,15 +830,26 @@ class _ForumPageState extends State<ForumPage> {
   }
 
   Future<void> _sendComment() async {
+    if (!await _requireMember('Yorum yazmak için üye olmanız gerekiyor.')) {
+      return;
+    }
     final post = _selectedPost;
     final text = _commentController.text.trim();
+    // Senkron kilit: setState gelmeden ikinci çağrı (Enter+buton) girmesin
     if (post == null || text.isEmpty || _commentSending) return;
+    _commentSending = true;
+
     final parent = _replyingTo;
-    // Yanıtlar yalnızca kök yoruma bağlanır (tek seviye)
     final parentId = parent == null
         ? null
         : (parent.isReply ? parent.parentId : parent.id);
-    setState(() => _commentSending = true);
+
+    _commentController.clear();
+    if (mounted) {
+      setState(() {});
+      FocusScope.of(context).unfocus();
+    }
+
     try {
       final c = await addForumComment(
         postId: post.id,
@@ -549,21 +861,40 @@ class _ForumPageState extends State<ForumPage> {
         avatarPhoto: _commentAnon ? null : widget.profilFoto,
       );
       if (!mounted) return;
-      _commentController.clear();
+      final following = await ForumPostFollowStore.isFollowing(
+        email: widget.userEmail,
+        postId: post.id,
+      );
+      if (!mounted) return;
       final updated = post.copyWith(comments: post.comments + 1);
       setState(() {
-        _postComments = [..._postComments, c];
+        final already = _postComments.any((x) => x.id == c.id && c.id > 0);
+        if (!already) {
+          final sameText = _postComments.any((x) =>
+              x.text.trim() == c.text.trim() &&
+              x.ownerEmail == c.ownerEmail &&
+              x.parentId == c.parentId &&
+              x.id != c.id);
+          if (!sameText) {
+            _postComments = [..._postComments, c];
+          }
+        }
         _selectedPost = updated;
         _replyingTo = null;
         _commentAnon = false;
+        _followingPost = following;
         _cloudPosts = [
           for (final p in _cloudPosts)
             if (p.id == post.id) updated else p,
         ];
-        _commentSending = false;
       });
+      // Hâlâ kilitliyken yenile (realtime çakışmasın), sonra kilidi aç
+      await _reloadCommentsOnly(updated);
+      if (!mounted) return;
+      setState(() => _commentSending = false);
     } catch (e) {
       if (!mounted) return;
+      _commentController.text = text;
       setState(() => _commentSending = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -576,6 +907,24 @@ class _ForumPageState extends State<ForumPage> {
         ),
       );
     }
+  }
+
+  /// Gönderim sonrası yorumları yenile; yanıt durumunu bozma.
+  Future<void> _reloadCommentsOnly(ForumPost post) async {
+    final comments = await loadForumComments(post.id);
+    final enriched = await _enrichComments(comments);
+    if (!mounted) return;
+    final deduped = <ForumComment>[];
+    final seen = <int>{};
+    for (final c in enriched) {
+      if (c.id > 0 && !seen.add(c.id)) continue;
+      deduped.add(c);
+    }
+    setState(() {
+      _selectedPost = post;
+      _postComments = deduped;
+      _commentsLoading = false;
+    });
   }
 
   Uint8List? _decodeForumPhoto(String dataUrl) {
@@ -605,7 +954,7 @@ class _ForumPageState extends State<ForumPage> {
             children: [
               const Padding(
                 padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(
+                child: L10nText(
                   'Fotoğraf ekle',
                   style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
                 ),
@@ -613,18 +962,18 @@ class _ForumPageState extends State<ForumPage> {
               ListTile(
                 leading: const Icon(Icons.photo_library_outlined,
                     color: MetoColors.primary),
-                title: const Text('Galeriden seç'),
+                title: const L10nText('Galeriden seç'),
                 onTap: () => Navigator.pop(ctx, ImageSource.gallery),
               ),
               ListTile(
                 leading: const Icon(Icons.photo_camera_outlined,
                     color: MetoColors.primary),
-                title: const Text('Kamerayla çek'),
+                title: const L10nText('Kamerayla çek'),
                 onTap: () => Navigator.pop(ctx, ImageSource.camera),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Vazgeç'),
+                child: const L10nText('Vazgeç'),
               ),
               const SizedBox(height: 8),
             ],
@@ -638,29 +987,32 @@ class _ForumPageState extends State<ForumPage> {
     try {
       final file = await ImagePicker().pickImage(
         source: source,
-        maxWidth: 1600,
-        maxHeight: 1600,
-        imageQuality: 75,
+        maxWidth: 1400,
+        maxHeight: 1400,
+        imageQuality: 85,
       );
       if (file == null || !mounted) return;
-      final bytes = await file.readAsBytes();
-      if (bytes.isEmpty) {
+      final raw = await file.readAsBytes();
+      if (raw.isEmpty) {
         throw StateError('Boş görsel seçildi.');
       }
-      const mime = 'image/jpeg';
-      final encoded = base64Encode(bytes);
+      final optimized = await ImageOptimizeService.forForum(raw);
+      final encoded = base64Encode(optimized.bytes);
       if (encoded.length > 500000) {
         throw StateError(
           'Fotoğraf çok büyük. Daha küçük bir fotoğraf seçin.',
         );
       }
-      final dataUrl = 'data:$mime;base64,$encoded';
+      final dataUrl = 'data:${optimized.contentType};base64,$encoded';
       if (!mounted) return;
       setState(() => _formPhotos.add(dataUrl));
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString().toLowerCase();
-      final friendly = msg.contains('büyük') || msg.contains('boş')
+      final friendly = msg.contains('büyük') ||
+              msg.contains('boş') ||
+              msg.contains('okunamadı') ||
+              msg.contains('sıkıştır')
           ? e.toString().replaceFirst('Bad state: ', '')
           : (msg.contains('quota') ||
                   msg.contains('ön bellek') ||
@@ -677,6 +1029,9 @@ class _ForumPageState extends State<ForumPage> {
   }
 
   Future<void> _publishPost() async {
+    if (!await _requireMember('Gönderi paylaşmak için üye olmanız gerekiyor.')) {
+      return;
+    }
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
 
@@ -685,7 +1040,7 @@ class _ForumPageState extends State<ForumPage> {
     if (content.isEmpty) eksik.add('İçerik');
     if (eksik.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lütfen doldurun: ${eksik.join(', ')}')),
+        SnackBar(content: L10nText('Lütfen doldurun: ${eksik.join(', ')}')),
       );
       return;
     }
@@ -695,6 +1050,10 @@ class _ForumPageState extends State<ForumPage> {
     final isExpert = _newPostCategory == 'Uzman' || _koseYazisi;
     final category = isExpert ? 'Uzman' : _newPostCategory;
     final meslek = isExpert ? _uzmanMeslek : '';
+    final tags = normalizeForumTags([
+      ..._formTags,
+      ...extractHashTagsFromText('$title\n$content'),
+    ]);
 
     try {
       final isEdit = _editingPost != null;
@@ -708,6 +1067,7 @@ class _ForumPageState extends State<ForumPage> {
           expert: isExpert,
           meslek: meslek,
           photos: _formPhotos,
+          tags: tags,
         );
       } else {
         post = await publishForumPost(
@@ -720,6 +1080,7 @@ class _ForumPageState extends State<ForumPage> {
           expert: isExpert,
           meslek: meslek,
           photos: _formPhotos,
+          tags: tags,
           avatarPhoto: (isExpert || !_anon) ? widget.profilFoto : null,
         );
         unawaited(ForumFollowStore.notifyFollowersOfPost(
@@ -728,6 +1089,12 @@ class _ForumPageState extends State<ForumPage> {
           actorName: widget.userName,
           actorEmail: widget.userEmail,
         ));
+        unawaited(
+          BroadcastPushService.instance.forumPost(
+            title: title,
+            postId: '${post.id}',
+          ),
+        );
         if (isExpert && meslek.isNotEmpty) {
           unawaited(ForumFollowStore.notifyFollowersOfPost(
             category: meslek,
@@ -740,6 +1107,7 @@ class _ForumPageState extends State<ForumPage> {
       if (!mounted) return;
       _titleController.clear();
       _contentController.clear();
+      _tagInputController.clear();
       setState(() {
         if (isEdit) {
           _cloudPosts = [
@@ -749,11 +1117,13 @@ class _ForumPageState extends State<ForumPage> {
           _cloudPosts = [post, ..._cloudPosts];
         }
         _formPhotos.clear();
+        _formTags.clear();
         _newPost = false;
         _editingPost = null;
         _anon = false;
         _koseYazisi = _isProfUser;
         _activeCategory = isExpert ? 'Köşe Yazısı' : 'Tümü';
+        _filterTag = null;
         _publishing = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -813,7 +1183,7 @@ class _ForumPageState extends State<ForumPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        L10nText(
                           'Topluluk',
                           style: TextStyle(
                             fontSize: 20,
@@ -822,7 +1192,7 @@ class _ForumPageState extends State<ForumPage> {
                           ),
                         ),
                         SizedBox(height: 2),
-                        Text(
+                        L10nText(
                           'Aileler birbirini destekliyor',
                           style: TextStyle(
                             fontSize: 14,
@@ -833,7 +1203,14 @@ class _ForumPageState extends State<ForumPage> {
                     ),
                   ),
                   FilledButton(
-                    onPressed: () => setState(() => _newPost = true),
+                    onPressed: () async {
+                      if (!await _requireMember(
+                          'Gönderi paylaşmak için üye olmanız gerekiyor.')) {
+                        return;
+                      }
+                      if (!mounted) return;
+                      setState(() => _newPost = true);
+                    },
                     style: FilledButton.styleFrom(
                       backgroundColor: MetoColors.primary,
                       foregroundColor: Colors.white,
@@ -845,10 +1222,9 @@ class _ForumPageState extends State<ForumPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text(
+                    child: const L10nText(
                       '+ Paylaş',
-                      style:
-                          TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                     ),
                   ),
                 ],
@@ -862,12 +1238,10 @@ class _ForumPageState extends State<ForumPage> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: MetoColors.border),
                 ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 child: Row(
                   children: [
-                    const Icon(Icons.search,
-                        size: 15, color: MetoColors.mutedFg),
+                    const Icon(Icons.search, size: 15, color: MetoColors.mutedFg),
                     const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
@@ -877,8 +1251,8 @@ class _ForumPageState extends State<ForumPage> {
                           fontSize: 14,
                           color: MetoColors.foreground,
                         ),
-                        decoration: const InputDecoration(
-                          hintText: 'Konularda ara...',
+                        decoration: InputDecoration(
+                          hintText: S.auto('Konu veya #etiket ara...'),
                           hintStyle: TextStyle(
                             fontSize: 14,
                             color: MetoColors.mutedFg,
@@ -905,6 +1279,63 @@ class _ForumPageState extends State<ForumPage> {
               ),
             ),
             const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  const Icon(Icons.sort, size: 18, color: MetoColors.mutedFg),
+                  const SizedBox(width: 8),
+                  const L10nText(
+                    'Sırala',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: MetoColors.mutedFg,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: MetoColors.card,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: MetoColors.border),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<_ForumSort>(
+                          value: _sort,
+                          isExpanded: true,
+                          borderRadius: BorderRadius.circular(12),
+                          icon: const Icon(Icons.keyboard_arrow_down,
+                              color: MetoColors.primary),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: MetoColors.foreground,
+                          ),
+                          items: [
+                            for (final s in _ForumSort.values)
+                              DropdownMenuItem(
+                                value: s,
+                                child: Text(s.label),
+                              ),
+                          ],
+                          onChanged: (v) {
+                            if (v == null) return;
+                            setState(() {
+                              _sort = v;
+                              _listPage = 0;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
             SizedBox(
               height: 36,
               child: ListView.separated(
@@ -918,6 +1349,7 @@ class _ForumPageState extends State<ForumPage> {
                   return GestureDetector(
                     onTap: () => setState(() {
                       _activeCategory = cat;
+                      _filterTag = null;
                       _listPage = 0;
                     }),
                     child: Container(
@@ -943,6 +1375,90 @@ class _ForumPageState extends State<ForumPage> {
               ),
             ),
             const SizedBox(height: 8),
+            if (_filterTagOptions.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const L10nText(
+                          'Etiketler',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: MetoColors.mutedFg,
+                          ),
+                        ),
+                        if (_filterTag != null) ...[
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () => setState(() {
+                              _filterTag = null;
+                              _listPage = 0;
+                            }),
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              foregroundColor: MetoColors.primary,
+                            ),
+                            child: const L10nText('Filtreyi temizle',
+                                style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      height: 38,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _filterTagOptions.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (context, i) {
+                          final tag = _filterTagOptions[i];
+                          final active = (_filterTag ?? '').toLowerCase() ==
+                              tag.toLowerCase();
+                          return GestureDetector(
+                            onTap: () => setState(() {
+                              _filterTag = active ? null : tag;
+                              _listPage = 0;
+                            }),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: active
+                                    ? const Color(0xFFECFDF5)
+                                    : MetoColors.card,
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: active
+                                      ? MetoColors.primary
+                                      : MetoColors.border,
+                                  width: active ? 1.5 : 1,
+                                ),
+                              ),
+                              child: Text(
+                                tag,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: active
+                                      ? MetoColors.primary
+                                      : MetoColors.mutedFg,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             if (_activeCategory != 'Tümü')
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -976,8 +1492,7 @@ class _ForumPageState extends State<ForumPage> {
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 80),
                 child: Center(
-                  child:
-                      CircularProgressIndicator(color: MetoColors.primary),
+                  child: CircularProgressIndicator(color: MetoColors.primary),
                 ),
               )
             else if (filtered.isEmpty)
@@ -991,14 +1506,14 @@ class _ForumPageState extends State<ForumPage> {
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                   child: _PostCard(
                     post: post,
+                    authorLabel:
+                        post.isAnonymous ? 'Anonim' : _displayName(post.author),
                     onTap: () => _openPost(post),
                     onLike: () => _toggleLike(post),
-                    onEdit: _isPostOwner(post)
-                        ? () => _startEditPost(post)
-                        : null,
-                    onDelete: _canModeratePost(post)
-                        ? () => _deletePost(post)
-                        : null,
+                    onEdit:
+                        _isPostOwner(post) ? () => _startEditPost(post) : null,
+                    onDelete:
+                        _canModeratePost(post) ? () => _deletePost(post) : null,
                   ),
                 ),
               ),
@@ -1025,7 +1540,7 @@ class _ForumPageState extends State<ForumPage> {
 
   Widget _buildForumPager(int total) {
     if (total <= _pageSize) {
-      return Text(
+      return L10nText(
         '$total gönderi',
         textAlign: TextAlign.center,
         style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
@@ -1035,7 +1550,7 @@ class _ForumPageState extends State<ForumPage> {
     final page = _listPage.clamp(0, pageCount - 1);
     return Column(
       children: [
-        Text(
+        L10nText(
           'Sayfa ${page + 1} / $pageCount · $total gönderi',
           style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
         ),
@@ -1056,7 +1571,7 @@ class _ForumPageState extends State<ForumPage> {
                     width: 32,
                     height: 32,
                     child: Center(
-                      child: Text(
+                      child: L10nText(
                         '${i + 1}',
                         style: TextStyle(
                           fontSize: 12,
@@ -1092,7 +1607,7 @@ class _ForumPageState extends State<ForumPage> {
               child: const Icon(Icons.search, size: 24, color: MetoColors.mutedFg),
             ),
             const SizedBox(height: 16),
-            const Text(
+            const L10nText(
               'Sonuç bulunamadı',
               style: TextStyle(
                 fontSize: 14,
@@ -1101,7 +1616,7 @@ class _ForumPageState extends State<ForumPage> {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
+            L10nText(
               '"$_searchQuery" için eşleşen konu yok.\nFarklı bir kelime deneyin.',
               textAlign: TextAlign.center,
               style: const TextStyle(
@@ -1120,12 +1635,16 @@ class _ForumPageState extends State<ForumPage> {
     final categoryLabel = post.expert && post.meslek.isNotEmpty
         ? '${post.meslek} · Köşe Yazısı'
         : post.category;
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return ColoredBox(
       color: MetoColors.background,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+      child: Column(
         children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+              children: [
           TextButton.icon(
             onPressed: () => setState(() {
               _selectedPost = null;
@@ -1139,7 +1658,7 @@ class _ForumPageState extends State<ForumPage> {
               alignment: Alignment.centerLeft,
             ),
             icon: const Icon(Icons.chevron_left, size: 16),
-            label: const Text(
+            label: const L10nText(
               'Geri',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
             ),
@@ -1153,7 +1672,7 @@ class _ForumPageState extends State<ForumPage> {
                     ? const Color(0xFF94A3B8)
                     : post.avatarColor,
                 radius: 20,
-                fallbackName: post.author,
+                fallbackName: _displayName(post.author),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -1164,7 +1683,7 @@ class _ForumPageState extends State<ForumPage> {
                       children: [
                         Flexible(
                           child: Text(
-                            post.author,
+                            _displayName(post.author),
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -1205,6 +1724,39 @@ class _ForumPageState extends State<ForumPage> {
                   ],
                 ),
               ),
+              PopupMenuButton<String>(
+                tooltip: S.auto('Seçenekler'),
+                onSelected: (v) {
+                  if (v == 'follow') unawaited(_togglePostFollow(post));
+                },
+                itemBuilder: (ctx) => [
+                  PopupMenuItem(
+                    value: 'follow',
+                    enabled: !_postFollowBusy,
+                    child: Row(
+                      children: [
+                        Icon(
+                          _followingPost
+                              ? Icons.notifications_active
+                              : Icons.notifications_none,
+                          size: 20,
+                          color: MetoColors.primary,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _followingPost
+                                ? 'Gönderi bildirimlerini kapat'
+                                : 'Gönderi hakkında bildirim al',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                icon: const Icon(Icons.more_vert, color: MetoColors.mutedFg),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -1228,8 +1780,42 @@ class _ForumPageState extends State<ForumPage> {
               ),
             ),
           ),
+          if (post.tags.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final tag in post.tags)
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      _selectedPost = null;
+                      _filterTag = tag;
+                      _listPage = 0;
+                    }),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: const Color(0xFFA7F3D0)),
+                      ),
+                      child: Text(
+                        tag,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF065F46),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 8),
-          Text(
+          L10nText(
             post.title,
             style: TextStyle(
               fontSize: post.expert ? 22 : 18,
@@ -1239,7 +1825,7 @@ class _ForumPageState extends State<ForumPage> {
             ),
           ),
           const SizedBox(height: 12),
-          Text(
+          L10nText(
             post.content,
             style: TextStyle(
               fontSize: 15,
@@ -1271,7 +1857,7 @@ class _ForumPageState extends State<ForumPage> {
                             : MetoColors.mutedFg,
                       ),
                       const SizedBox(width: 6),
-                      Text(
+                      L10nText(
                         '${post.likes}',
                         style: TextStyle(
                           fontSize: 14,
@@ -1290,11 +1876,47 @@ class _ForumPageState extends State<ForumPage> {
               const SizedBox(width: 16),
               Icon(Icons.chat_bubble_outline, size: 16, color: MetoColors.mutedFg),
               const SizedBox(width: 6),
-              Text('${post.comments}', style: _metaStyle),
+              L10nText('${post.comments}', style: _metaStyle),
               const Spacer(),
+              if (!_isPostOwner(post))
+                IconButton(
+                  tooltip: S.auto('Şikayet Et / Raporla'),
+                  onPressed: () async {
+                    if (!await _requireMember(
+                      'Şikayet için giriş yapmanız veya üye olmanız gerekiyor.',
+                    )) {
+                      return;
+                    }
+                    if (!mounted) return;
+                    showUserSafetySheet(
+                      context,
+                      targetEmail: post.ownerEmail,
+                      targetDisplayName: post.author,
+                      contextLabel: 'forum_post',
+                      contentType: 'forum_post',
+                      contentId: '${post.id}',
+                      onBlocked: () {
+                        setState(() {
+                          _selectedPost = null;
+                          _cloudPosts = [
+                            for (final p in _cloudPosts)
+                              if (p.ownerEmail.trim().toLowerCase() !=
+                                  post.ownerEmail.trim().toLowerCase())
+                                p,
+                          ];
+                        });
+                      },
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.flag_outlined,
+                    color: MetoColors.mutedFg,
+                    size: 20,
+                  ),
+                ),
               if (_isPostOwner(post))
                 IconButton(
-                  tooltip: 'Düzenle',
+                  tooltip: S.auto('Düzenle'),
                   onPressed: () => _startEditPost(post),
                   icon: const Icon(
                     Icons.edit_outlined,
@@ -1315,7 +1937,7 @@ class _ForumPageState extends State<ForumPage> {
             ],
           ),
           const Divider(color: MetoColors.border, height: 32),
-          const Text(
+          const L10nText(
             'Yorumlar',
             style: TextStyle(
               fontSize: 14,
@@ -1338,7 +1960,7 @@ class _ForumPageState extends State<ForumPage> {
           else if (_rootComments.isEmpty)
             const Padding(
               padding: EdgeInsets.only(bottom: 12),
-              child: Text(
+              child: L10nText(
                 'Henüz yorum yok. İlk yorumu siz yazın.',
                 style: TextStyle(fontSize: 13, color: MetoColors.mutedFg),
               ),
@@ -1346,175 +1968,241 @@ class _ForumPageState extends State<ForumPage> {
           else
             ..._rootComments.expand((c) {
               final replies = _repliesOf(c.id);
+              VoidCallback? reportFor(ForumComment x) {
+                if (_isGuest) {
+                  return () {
+                    unawaited(_requireMember(
+                      'Şikayet için giriş yapmanız veya üye olmanız gerekiyor.',
+                    ));
+                  };
+                }
+                final me = widget.userEmail.trim().toLowerCase();
+                final owner = x.ownerEmail.trim().toLowerCase();
+                if (owner.isNotEmpty && owner == me) return null;
+                return () {
+                  showUserSafetySheet(
+                    context,
+                    targetEmail: owner,
+                    targetDisplayName: x.name,
+                    contextLabel: 'forum_comment',
+                    contentType: 'forum_comment',
+                    contentId: '${x.id}',
+                  );
+                };
+              }
+
               return [
                 _CommentBubble(
                   c,
+                  displayName: _displayName(c.name),
                   onDelete:
                       _canModerateComment(c) ? () => _deleteComment(c) : null,
                   onReply: () => _startReply(c),
                   onLike: () => _toggleCommentLike(c),
+                  onReport: reportFor(c),
                 ),
                 for (final r in replies)
                   _CommentBubble(
                     r,
+                    displayName: _displayName(r.name),
                     indented: true,
                     onDelete: _canModerateComment(r)
                         ? () => _deleteComment(r)
                         : null,
                     onReply: () => _startReply(c),
                     onLike: () => _toggleCommentLike(r),
+                    onReport: reportFor(r),
                   ),
               ];
             }),
-          const SizedBox(height: 8),
-          if (_replyingTo != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: MetoColors.muted,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: MetoColors.border),
-                ),
-                child: Row(
+          ],
+            ),
+          ),
+          Material(
+            elevation: 6,
+            color: MetoColors.card,
+            child: SafeArea(
+              top: false,
+              bottom: !keyboardOpen,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(Icons.reply, size: 16, color: MetoColors.primary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${_replyingTo!.name} adlı üyeye yanıt',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: MetoColors.foreground,
+                    if (_replyingTo != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: MetoColors.muted,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: MetoColors.border),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.reply,
+                                size: 16,
+                                color: MetoColors.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: L10nText(
+                                  '${_displayName(_replyingTo!.name)} adlı üyeye yanıt',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: MetoColors.foreground,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: S.auto('İptal'),
+                                onPressed: _cancelReply,
+                                icon: const Icon(Icons.close, size: 16),
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 28,
+                                  minHeight: 28,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _commentController,
+                            enabled: !_commentSending,
+                            minLines: 1,
+                            maxLines: 5,
+                            textInputAction: TextInputAction.newline,
+                            keyboardType: TextInputType.multiline,
+                            decoration: InputDecoration(
+                              hintText: _replyingTo == null
+                                  ? (_commentAnon
+                                      ? 'Anonim yorum yaz...'
+                                      : 'Yorum yaz...')
+                                  : (_commentAnon
+                                      ? 'Anonim yanıt yaz...'
+                                      : 'Yanıt yaz...'),
+                              filled: true,
+                              fillColor: MetoColors.background,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide:
+                                    const BorderSide(color: MetoColors.border),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide:
+                                    const BorderSide(color: MetoColors.border),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton(
+                          onPressed: _commentSending
+                              ? null
+                              : () => unawaited(_sendComment()),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: MetoColors.primary,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor:
+                                MetoColors.primary.withValues(alpha: 0.4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: _commentSending
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  _replyingTo == null ? 'Gönder' : 'Yanıtla',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      tooltip: 'İptal',
-                      onPressed: _cancelReply,
-                      icon: const Icon(Icons.close, size: 16),
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 28,
-                        minHeight: 28,
+                    const SizedBox(height: 4),
+                    InkWell(
+                      onTap: _commentSending
+                          ? null
+                          : () =>
+                              setState(() => _commentAnon = !_commentAnon),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: Checkbox(
+                                value: _commentAnon,
+                                onChanged: _commentSending
+                                    ? null
+                                    : (v) => setState(
+                                          () => _commentAnon = v ?? false,
+                                        ),
+                                activeColor: MetoColors.primary,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const L10nText(
+                              'Anonim yorum',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: MetoColors.foreground,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _commentAnon
+                                  ? '(adın gizlenecek)'
+                                  : '(isteğe bağlı)',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: MetoColors.mutedFg,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-            ),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _commentController,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _sendComment(),
-                  decoration: InputDecoration(
-                    hintText: _replyingTo == null
-                        ? (_commentAnon
-                            ? 'Anonim yorum yaz...'
-                            : 'Yorum yaz...')
-                        : (_commentAnon ? 'Anonim yanıt yaz...' : 'Yanıt yaz...'),
-                    filled: true,
-                    fillColor: MetoColors.card,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: MetoColors.border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: MetoColors.border),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              FilledButton(
-                onPressed: _commentSending ? null : _sendComment,
-                style: FilledButton.styleFrom(
-                  backgroundColor: MetoColors.primary,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor:
-                      MetoColors.primary.withValues(alpha: 0.4),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: _commentSending
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        _replyingTo == null ? 'Gönder' : 'Yanıtla',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          InkWell(
-            onTap: _commentSending
-                ? null
-                : () => setState(() => _commentAnon = !_commentAnon),
-            borderRadius: BorderRadius.circular(10),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: Checkbox(
-                      value: _commentAnon,
-                      onChanged: _commentSending
-                          ? null
-                          : (v) => setState(() => _commentAnon = v ?? false),
-                      activeColor: MetoColors.primary,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Anonim yorum',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: MetoColors.foreground,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    _commentAnon
-                        ? '(adın gizlenecek)'
-                        : '(isteğe bağlı)',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: MetoColors.mutedFg,
-                    ),
-                  ),
-                ],
               ),
             ),
           ),
@@ -1576,6 +2264,11 @@ class _ForumPageState extends State<ForumPage> {
                 } else {
                   _koseYazisi = false;
                 }
+                // Hazır alt tip seçimlerini kategoriye göre sıfırla;
+                // özel (#custom) etiketler kalsın.
+                final suggested =
+                    suggestedTagsForCategory(v).map((e) => e.toLowerCase()).toSet();
+                _formTags.removeWhere((t) => suggested.contains(t.toLowerCase()));
               });
             },
           ),
@@ -1588,8 +2281,8 @@ class _ForumPageState extends State<ForumPage> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFFA7F3D0)),
               ),
-              child: const Text(
-                'Köşe yazısı: Meslektaş olarak deneyim, rehberlik veya bilgilendirici yazı paylaşın. Tıbbi teşhis/tedavi önerisi vermeyin.',
+              child: const L10nText(
+                'Köşe yazısı: Meslektaş olarak deneyim, rehberlik veya bilgilendirici yazı paylaşın. Klinik tavsiye niteliğinde öneri vermeyin.',
                 style: TextStyle(
                   fontSize: 12,
                   color: Color(0xFF065F46),
@@ -1637,11 +2330,11 @@ class _ForumPageState extends State<ForumPage> {
             const SizedBox(height: 12),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text(
+              title: const L10nText(
                 'Köşe yazısı olarak paylaş',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
-              subtitle: const Text(
+              subtitle: const L10nText(
                 'Doktor, fizyoterapist vb. uzman yazısı',
                 style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
               ),
@@ -1679,6 +2372,81 @@ class _ForumPageState extends State<ForumPage> {
                   : 'Deneyimlerinizi veya sorunuzu paylaşın...',
             ),
           ),
+          const SizedBox(height: 16),
+          _fieldLabel('Etiketler'),
+          const SizedBox(height: 4),
+          L10nText(
+            'Hazır alt tiplerden seçin veya # ile kendi etiketinizi ekleyin.',
+            style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final tag in _suggestedFormTags)
+                FilterChip(
+                  label: Text(tag, style: const TextStyle(fontSize: 12)),
+                  selected: _formTags
+                      .any((t) => t.toLowerCase() == tag.toLowerCase()),
+                  onSelected: (_) => _toggleFormTag(tag),
+                  selectedColor: MetoColors.primary.withValues(alpha: 0.18),
+                  checkmarkColor: MetoColors.primary,
+                  labelStyle: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: _formTags.any((t) => t.toLowerCase() == tag.toLowerCase())
+                        ? MetoColors.primary
+                        : MetoColors.mutedFg,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _tagInputController,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _addCustomFormTag(),
+                  decoration: _inputDecoration(
+                    hint: '#OzelEtiketiniz',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: _addCustomFormTag,
+                style: FilledButton.styleFrom(
+                  backgroundColor: MetoColors.primary,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                ),
+                child: const L10nText('Ekle'),
+              ),
+            ],
+          ),
+          if (_formTags.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final tag in _formTags)
+                  InputChip(
+                    label: Text(tag, style: const TextStyle(fontSize: 12)),
+                    onDeleted: () => _toggleFormTag(tag),
+                    backgroundColor: const Color(0xFFECFDF5),
+                    side: const BorderSide(color: Color(0xFFA7F3D0)),
+                    labelStyle: const TextStyle(
+                      color: Color(0xFF065F46),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+              ],
+            ),
+          ],
           if (!expertMode) ...[
             const SizedBox(height: 16),
             Container(
@@ -1694,7 +2462,7 @@ class _ForumPageState extends State<ForumPage> {
                     onChanged: (v) => setState(() => _anon = v ?? false),
                     activeColor: MetoColors.primary,
                   ),
-                  const Text(
+                  const L10nText(
                     'Anonim paylaş',
                     style: TextStyle(fontSize: 14, color: MetoColors.foreground),
                   ),
@@ -1791,8 +2559,8 @@ class _ForumPageState extends State<ForumPage> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFFDE68A)),
             ),
-            child: const Text(
-              'Topluluk Kuralları: Tıbbi tavsiye vermekten kaçının, diğer üyelere saygılı olun, mahremiyet haklarına dikkat edin.',
+            child: const L10nText(
+              'Topluluk Kuralları: Kişisel tavsiye vermekten kaçının, diğer üyelere saygılı olun, mahremiyet haklarına dikkat edin.',
               style: TextStyle(fontSize: 12, color: Color(0xFFB45309), height: 1.5),
             ),
           ),
@@ -1868,6 +2636,7 @@ class _ForumPageState extends State<ForumPage> {
 class _PostCard extends StatelessWidget {
   const _PostCard({
     required this.post,
+    required this.authorLabel,
     required this.onTap,
     required this.onLike,
     this.onEdit,
@@ -1875,6 +2644,7 @@ class _PostCard extends StatelessWidget {
   });
 
   final ForumPost post;
+  final String authorLabel;
   final VoidCallback onTap;
   final VoidCallback onLike;
   final VoidCallback? onEdit;
@@ -1908,7 +2678,7 @@ class _PostCard extends StatelessWidget {
                     children: [
                       Icon(Icons.shield_outlined, size: 11, color: MetoColors.primary),
                       SizedBox(width: 4),
-                      Text(
+                      L10nText(
                         'Öne Çıkan',
                         style: TextStyle(
                           fontSize: 12,
@@ -1928,7 +2698,7 @@ class _PostCard extends StatelessWidget {
                         ? const Color(0xFF94A3B8)
                         : post.avatarColor,
                     radius: 16,
-                    fallbackName: post.author,
+                    fallbackName: authorLabel,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -1939,7 +2709,7 @@ class _PostCard extends StatelessWidget {
                           children: [
                             Flexible(
                               child: Text(
-                                post.author,
+                                authorLabel,
                                 style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
@@ -1998,7 +2768,7 @@ class _PostCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              Text(
+              L10nText(
                 post.title,
                 style: const TextStyle(
                   fontSize: 14,
@@ -2007,7 +2777,7 @@ class _PostCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
+              L10nText(
                 post.content,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
@@ -2017,6 +2787,34 @@ class _PostCard extends StatelessWidget {
                   height: 1.4,
                 ),
               ),
+              if (post.tags.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    for (final tag in post.tags.take(6))
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(999),
+                          border:
+                              Border.all(color: const Color(0xFFA7F3D0)),
+                        ),
+                        child: Text(
+                          tag,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF065F46),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
               if (post.photos.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 _ForumPhotoStrip(photos: post.photos, height: 200, compact: true),
@@ -2044,7 +2842,7 @@ class _PostCard extends StatelessWidget {
                                 : MetoColors.mutedFg,
                           ),
                           const SizedBox(width: 4),
-                          Text(
+                          L10nText(
                             '${post.likes}',
                             style: TextStyle(
                               fontSize: 14,
@@ -2064,12 +2862,12 @@ class _PostCard extends StatelessWidget {
                   const Icon(Icons.chat_bubble_outline,
                       size: 12, color: MetoColors.mutedFg),
                   const SizedBox(width: 4),
-                  Text('${post.comments}', style: _ForumPageState._metaStyle),
+                  L10nText('${post.comments}', style: ForumPageState._metaStyle),
                   if (onEdit != null || onDelete != null) ...[
                     const Spacer(),
                     if (onEdit != null)
                       IconButton(
-                        tooltip: 'Düzenle',
+                        tooltip: S.auto('Düzenle'),
                         onPressed: onEdit,
                         icon: const Icon(
                           Icons.edit_outlined,
@@ -2083,7 +2881,7 @@ class _PostCard extends StatelessWidget {
                       ),
                     if (onDelete != null)
                       IconButton(
-                        tooltip: 'Sil',
+                        tooltip: S.auto('Sil'),
                         onPressed: onDelete,
                         icon: const Icon(
                           Icons.delete_outline,
@@ -2219,21 +3017,26 @@ class _ForumPhotoStrip extends StatelessWidget {
 class _CommentBubble extends StatelessWidget {
   const _CommentBubble(
     this.comment, {
+    this.displayName,
     this.onDelete,
     this.onReply,
     this.onLike,
+    this.onReport,
     this.indented = false,
   });
 
   final ForumComment comment;
+  final String? displayName;
   final VoidCallback? onDelete;
   final VoidCallback? onReply;
   final VoidCallback? onLike;
+  final VoidCallback? onReport;
   final bool indented;
 
   @override
   Widget build(BuildContext context) {
     final isAnon = comment.name.toLowerCase() == 'anonim';
+    final nameLabel = displayName ?? comment.name;
 
     return Padding(
       padding: EdgeInsets.only(left: indented ? 28 : 0, bottom: 12),
@@ -2244,7 +3047,7 @@ class _CommentBubble extends StatelessWidget {
             avatar: isAnon ? '?' : comment.avatar,
             color: isAnon ? const Color(0xFF94A3B8) : comment.color,
             radius: indented ? 13 : 16,
-            fallbackName: comment.name,
+            fallbackName: nameLabel,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -2264,7 +3067,7 @@ class _CommentBubble extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          comment.name,
+                          nameLabel,
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -2272,9 +3075,25 @@ class _CommentBubble extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (onReport != null)
+                        IconButton(
+                          tooltip: S.auto('Şikayet / Engelle'),
+                          onPressed: onReport,
+                          icon: const Icon(
+                            Icons.flag_outlined,
+                            size: 16,
+                            color: MetoColors.mutedFg,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 28,
+                            minHeight: 28,
+                          ),
+                        ),
                       if (onDelete != null)
                         IconButton(
-                          tooltip: 'Yorumu sil',
+                          tooltip: S.auto('Yorumu sil'),
                           onPressed: onDelete,
                           icon: const Icon(
                             Icons.delete_outline,
@@ -2329,7 +3148,7 @@ class _CommentBubble extends StatelessWidget {
                                     : MetoColors.mutedFg,
                               ),
                               const SizedBox(width: 4),
-                              Text(
+                              L10nText(
                                 '${comment.likes}',
                                 style: TextStyle(
                                   fontSize: 11,
@@ -2362,7 +3181,7 @@ class _CommentBubble extends StatelessWidget {
                                 color: MetoColors.mutedFg,
                               ),
                               SizedBox(width: 4),
-                              Text(
+                              L10nText(
                                 'Yanıtla',
                                 style: TextStyle(
                                   fontSize: 11,

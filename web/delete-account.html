@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hesap Silme — Engelsiz Club</title>
+  <meta name="description" content="Engelsiz Club hesabınızı ve ilişkili verilerinizi nasıl silebileceğinizi öğrenin." />
+  <style>
+    :root {
+      --fg: #0f2f24;
+      --muted: #5a7168;
+      --bg: #f4faf7;
+      --card: #ffffff;
+      --accent: #1a6b4a;
+      --accent-soft: #e8f5ef;
+      --danger: #b91c1c;
+      --border: #d7e5de;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background:
+        radial-gradient(1200px 480px at 10% -10%, #d9f2e6 0%, transparent 55%),
+        radial-gradient(900px 420px at 100% 0%, #eef7f2 0%, transparent 50%),
+        var(--bg);
+      color: var(--fg);
+      line-height: 1.65;
+    }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 32px 20px 64px;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    .brand-mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      display: inline-grid;
+      place-items: center;
+      font-size: 0.75rem;
+      font-weight: 800;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 18px;
+      padding: 28px 24px;
+      box-shadow: 0 1px 4px rgba(15, 47, 36, 0.06);
+      border: 1px solid rgba(26, 107, 74, 0.08);
+    }
+    h1 {
+      font-size: 1.7rem;
+      margin: 0 0 8px;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+    }
+    h2 {
+      font-size: 1.1rem;
+      margin: 28px 0 10px;
+      color: var(--fg);
+    }
+    p, li { color: var(--muted); }
+    .meta {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+    .steps {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      counter-reset: step;
+      display: grid;
+      gap: 10px;
+    }
+    .steps li {
+      counter-increment: step;
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 12px;
+      align-items: start;
+      background: var(--accent-soft);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 14px 14px 12px;
+    }
+    .steps li::before {
+      content: counter(step);
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 800;
+      font-size: 0.85rem;
+      display: grid;
+      place-items: center;
+      margin-top: 1px;
+    }
+    .note {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: #fff8f1;
+      border: 1px solid #f3d5b5;
+      color: #8a5a2b;
+      font-size: 0.95rem;
+    }
+    .mail-box {
+      margin-top: 12px;
+      padding: 16px;
+      border-radius: 14px;
+      border: 1px dashed var(--border);
+      background: #fbfefc;
+    }
+    .mail-box a.mail {
+      display: inline-block;
+      margin-top: 6px;
+      font-weight: 700;
+      color: var(--accent);
+      word-break: break-all;
+    }
+    .btn {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff !important;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 0.92rem;
+    }
+    .btn:hover { filter: brightness(1.05); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 0.95rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th { color: var(--fg); font-weight: 700; }
+    td { color: var(--muted); }
+    a { color: var(--accent); }
+    .footer {
+      margin-top: 22px;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+    .danger { color: var(--danger); font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="brand" href="https://engelsizclub-e5842.web.app">
+      <span class="brand-mark">EC</span>
+      Engelsiz Club
+    </a>
+
+    <div class="card">
+      <h1>Hesap Silme</h1>
+      <p class="meta">Engelsiz Club · Son güncelleme: 31 Temmuz 2026</p>
+
+      <p>
+        Bu sayfa, Google Play hesap silme politikası kapsamında hesabınızı
+        ve ilişkili verilerinizi nasıl silebileceğinizi açıklar.
+      </p>
+
+      <h2>1. Uygulama üzerinden silme</h2>
+      <ol class="steps">
+        <li>Engelsiz Club uygulamasını açın ve hesabınıza giriş yapın.</li>
+        <li>Sağ üstteki profil fotoğrafınıza veya menüye dokunarak <strong>Profil</strong> panelini açın.</li>
+        <li><strong>Hesabımı Sil</strong> seçeneğine dokunun.</li>
+        <li>Uyarıyı okuyup onaylayın. Talebiniz destek ekibimize iletilir ve hesabınız silme sürecine alınır.</li>
+      </ol>
+      <p class="note">
+        Silme işlemi geri alınamaz. Onayladıktan sonra hesabınıza giriş
+        yapamazsınız.
+      </p>
+
+      <h2>2. Uygulamaya erişemiyorsanız (e-posta ile talep)</h2>
+      <p>
+        Uygulamayı açamıyorsanız hesap silme talebinizi e-posta ile
+        oluşturabilirsiniz.
+      </p>
+      <div class="mail-box">
+        <div><strong>Destek e-postası</strong></div>
+        <a class="mail" href="mailto:sakir.caykara@gmail.com?subject=Engelsiz%20Club%20Hesap%20Silme%20Talebi&amp;body=Merhaba%2C%0A%0AEngelsiz%20Club%20hesab%C4%B1m%C4%B1n%20ve%20ili%C5%9Fkili%20verilerimin%20silinmesini%20talep%20ediyorum.%0A%0AHesap%20e-posta%20adresim%3A%20%0A%0ATe%C5%9Fekk%C3%BCrler.">
+          sakir.caykara@gmail.com
+        </a>
+        <p style="margin: 10px 0 0; font-size: 0.92rem;">
+          Konu satırına <strong>Hesap Silme Talebi</strong> yazın.
+          Mesajda hesabınıza kayıtlı e-posta adresini belirtin.
+          Kimliğinizi doğruladıktan sonra talebinizi işleme alırız.
+        </p>
+        <a class="btn" href="mailto:sakir.caykara@gmail.com?subject=Engelsiz%20Club%20Hesap%20Silme%20Talebi&amp;body=Merhaba%2C%0A%0AEngelsiz%20Club%20hesab%C4%B1m%C4%B1n%20ve%20ili%C5%9Fkili%20verilerimin%20silinmesini%20talep%20ediyorum.%0A%0AHesap%20e-posta%20adresim%3A%20%0A%0ATe%C5%9Fekk%C3%BCrler.">
+          E-posta ile talep oluştur
+        </a>
+      </div>
+
+      <h2>3. Ne silinir, ne saklanır?</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Veri türü</th>
+            <th>İşlem</th>
+            <th>Süre</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Hesap bilgileri (e-posta, ad, profil)</td>
+            <td><span class="danger">Silinir</span></td>
+            <td>Talep onayından sonra en geç <strong>30 gün</strong></td>
+          </tr>
+          <tr>
+            <td>İlanlar, forum paylaşımları, mesajlar, bildirimler</td>
+            <td><span class="danger">Silinir</span> veya kimlikten arındırılır</td>
+            <td>En geç <strong>30 gün</strong></td>
+          </tr>
+          <tr>
+            <td>Profil fotoğrafı ve yüklenen medya</td>
+            <td><span class="danger">Silinir</span></td>
+            <td>En geç <strong>30 gün</strong></td>
+          </tr>
+          <tr>
+            <td>Cihaz bildirim token’ları</td>
+            <td><span class="danger">Silinir</span></td>
+            <td>Hesap silinince</td>
+          </tr>
+          <tr>
+            <td>Yasal zorunluluk / muhasebe / dolandırıcılık önleme kayıtları</td>
+            <td>Gerekli süre boyunca saklanabilir</td>
+            <td>İlgili mevzuata göre (genelde en fazla <strong>2 yıl</strong>)</td>
+          </tr>
+          <tr>
+            <td>Anonim kullanım / hata istatistikleri</td>
+            <td>Kimlik bağlanmadan tutulabilir</td>
+            <td>Hizmet iyileştirme süresi boyunca</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top: 14px;">
+        Talep alındığında size e-posta ile bilgilendirme yapılır.
+        İşlem tamamlandığında hesabınız ve ilişkili kişisel verileriniz
+        sistemlerimizden kaldırılır.
+      </p>
+
+      <h2>4. İletişim</h2>
+      <p>
+        Sorularınız için:
+        <a href="mailto:sakir.caykara@gmail.com">sakir.caykara@gmail.com</a><br />
+        Gizlilik politikası:
+        <a href="/privacy.html">privacy.html</a>
+      </p>
+
+      <p class="footer">
+        Engelsiz Club · Hesap silme talepleri genellikle birkaç iş günü içinde
+        yanıtlanır; veri silme işlemi en geç 30 gün içinde tamamlanır.
+      </p>
+    </div>
+  </main>
+</body>
+</html>
