@@ -1,17 +1,14 @@
 # Codemagic CI/CD — Engelsiz Club
 # Docs: https://docs.codemagic.io/yaml-quick-start/building-a-flutter-app/
-# Firebase config: https://docs.codemagic.io/knowledge-firebase/load-firebase-configuration/
+# Firebase: https://docs.codemagic.io/knowledge-firebase/load-firebase-configuration/
 #
-# Codemagic UI'da bağlamanız gerekenler:
-# 1) GitHub repo: Metehanxpvl/engelsizclub
-# 2) Team integrations → Developer Portal → App Store Connect API key
-#    (ad: EngelsizClubASC — aşağıda aynı isim kullanılmalı)
-# 3) Application → codemagic.yaml seçili olsun
-# 4) Environment variables (Secret) — grup adı: firebase_credentials
-#    - ANDROID_FIREBASE_SECRET = android/app/google-services.json içeriği
-#      (ham JSON veya base64; script ikisini de destekler)
-#    - IOS_FIREBASE_SECRET     = ios/Runner/GoogleService-Info.plist içeriği
-#      (ham plist veya base64; iOS workflow’ları için)
+# Codemagic UI:
+# 1) GitHub: Metehanxpvl/engelsizclub
+# 2) Team integrations → Developer Portal → App Store Connect key adı: EngelsizClubASC
+# 3) Application → Use codemagic.yaml
+# 4) Secret group: firebase_credentials
+#    - ANDROID_FIREBASE_SECRET = google-services.json (raw JSON veya base64)
+#    - IOS_FIREBASE_SECRET     = GoogleService-Info.plist (raw plist veya base64)
 
 workflows:
   android-play:
@@ -22,8 +19,6 @@ workflows:
       flutter: stable
       groups:
         - firebase_credentials
-        # Opsiyonel imzalama (Codemagic UI'da keystore_credentials grubu):
-        # - keystore_credentials
     scripts:
       - name: Load Firebase configuration (google-services.json)
         script: |
@@ -32,18 +27,12 @@ workflows:
           OUT="$CM_BUILD_DIR/android/app/google-services.json"
           if [ -z "${ANDROID_FIREBASE_SECRET:-}" ]; then
             echo "ERROR: ANDROID_FIREBASE_SECRET is not set."
-            echo "Codemagic → Environment variables → Secret group 'firebase_credentials'"
-            echo "Add ANDROID_FIREBASE_SECRET = contents of google-services.json (raw or base64)."
+            echo "Codemagic → Environment variables → group 'firebase_credentials'"
             exit 1
           fi
-          # Raw JSON starts with '{'; otherwise treat as base64.
           case "$(printf '%s' "$ANDROID_FIREBASE_SECRET" | sed -e 's/^[[:space:]]*//')" in
-            \{*)
-              printf '%s\n' "$ANDROID_FIREBASE_SECRET" > "$OUT"
-              ;;
-            *)
-              echo "$ANDROID_FIREBASE_SECRET" | base64 --decode > "$OUT"
-              ;;
+            \{*) printf '%s\n' "$ANDROID_FIREBASE_SECRET" > "$OUT" ;;
+            *) echo "$ANDROID_FIREBASE_SECRET" | base64 --decode > "$OUT" ;;
           esac
           test -s "$OUT"
           echo "Wrote google-services.json ($(wc -c < "$OUT") bytes)"
@@ -93,8 +82,7 @@ workflows:
           fi
           if [ -z "${IOS_FIREBASE_SECRET:-}" ]; then
             echo "ERROR: IOS_FIREBASE_SECRET is not set."
-            echo "Codemagic → Environment variables → Secret group 'firebase_credentials'"
-            echo "Add IOS_FIREBASE_SECRET = contents of GoogleService-Info.plist (raw or base64)."
+            echo "Codemagic → Environment variables → group 'firebase_credentials'"
             exit 1
           fi
           OUT_I="$CM_BUILD_DIR/ios/Runner/GoogleService-Info.plist"
@@ -109,9 +97,8 @@ workflows:
           flutter pub get
       - name: Install CocoaPods dependencies
         script: |
-          find . -name "Podfile" -print0 | while IFS= read -r -d '' podfile; do
-            (cd "$(dirname "$podfile")" && pod install)
-          done
+          cd ios
+          pod install
       - name: Set up code signing
         script: |
           xcode-project use-profiles
@@ -122,7 +109,6 @@ workflows:
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
-      - flutter_drive.log
     publishing:
       email:
         recipients:
@@ -132,9 +118,7 @@ workflows:
           failure: true
       app_store_connect:
         auth: integration
-        # İlk aşamada yalnız TestFlight; mağaza incelemesine otomatik gönderme kapalı
         submit_to_testflight: true
-        # submit_to_app_store: true   # inceleme için hazır olunca açın
 
   ios-app-store:
     name: iOS → App Store Review
@@ -179,9 +163,8 @@ workflows:
           flutter pub get
       - name: Install CocoaPods dependencies
         script: |
-          find . -name "Podfile" -print0 | while IFS= read -r -d '' podfile; do
-            (cd "$(dirname "$podfile")" && pod install)
-          done
+          cd ios
+          pod install
       - name: Set up code signing
         script: |
           xcode-project use-profiles
