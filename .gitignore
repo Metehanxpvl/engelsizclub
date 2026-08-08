@@ -82,3 +82,9 @@ android/upload-keystore.jks
 *.apk
 engelsizclub-*-play.aab
 
+# Machine-specific Android/SDK paths — never commit (breaks Codemagic / CI)
+**/local.properties
+**/.cxx/
+android/.gradle/
+android/app/.cxx/
+

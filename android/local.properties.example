@@ -1,0 +1,7 @@
+## local.properties is generated per-machine by Flutter / Android Studio.
+## Do NOT commit it. Expected keys (values come from your machine / CI):
+#
+# sdk.dir=<Android SDK path from ANDROID_HOME>
+# flutter.sdk=<Flutter SDK path>
+#
+# On Codemagic these are injected automatically.

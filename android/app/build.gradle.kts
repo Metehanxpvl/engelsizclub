@@ -14,8 +14,10 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    ndkVersion = "28.2.13676358"
-    ndkPath = "C:/Users/sakir/AppData/Local/Android/Sdk/ndk/28.2.13676358"
+    // Never hardcode machine-local ndkPath / sdk.dir — breaks Codemagic / CI.
+    // Optional override: ./gradlew -Pandroid.ndkVersion=28.2.13676358
+    ndkVersion = (project.findProperty("android.ndkVersion") as String?)
+        ?: flutter.ndkVersion
 
     namespace = "com.sakircaykara.engelsizclub"
     compileSdk = flutter.compileSdkVersion
