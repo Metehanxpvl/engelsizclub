@@ -1,13 +1,69 @@
 # Codemagic CI/CD — Engelsiz Club
 # Docs: https://docs.codemagic.io/yaml-quick-start/building-a-flutter-app/
+# Firebase config: https://docs.codemagic.io/knowledge-firebase/load-firebase-configuration/
 #
 # Codemagic UI'da bağlamanız gerekenler:
 # 1) GitHub repo: Metehanxpvl/engelsizclub
 # 2) Team integrations → Developer Portal → App Store Connect API key
 #    (ad: EngelsizClubASC — aşağıda aynı isim kullanılmalı)
 # 3) Application → codemagic.yaml seçili olsun
+# 4) Environment variables (Secret) — grup adı: firebase_credentials
+#    - ANDROID_FIREBASE_SECRET = android/app/google-services.json içeriği
+#      (ham JSON veya base64; script ikisini de destekler)
+#    - IOS_FIREBASE_SECRET     = ios/Runner/GoogleService-Info.plist içeriği
+#      (ham plist veya base64; iOS workflow’ları için)
 
 workflows:
+  android-play:
+    name: Android → Play (AAB)
+    max_build_duration: 90
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      groups:
+        - firebase_credentials
+        # Opsiyonel imzalama (Codemagic UI'da keystore_credentials grubu):
+        # - keystore_credentials
+    scripts:
+      - name: Load Firebase configuration (google-services.json)
+        script: |
+          #!/usr/bin/env sh
+          set -e
+          OUT="$CM_BUILD_DIR/android/app/google-services.json"
+          if [ -z "${ANDROID_FIREBASE_SECRET:-}" ]; then
+            echo "ERROR: ANDROID_FIREBASE_SECRET is not set."
+            echo "Codemagic → Environment variables → Secret group 'firebase_credentials'"
+            echo "Add ANDROID_FIREBASE_SECRET = contents of google-services.json (raw or base64)."
+            exit 1
+          fi
+          # Raw JSON starts with '{'; otherwise treat as base64.
+          case "$(printf '%s' "$ANDROID_FIREBASE_SECRET" | sed -e 's/^[[:space:]]*//')" in
+            \{*)
+              printf '%s\n' "$ANDROID_FIREBASE_SECRET" > "$OUT"
+              ;;
+            *)
+              echo "$ANDROID_FIREBASE_SECRET" | base64 --decode > "$OUT"
+              ;;
+          esac
+          test -s "$OUT"
+          echo "Wrote google-services.json ($(wc -c < "$OUT") bytes)"
+      - name: Get Flutter packages
+        script: |
+          flutter pub get
+      - name: Flutter build App Bundle
+        script: |
+          flutter build appbundle --release
+    artifacts:
+      - build/app/outputs/**/*.aab
+      - build/app/outputs/**/*.apk
+    publishing:
+      email:
+        recipients:
+          - sakir.caykara@gmail.com
+        notify:
+          success: true
+          failure: true
+
   ios-testflight:
     name: iOS → TestFlight
     max_build_duration: 90
@@ -18,10 +74,35 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
+      groups:
+        - firebase_credentials
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.sakircaykara.engelsizclub
     scripts:
+      - name: Load Firebase configuration
+        script: |
+          #!/usr/bin/env sh
+          set -e
+          # Android file also needed if shared modules resolve google-services
+          if [ -n "${ANDROID_FIREBASE_SECRET:-}" ]; then
+            OUT_A="$CM_BUILD_DIR/android/app/google-services.json"
+            case "$(printf '%s' "$ANDROID_FIREBASE_SECRET" | sed -e 's/^[[:space:]]*//')" in
+              \{*) printf '%s\n' "$ANDROID_FIREBASE_SECRET" > "$OUT_A" ;;
+              *) echo "$ANDROID_FIREBASE_SECRET" | base64 --decode > "$OUT_A" ;;
+            esac
+          fi
+          if [ -n "${IOS_FIREBASE_SECRET:-}" ]; then
+            OUT_I="$CM_BUILD_DIR/ios/Runner/GoogleService-Info.plist"
+            case "$(printf '%s' "$IOS_FIREBASE_SECRET" | sed -e 's/^[[:space:]]*//')" in
+              \<?*) printf '%s\n' "$IOS_FIREBASE_SECRET" > "$OUT_I" ;;
+              *) echo "$IOS_FIREBASE_SECRET" | base64 --decode > "$OUT_I" ;;
+            esac
+            test -s "$OUT_I"
+            echo "Wrote GoogleService-Info.plist"
+          else
+            echo "WARNING: IOS_FIREBASE_SECRET not set — iOS Firebase may fail at runtime"
+          fi
       - name: Get Flutter packages
         script: |
           flutter pub get
@@ -64,10 +145,33 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
+      groups:
+        - firebase_credentials
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.sakircaykara.engelsizclub
     scripts:
+      - name: Load Firebase configuration
+        script: |
+          #!/usr/bin/env sh
+          set -e
+          if [ -n "${ANDROID_FIREBASE_SECRET:-}" ]; then
+            OUT_A="$CM_BUILD_DIR/android/app/google-services.json"
+            case "$(printf '%s' "$ANDROID_FIREBASE_SECRET" | sed -e 's/^[[:space:]]*//')" in
+              \{*) printf '%s\n' "$ANDROID_FIREBASE_SECRET" > "$OUT_A" ;;
+              *) echo "$ANDROID_FIREBASE_SECRET" | base64 --decode > "$OUT_A" ;;
+            esac
+          fi
+          if [ -z "${IOS_FIREBASE_SECRET:-}" ]; then
+            echo "ERROR: IOS_FIREBASE_SECRET is not set."
+            exit 1
+          fi
+          OUT_I="$CM_BUILD_DIR/ios/Runner/GoogleService-Info.plist"
+          case "$(printf '%s' "$IOS_FIREBASE_SECRET" | sed -e 's/^[[:space:]]*//')" in
+            \<?*) printf '%s\n' "$IOS_FIREBASE_SECRET" > "$OUT_I" ;;
+            *) echo "$IOS_FIREBASE_SECRET" | base64 --decode > "$OUT_I" ;;
+          esac
+          test -s "$OUT_I"
       - name: Get Flutter packages
         script: |
           flutter pub get

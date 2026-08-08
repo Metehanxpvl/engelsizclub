@@ -56,6 +56,16 @@ Firebase App ID: `1:59695056324:android:4e3e2858da075b865b9091`
 
 `google-services.json` → `android/app/` (gitignore’da; yerelde tut).
 
+### Codemagic (CI)
+
+Dosyayı Git’e koyma. Codemagic → Application → **Environment variables**:
+
+1. Grup: `firebase_credentials` (Secret işaretli)
+2. Değişken: `ANDROID_FIREBASE_SECRET` = `google-services.json` içeriği (ham JSON veya base64)
+3. (iOS için) `IOS_FIREBASE_SECRET` = `GoogleService-Info.plist` içeriği
+
+`codemagic.yaml` build başlamadan önce dosyayı `android/app/google-services.json` olarak yazar.
+
 ### Google Sign-In SHA-1 (zorunlu)
 
 Play’den indirilen uygulamada Google giriş için **Play App Signing** SHA-1 şart:
