@@ -84,7 +84,6 @@ workflows:
         script: |
           #!/usr/bin/env sh
           set -e
-          # Android file also needed if shared modules resolve google-services
           if [ -n "${ANDROID_FIREBASE_SECRET:-}" ]; then
             OUT_A="$CM_BUILD_DIR/android/app/google-services.json"
             case "$(printf '%s' "$ANDROID_FIREBASE_SECRET" | sed -e 's/^[[:space:]]*//')" in
@@ -92,17 +91,19 @@ workflows:
               *) echo "$ANDROID_FIREBASE_SECRET" | base64 --decode > "$OUT_A" ;;
             esac
           fi
-          if [ -n "${IOS_FIREBASE_SECRET:-}" ]; then
-            OUT_I="$CM_BUILD_DIR/ios/Runner/GoogleService-Info.plist"
-            case "$(printf '%s' "$IOS_FIREBASE_SECRET" | sed -e 's/^[[:space:]]*//')" in
-              \<?*) printf '%s\n' "$IOS_FIREBASE_SECRET" > "$OUT_I" ;;
-              *) echo "$IOS_FIREBASE_SECRET" | base64 --decode > "$OUT_I" ;;
-            esac
-            test -s "$OUT_I"
-            echo "Wrote GoogleService-Info.plist"
-          else
-            echo "WARNING: IOS_FIREBASE_SECRET not set — iOS Firebase may fail at runtime"
+          if [ -z "${IOS_FIREBASE_SECRET:-}" ]; then
+            echo "ERROR: IOS_FIREBASE_SECRET is not set."
+            echo "Codemagic → Environment variables → Secret group 'firebase_credentials'"
+            echo "Add IOS_FIREBASE_SECRET = contents of GoogleService-Info.plist (raw or base64)."
+            exit 1
           fi
+          OUT_I="$CM_BUILD_DIR/ios/Runner/GoogleService-Info.plist"
+          case "$(printf '%s' "$IOS_FIREBASE_SECRET" | sed -e 's/^[[:space:]]*//')" in
+            \<?*) printf '%s\n' "$IOS_FIREBASE_SECRET" > "$OUT_I" ;;
+            *) echo "$IOS_FIREBASE_SECRET" | base64 --decode > "$OUT_I" ;;
+          esac
+          test -s "$OUT_I"
+          echo "Wrote GoogleService-Info.plist ($(wc -c < "$OUT_I") bytes)"
       - name: Get Flutter packages
         script: |
           flutter pub get
@@ -172,6 +173,7 @@ workflows:
             *) echo "$IOS_FIREBASE_SECRET" | base64 --decode > "$OUT_I" ;;
           esac
           test -s "$OUT_I"
+          echo "Wrote GoogleService-Info.plist ($(wc -c < "$OUT_I") bytes)"
       - name: Get Flutter packages
         script: |
           flutter pub get

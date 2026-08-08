@@ -88,10 +88,25 @@ Her yeni yüklemede **+build** artmalı (örn. `1.0.24+25`).
 
 ---
 
-## Firebase (iOS)
+## Firebase (Codemagic secret group)
 
-Bundle ID ile iOS app ekleyin → `GoogleService-Info.plist` → `ios/Runner/`  
-(Push / Google Sign-In için gerekli olabilir.)
+Dosyalar gitignore’da (`google-services.json` / `GoogleService-Info.plist`) — GitHub’a gitmez.
+
+Codemagic → **Environment variables** → Secret group adı: **`firebase_credentials`**
+
+| Variable | Değer |
+|----------|--------|
+| `ANDROID_FIREBASE_SECRET` | `android/app/google-services.json` (ham JSON veya base64) |
+| `IOS_FIREBASE_SECRET` | `ios/Runner/GoogleService-Info.plist` (ham plist veya base64) |
+
+Windows base64 örneği:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("ios\Runner\GoogleService-Info.plist"))
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("android\app\google-services.json"))
+```
+
+Build script’leri bu env’leri dosyaya yazar (`codemagic.yaml`).
 
 ---
 
