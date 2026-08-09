@@ -41,8 +41,6 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
-      vars:
-        APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: "--use-old-altool --apple-id 6799422264"
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.sakircaykara.engelsizclub
@@ -111,8 +109,6 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
-      vars:
-        APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: "--use-old-altool --apple-id 6799422264"
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.sakircaykara.engelsizclub
