@@ -1,19 +1,9 @@
-# Codemagic CI/CD — Engelsiz Club
-# Docs: https://docs.codemagic.io/yaml-quick-start/building-a-flutter-app/
-# iOS signing: https://docs.codemagic.io/yaml-code-signing/signing-ios/
-# Firebase: https://docs.codemagic.io/knowledge-firebase/load-firebase-configuration/
-#
-# Codemagic UI (zorunlu):
-# 1) Application → Configuration → Use codemagic.yaml (Workflow Editor değil)
-# 2) Start new build → Workflow: "iOS → TestFlight" (workflow id: ios-testflight)
-# 3) Team integrations → Developer Portal → App Store Connect API key adı: EngelsizClubASC
-# 4) Secret group: firebase_credentials
-#    - ANDROID_FIREBASE_SECRET = google-services.json (raw JSON veya base64)
-#    - IOS_FIREBASE_SECRET     = GoogleService-Info.plist (raw plist veya base64)
-# 5) Code signing: yaml ios_signing (app_store) kullanılır.
-#    UI’da Development profile seçme — distribution App Store olmalı.
-# 6) Apple Distribution sertifika limiti: max 3. Limit doluysa Codemagic yeni üretemez;
-#    developer.apple.com → Certificates’tan eski Distribution sertifikasını revoke et.
+# Codemagic CI/CD - Engelsiz Club
+# Use codemagic.yaml (not Workflow Editor).
+# Start build -> workflow: ios-testflight (name: iOS TestFlight)
+# ASC integration name must be: EngelsizClubASC
+# Secret group: firebase_credentials
+#   ANDROID_FIREBASE_SECRET, IOS_FIREBASE_SECRET
 
 workflows:
   android-play:
@@ -59,8 +49,8 @@ workflows:
           failure: true
 
   ios-testflight:
-    name: iOS → TestFlight
-    max_build_duration: 120
+    name: iOS TestFlight
+    max_build_duration: 90
     instance_type: mac_mini_m2
     integrations:
       app_store_connect: EngelsizClubASC
@@ -70,7 +60,6 @@ workflows:
       cocoapods: default
       groups:
         - firebase_credentials
-      # App Store / TestFlight DISTRIBUTION — development certificate KULLANMA
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.sakircaykara.engelsizclub
@@ -88,7 +77,6 @@ workflows:
           fi
           if [ -z "${IOS_FIREBASE_SECRET:-}" ]; then
             echo "ERROR: IOS_FIREBASE_SECRET is not set."
-            echo "Codemagic → Environment variables → group 'firebase_credentials'"
             exit 1
           fi
           OUT_I="$CM_BUILD_DIR/ios/Runner/GoogleService-Info.plist"
@@ -97,7 +85,6 @@ workflows:
             *) echo "$IOS_FIREBASE_SECRET" | base64 --decode > "$OUT_I" ;;
           esac
           test -s "$OUT_I"
-          echo "Wrote GoogleService-Info.plist ($(wc -c < "$OUT_I") bytes)"
       - name: Get Flutter packages
         script: |
           flutter pub get
@@ -109,22 +96,15 @@ workflows:
           pod install
       - name: Set up code signing settings on Xcode project
         script: |
-          #!/usr/bin/env sh
-          set -e
-          # Fetches App Store distribution cert + profile via ASC API,
-          # then writes Manual signing into the Xcode project.
           xcode-project use-profiles
-      - name: Flutter build IPA (App Store distribution)
+      - name: Flutter build IPA
         script: |
           #!/usr/bin/env sh
           set -e
-          # Produces build/ios/ipa/*.ipa (NOT Runner.app.zip)
           flutter build ipa --release \
             --export-options-plist=/Users/builder/export_options.plist
-          echo "IPA artifacts:"
           ls -la build/ios/ipa/
-          test -n "$(ls -A build/ios/ipa/*.ipa 2>/dev/null)" \
-            || { echo "ERROR: No .ipa produced under build/ios/ipa/"; exit 1; }
+          test -n "$(ls -A build/ios/ipa/*.ipa 2>/dev/null)"
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
@@ -136,14 +116,12 @@ workflows:
           success: true
           failure: true
       app_store_connect:
-        # Uses Team integration EngelsizClubASC — do not hardcode .p8 / key ids
-        # IPA App Store Connect'e yüklenir; beta review / TestFlight submit kapalı
         auth: integration
-        submit_to_testflight: false
+        submit_to_testflight: true
 
   ios-app-store:
-    name: iOS → App Store Review
-    max_build_duration: 120
+    name: iOS App Store Review
+    max_build_duration: 90
     instance_type: mac_mini_m2
     integrations:
       app_store_connect: EngelsizClubASC
@@ -178,7 +156,6 @@ workflows:
             *) echo "$IOS_FIREBASE_SECRET" | base64 --decode > "$OUT_I" ;;
           esac
           test -s "$OUT_I"
-          echo "Wrote GoogleService-Info.plist ($(wc -c < "$OUT_I") bytes)"
       - name: Get Flutter packages
         script: |
           flutter pub get
@@ -190,21 +167,17 @@ workflows:
           pod install
       - name: Set up code signing settings on Xcode project
         script: |
-          #!/usr/bin/env sh
-          set -e
           xcode-project use-profiles
-      - name: Flutter build IPA (App Store distribution)
+      - name: Flutter build IPA
         script: |
           #!/usr/bin/env sh
           set -e
           flutter build ipa --release \
             --export-options-plist=/Users/builder/export_options.plist
           ls -la build/ios/ipa/
-          test -n "$(ls -A build/ios/ipa/*.ipa 2>/dev/null)" \
-            || { echo "ERROR: No .ipa produced under build/ios/ipa/"; exit 1; }
+          test -n "$(ls -A build/ios/ipa/*.ipa 2>/dev/null)"
     artifacts:
       - build/ios/ipa/*.ipa
-      - /tmp/xcodebuild_logs/*.log
     publishing:
       email:
         recipients:
