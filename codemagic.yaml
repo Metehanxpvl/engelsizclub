@@ -1,14 +1,19 @@
 # Codemagic CI/CD — Engelsiz Club
 # Docs: https://docs.codemagic.io/yaml-quick-start/building-a-flutter-app/
+# iOS signing: https://docs.codemagic.io/yaml-code-signing/signing-ios/
 # Firebase: https://docs.codemagic.io/knowledge-firebase/load-firebase-configuration/
 #
-# Codemagic UI:
-# 1) GitHub: Metehanxpvl/engelsizclub
-# 2) Team integrations → Developer Portal → App Store Connect key adı: EngelsizClubASC
-# 3) Application → Use codemagic.yaml
+# Codemagic UI (zorunlu):
+# 1) Application → Configuration → Use codemagic.yaml (Workflow Editor değil)
+# 2) Start new build → Workflow: "iOS → TestFlight" (workflow id: ios-testflight)
+# 3) Team integrations → Developer Portal → App Store Connect API key adı: EngelsizClubASC
 # 4) Secret group: firebase_credentials
 #    - ANDROID_FIREBASE_SECRET = google-services.json (raw JSON veya base64)
 #    - IOS_FIREBASE_SECRET     = GoogleService-Info.plist (raw plist veya base64)
+# 5) Code signing: yaml ios_signing (app_store) kullanılır.
+#    UI’da Development profile seçme — distribution App Store olmalı.
+# 6) Apple Distribution sertifika limiti: max 3. Limit doluysa Codemagic yeni üretemez;
+#    developer.apple.com → Certificates’tan eski Distribution sertifikasını revoke et.
 
 workflows:
   android-play:
@@ -55,7 +60,7 @@ workflows:
 
   ios-testflight:
     name: iOS → TestFlight
-    max_build_duration: 90
+    max_build_duration: 120
     instance_type: mac_mini_m2
     integrations:
       app_store_connect: EngelsizClubASC
@@ -65,6 +70,7 @@ workflows:
       cocoapods: default
       groups:
         - firebase_credentials
+      # App Store / TestFlight DISTRIBUTION — development certificate KULLANMA
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.sakircaykara.engelsizclub
@@ -97,15 +103,28 @@ workflows:
           flutter pub get
       - name: Install CocoaPods dependencies
         script: |
+          #!/usr/bin/env sh
+          set -e
           cd ios
           pod install
-      - name: Set up code signing
+      - name: Set up code signing settings on Xcode project
         script: |
+          #!/usr/bin/env sh
+          set -e
+          # Fetches App Store distribution cert + profile via ASC API,
+          # then writes Manual signing into the Xcode project.
           xcode-project use-profiles
-      - name: Flutter build IPA
+      - name: Flutter build IPA (App Store distribution)
         script: |
+          #!/usr/bin/env sh
+          set -e
+          # Produces build/ios/ipa/*.ipa (NOT Runner.app.zip)
           flutter build ipa --release \
             --export-options-plist=/Users/builder/export_options.plist
+          echo "IPA artifacts:"
+          ls -la build/ios/ipa/
+          test -n "$(ls -A build/ios/ipa/*.ipa 2>/dev/null)" \
+            || { echo "ERROR: No .ipa produced under build/ios/ipa/"; exit 1; }
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
@@ -117,12 +136,13 @@ workflows:
           success: true
           failure: true
       app_store_connect:
+        # Uses Team integration EngelsizClubASC — do not hardcode .p8 / key ids
         auth: integration
         submit_to_testflight: true
 
   ios-app-store:
     name: iOS → App Store Review
-    max_build_duration: 90
+    max_build_duration: 120
     instance_type: mac_mini_m2
     integrations:
       app_store_connect: EngelsizClubASC
@@ -163,17 +183,27 @@ workflows:
           flutter pub get
       - name: Install CocoaPods dependencies
         script: |
+          #!/usr/bin/env sh
+          set -e
           cd ios
           pod install
-      - name: Set up code signing
+      - name: Set up code signing settings on Xcode project
         script: |
+          #!/usr/bin/env sh
+          set -e
           xcode-project use-profiles
-      - name: Flutter build IPA
+      - name: Flutter build IPA (App Store distribution)
         script: |
+          #!/usr/bin/env sh
+          set -e
           flutter build ipa --release \
             --export-options-plist=/Users/builder/export_options.plist
+          ls -la build/ios/ipa/
+          test -n "$(ls -A build/ios/ipa/*.ipa 2>/dev/null)" \
+            || { echo "ERROR: No .ipa produced under build/ios/ipa/"; exit 1; }
     artifacts:
       - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
     publishing:
       email:
         recipients:
