@@ -34,7 +34,17 @@
 				<string>io.supabase.engelsizclub</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.59695056324-pr0kp9qs7fh1pk760262447edk61f0bp</string>
+			</array>
+		</dict>
 	</array>
+	<key>GIDClientID</key>
+	<string>59695056324-pr0kp9qs7fh1pk760262447edk61f0bp.apps.googleusercontent.com</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>

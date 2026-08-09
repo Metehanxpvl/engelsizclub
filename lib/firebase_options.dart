@@ -39,6 +39,16 @@ class DefaultFirebaseOptions {
     storageBucket: 'engelsizclub-e5842.firebasestorage.app',
   );
 
-  // iOS Firebase app eklenince Console’dan güncelle.
-  static const FirebaseOptions ios = web;
+  /// iOS Bundle ID: com.sakircaykara.engelsizclub
+  /// Kaynak: ios/Runner/GoogleService-Info.plist
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyDvagrc9VhRQq2yxAxo5KA8x6-3WSDqGac',
+    appId: '1:59695056324:ios:1fbfe979e482a48f5b9091',
+    messagingSenderId: '59695056324',
+    projectId: 'engelsizclub-e5842',
+    storageBucket: 'engelsizclub-e5842.firebasestorage.app',
+    iosBundleId: 'com.sakircaykara.engelsizclub',
+    iosClientId:
+        '59695056324-pr0kp9qs7fh1pk760262447edk61f0bp.apps.googleusercontent.com',
+  );
 }

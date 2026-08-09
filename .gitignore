@@ -65,8 +65,8 @@ dist/
 .env
 .env.*
 **/google-services.json
-!android/app/google-services.json
 **/GoogleService-Info.plist
+!ios/Runner/GoogleService-Info.plist
 **/secrets.dart
 lib/services/google_places_config.local.dart
 
