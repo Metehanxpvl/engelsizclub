@@ -49,6 +49,8 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Yakınınızdaki rehabilitasyon merkezlerini göstermek için konumunuz kullanılır.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Yakınınızdaki rehabilitasyon merkezlerini göstermek ve uygun sonuçları sunmak için konumunuza erişim gerekir.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>İletişim kartlarını kişiselleştirmek için galerinizden fotoğraf seçebilirsiniz.</string>
 	<key>UIBackgroundModes</key>
