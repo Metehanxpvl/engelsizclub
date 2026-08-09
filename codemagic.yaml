@@ -137,8 +137,9 @@ workflows:
           failure: true
       app_store_connect:
         # Uses Team integration EngelsizClubASC — do not hardcode .p8 / key ids
+        # IPA App Store Connect'e yüklenir; beta review / TestFlight submit kapalı
         auth: integration
-        submit_to_testflight: true
+        submit_to_testflight: false
 
   ios-app-store:
     name: iOS → App Store Review
