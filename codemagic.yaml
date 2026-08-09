@@ -74,7 +74,27 @@ workflows:
           pod install
       - name: Set up code signing settings on Xcode project
         script: |
+          #!/usr/bin/env sh
+          set -e
+          # Apply Codemagic Distribution cert + App Store profile to the Xcode project
+          # BEFORE Flutter archives (must run first).
           xcode-project use-profiles
+          echo "==== Release signing settings after use-profiles ===="
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -showBuildSettings 2>/dev/null \
+            | grep -E 'CODE_SIGN_STYLE|CODE_SIGN_IDENTITY|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|PRODUCT_BUNDLE_IDENTIFIER' \
+            || true
+          TEAM="$(xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings 2>/dev/null | awk -F' = ' '/DEVELOPMENT_TEAM/ {print $2; exit}')"
+          PROF="$(xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings 2>/dev/null | awk -F' = ' '/PROVISIONING_PROFILE_SPECIFIER/ {print $2; exit}')"
+          echo "DEVELOPMENT_TEAM=${TEAM:-<empty>}"
+          echo "PROVISIONING_PROFILE_SPECIFIER=${PROF:-<empty>}"
+          if [ -z "${TEAM}" ] || [ -z "${PROF}" ]; then
+            echo "ERROR: use-profiles did not apply DEVELOPMENT_TEAM / PROVISIONING_PROFILE_SPECIFIER."
+            echo "Check Codemagic Code signing identities: Apple Distribution cert + App Store profile for com.sakircaykara.engelsizclub"
+            exit 1
+          fi
       - name: Flutter build IPA
         script: |
           #!/usr/bin/env sh
@@ -122,7 +142,16 @@ workflows:
           pod install
       - name: Set up code signing settings on Xcode project
         script: |
+          #!/usr/bin/env sh
+          set -e
           xcode-project use-profiles
+          echo "==== Release signing settings after use-profiles ===="
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -showBuildSettings 2>/dev/null \
+            | grep -E 'CODE_SIGN_STYLE|CODE_SIGN_IDENTITY|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|PRODUCT_BUNDLE_IDENTIFIER' \
+            || true
       - name: Flutter build IPA
         script: |
           #!/usr/bin/env sh
