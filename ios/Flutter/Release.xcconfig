@@ -1,1 +1,5 @@
 #include "Generated.xcconfig"
+// Codemagic / TestFlight: avoid Flutter probing for Development certs
+CODE_SIGN_STYLE=Manual
+CODE_SIGN_IDENTITY=Apple Distribution
+CODE_SIGN_IDENTITY[sdk=iphoneos*]=Apple Distribution

@@ -1,7 +1,7 @@
 # Codemagic CI/CD - Engelsiz Club
 # Use codemagic.yaml (not Workflow Editor).
 # Start build -> workflow: ios-testflight (name: iOS TestFlight)
-# ASC integration name must be: EngelsizClubASC
+# ASC integration name in Codemagic UI must match below exactly (currently: engelsizclub)
 #
 # Android workflow still references firebase_credentials group (create in UI if needed).
 # iOS TestFlight does not require that group: Dart Firebase options are in firebase_options.dart.
@@ -54,7 +54,7 @@ workflows:
     max_build_duration: 90
     instance_type: mac_mini_m2
     integrations:
-      app_store_connect: EngelsizClubASC
+      app_store_connect: engelsizclub
     environment:
       flutter: stable
       xcode: latest
@@ -102,7 +102,7 @@ workflows:
     max_build_duration: 90
     instance_type: mac_mini_m2
     integrations:
-      app_store_connect: EngelsizClubASC
+      app_store_connect: engelsizclub
     environment:
       flutter: stable
       xcode: latest
