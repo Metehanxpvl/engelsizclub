@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -9,6 +8,8 @@ import '../data/diseases_data.dart';
 import '../disease_catalog_store.dart';
 import '../condition_store.dart';
 import '../meto_theme.dart';
+import '../services/image_optimize_service.dart';
+import '../services/r2_storage_service.dart';
 import 'catalog_media.dart';
 
 /// Admin: kart + detay (belirti, tanı, destek, SSS) düzenleme.
@@ -97,9 +98,14 @@ class _AdminDiseaseEditSheetState extends State<AdminDiseaseEditSheet> {
     });
   }
 
-  String _resolvePhoto() {
+  Future<String> _resolvePhoto() async {
     if (_pickedBytes != null && _pickedBytes!.isNotEmpty) {
-      return 'data:image/jpeg;base64,${base64Encode(_pickedBytes!)}';
+      final optimized = await ImageOptimizeService.forCatalogCard(_pickedBytes!);
+      return R2StorageService.uploadBytes(
+        bytes: optimized.bytes,
+        fileName: optimized.fileName,
+        contentType: optimized.contentType,
+      );
     }
     return _photo.text.trim();
   }
@@ -114,7 +120,7 @@ class _AdminDiseaseEditSheetState extends State<AdminDiseaseEditSheet> {
     }
     setState(() => _saving = true);
     try {
-      final photo = _resolvePhoto();
+      final photo = await _resolvePhoto();
       final updated = DiseaseInfo(
         id: widget.disease.id,
         name: name,

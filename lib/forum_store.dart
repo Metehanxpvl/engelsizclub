@@ -149,11 +149,10 @@ Future<ForumPost> publishForumPost({
       : authorName.trim();
   final author = anon ? 'Anonim' : name;
   final photo = (avatarPhoto ?? '').trim();
+  // DB şişmesin: avatar’da sadece http(s) URL veya baş harf (base64 yok).
   final avatar = anon
       ? 'A'
-      : (photo.startsWith('data:image') ||
-              photo.startsWith('http://') ||
-              photo.startsWith('https://'))
+      : (photo.startsWith('http://') || photo.startsWith('https://'))
           ? photo
           : (name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '?');
 
@@ -182,7 +181,7 @@ Future<ForumPost> publishForumPost({
   }
   final safePhotos = photos
       .map((p) => p.trim())
-      .where((p) => p.isNotEmpty)
+      .where((p) => p.startsWith('http://') || p.startsWith('https://'))
       .take(2)
       .toList(growable: false);
   if (safePhotos.isNotEmpty) {
@@ -370,9 +369,7 @@ Future<ForumComment> addForumComment({
   final photo = (avatarPhoto ?? '').trim();
   final avatar = anon
       ? '?'
-      : (photo.startsWith('data:image') ||
-              photo.startsWith('http://') ||
-              photo.startsWith('https://'))
+      : (photo.startsWith('http://') || photo.startsWith('https://'))
           ? photo
           : (name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '?');
 
@@ -660,7 +657,7 @@ Future<ForumPost> updateForumPost({
     'meslek': meslek.trim(),
     'photos': photos
         .map((p) => p.trim())
-        .where((p) => p.isNotEmpty)
+        .where((p) => p.startsWith('http://') || p.startsWith('https://'))
         .take(2)
         .toList(growable: false),
     'tags': tags,

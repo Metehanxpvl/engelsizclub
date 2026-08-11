@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'cocuk_profil_store.dart';
 import 'kullanici_profil_store.dart';
+import 'profil_foto_store.dart';
 
 class BildirimAyarlari {
   const BildirimAyarlari({
@@ -330,10 +331,12 @@ Future<UserCloudProfile> _loadLocal(String email) async {
 
 Future<void> _cacheLocally(String email, UserCloudProfile profile) async {
   final prefs = await SharedPreferences.getInstance();
-  if (profile.photoData == null || profile.photoData!.isEmpty) {
+  final photo = (profile.photoData ?? '').trim();
+  // Base64 blob’ları prefs’e yazma — sadece http(s) URL.
+  if (photo.isEmpty || photo.startsWith('data:')) {
     await prefs.remove(_localKey(email, 'photo'));
   } else {
-    await prefs.setString(_localKey(email, 'photo'), profile.photoData!);
+    await prefs.setString(_localKey(email, 'photo'), photo);
   }
   await prefs.setString(
     _localKey(email, 'profil'),
@@ -355,11 +358,9 @@ Future<void> _cacheLocally(String email, UserCloudProfile profile) async {
   // Eski store'larla uyumluluk
   await saveKullaniciProfil(email, profile.profil);
   await saveCocukProfil(email, profile.cocuk);
-  final fotoKey =
-      'user_profil_foto_${email.trim().toLowerCase().isEmpty ? 'anon' : email.trim().toLowerCase()}';
-  if (profile.photoData == null || profile.photoData!.isEmpty) {
-    await prefs.remove(fotoKey);
+  if (photo.isEmpty || photo.startsWith('data:')) {
+    await clearProfilFoto(email);
   } else {
-    await prefs.setString(fotoKey, profile.photoData!);
+    await saveProfilFoto(email, photo);
   }
 }

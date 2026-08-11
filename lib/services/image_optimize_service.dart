@@ -32,7 +32,7 @@ class ImageOptimizeService {
     );
   }
 
-  /// Forum — base64 / DB yükü hafif, ~280 KB hedef.
+  /// Forum — R2’ye gitmeden önce sıkıştır (~280 KB).
   static Future<OptimizedImage> forForum(Uint8List raw) {
     return Future(
       () => _optimize(
@@ -42,6 +42,34 @@ class ImageOptimizeService {
         startQuality: 72,
         minQuality: 55,
         filePrefix: 'forum',
+      ),
+    );
+  }
+
+  /// Profil avatarı — küçük ve hafif (~80 KB).
+  static Future<OptimizedImage> forAvatar(Uint8List raw) {
+    return Future(
+      () => _optimize(
+        raw,
+        maxSide: 320,
+        maxBytes: 80 * 1024,
+        startQuality: 70,
+        minQuality: 50,
+        filePrefix: 'avatar',
+      ),
+    );
+  }
+
+  /// Bilgi kütüphanesi / duyuru kart görselleri.
+  static Future<OptimizedImage> forCatalogCard(Uint8List raw) {
+    return Future(
+      () => _optimize(
+        raw,
+        maxSide: 960,
+        maxBytes: 220 * 1024,
+        startQuality: 74,
+        minQuality: 55,
+        filePrefix: 'card',
       ),
     );
   }

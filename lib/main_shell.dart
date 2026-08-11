@@ -47,6 +47,8 @@ import 'presence_store.dart';
 import 'profil_foto_store.dart';
 import 'services/play_billing_service.dart';
 import 'services/push_notification_service.dart';
+import 'services/image_optimize_service.dart';
+import 'services/r2_storage_service.dart';
 import 'sohbet_store.dart';
 import 'user_cloud_store.dart';
 import 'user_safety_store.dart';
@@ -1872,30 +1874,42 @@ class _MainShellState extends State<MainShell> {
   Future<void> _pickProfilFoto() async {
     final file = await ImagePicker().pickImage(
       source: ImageSource.gallery,
-      maxWidth: 320,
-      maxHeight: 320,
-      imageQuality: 55,
+      maxWidth: 640,
+      maxHeight: 640,
+      imageQuality: 80,
     );
     if (file == null) return;
-    final bytes = await file.readAsBytes();
-    // ~200KB üstü ise daha agresif küçült (web localStorage / bulut limiti).
-    var mime = file.mimeType ?? 'image/jpeg';
-    var encoded = base64Encode(bytes);
-    if (encoded.length > 220000 && mime != 'image/jpeg') {
-      mime = 'image/jpeg';
+    try {
+      final raw = await file.readAsBytes();
+      if (raw.isEmpty) throw StateError('Boş görsel seçildi.');
+      final optimized = await ImageOptimizeService.forAvatar(raw);
+      // DB şişmesin: R2’ye yükle, sadece URL sakla (cihazda da URL önbelleklenir).
+      final url = await R2StorageService.uploadBytes(
+        bytes: optimized.bytes,
+        fileName: optimized.fileName,
+        contentType: optimized.contentType,
+      );
+      await upsertUserCloudProfile(
+        email: widget.user.email,
+        photoData: url,
+      );
+      await saveProfilFoto(widget.user.email, url);
+      cacheOwnUserPhoto(widget.user.email, url);
+      if (!mounted) return;
+      setState(() => _profilFoto = url);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: L10nText('Profil fotoğrafı kaydedildi ✅')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: L10nText(
+            e.toString().replaceFirst('Bad state: ', ''),
+          ),
+        ),
+      );
     }
-    final dataUrl = 'data:$mime;base64,$encoded';
-    await upsertUserCloudProfile(
-      email: widget.user.email,
-      photoData: dataUrl,
-    );
-    await saveProfilFoto(widget.user.email, dataUrl);
-    cacheOwnUserPhoto(widget.user.email, dataUrl);
-    if (!mounted) return;
-    setState(() => _profilFoto = dataUrl);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: L10nText('Profil fotoğrafı kaydedildi ✅')),
-    );
   }
 
   Future<void> _removeProfilFoto() async {

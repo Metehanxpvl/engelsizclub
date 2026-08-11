@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_config.dart';
@@ -6,7 +9,9 @@ import 'data/diseases_data.dart';
 
 List<ConditionItem>? _conditionMemoryCache;
 DateTime? _conditionCacheAt;
-const _conditionCacheTtl = Duration(minutes: 10);
+const _conditionCacheTtl = Duration(minutes: 30);
+const _conditionPrefsKey = 'conditions_cache_v1';
+const _conditionPrefsTsKey = 'conditions_cache_ts_v1';
 
 List<ConditionItem>? get cachedConditions => _conditionMemoryCache;
 
@@ -25,6 +30,69 @@ void invalidateConditionCache() {
 void _setConditionCache(List<ConditionItem> items) {
   _conditionMemoryCache = List<ConditionItem>.unmodifiable(items);
   _conditionCacheAt = DateTime.now();
+  // ignore: unawaited_futures
+  _persistConditionsPrefs(items);
+}
+
+String _cacheSafeUrl(String raw) {
+  final s = raw.trim();
+  if (s.startsWith('data:')) return '';
+  return s;
+}
+
+Map<String, dynamic> _conditionToCacheJson(ConditionItem c) => {
+      'id': c.id,
+      'title': c.title,
+      'image_url': _cacheSafeUrl(c.imageUrl),
+      'description': c.description,
+      'created_at': c.createdAt.toIso8601String(),
+      'sort_order': c.sortOrder,
+      'is_active': c.isActive,
+      'catalog_id': c.catalogId,
+      'icon': c.icon,
+      'symptoms': c.symptoms,
+      'diagnosis': c.diagnosis,
+      'support': c.support,
+      'faq': [
+        for (final f in c.faq) {'q': f.q, 'a': f.a},
+      ],
+    };
+
+Future<void> _persistConditionsPrefs(List<ConditionItem> items) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final payload = jsonEncode([
+      for (final c in items) _conditionToCacheJson(c),
+    ]);
+    // Prefs ~1–2MB; aşırı şişkinlik olursa yazma.
+    if (payload.length > 900000) return;
+    await prefs.setString(_conditionPrefsKey, payload);
+    await prefs.setInt(
+      _conditionPrefsTsKey,
+      DateTime.now().millisecondsSinceEpoch,
+    );
+  } catch (_) {}
+}
+
+Future<({List<ConditionItem> items, DateTime at})?> _loadConditionsPrefs() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_conditionPrefsKey);
+    final ts = prefs.getInt(_conditionPrefsTsKey) ?? 0;
+    if (raw == null || raw.isEmpty || ts <= 0) return null;
+    final at = DateTime.fromMillisecondsSinceEpoch(ts);
+    if (DateTime.now().difference(at) > const Duration(days: 7)) return null;
+    final list = jsonDecode(raw);
+    if (list is! List) return null;
+    final items = [
+      for (final e in list.whereType<Map>())
+        ConditionItem.fromRow(Map<String, dynamic>.from(e)),
+    ].where((c) => c.id > 0 && c.title.isNotEmpty).toList();
+    if (items.isEmpty) return null;
+    return (items: items, at: at);
+  } catch (_) {
+    return null;
+  }
 }
 
 ConditionItem conditionFromRow(Map<String, dynamic> json) =>
@@ -59,6 +127,18 @@ Future<List<ConditionItem>> loadConditions({
     if (isAppAdmin(viewerEmail)) return cached;
     return cached.where((c) => c.isActive).toList();
   }
+
+  if (!forceRefresh && _conditionMemoryCache == null) {
+    final disk = await _loadConditionsPrefs();
+    if (disk != null &&
+        DateTime.now().difference(disk.at) < _conditionCacheTtl) {
+      _conditionMemoryCache = List<ConditionItem>.unmodifiable(disk.items);
+      _conditionCacheAt = disk.at;
+      if (isAppAdmin(viewerEmail)) return List<ConditionItem>.from(disk.items);
+      return disk.items.where((c) => c.isActive).toList();
+    }
+  }
+
   try {
     final rows = await Supabase.instance.client
         .from('conditions')
@@ -78,6 +158,15 @@ Future<List<ConditionItem>> loadConditions({
       final cached = List<ConditionItem>.from(_conditionMemoryCache!);
       if (isAppAdmin(viewerEmail)) return cached;
       return cached.where((c) => c.isActive).toList();
+    }
+    final disk = await _loadConditionsPrefs();
+    if (disk != null) {
+      _conditionMemoryCache = List<ConditionItem>.unmodifiable(disk.items);
+      _conditionCacheAt = disk.at;
+      if (isAppAdmin(viewerEmail)) {
+        return List<ConditionItem>.from(disk.items);
+      }
+      return disk.items.where((c) => c.isActive).toList();
     }
     return const [];
   }
@@ -109,9 +198,16 @@ Future<ConditionItem> addCondition({
           ? 0
           : prev.map((c) => c.sortOrder).reduce((a, b) => a > b ? a : b) + 1);
 
+  final img = imageUrl.trim();
+  if (img.startsWith('data:')) {
+    throw StateError(
+      'Görsel sunucuya (R2) yüklenemedi. Tekrar deneyin.',
+    );
+  }
+
   final payload = <String, dynamic>{
     'title': t,
-    'image_url': imageUrl.trim(),
+    'image_url': img,
     'description': description.trim(),
     'is_active': isActive,
     'sort_order': nextOrder,
@@ -152,9 +248,16 @@ Future<ConditionItem> updateCondition({
   final t = title.trim();
   if (t.isEmpty) throw StateError('Başlık gerekli.');
 
+  final img = imageUrl.trim();
+  if (img.startsWith('data:')) {
+    throw StateError(
+      'Görsel sunucuya (R2) yüklenemedi. Tekrar deneyin.',
+    );
+  }
+
   final payload = <String, dynamic>{
     'title': t,
-    'image_url': imageUrl.trim(),
+    'image_url': img,
     'description': description.trim(),
     'is_active': isActive,
     if (sortOrder != null) 'sort_order': sortOrder,

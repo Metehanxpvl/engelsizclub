@@ -9,12 +9,23 @@ Future<String?> loadProfilFoto(String email) async {
   final prefs = await SharedPreferences.getInstance();
   final v = prefs.getString(profilFotoPrefsKey(email));
   if (v == null || v.isEmpty) return null;
+  // Eski base64 blob’ları cihaz önbelleğinden temizle (DB şişmesi + storage).
+  if (v.startsWith('data:')) {
+    await prefs.remove(profilFotoPrefsKey(email));
+    return null;
+  }
   return v;
 }
 
-Future<void> saveProfilFoto(String email, String dataUrl) async {
+Future<void> saveProfilFoto(String email, String photoUrl) async {
   final prefs = await SharedPreferences.getInstance();
-  await prefs.setString(profilFotoPrefsKey(email), dataUrl);
+  final v = photoUrl.trim();
+  // Telefon/web önbelleğinde yalnızca kısa URL tut.
+  if (v.isEmpty || v.startsWith('data:')) {
+    await prefs.remove(profilFotoPrefsKey(email));
+    return;
+  }
+  await prefs.setString(profilFotoPrefsKey(email), v);
 }
 
 Future<void> clearProfilFoto(String email) async {

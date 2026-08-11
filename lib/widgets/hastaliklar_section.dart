@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -13,6 +12,8 @@ import '../data/diseases_data.dart';
 import '../medical_disclaimer_store.dart';
 import '../meto_theme.dart';
 import '../services/catalog_adapters.dart';
+import '../services/image_optimize_service.dart';
+import '../services/r2_storage_service.dart';
 import 'admin_disease_edit_sheet.dart';
 import 'catalog_media.dart';
 import 'medical_info_card.dart';
@@ -779,9 +780,14 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
     });
   }
 
-  String _resolveImagePayload() {
+  Future<String> _resolveImagePayload() async {
     if (_pickedBytes != null && _pickedBytes!.isNotEmpty) {
-      return 'data:image/jpeg;base64,${base64Encode(_pickedBytes!)}';
+      final optimized = await ImageOptimizeService.forCatalogCard(_pickedBytes!);
+      return R2StorageService.uploadBytes(
+        bytes: optimized.bytes,
+        fileName: optimized.fileName,
+        contentType: optimized.contentType,
+      );
     }
     return _imageUrl.text.trim();
   }
@@ -818,7 +824,7 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
     }
     setState(() => _saving = true);
     try {
-      final image = _resolveImagePayload();
+      final image = await _resolveImagePayload();
       final desc = _description.text.trim();
       final symptoms = _lines(_symptoms.text);
       final diagnosis = _diagnosis.text.trim();

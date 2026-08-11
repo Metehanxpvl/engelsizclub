@@ -10,6 +10,7 @@ import '../admin_config.dart';
 import '../data/duyuru_data.dart';
 import '../duyuru_store.dart';
 import '../meto_theme.dart';
+import '../services/image_optimize_service.dart';
 import '../services/r2_storage_service.dart';
 import 'instagram_embed.dart';
 import 'story_marquee.dart';
@@ -1234,18 +1235,14 @@ class _AdminDuyuruSheetState extends State<_AdminDuyuruSheet> {
 
   Future<String> _resolveImagePayload() async {
     if (_pickedBytes != null && _pickedBytes!.isNotEmpty) {
-      // Push için https URL gerekir — önce R2'ye yükle
-      try {
-        return await R2StorageService.uploadBytes(
-          bytes: _pickedBytes!,
-          fileName:
-              'duyuru_${DateTime.now().millisecondsSinceEpoch}.jpg',
-          contentType: 'image/jpeg',
-        );
-      } catch (_) {
-        final b64 = base64Encode(_pickedBytes!);
-        return 'data:image/jpeg;base64,$b64';
-      }
+      // Push için https URL gerekir — R2’ye yükle (DB’de base64 yok).
+      final optimized = await ImageOptimizeService.forCatalogCard(_pickedBytes!);
+      return R2StorageService.uploadBytes(
+        bytes: optimized.bytes,
+        fileName:
+            'duyuru_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        contentType: optimized.contentType,
+      );
     }
     return _imageUrl.text.trim();
   }

@@ -16,6 +16,7 @@ import '../forum_store.dart';
 import '../meto_theme.dart';
 import '../services/catalog_adapters.dart';
 import '../services/image_optimize_service.dart';
+import '../services/r2_storage_service.dart';
 import '../sohbet_store.dart';
 import '../widgets/photo_gallery_lightbox.dart';
 import '../widgets/user_avatar.dart';
@@ -997,15 +998,13 @@ class ForumPageState extends State<ForumPage> {
         throw StateError('Boş görsel seçildi.');
       }
       final optimized = await ImageOptimizeService.forForum(raw);
-      final encoded = base64Encode(optimized.bytes);
-      if (encoded.length > 500000) {
-        throw StateError(
-          'Fotoğraf çok büyük. Daha küçük bir fotoğraf seçin.',
-        );
-      }
-      final dataUrl = 'data:${optimized.contentType};base64,$encoded';
+      final url = await R2StorageService.uploadBytes(
+        bytes: optimized.bytes,
+        fileName: optimized.fileName,
+        contentType: optimized.contentType,
+      );
       if (!mounted) return;
-      setState(() => _formPhotos.add(dataUrl));
+      setState(() => _formPhotos.add(url));
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString().toLowerCase();
