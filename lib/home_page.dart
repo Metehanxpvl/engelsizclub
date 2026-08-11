@@ -182,14 +182,7 @@ class _HomePageState extends State<HomePage> {
 
   void _openDisease(DiseaseInfo d) {
     if (d.id == 'premature') {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => const PrematureGelisimRehberiPage(),
-          settings: const RouteSettings(
-            name: PrematureGelisimRehberiPage.routePath,
-          ),
-        ),
-      );
+      PrematureGelisimRehberiPage.open(context);
       return;
     }
     setState(() {

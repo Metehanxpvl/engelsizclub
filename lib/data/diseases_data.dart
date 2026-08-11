@@ -376,7 +376,7 @@ const kDiseases = <DiseaseInfo>[
     bg: Color(0xFFE0F2FE),
     photo: 'assets/images/geli_im_gerili_i.png',
     desc:
-        'Erken doğan bebekler için 0-12 ay gelişim rehberi ve evde aktiviteler',
+        'Erken doğan bebekler için düzeltilmiş yaş, evde aktiviteler ve videolu rehber',
     symptoms: [
       'Düzeltilmiş yaş takibi',
       '0–3 ay boyun / baş kontrolü',

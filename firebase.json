@@ -22,6 +22,14 @@
     ],
     "rewrites": [
       {
+        "source": "/bilgi-kutuphanesi/premature-bebek",
+        "destination": "/bilgi-kutuphanesi/premature-bebek/index.html"
+      },
+      {
+        "source": "/bilgi-kutuphanesi/premature-bebek/**",
+        "destination": "/bilgi-kutuphanesi/premature-bebek/index.html"
+      },
+      {
         "source": "/bilgi-kutuphanesi/premature-bebek-gelisimi",
         "destination": "/bilgi-kutuphanesi/premature-bebek-gelisimi/index.html"
       },
