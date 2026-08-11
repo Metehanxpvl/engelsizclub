@@ -116,6 +116,12 @@ class _InfoListScreenState extends State<InfoListScreen> {
   Future<void> _onReorder(int oldIndex, int newIndex) async {
     if (!_isAdmin || _savingOrder) return;
     if (oldIndex == newIndex) return;
+    if (oldIndex < 0 ||
+        oldIndex >= _items.length ||
+        newIndex < 0 ||
+        newIndex >= _items.length) {
+      return;
+    }
     setState(() {
       final next = List<InfoContent>.from(_items);
       final item = next.removeAt(oldIndex);
@@ -125,6 +131,13 @@ class _InfoListScreenState extends State<InfoListScreen> {
     });
     try {
       await InfoLibraryRepository.instance.reorder(_items);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sıra kaydedildi.'),
+          duration: Duration(seconds: 1),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -135,6 +148,8 @@ class _InfoListScreenState extends State<InfoListScreen> {
       if (mounted) setState(() => _savingOrder = false);
     }
   }
+
+  Future<void> _moveBy(int from, int to) => _onReorder(from, to);
 
   Widget _header() {
     return Column(
@@ -163,7 +178,7 @@ class _InfoListScreenState extends State<InfoListScreen> {
           Text(
             _savingOrder
                 ? 'Sıra kaydediliyor…'
-                : 'Basılı tutup sürükleyerek video sırasını değiştirin.',
+                : '☰ tutamacını sürükleyin veya ↑↓ oklarıyla sırayı değiştirin.',
             style: GoogleFonts.nunito(
               fontSize: 12,
               fontWeight: FontWeight.w700,
@@ -286,15 +301,19 @@ class _InfoListScreenState extends State<InfoListScreen> {
                               padding: EdgeInsets.only(
                                 bottom: i == _items.length - 1 ? 0 : 22,
                               ),
-                              child: ReorderableDelayedDragStartListener(
-                                index: i,
-                                child: _InfoContentBlock(
-                                  item: item,
-                                  isAdmin: true,
-                                  showDragHint: true,
-                                  onEdit: () => _openForm(edit: item),
-                                  onDelete: () => _delete(item),
-                                ),
+                              child: _InfoContentBlock(
+                                item: item,
+                                isAdmin: true,
+                                dragIndex: i,
+                                onMoveUp: i > 0 && !_savingOrder
+                                    ? () => _moveBy(i, i - 1)
+                                    : null,
+                                onMoveDown:
+                                    i < _items.length - 1 && !_savingOrder
+                                        ? () => _moveBy(i, i + 1)
+                                        : null,
+                                onEdit: () => _openForm(edit: item),
+                                onDelete: () => _delete(item),
                               ),
                             );
                           },
@@ -347,14 +366,19 @@ class _InfoContentBlock extends StatefulWidget {
     required this.isAdmin,
     required this.onEdit,
     required this.onDelete,
-    this.showDragHint = false,
+    this.dragIndex,
+    this.onMoveUp,
+    this.onMoveDown,
   });
 
   final InfoContent item;
   final bool isAdmin;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
-  final bool showDragHint;
+  /// Null değilse admin sürükleme tutamacı gösterilir.
+  final int? dragIndex;
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
 
   @override
   State<_InfoContentBlock> createState() => _InfoContentBlockState();
@@ -372,6 +396,7 @@ class _InfoContentBlockState extends State<_InfoContentBlock>
     super.build(context);
     final item = widget.item;
     final videoId = item.youtubeVideoId;
+    final dragIndex = widget.dragIndex;
 
     return Material(
       color: MetoColors.card,
@@ -389,15 +414,59 @@ class _InfoContentBlockState extends State<_InfoContentBlock>
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (widget.showDragHint) ...[
-                  const Padding(
-                    padding: EdgeInsets.only(right: 8, top: 2),
-                    child: Icon(
-                      Icons.drag_indicator,
-                      size: 22,
-                      color: MetoColors.mutedFg,
+                if (dragIndex != null) ...[
+                  ReorderableDragStartListener(
+                    index: dragIndex,
+                    child: const Padding(
+                      padding: EdgeInsets.only(right: 4, top: 2),
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.grab,
+                        child: Icon(
+                          Icons.drag_indicator,
+                          size: 28,
+                          color: MetoColors.primary,
+                        ),
+                      ),
                     ),
                   ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Yukarı',
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 28,
+                        ),
+                        onPressed: widget.onMoveUp,
+                        icon: Icon(
+                          Icons.keyboard_arrow_up,
+                          color: widget.onMoveUp == null
+                              ? MetoColors.mutedFg
+                              : MetoColors.primary,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Aşağı',
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 28,
+                        ),
+                        onPressed: widget.onMoveDown,
+                        icon: Icon(
+                          Icons.keyboard_arrow_down,
+                          color: widget.onMoveDown == null
+                              ? MetoColors.mutedFg
+                              : MetoColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 4),
                 ],
                 Expanded(
                   child: Text(
