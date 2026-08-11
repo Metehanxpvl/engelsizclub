@@ -240,21 +240,35 @@ class _MainShellState extends State<MainShell> {
       adet: 5,
       fiyat: '₺314,55',
       birim: '₺62,91/puan',
-      desc: 'En çok tercih edilen · %10 indirim',
+      desc: '%10 indirim',
       popular: true,
     ),
     (
       adet: 10,
-      fiyat: '₺559,20',
-      birim: '₺55,92/puan',
-      desc: 'Avantajlı paket · %20 indirim',
+      fiyat: '₺594,15',
+      birim: '₺59,42/puan',
+      desc: '%15 indirim',
       popular: false,
     ),
     (
-      adet: 20,
-      fiyat: '₺978,60',
+      adet: 30,
+      fiyat: '₺1.677,60',
+      birim: '₺55,92/puan',
+      desc: '%20 indirim',
+      popular: false,
+    ),
+    (
+      adet: 50,
+      fiyat: '₺2.621,25',
+      birim: '₺52,43/puan',
+      desc: '%25 indirim',
+      popular: false,
+    ),
+    (
+      adet: 100,
+      fiyat: '₺4.893,00',
       birim: '₺48,93/puan',
-      desc: 'En avantajlı paket · %30 indirim',
+      desc: 'En avantajlı · %30 indirim',
       popular: false,
     ),
   ];
@@ -4696,8 +4710,9 @@ class _MainShellState extends State<MainShell> {
           content: const L10nText(
             'Ödeme yalnızca Android (Google Play) veya iPhone/iPad (App Store) '
             'uygulamasında yapılır.\n\n'
-            'Play Console / App Store Connect’te kredi_1, kredi_5, kredi_10 '
-            'ürünlerini tanımlayın; mağaza, payınıza düşen tutarı hesabınıza yatırır.\n\n'
+            'Play Console / App Store Connect’te kredi_1, kredi_5, kredi_10, '
+            'kredi_30, kredi_50, kredi_100 ürünlerini tanımlayın; '
+            'mağaza, payınıza düşen tutarı hesabınıza yatırır.\n\n'
             'Web tarayıcıda mağaza ödemesi desteklenmez.',
           ),
           actions: [
@@ -4720,7 +4735,7 @@ class _MainShellState extends State<MainShell> {
       _hideCenteredLoading();
       if (!ok && mounted) {
         _showCenteredNotice(
-          'Ürün bulunamadı. ${store.storeName}’da kredi_1 / kredi_5 / kredi_10 tanımlı mı kontrol edin.',
+          'Ürün bulunamadı. ${store.storeName}’da kredi_1…kredi_100 ürünleri tanımlı mı kontrol edin.',
         );
       }
     } catch (e) {

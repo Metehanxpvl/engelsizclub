@@ -47,6 +47,7 @@ dependencies:
   intl: ^0.20.2
   sign_in_with_apple: ^8.1.0
   crypto: ^3.0.7
+  youtube_player_flutter: ^10.0.1
 
 dev_dependencies:
   flutter_test:

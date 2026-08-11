@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../info_library/info_library.dart';
 import '../meto_theme.dart';
 import '../widgets/youtube_embed.dart';
 
@@ -199,6 +201,15 @@ class PrematureGelisimRehberiPage extends StatelessWidget {
           Text(
             'Kaynak: Pathways.org — Uyarlama: Engelsiz Club',
             style: GoogleFonts.nunito(fontSize: 12, color: MetoColors.mutedFg),
+          ),
+          const SizedBox(height: 20),
+          InfoLibraryMoreCard(
+            category: InfoLibraryCategories.premature,
+            title: 'Daha fazla prematüre içeriği',
+            subtitle: 'Daha fazlası için tıklayınız',
+            listTitle: 'Prematüre Bilgi Kütüphanesi',
+            adminEmail:
+                Supabase.instance.client.auth.currentUser?.email ?? '',
           ),
         ],
       ),
