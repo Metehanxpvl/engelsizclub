@@ -12,6 +12,9 @@ class PrematureGelisimRehberiPage extends StatelessWidget {
   /// Pathways.org Tummy Time başlangıç videosu (YouTube).
   static const youtubeVideoId = 'zQfuBFwVZ5E';
 
+  /// Pathways.org 4 tummy time pozisyonu.
+  static const youtubeVideoIdAlt = 'uPV-RI9YplI';
+
   static const routePath = '/bilgi-kutuphanesi/premature-bebek-gelisimi';
 
   @override
@@ -55,6 +58,16 @@ class PrematureGelisimRehberiPage extends StatelessWidget {
             'göre yapmak, seni gereksiz tedirginlikten kurtarır. Yine de '
             'her bebek kendine özgüdür; asıl rehberin çocuk doktorundur.',
             style: _bodyStyle,
+          ),
+          const SizedBox(height: 20),
+          _videoBlock(
+            title: 'Videolu Anlatım 1: Tummy Time’a Nasıl Başlanır?',
+            videoId: youtubeVideoId,
+          ),
+          const SizedBox(height: 14),
+          _videoBlock(
+            title: 'Videolu Anlatım 2: 4 Farklı Tummy Time Pozisyonu',
+            videoId: youtubeVideoIdAlt,
           ),
           const SizedBox(height: 28),
           _sectionTitle('0-3 Ay Düzeltilmiş — Boyun ve Baş Kontrolü'),
@@ -113,44 +126,6 @@ class PrematureGelisimRehberiPage extends StatelessWidget {
             'Günde birkaç kısa tur idealdir.',
           ),
           const SizedBox(height: 28),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: MetoColors.card,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: MetoColors.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Videolu Anlatım: Prematüre Bebeklerle Tummy Time',
-                  style: GoogleFonts.nunito(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: MetoColors.foreground,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const YoutubeEmbed(
-                  videoId: youtubeVideoId,
-                  title: 'Prematüre Bebek Egzersizleri',
-                  height: 220,
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Kaynak: Pathways.org | Uyarlama: Engelsiz Club. '
-                  'Video sayfadan ayrılmadan oynar.',
-                  style: GoogleFonts.nunito(
-                    fontSize: 12,
-                    color: MetoColors.mutedFg,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 28),
           _sectionTitle('Türkiye’de Prematüre Takibi'),
           Text(
             'Ülkemizde erken doğan bebekler için düzenli izlem çok değerli. '
@@ -206,6 +181,48 @@ class PrematureGelisimRehberiPage extends StatelessWidget {
             color: MetoColors.primary,
             height: 1.3,
           ),
+        ),
+      );
+
+  static Widget _videoBlock({
+    required String title,
+    required String videoId,
+  }) =>
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: MetoColors.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: MetoColors.primary, width: 1.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: GoogleFonts.nunito(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: MetoColors.foreground,
+              ),
+            ),
+            const SizedBox(height: 12),
+            YoutubeEmbed(
+              videoId: videoId,
+              title: title,
+              height: 240,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Kaynak: Pathways.org | Uyarlama: Engelsiz Club. '
+              'Görmezsen: youtube.com/watch?v=$videoId',
+              style: GoogleFonts.nunito(
+                fontSize: 12,
+                color: MetoColors.mutedFg,
+                height: 1.35,
+              ),
+            ),
+          ],
         ),
       );
 
