@@ -241,6 +241,8 @@ class _HomePageState extends State<HomePage> {
     return ColoredBox(
       color: MetoColors.background,
       child: ListView(
+        key: const ValueKey('home_feed'),
+        primary: false,
         padding: EdgeInsets.zero,
         children: [
           // Hero photo slider
@@ -473,6 +475,9 @@ class _HomePageState extends State<HomePage> {
     return ColoredBox(
       color: MetoColors.background,
       child: ListView(
+        // Ana sayfa kaydırma offset'i PrimaryScrollController'da kalmasın.
+        key: ValueKey('disease_detail_${d.id}'),
+        primary: false,
         padding: EdgeInsets.zero,
         children: [
           Container(
@@ -821,6 +826,8 @@ class _HomePageState extends State<HomePage> {
     return ColoredBox(
       color: MetoColors.background,
       child: ListView(
+        key: const ValueKey('nadir_list'),
+        primary: false,
         padding: EdgeInsets.zero,
         children: [
           Container(
@@ -1064,6 +1071,8 @@ class _HomePageState extends State<HomePage> {
     return ColoredBox(
       color: MetoColors.background,
       child: ListView(
+        key: ValueKey('nadir_item_${item.id}'),
+        primary: false,
         padding: EdgeInsets.zero,
         children: [
           Container(

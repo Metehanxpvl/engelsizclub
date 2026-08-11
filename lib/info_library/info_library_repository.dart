@@ -104,4 +104,16 @@ class InfoLibraryRepository {
     if (id.trim().isEmpty) return;
     await _client.from('info_library_contents').delete().eq('id', id);
   }
+
+  /// Admin sürükle-bırak: listedeki sırayı `sort_order` (0..n-1) olarak yazar.
+  Future<void> reorder(List<InfoContent> ordered) async {
+    if (ordered.isEmpty) return;
+    await Future.wait([
+      for (var i = 0; i < ordered.length; i++)
+        _client
+            .from('info_library_contents')
+            .update({'sort_order': i})
+            .eq('id', ordered[i].id),
+    ]);
+  }
 }

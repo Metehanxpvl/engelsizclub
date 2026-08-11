@@ -786,6 +786,28 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
     return _imageUrl.text.trim();
   }
 
+  /// Video “Daha fazlası” kategorisi için sabit anahtar.
+  String _slugFromTitle(String title) {
+    var s = title.trim().toLowerCase();
+    const map = {
+      'ç': 'c',
+      'ğ': 'g',
+      'ı': 'i',
+      'ö': 'o',
+      'ş': 's',
+      'ü': 'u',
+      'â': 'a',
+      'î': 'i',
+      'û': 'u',
+    };
+    map.forEach((k, v) => s = s.replaceAll(k, v));
+    s = s.replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+    s = s.replaceAll(RegExp(r'^_+|_+$'), '');
+    if (s.isEmpty) s = 'yeni_konu';
+    if (s.length > 48) s = s.substring(0, 48);
+    return s;
+  }
+
   Future<void> _save() async {
     final title = _title.text.trim();
     if (title.isEmpty) {
@@ -803,7 +825,10 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
       final support = _lines(_support.text);
       final faq = _parseFaq(_faq.text);
       final icon = _icon.text.trim().isEmpty ? '🩺' : _icon.text.trim();
-      final catalogId = _catalogId.text.trim();
+      var catalogId = _catalogId.text.trim();
+      if (catalogId.isEmpty) {
+        catalogId = _slugFromTitle(title);
+      }
       final ConditionItem item;
       if (_isEdit) {
         item = await updateCondition(
@@ -1041,7 +1066,12 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
                       controller: _catalogId,
                       enabled: !_saving,
                       decoration: InputDecoration(
-                        labelText: S.auto('Katalog id (opsiyonel, örn. otizm)'),
+                        labelText: S.auto(
+                          'Katalog id (video kategorisi, örn. otizm)',
+                        ),
+                        helperText: S.auto(
+                          'Boş bırakırsan başlıktan üretilir. Detayda “Daha fazlası” ile video eklenir.',
+                        ),
                         border: OutlineInputBorder(),
                       ),
                     ),

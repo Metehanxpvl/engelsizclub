@@ -21,6 +21,21 @@ String formatPriceTl(String? raw) {
   return '$formatted TL';
 }
 
+/// Form alanı için: para birimi / harfleri at, yalnız rakam bırak.
+String priceInputDigits(String? raw) {
+  final t = (raw ?? '').trim();
+  if (t.isEmpty) return '';
+  var core = t
+      .replaceAll('₺', '')
+      .replaceAll(RegExp(r'\bTRY\b', caseSensitive: false), '')
+      .replaceAll(RegExp(r'\bTL\b', caseSensitive: false), '')
+      .replaceAll(RegExp(r'\s+'), '');
+  // Aralık / seans metni varsa ilk sayıyı al
+  final m = RegExp(r'\d+(?:[.,]\d+)?').firstMatch(core);
+  if (m == null) return '';
+  return m.group(0)!.replaceAll(RegExp(r'[^\d]'), '');
+}
+
 String _formatTrNumber(String raw) {
   final hasComma = raw.contains(',');
   final hasDot = raw.contains('.');

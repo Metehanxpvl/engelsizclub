@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -5355,7 +5356,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
       _ => 'Uzman Arıyorum',
     };
     _formBaslik.text = d.title;
-    _formButce.text = d.budgetOrPrice;
+    _formButce.text = priceInputDigits(d.budgetOrPrice);
     _formAciklama.text = d.note;
     _formLoc = LocationData.fromLegacy(
       city: d.city,
@@ -5773,7 +5774,14 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
     }
   }
 
-  Widget _formField(String label, String hint, TextEditingController c) {
+  Widget _formField(
+    String label,
+    String hint,
+    TextEditingController c, {
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
+    String? suffixText,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -5787,8 +5795,11 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
           const SizedBox(height: 8),
           TextField(
               controller: c,
+              keyboardType: keyboardType,
+              inputFormatters: inputFormatters,
               decoration: InputDecoration(
                   hintText: hint,
+                  suffixText: suffixText,
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12)),
                   filled: true,
@@ -5913,8 +5924,14 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
           const SizedBox(height: 16),
           _formField(
             _isIkinciel ? 'Fiyat' : 'Bütçe',
-            _isIkinciel ? '₺2.000' : '₺300–500/seans',
+            _isIkinciel ? '2000' : '300',
             _formButce,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(9),
+            ],
+            suffixText: 'TL',
           ),
           if (_isIkinciel) ...[
             Text(

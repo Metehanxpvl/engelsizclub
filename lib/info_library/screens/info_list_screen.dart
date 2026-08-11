@@ -29,6 +29,7 @@ class _InfoListScreenState extends State<InfoListScreen> {
   bool _loading = true;
   String? _error;
   List<InfoContent> _items = const [];
+  bool _savingOrder = false;
 
   bool get _isAdmin => isAppAdmin(widget.adminEmail);
 
@@ -112,6 +113,69 @@ class _InfoListScreenState extends State<InfoListScreen> {
     }
   }
 
+  Future<void> _onReorder(int oldIndex, int newIndex) async {
+    if (!_isAdmin || _savingOrder) return;
+    if (oldIndex == newIndex) return;
+    setState(() {
+      final next = List<InfoContent>.from(_items);
+      final item = next.removeAt(oldIndex);
+      next.insert(newIndex, item);
+      _items = next;
+      _savingOrder = true;
+    });
+    try {
+      await InfoLibraryRepository.instance.reorder(_items);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sıra kaydedilemedi: $e')),
+      );
+      await _reload();
+    } finally {
+      if (mounted) setState(() => _savingOrder = false);
+    }
+  }
+
+  Widget _header() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.title,
+          style: GoogleFonts.nunito(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: MetoColors.foreground,
+            height: 1.25,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Videolar uygulamada açılır; YouTube’a yönlendirilmezsiniz.',
+          style: GoogleFonts.nunito(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: MetoColors.mutedFg,
+          ),
+        ),
+        if (_isAdmin && _items.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            _savingOrder
+                ? 'Sıra kaydediliyor…'
+                : 'Basılı tutup sürükleyerek video sırasını değiştirin.',
+            style: GoogleFonts.nunito(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: MetoColors.primary,
+            ),
+          ),
+        ],
+        const SizedBox(height: 18),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -166,31 +230,11 @@ class _InfoListScreenState extends State<InfoListScreen> {
                     ),
                   ),
                 )
-              : RefreshIndicator(
-                  onRefresh: _reload,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-                    children: [
-                      Text(
-                        widget.title,
-                        style: GoogleFonts.nunito(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: MetoColors.foreground,
-                          height: 1.25,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Videolar uygulamada açılır; YouTube’a yönlendirilmezsiniz.',
-                        style: GoogleFonts.nunito(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: MetoColors.mutedFg,
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      if (_items.isEmpty)
+              : _items.isEmpty
+                  ? ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                      children: [
+                        _header(),
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 48),
                           child: Center(
@@ -206,29 +250,92 @@ class _InfoListScreenState extends State<InfoListScreen> {
                               ),
                             ),
                           ),
-                        )
-                      else
-                        for (var i = 0; i < _items.length; i++) ...[
-                          _InfoContentBlock(
-                            item: _items[i],
-                            isAdmin: _isAdmin,
-                            onEdit: () => _openForm(edit: _items[i]),
-                            onDelete: () => _delete(_items[i]),
-                          ),
-                          if (i != _items.length - 1) const SizedBox(height: 22),
-                        ],
-                      const SizedBox(height: 24),
-                      Text(
-                        'Bu içerikler bilgilendirme amaçlıdır; tıbbi tavsiye değildir.',
-                        style: GoogleFonts.nunito(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: MetoColors.mutedFg,
                         ),
-                      ),
-                    ],
-                  ),
-                ),
+                      ],
+                    )
+                  : _isAdmin
+                      ? ReorderableListView.builder(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                          buildDefaultDragHandles: false,
+                          header: _header(),
+                          footer: Padding(
+                            padding: const EdgeInsets.only(top: 24),
+                            child: Text(
+                              'Bu içerikler bilgilendirme amaçlıdır; tıbbi tavsiye değildir.',
+                              style: GoogleFonts.nunito(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: MetoColors.mutedFg,
+                              ),
+                            ),
+                          ),
+                          itemCount: _items.length,
+                          onReorderItem: _onReorder,
+                          proxyDecorator: (child, index, animation) {
+                            return Material(
+                              elevation: 6,
+                              borderRadius: BorderRadius.circular(16),
+                              color: Colors.transparent,
+                              child: child,
+                            );
+                          },
+                          itemBuilder: (context, i) {
+                            final item = _items[i];
+                            return Padding(
+                              key: ValueKey(item.id),
+                              padding: EdgeInsets.only(
+                                bottom: i == _items.length - 1 ? 0 : 22,
+                              ),
+                              child: ReorderableDelayedDragStartListener(
+                                index: i,
+                                child: _InfoContentBlock(
+                                  item: item,
+                                  isAdmin: true,
+                                  showDragHint: true,
+                                  onEdit: () => _openForm(edit: item),
+                                  onDelete: () => _delete(item),
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _reload,
+                          child: ListView.builder(
+                            padding:
+                                const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                            itemCount: _items.length + 2,
+                            itemBuilder: (context, i) {
+                              if (i == 0) return _header();
+                              if (i == _items.length + 1) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 24),
+                                  child: Text(
+                                    'Bu içerikler bilgilendirme amaçlıdır; tıbbi tavsiye değildir.',
+                                    style: GoogleFonts.nunito(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: MetoColors.mutedFg,
+                                    ),
+                                  ),
+                                );
+                              }
+                              final item = _items[i - 1];
+                              return Padding(
+                                padding: EdgeInsets.only(
+                                  bottom:
+                                      i - 1 == _items.length - 1 ? 0 : 22,
+                                ),
+                                child: _InfoContentBlock(
+                                  item: item,
+                                  isAdmin: false,
+                                  onEdit: () {},
+                                  onDelete: () {},
+                                ),
+                              );
+                            },
+                          ),
+                        ),
     );
   }
 }
@@ -240,12 +347,14 @@ class _InfoContentBlock extends StatefulWidget {
     required this.isAdmin,
     required this.onEdit,
     required this.onDelete,
+    this.showDragHint = false,
   });
 
   final InfoContent item;
   final bool isAdmin;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final bool showDragHint;
 
   @override
   State<_InfoContentBlock> createState() => _InfoContentBlockState();
@@ -280,6 +389,16 @@ class _InfoContentBlockState extends State<_InfoContentBlock>
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (widget.showDragHint) ...[
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8, top: 2),
+                    child: Icon(
+                      Icons.drag_indicator,
+                      size: 22,
+                      color: MetoColors.mutedFg,
+                    ),
+                  ),
+                ],
                 Expanded(
                   child: Text(
                     item.title,
@@ -504,16 +623,19 @@ class _InfoContentFormSheetState extends State<_InfoContentFormSheet> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
+      final msg = e.toString();
+      final missing = msg.contains('schema cache') ||
+          msg.contains('does not exist') ||
+          msg.contains('PGRST204') ||
+          msg.contains('PGRST205') ||
+          (msg.contains('column') && msg.contains('source'));
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 8),
           content: Text(
-            e.toString().contains('info_library') ||
-                    e.toString().contains('PGRST') ||
-                    e.toString().contains('schema') ||
-                    e.toString().contains('relation') ||
-                    e.toString().contains('source')
-                ? 'Tablo / sütun eksik. Supabase’te info_library.sql çalıştırın.'
-                : 'Kaydedilemedi: $e',
+            missing
+                ? 'Tablo/sütun yok veya şema eski. Supabase SQL Editor’de info_library.sql çalıştırıp notify pgrst yapın.\n\nDetay: $msg'
+                : 'Kaydedilemedi: $msg',
           ),
         ),
       );

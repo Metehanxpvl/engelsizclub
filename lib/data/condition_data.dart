@@ -91,8 +91,10 @@ class ConditionItem {
     final useDesc =
         description.trim().isNotEmpty ? description : (base?.desc ?? '');
     final usePhoto = photo.isNotEmpty ? photo : base?.photo;
+    // Katalog id varsa onu kullan (video kategorisi / prematüre rehber sabit kalsın).
+    final slug = catalogId.trim();
     return DiseaseInfo(
-      id: 'cond_$id',
+      id: slug.isNotEmpty ? slug : 'cond_$id',
       name: title,
       icon: icon.trim().isNotEmpty ? icon : (base?.icon ?? '🩺'),
       color: base?.color ?? MetoColors.primary,
