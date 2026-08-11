@@ -19,6 +19,7 @@ import 'services/catalog_adapters.dart';
 import 'widgets/catalog_media.dart';
 import 'widgets/duyurular_section.dart';
 import 'widgets/hastaliklar_section.dart';
+import 'widgets/home_social_footer.dart';
 import 'pages/premature_gelisim_rehberi_page.dart';
 import 'widgets/admin_disease_edit_sheet.dart';
 import 'widgets/home_hero_admin_sheet.dart';
@@ -466,6 +467,8 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
           ),
+
+          HomeSocialFooter(adminEmail: widget.userEmail),
         ],
       ),
     );

@@ -2233,103 +2233,6 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
-  void _showSosyalMedyaSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: MetoColors.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: MetoColors.border,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const L10nText(
-                  'Sosyal medya hesaplarımız',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: MetoColors.foreground,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const L10nText(
-                  'Takip etmek için bir hesap seçin',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
-                ),
-                const SizedBox(height: 16),
-                ListTile(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: const BorderSide(color: MetoColors.border),
-                  ),
-                  leading: SvgPicture.asset(
-                    'assets/images/instagram.svg',
-                    width: 28,
-                    height: 28,
-                  ),
-                  title: const L10nText(
-                    'Instagram',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  subtitle: const L10nText('@engelsizclub'),
-                  trailing: const Icon(Icons.open_in_new, size: 18),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _openExternalUrl(
-                      'https://www.instagram.com/engelsizclub',
-                    );
-                  },
-                ),
-                const SizedBox(height: 8),
-                ListTile(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: const BorderSide(color: MetoColors.border),
-                  ),
-                  leading: SvgPicture.asset(
-                    'assets/images/facebook.svg',
-                    width: 28,
-                    height: 28,
-                  ),
-                  title: const L10nText(
-                    'Facebook',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  subtitle: const L10nText('Engelsiz Club'),
-                  trailing: const Icon(Icons.open_in_new, size: 18),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _openExternalUrl(
-                      'https://www.facebook.com/share/1QAzdknz5M/',
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   void _closeProfilPanel() {
     setState(() {
       _showProfilPanel = false;
@@ -3819,15 +3722,6 @@ class _MainShellState extends State<MainShell> {
             sub:
                 '${LocaleController.instance.lang.flagEmoji} ${LocaleController.instance.lang.nativeLabel}',
             onTap: () => setState(() => _showDilSecimi = true),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: _menuTile(
-            emoji: '🌐',
-            label: S.t('menu_social'),
-            sub: S.t('menu_social_sub'),
-            onTap: _showSosyalMedyaSheet,
           ),
         ),
         Padding(
