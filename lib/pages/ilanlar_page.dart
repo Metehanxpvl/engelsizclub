@@ -143,9 +143,10 @@ class IlanlarPageState extends State<IlanlarPage> {
   bool _loadingFeed = true;
   List<FavoriIlanRef> _favoriler = const [];
 
+  /// Aile / profesyonel ayrımı yalnız role göre (admin aile seçince puan fiyatı görmesin).
   bool get _isAileRole {
     final t = widget.userType.trim().toLowerCase();
-    return t != 'uzman' && t != 'bakici' && !isAppAdmin(widget.userEmail);
+    return t != 'uzman' && t != 'bakici';
   }
 
   String get _normalizedRole {
@@ -1094,7 +1095,9 @@ class IlanlarPageState extends State<IlanlarPage> {
               _buildHeader(),
               if (_loadingFeed) const LinearProgressIndicator(minHeight: 2),
               _buildCategoryTabs(),
-              if (!_isAileRole) _buildCreditBar(),
+              // Teklif puanı / ₺69 sadece uzman & bakıcı — aile rolünde asla.
+              if (_normalizedRole == 'uzman' || _normalizedRole == 'bakici')
+                _buildCreditBar(),
               _buildLocationFilter(),
               if (_kategori != IlanKategori.ikinciel) _buildKmFilter(),
               if (_kategori == IlanKategori.ikinciel) ...[

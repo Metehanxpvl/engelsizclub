@@ -198,6 +198,57 @@ Future<void> deleteCondition(int id) async {
   }
 }
 
+bool _conditionCoversDisease(ConditionItem c, DiseaseInfo d) {
+  final cid = c.catalogId.trim().toLowerCase();
+  if (cid.isNotEmpty && cid == d.id.trim().toLowerCase()) return true;
+  return c.title.trim().toLowerCase() == d.name.trim().toLowerCase();
+}
+
+/// Katalogdaki (yerel/app_diseases) kutular `conditions` tablosunda yoksa ekler.
+/// Yeni kart eklenince eski kutuların kaybolmasını önler; admin sürükle-bırak için gerekir.
+Future<List<ConditionItem>> ensureCatalogConditionsSeeded({
+  required String adminEmail,
+  required List<DiseaseInfo> catalog,
+}) async {
+  final email = adminEmail.trim();
+  if (email.isEmpty || catalog.isEmpty) {
+    return loadConditions(forceRefresh: true, viewerEmail: adminEmail);
+  }
+
+  final existing = await loadConditions(
+    forceRefresh: true,
+    viewerEmail: adminEmail,
+  );
+  final missing = <DiseaseInfo>[
+    for (final d in catalog)
+      if (!existing.any((c) => _conditionCoversDisease(c, d))) d,
+  ];
+  if (missing.isEmpty) return existing;
+
+  var nextOrder = existing.isEmpty
+      ? 0
+      : existing.map((c) => c.sortOrder).reduce((a, b) => a > b ? a : b) + 1;
+
+  for (final d in missing) {
+    await addCondition(
+      title: d.name,
+      imageUrl: d.photo ?? '',
+      description: d.desc,
+      adminEmail: email,
+      isActive: true,
+      sortOrder: nextOrder++,
+      catalogId: d.id,
+      icon: d.icon,
+      symptoms: d.symptoms,
+      diagnosis: d.diagnosis,
+      support: d.support,
+      faq: d.faq,
+    );
+  }
+
+  return loadConditions(forceRefresh: true, viewerEmail: adminEmail);
+}
+
 /// Aktif kartların yeni sırasını `sort_order` olarak yazar (0..n-1).
 Future<void> reorderConditions(List<ConditionItem> ordered) async {
   if (ordered.isEmpty) return;

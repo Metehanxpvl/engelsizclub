@@ -263,7 +263,8 @@ class _MainShellState extends State<MainShell> {
       (widget.user.userType ?? 'aile').trim().toLowerCase();
 
   bool get _isProf => _role == 'uzman' || _role == 'bakici';
-  bool get _isAileRole => !_isProf && !isAppAdmin(widget.user.email);
+  /// Rol bazlı; admin aile rolündeyken ₺69 puan fiyatı / teklif metni gösterilmez.
+  bool get _isAileRole => !_isProf;
   bool get _canBuyKredi =>
       _isProf || _isAileRole || isAppAdmin(widget.user.email);
   String get _krediBirimLabel => _isAileRole ? 'iyilik puanı' : 'puan';

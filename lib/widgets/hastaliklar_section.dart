@@ -52,17 +52,45 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
     return active;
   }
 
-  /// Supabase'te kayıt varsa onları kullan; yoksa yerel/katalog fallback.
-  /// Detay boşsa katalogdan zenginleştirilir.
+  /// Supabase `conditions` + henüz orada olmayan katalog kartları.
+  /// (Eski davranış: tek remote kayıt gelince tüm katalog fallback kayboluyordu.)
   List<DiseaseInfo> get _displayDiseases {
     final catalog = CatalogAdapters.diseases();
     final active = _activeSorted;
-    if (active.isNotEmpty) {
-      return [
-        for (final c in active) c.toDiseaseInfo(enrichFrom: _matchCatalog(c, catalog)),
-      ];
+    if (active.isEmpty) return catalog;
+
+    bool covered(DiseaseInfo d) {
+      for (final c in active) {
+        final cid = c.catalogId.trim().toLowerCase();
+        if (cid.isNotEmpty && cid == d.id.toLowerCase()) return true;
+        if (c.title.trim().toLowerCase() == d.name.trim().toLowerCase()) {
+          return true;
+        }
+      }
+      return false;
     }
-    return catalog;
+
+    return [
+      for (final c in active)
+        c.toDiseaseInfo(enrichFrom: _matchCatalog(c, catalog)),
+      for (final d in catalog)
+        if (!covered(d)) d,
+    ];
+  }
+
+  bool get _catalogFullyInConditions {
+    final catalog = CatalogAdapters.diseases();
+    if (catalog.isEmpty) return true;
+    final active = _remote.where((c) => c.isActive).toList();
+    for (final d in catalog) {
+      final ok = active.any((c) {
+        final cid = c.catalogId.trim().toLowerCase();
+        if (cid.isNotEmpty && cid == d.id.toLowerCase()) return true;
+        return c.title.trim().toLowerCase() == d.name.trim().toLowerCase();
+      });
+      if (!ok) return false;
+    }
+    return true;
   }
 
   DiseaseInfo? _matchCatalog(ConditionItem c, List<DiseaseInfo> catalog) {
@@ -120,7 +148,10 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
   }
 
   bool get _canReorder =>
-      _isAdmin && _activeSorted.isNotEmpty && !_savingOrder;
+      _isAdmin &&
+      _activeSorted.isNotEmpty &&
+      _catalogFullyInConditions &&
+      !_savingOrder;
 
   @override
   void initState() {
@@ -136,10 +167,21 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
   Future<void> _reload({bool silent = false}) async {
     if (!silent && mounted) setState(() => _loading = true);
     try {
-      final items = await loadConditions(
+      var items = await loadConditions(
         forceRefresh: !hasFreshConditionCache,
         viewerEmail: widget.userEmail,
       );
+      // Admin: katalog kutularını conditions'a yaz ki kaybolmasın / sürükle-bırak olsun.
+      if (_isAdmin) {
+        try {
+          items = await ensureCatalogConditionsSeeded(
+            adminEmail: widget.userEmail,
+            catalog: CatalogAdapters.diseases(),
+          );
+        } catch (_) {
+          // Tablo yoksa veya yetki yoksa sadece merge display ile devam.
+        }
+      }
       if (!mounted) return;
       setState(() {
         _remote = items;
@@ -156,6 +198,15 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
   }
 
   Future<void> _openForm({ConditionItem? edit}) async {
+    if (edit == null && _isAdmin) {
+      try {
+        final seeded = await ensureCatalogConditionsSeeded(
+          adminEmail: widget.userEmail,
+          catalog: CatalogAdapters.diseases(),
+        );
+        if (mounted) setState(() => _remote = seeded);
+      } catch (_) {}
+    }
     var draft = edit;
     if (draft != null) {
       final enrich = _matchCatalog(draft, CatalogAdapters.diseases());
@@ -194,17 +245,32 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
     if (result == null || !mounted) return;
     setState(() {
       final rest = _remote.where((c) => c.id != result.id).toList();
-      _remote = [result, ...rest];
+      final next = [...rest, result]
+        ..sort((a, b) {
+          final o = a.sortOrder.compareTo(b.sortOrder);
+          if (o != 0) return o;
+          return b.createdAt.compareTo(a.createdAt);
+        });
+      _remote = next;
     });
   }
 
   Future<void> _openManage() async {
-    final all = await loadConditions(
-      forceRefresh: true,
-      viewerEmail: widget.userEmail,
-    );
-    if (!mounted) return;
-    setState(() => _remote = all);
+    try {
+      final seeded = await ensureCatalogConditionsSeeded(
+        adminEmail: widget.userEmail,
+        catalog: CatalogAdapters.diseases(),
+      );
+      if (!mounted) return;
+      setState(() => _remote = seeded);
+    } catch (_) {
+      final all = await loadConditions(
+        forceRefresh: true,
+        viewerEmail: widget.userEmail,
+      );
+      if (!mounted) return;
+      setState(() => _remote = all);
+    }
 
     await showModalBottomSheet<void>(
       context: context,
@@ -416,11 +482,22 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
             icon: Icons.menu_book_outlined,
             dismissKey: kDismissLibraryInfo,
           ),
-          if (_isAdmin && active.isNotEmpty)
+          if (_isAdmin && active.isNotEmpty && _catalogFullyInConditions)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: L10nText(
                 'Basılı tutup sürükleyerek sırayı değiştirin',
+                style: GoogleFonts.nunito(
+                  fontSize: 11,
+                  color: MetoColors.mutedFg,
+                ),
+              ),
+            ),
+          if (_isAdmin && active.isNotEmpty && !_catalogFullyInConditions)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: L10nText(
+                'Katalog kutuları eşitleniyor… sonra sürükleyerek sıralayabilirsiniz.',
                 style: GoogleFonts.nunito(
                   fontSize: 11,
                   color: MetoColors.mutedFg,
