@@ -1,6 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Sola kaydır → kırmızı Sil şeridi + onay diyaloğu.
+///
+/// Silme işi `confirmDismiss` içinde hızlı bitmeli (Hive vb.).
+/// Uzun süren bildirim iptali burada `await` edilirse web/mobilde takılır.
 class AkSwipeToDelete extends StatelessWidget {
   const AkSwipeToDelete({
     super.key,
@@ -23,16 +27,17 @@ class AkSwipeToDelete extends StatelessWidget {
       confirmDismiss: (_) async {
         final ok = await showDialog<bool>(
               context: context,
+              barrierDismissible: true,
               builder: (ctx) => AlertDialog(
                 title: const Text('Sil'),
                 content: Text(confirmMessage),
                 actions: [
                   TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
+                    onPressed: () => Navigator.of(ctx).pop(false),
                     child: const Text('Vazgeç'),
                   ),
                   FilledButton(
-                    onPressed: () => Navigator.pop(ctx, true),
+                    onPressed: () => Navigator.of(ctx).pop(true),
                     style: FilledButton.styleFrom(
                       backgroundColor: Colors.red.shade600,
                     ),
@@ -43,8 +48,19 @@ class AkSwipeToDelete extends StatelessWidget {
             ) ??
             false;
         if (!ok) return false;
-        await onDelete();
-        return true;
+        try {
+          // Veri kaynağından hemen sil; liste rebuild olsun.
+          await onDelete();
+          return true;
+        } catch (e, st) {
+          debugPrint('AkSwipeToDelete onDelete: $e\n$st');
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Silinemedi: $e')),
+            );
+          }
+          return false;
+        }
       },
       background: Container(
         alignment: Alignment.centerRight,

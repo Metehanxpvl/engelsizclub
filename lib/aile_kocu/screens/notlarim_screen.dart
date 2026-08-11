@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -207,9 +210,17 @@ class _NotlarimScreenState extends State<NotlarimScreen> {
                       itemKey: 'pnote_${n.id}',
                       confirmMessage: '"${n.title}" notu silinsin mi?',
                       onDelete: () async {
-                        await personalNotesBox.delete(n.id);
-                        await AileKocuNotificationService.instance
-                            .cancelPersonalNote(n.id);
+                        final id = n.id;
+                        await personalNotesBox.delete(id);
+                        unawaited(() async {
+                          try {
+                            await AileKocuNotificationService.instance
+                                .cancelPersonalNote(id)
+                                .timeout(const Duration(seconds: 3));
+                          } catch (e) {
+                            debugPrint('Not bildirimi iptal: $e');
+                          }
+                        }());
                       },
                       child: Card(
                         color: _tagColor(n.tag),

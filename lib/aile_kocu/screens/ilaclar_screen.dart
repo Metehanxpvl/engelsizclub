@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -185,12 +187,19 @@ class _IlaclarScreenState extends State<IlaclarScreen> {
                       confirmMessage:
                           '"${item.m.name}" ilacı tamamen silinsin mi?',
                       onDelete: () async {
-                        await AileKocuNotificationService.instance
-                            .cancelMedicine(
-                          item.m.id,
-                          times: item.m.times,
-                        );
-                        await medicinesBox.delete(item.m.id);
+                        final id = item.m.id;
+                        final times = List<String>.from(item.m.times);
+                        // Önce Hive — UI anında güncellensin; bildirimler arka planda.
+                        await medicinesBox.delete(id);
+                        unawaited(() async {
+                          try {
+                            await AileKocuNotificationService.instance
+                                .cancelMedicine(id, times: times)
+                                .timeout(const Duration(seconds: 3));
+                          } catch (e) {
+                            debugPrint('İlaç bildirimi iptal: $e');
+                          }
+                        }());
                       },
                       child: Card(
                         child: ListTile(

@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -146,9 +149,17 @@ class _DerslerScreenState extends State<DerslerScreen> {
                             confirmMessage:
                                 '"${lesson.name}" dersi silinsin mi?',
                             onDelete: () async {
-                              await lessonsBox.delete(lesson.id);
-                              await AileKocuNotificationService.instance
-                                  .cancelLesson(lesson.id);
+                              final id = lesson.id;
+                              await lessonsBox.delete(id);
+                              unawaited(() async {
+                                try {
+                                  await AileKocuNotificationService.instance
+                                      .cancelLesson(id)
+                                      .timeout(const Duration(seconds: 3));
+                                } catch (e) {
+                                  debugPrint('Ders bildirimi iptal: $e');
+                                }
+                              }());
                             },
                             child: Builder(
                               builder: (context) {
