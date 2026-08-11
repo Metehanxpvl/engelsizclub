@@ -138,7 +138,15 @@ class CatalogAdapters {
     final mapped = <DiseaseInfo>[
       for (final r in rows) _diseaseFromRow(r),
     ].where((d) => d.id.isNotEmpty).toList();
-    return mapped.isEmpty ? kDiseases : mapped;
+    if (mapped.isEmpty) return kDiseases;
+    // Yerel rehber sayfaları remote katalogda yoksa ekle (ör. prematüre).
+    const localGuideIds = {'premature'};
+    final ids = {for (final d in mapped) d.id};
+    final extras = [
+      for (final d in kDiseases)
+        if (localGuideIds.contains(d.id) && !ids.contains(d.id)) d,
+    ];
+    return extras.isEmpty ? mapped : [...mapped, ...extras];
   }
 
   static List<NeedCard> needCards() {

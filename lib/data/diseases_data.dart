@@ -369,6 +369,40 @@ const kDiseases = <DiseaseInfo>[
     ],
   ),
   DiseaseInfo(
+    id: 'premature',
+    name: 'Prematüre Bebek',
+    icon: '👶',
+    color: Color(0xFF0E7490),
+    bg: Color(0xFFE0F2FE),
+    photo: 'assets/images/geli_im_gerili_i.png',
+    desc:
+        'Erken doğan bebekler için 0-12 ay gelişim rehberi ve evde aktiviteler',
+    symptoms: [
+      'Düzeltilmiş yaş takibi',
+      '0–3 ay boyun / baş kontrolü',
+      '4–6 ay dönme ve oturma',
+      '7–12 ay emekleme ve adımlar',
+      'Evde tummy time',
+    ],
+    diagnosis:
+        'Gelişim izlemi çocuk doktoru ve gerekirse erken müdahale ekibiyle yapılır. '
+        'Bu rehber bilgilendirme amaçlıdır.',
+    support: [
+      'Çocuk Doktoru',
+      'Fizik Tedavi',
+      'Erken Müdahale',
+      'SGK',
+      'Sağlık raporu süreçleri',
+    ],
+    faq: [
+      FaqItem(
+        'Düzeltilmiş yaş nedir?',
+        'Bebeğin beklenen doğum tarihine göre hesaplanan gelişim yaşıdır; '
+        'milestones genelde buna göre okunur.',
+      ),
+    ],
+  ),
+  DiseaseInfo(
     id: 'nadir',
     name: 'Nadir Hastalıklar',
     icon: '🔬',

@@ -18,6 +18,7 @@ import 'services/catalog_adapters.dart';
 import 'widgets/catalog_media.dart';
 import 'widgets/duyurular_section.dart';
 import 'widgets/hastaliklar_section.dart';
+import 'pages/premature_gelisim_rehberi_page.dart';
 import 'widgets/admin_disease_edit_sheet.dart';
 import 'widgets/home_hero_admin_sheet.dart';
 import 'widgets/medical_info_card.dart';
@@ -179,12 +180,25 @@ class _HomePageState extends State<HomePage> {
     return fallback();
   }
 
-  void _openDisease(DiseaseInfo d) => setState(() {
-        _activeDisease = d.id;
-        _openedDisease = d;
-        _activeNadirId = null;
-        _expandedFaq = null;
-      });
+  void _openDisease(DiseaseInfo d) {
+    if (d.id == 'premature') {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => const PrematureGelisimRehberiPage(),
+          settings: const RouteSettings(
+            name: PrematureGelisimRehberiPage.routePath,
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _activeDisease = d.id;
+      _openedDisease = d;
+      _activeNadirId = null;
+      _expandedFaq = null;
+    });
+  }
 
   Future<void> _editDiseaseDetail(DiseaseInfo d) async {
     final result = await showModalBottomSheet<DiseaseInfo>(
