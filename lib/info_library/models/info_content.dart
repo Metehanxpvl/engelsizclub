@@ -7,6 +7,7 @@ class InfoContent {
     required this.youtubeUrl,
     required this.category,
     required this.createdAt,
+    this.source = '',
     this.isActive = true,
     this.sortOrder = 0,
   });
@@ -15,6 +16,8 @@ class InfoContent {
   final String title;
   final String description;
   final String youtubeUrl;
+  /// Videonun sahibi / kanal / kurum (kaynak kredisi).
+  final String source;
   final String category;
   final DateTime createdAt;
   final bool isActive;
@@ -26,6 +29,7 @@ class InfoContent {
       title: json['title']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       youtubeUrl: json['youtube_url']?.toString() ?? '',
+      source: json['source']?.toString() ?? '',
       category: json['category']?.toString() ?? 'genel',
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ??
           DateTime.now(),
@@ -41,6 +45,7 @@ class InfoContent {
     String? title,
     String? description,
     String? youtubeUrl,
+    String? source,
     String? category,
     bool? isActive,
     int? sortOrder,
@@ -50,6 +55,7 @@ class InfoContent {
         title: title ?? this.title,
         description: description ?? this.description,
         youtubeUrl: youtubeUrl ?? this.youtubeUrl,
+        source: source ?? this.source,
         category: category ?? this.category,
         createdAt: createdAt,
         isActive: isActive ?? this.isActive,

@@ -47,6 +47,8 @@
 	<string>59695056324-pr0kp9qs7fh1pk760262447edk61f0bp.apps.googleusercontent.com</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Yakınınızdaki rehabilitasyon merkezlerini göstermek için konumunuz kullanılır.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

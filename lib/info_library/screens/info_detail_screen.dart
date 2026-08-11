@@ -31,22 +31,34 @@ class InfoDetailScreen extends StatelessWidget {
           Text(
             content.title,
             style: GoogleFonts.nunito(
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
               color: MetoColors.foreground,
               height: 1.25,
             ),
           ),
           const SizedBox(height: 14),
           InfoYoutubePlayer(youtubeUrlOrId: content.youtubeUrl),
+          if (content.source.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Kaynak: ${content.source.trim()}',
+              style: GoogleFonts.nunito(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: MetoColors.mutedFg,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           Text(
             content.description.trim().isEmpty
                 ? 'Açıklama eklenmemiş.'
                 : content.description.trim(),
             style: GoogleFonts.nunito(
-              fontSize: 15,
-              height: 1.55,
+              fontSize: 13,
+              height: 1.5,
               fontWeight: FontWeight.w600,
               color: MetoColors.mutedFg,
             ),

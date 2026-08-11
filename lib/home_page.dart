@@ -10,6 +10,7 @@ import 'admin_config.dart';
 import 'data/diseases_data.dart';
 import 'data/nadir_data.dart';
 import 'home_hero_store.dart';
+import 'info_library/info_library.dart';
 import 'medical_disclaimer_store.dart';
 import 'meto_theme.dart';
 import 'nadir_store.dart';
@@ -800,6 +801,14 @@ class _HomePageState extends State<HomePage> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 20),
+                InfoLibraryMoreCard(
+                  category: d.id,
+                  title: 'Daha fazla içerik',
+                  subtitle: 'Daha fazlası için tıklayınız',
+                  listTitle: '${d.name} — Bilgi Kütüphanesi',
+                  adminEmail: widget.userEmail,
+                ),
               ],
             ),
           ),
@@ -1146,6 +1155,14 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 20),
+                InfoLibraryMoreCard(
+                  category: item.id,
+                  title: 'Daha fazla içerik',
+                  subtitle: 'Daha fazlası için tıklayınız',
+                  listTitle: '${item.name} — Bilgi Kütüphanesi',
+                  adminEmail: widget.userEmail,
+                ),
               ],
             ),
           ),

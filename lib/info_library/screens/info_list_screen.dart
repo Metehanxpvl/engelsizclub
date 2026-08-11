@@ -5,9 +5,10 @@ import '../../admin_config.dart';
 import '../../meto_theme.dart';
 import '../info_library_repository.dart';
 import '../models/info_content.dart';
-import 'info_detail_screen.dart';
+import '../widgets/info_youtube_player.dart';
 
-/// Kategoriye göre dinamik içerik listesi + admin ekleme.
+/// Kategori sayfası: başlık → uygulama içi video → açıklama blokları.
+/// Admin istediği kadar blok ekler; DB’de yalnızca metin + YouTube linki tutulur.
 class InfoListScreen extends StatefulWidget {
   const InfoListScreen({
     super.key,
@@ -71,6 +72,9 @@ class _InfoListScreenState extends State<InfoListScreen> {
         category: widget.category,
         adminEmail: widget.adminEmail,
         edit: edit,
+        nextSortOrder: _items.isEmpty
+            ? 0
+            : _items.map((e) => e.sortOrder).reduce((a, b) => a > b ? a : b) + 1,
       ),
     );
     if (result == null || !mounted) return;
@@ -108,14 +112,6 @@ class _InfoListScreenState extends State<InfoListScreen> {
     }
   }
 
-  void _openDetail(InfoContent item) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => InfoDetailScreen(content: item),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -140,7 +136,7 @@ class _InfoListScreenState extends State<InfoListScreen> {
               onPressed: () => _openForm(),
               backgroundColor: MetoColors.primary,
               icon: const Icon(Icons.add),
-              label: const Text('İçerik ekle'),
+              label: const Text('Blok ekle'),
             )
           : null,
       body: _loading
@@ -154,7 +150,7 @@ class _InfoListScreenState extends State<InfoListScreen> {
                       children: [
                         Text(
                           'İçerikler yüklenemedi.\n'
-                          'Supabase’te info_library.sql çalıştırıldığından emin olun.',
+                          'Supabase’te info_library.sql dosyasını çalıştırın.',
                           textAlign: TextAlign.center,
                           style: GoogleFonts.nunito(
                             color: MetoColors.mutedFg,
@@ -170,130 +166,250 @@ class _InfoListScreenState extends State<InfoListScreen> {
                     ),
                   ),
                 )
-              : _items.isEmpty
-                  ? Center(
-                      child: Text(
-                        _isAdmin
-                            ? 'Henüz içerik yok. + ile ekleyin.'
-                            : 'Bu kategoride henüz içerik yok.',
+              : RefreshIndicator(
+                  onRefresh: _reload,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                    children: [
+                      Text(
+                        widget.title,
                         style: GoogleFonts.nunito(
-                          color: MetoColors.mutedFg,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: MetoColors.foreground,
+                          height: 1.25,
                         ),
                       ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _reload,
-                      child: ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-                        itemCount: _items.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (context, i) {
-                          final item = _items[i];
-                          return Material(
-                            color: MetoColors.card,
-                            borderRadius: BorderRadius.circular(16),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(16),
-                              onTap: () => _openDetail(item),
-                              child: Padding(
-                                padding: const EdgeInsets.all(14),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Container(
-                                      width: 48,
-                                      height: 48,
-                                      alignment: Alignment.center,
-                                      decoration: BoxDecoration(
-                                        color: MetoColors.selectedBg,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Icon(
-                                        item.youtubeVideoId == null
-                                            ? Icons.article_outlined
-                                            : Icons.play_circle_fill,
-                                        color: MetoColors.primary,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            item.title,
-                                            style: GoogleFonts.nunito(
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 15,
-                                              color: MetoColors.foreground,
-                                            ),
-                                          ),
-                                          if (item.description
-                                              .trim()
-                                              .isNotEmpty) ...[
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              item.description.trim(),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: GoogleFonts.nunito(
-                                                fontSize: 13,
-                                                color: MetoColors.mutedFg,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ],
-                                          if (!item.isActive)
-                                            Padding(
-                                              padding:
-                                                  const EdgeInsets.only(top: 6),
-                                              child: Text(
-                                                'Pasif',
-                                                style: GoogleFonts.nunito(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: Colors.orange.shade800,
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                    if (_isAdmin)
-                                      PopupMenuButton<String>(
-                                        onSelected: (v) {
-                                          if (v == 'edit') {
-                                            _openForm(edit: item);
-                                          } else if (v == 'delete') {
-                                            _delete(item);
-                                          }
-                                        },
-                                        itemBuilder: (_) => const [
-                                          PopupMenuItem(
-                                            value: 'edit',
-                                            child: Text('Düzenle'),
-                                          ),
-                                          PopupMenuItem(
-                                            value: 'delete',
-                                            child: Text('Sil'),
-                                          ),
-                                        ],
-                                      )
-                                    else
-                                      const Icon(
-                                        Icons.chevron_right,
-                                        color: MetoColors.mutedFg,
-                                      ),
-                                  ],
-                                ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Videolar uygulamada açılır; YouTube’a yönlendirilmezsiniz.',
+                        style: GoogleFonts.nunito(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: MetoColors.mutedFg,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      if (_items.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 48),
+                          child: Center(
+                            child: Text(
+                              _isAdmin
+                                  ? 'Henüz blok yok.\nSağ alttan “Blok ekle” ile başlık, YouTube linki ve açıklama ekleyin.'
+                                  : 'Bu kategoride henüz içerik yok.',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.nunito(
+                                color: MetoColors.mutedFg,
+                                fontWeight: FontWeight.w700,
+                                height: 1.4,
                               ),
                             ),
-                          );
-                        },
+                          ),
+                        )
+                      else
+                        for (var i = 0; i < _items.length; i++) ...[
+                          _InfoContentBlock(
+                            item: _items[i],
+                            isAdmin: _isAdmin,
+                            onEdit: () => _openForm(edit: _items[i]),
+                            onDelete: () => _delete(_items[i]),
+                          ),
+                          if (i != _items.length - 1) const SizedBox(height: 22),
+                        ],
+                      const SizedBox(height: 24),
+                      Text(
+                        'Bu içerikler bilgilendirme amaçlıdır; tıbbi tavsiye değildir.',
+                        style: GoogleFonts.nunito(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: MetoColors.mutedFg,
+                        ),
                       ),
+                    ],
+                  ),
+                ),
+    );
+  }
+}
+
+/// Tek içerik bloğu: başlık → sayfa içi video → açıklama.
+class _InfoContentBlock extends StatefulWidget {
+  const _InfoContentBlock({
+    required this.item,
+    required this.isAdmin,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final InfoContent item;
+  final bool isAdmin;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  State<_InfoContentBlock> createState() => _InfoContentBlockState();
+}
+
+class _InfoContentBlockState extends State<_InfoContentBlock>
+    with AutomaticKeepAliveClientMixin {
+  bool _play = false;
+
+  @override
+  bool get wantKeepAlive => _play;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final item = widget.item;
+    final videoId = item.youtubeVideoId;
+
+    return Material(
+      color: MetoColors.card,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: MetoColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    item.title,
+                    style: GoogleFonts.nunito(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: MetoColors.foreground,
+                      height: 1.25,
                     ),
+                  ),
+                ),
+                if (widget.isAdmin)
+                  PopupMenuButton<String>(
+                    onSelected: (v) {
+                      if (v == 'edit') widget.onEdit();
+                      if (v == 'delete') widget.onDelete();
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'edit', child: Text('Düzenle')),
+                      PopupMenuItem(value: 'delete', child: Text('Sil')),
+                    ],
+                  ),
+              ],
+            ),
+            if (!item.isActive)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  'Pasif (yalnızca admin görür)',
+                  style: GoogleFonts.nunito(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.orange.shade800,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 12),
+            if (videoId == null)
+              Container(
+                height: 160,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: MetoColors.muted,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  'Video linki yok veya geçersiz',
+                  style: GoogleFonts.nunito(color: MetoColors.mutedFg),
+                ),
+              )
+            else if (_play)
+              InfoYoutubePlayer(youtubeUrlOrId: item.youtubeUrl)
+            else
+              Material(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(14),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => setState(() => _play = true),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.network(
+                          'https://img.youtube.com/vi/$videoId/hqdefault.jpg',
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: Colors.black87,
+                            alignment: Alignment.center,
+                            child: const Icon(
+                              Icons.ondemand_video,
+                              color: Colors.white54,
+                              size: 48,
+                            ),
+                          ),
+                        ),
+                        Container(color: Colors.black38),
+                        const Center(
+                          child: Icon(
+                            Icons.play_circle_fill,
+                            color: Colors.white,
+                            size: 64,
+                          ),
+                        ),
+                        Positioned(
+                          left: 12,
+                          bottom: 10,
+                          right: 12,
+                          child: Text(
+                            'İzlemek için dokunun · YouTube’a çıkılmaz',
+                            style: GoogleFonts.nunito(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            if (item.source.trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Kaynak: ${item.source.trim()}',
+                style: GoogleFonts.nunito(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: MetoColors.mutedFg,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+            if (item.description.trim().isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Text(
+                item.description.trim(),
+                style: GoogleFonts.nunito(
+                  fontSize: 13,
+                  height: 1.5,
+                  fontWeight: FontWeight.w600,
+                  color: MetoColors.mutedFg,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -302,11 +418,13 @@ class _InfoContentFormSheet extends StatefulWidget {
   const _InfoContentFormSheet({
     required this.category,
     required this.adminEmail,
+    required this.nextSortOrder,
     this.edit,
   });
 
   final String category;
   final String adminEmail;
+  final int nextSortOrder;
   final InfoContent? edit;
 
   @override
@@ -317,6 +435,7 @@ class _InfoContentFormSheetState extends State<_InfoContentFormSheet> {
   late final TextEditingController _title;
   late final TextEditingController _description;
   late final TextEditingController _youtube;
+  late final TextEditingController _source;
   bool _saving = false;
 
   bool get _isEdit => widget.edit != null;
@@ -328,6 +447,7 @@ class _InfoContentFormSheetState extends State<_InfoContentFormSheet> {
     _title = TextEditingController(text: e?.title ?? '');
     _description = TextEditingController(text: e?.description ?? '');
     _youtube = TextEditingController(text: e?.youtubeUrl ?? '');
+    _source = TextEditingController(text: e?.source ?? '');
   }
 
   @override
@@ -335,6 +455,7 @@ class _InfoContentFormSheetState extends State<_InfoContentFormSheet> {
     _title.dispose();
     _description.dispose();
     _youtube.dispose();
+    _source.dispose();
     super.dispose();
   }
 
@@ -346,6 +467,13 @@ class _InfoContentFormSheetState extends State<_InfoContentFormSheet> {
       );
       return;
     }
+    final yt = _youtube.text.trim();
+    if (yt.isNotEmpty && extractYoutubeVideoId(yt) == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Geçerli bir YouTube linki girin.')),
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
       final InfoContent item;
@@ -354,7 +482,8 @@ class _InfoContentFormSheetState extends State<_InfoContentFormSheet> {
           id: widget.edit!.id,
           title: title,
           description: _description.text,
-          youtubeUrl: _youtube.text,
+          youtubeUrl: yt,
+          source: _source.text,
           category: widget.category,
           isActive: widget.edit!.isActive,
           sortOrder: widget.edit!.sortOrder,
@@ -363,9 +492,11 @@ class _InfoContentFormSheetState extends State<_InfoContentFormSheet> {
         item = await InfoLibraryRepository.instance.create(
           title: title,
           description: _description.text,
-          youtubeUrl: _youtube.text,
+          youtubeUrl: yt,
+          source: _source.text,
           category: widget.category,
           adminEmail: widget.adminEmail,
+          sortOrder: widget.nextSortOrder,
         );
       }
       if (!mounted) return;
@@ -378,8 +509,10 @@ class _InfoContentFormSheetState extends State<_InfoContentFormSheet> {
           content: Text(
             e.toString().contains('info_library') ||
                     e.toString().contains('PGRST') ||
-                    e.toString().contains('schema')
-                ? 'Tablo yok. Supabase’te info_library.sql çalıştırın.'
+                    e.toString().contains('schema') ||
+                    e.toString().contains('relation') ||
+                    e.toString().contains('source')
+                ? 'Tablo / sütun eksik. Supabase’te info_library.sql çalıştırın.'
                 : 'Kaydedilemedi: $e',
           ),
         ),
@@ -415,26 +548,48 @@ class _InfoContentFormSheetState extends State<_InfoContentFormSheet> {
               ),
               const SizedBox(height: 14),
               Text(
-                _isEdit ? 'İçeriği düzenle' : 'Yeni içerik',
+                _isEdit ? 'Bloğu düzenle' : 'Yeni içerik bloğu',
                 style: GoogleFonts.nunito(
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
                 ),
               ),
+              const SizedBox(height: 4),
+              Text(
+                'Sıra: başlık → YouTube linki → kaynak → açıklama. Video dosyası yüklenmez; yalnızca link kaydedilir.',
+                style: GoogleFonts.nunito(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: MetoColors.mutedFg,
+                ),
+              ),
               const SizedBox(height: 14),
               TextField(
                 controller: _title,
+                textInputAction: TextInputAction.next,
                 decoration: const InputDecoration(
-                  labelText: 'Başlık',
+                  labelText: '1. Başlık',
                   border: OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: _youtube,
+                textInputAction: TextInputAction.next,
                 decoration: const InputDecoration(
-                  labelText: 'YouTube URL veya video ID',
+                  labelText: '2. YouTube linki',
                   hintText: 'https://www.youtube.com/watch?v=...',
+                  border: OutlineInputBorder(),
+                  helperText: 'Kullanıcı videoyu uygulamada izler',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _source,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: '3. Kaynak (kimin videosu)',
+                  hintText: 'örn. Pathways.org, Dr. Ayşe Yılmaz',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -442,9 +597,9 @@ class _InfoContentFormSheetState extends State<_InfoContentFormSheet> {
               TextField(
                 controller: _description,
                 minLines: 4,
-                maxLines: 8,
+                maxLines: 10,
                 decoration: const InputDecoration(
-                  labelText: 'Açıklama',
+                  labelText: '4. Açıklama',
                   border: OutlineInputBorder(),
                   alignLabelWithHint: true,
                 ),
@@ -465,7 +620,7 @@ class _InfoContentFormSheetState extends State<_InfoContentFormSheet> {
                           color: Colors.white,
                         ),
                       )
-                    : Text(_isEdit ? 'Kaydet' : 'Ekle'),
+                    : Text(_isEdit ? 'Kaydet' : 'Bloğu ekle'),
               ),
             ],
           ),

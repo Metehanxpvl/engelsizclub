@@ -73,8 +73,8 @@ class InfoLibraryMoreCard extends StatelessWidget {
                     Text(
                       title,
                       style: GoogleFonts.nunito(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
                         color: MetoColors.foreground,
                       ),
                     ),
@@ -83,7 +83,7 @@ class InfoLibraryMoreCard extends StatelessWidget {
                       subtitle,
                       style: GoogleFonts.nunito(
                         fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                        fontSize: 12,
                         color: MetoColors.primary,
                       ),
                     ),

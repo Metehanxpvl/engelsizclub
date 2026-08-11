@@ -18,24 +18,20 @@ class InfoLibraryRepository {
     final cat = category.trim().toLowerCase();
     if (cat.isEmpty) return const [];
 
-    try {
-      var q = _client.from('info_library_contents').select();
-      q = q.eq('category', cat);
-      if (!includeInactive || !isAppAdmin(viewerEmail)) {
-        q = q.eq('is_active', true);
-      }
-      final rows = await q
-          .order('sort_order', ascending: true)
-          .order('created_at', ascending: false)
-          .limit(100);
-
-      return [
-        for (final e in (rows as List).whereType<Map>())
-          InfoContent.fromRow(Map<String, dynamic>.from(e)),
-      ].where((c) => c.id.isNotEmpty && c.title.isNotEmpty).toList();
-    } catch (_) {
-      return const [];
+    var q = _client.from('info_library_contents').select();
+    q = q.eq('category', cat);
+    if (!includeInactive || !isAppAdmin(viewerEmail)) {
+      q = q.eq('is_active', true);
     }
+    final rows = await q
+        .order('sort_order', ascending: true)
+        .order('created_at', ascending: false)
+        .limit(100);
+
+    return [
+      for (final e in (rows as List).whereType<Map>())
+        InfoContent.fromRow(Map<String, dynamic>.from(e)),
+    ].where((c) => c.id.isNotEmpty && c.title.isNotEmpty).toList();
   }
 
   Future<InfoContent> create({
@@ -44,6 +40,7 @@ class InfoLibraryRepository {
     required String youtubeUrl,
     required String category,
     required String adminEmail,
+    String source = '',
     int? sortOrder,
   }) async {
     final t = title.trim();
@@ -52,6 +49,7 @@ class InfoLibraryRepository {
       'title': t,
       'description': description.trim(),
       'youtube_url': youtubeUrl.trim(),
+      'source': source.trim(),
       'category': category.trim().toLowerCase().isEmpty
           ? InfoLibraryCategories.genel
           : category.trim().toLowerCase(),
@@ -75,6 +73,7 @@ class InfoLibraryRepository {
     required String description,
     required String youtubeUrl,
     required String category,
+    String source = '',
     bool isActive = true,
     int? sortOrder,
   }) async {
@@ -85,6 +84,7 @@ class InfoLibraryRepository {
       'title': t,
       'description': description.trim(),
       'youtube_url': youtubeUrl.trim(),
+      'source': source.trim(),
       'category': category.trim().toLowerCase(),
       'is_active': isActive,
       if (sortOrder != null) 'sort_order': sortOrder,
