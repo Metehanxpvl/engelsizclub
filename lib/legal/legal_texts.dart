@@ -156,7 +156,7 @@ KVKK ve ilgili mevzuat kapsamında işleme; sözleşmenin ifası, meşru menfaat
 Hizmeti sağlamak için şu tür hizmet sağlayıcılar kullanılabilir:
 • Supabase (kimlik doğrulama ve veritabanı)
 • Firebase (bildirim, kimlik yardımcıları)
-• Google / Apple (sosyal giriş ve uygulama mağazası ödemeleri)
+• Google (sosyal giriş) / Apple (uygulama mağazası ödemeleri)
 • Bulut depolama (görseller)
 
 Bu sağlayıcılar yalnızca hizmetin gerektirdiği ölçüde veri işler.

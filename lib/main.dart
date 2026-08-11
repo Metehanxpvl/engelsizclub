@@ -13,7 +13,6 @@ import 'package:showcaseview/showcaseview.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 
 import 'firebase_options.dart';
-import 'apple_auth_service.dart';
 import 'google_auth_service.dart';
 import 'guest_limit_store.dart';
 import 'kredi_store.dart';
@@ -1023,57 +1022,6 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  Future<void> _signInWithApple(String? role) async {
-    if (role == null || role.isEmpty) {
-      _snack('Devam etmek için önce hesap türünü seçin.');
-      return;
-    }
-    setState(() {
-      _girisLoading = true;
-      _kayitLoading = true;
-      _step = 'loading';
-    });
-    try {
-      await savePendingGoogleRole(role);
-      final res = await AppleAuthService.signIn();
-      final user = res?.user ?? Supabase.instance.client.auth.currentUser;
-      if (user == null) {
-        if (mounted) {
-          setState(() => _step = 'signin');
-          _snack('Apple girişi iptal edildi.');
-        }
-        return;
-      }
-      final finalized = await finalizePendingGoogleRole(user);
-      if (finalized == null) {
-        throw StateError('Apple oturumu tamamlanamadı.');
-      }
-      final authUser = authUserFromSupabase(
-        finalized,
-        fallbackUserType: role,
-      );
-      final safeUser = authUser.userType == null || authUser.userType!.isEmpty
-          ? authUser.copyWith(userType: role)
-          : authUser;
-      widget.onLogin?.call(safeUser);
-      _snack('Hoş geldin, ${safeUser.name}!');
-      if (mounted) setState(() => _step = 'signin');
-    } catch (e) {
-      await clearPendingGoogleRole();
-      if (mounted) {
-        setState(() => _step = 'signin');
-        _snack(e.toString().replaceFirst('StateError: ', ''));
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _girisLoading = false;
-          _kayitLoading = false;
-        });
-      }
-    }
-  }
-
   String _googleErrorMessage(Object error) {
     final raw = error is AuthException
         ? error.message
@@ -1384,7 +1332,6 @@ class _AuthScreenState extends State<AuthScreen> {
                         onSignIn: _signIn,
                         onForgotPassword: _forgotPassword,
                         onGoogleSignIn: _signInWithGoogle,
-                        onAppleSignIn: _signInWithApple,
                         onGuest: () => widget.onLogin?.call(AuthUser.guest),
                         roleTourKey: _roleTourKey,
                         googleTourKey: _googleTourKey,
@@ -1726,7 +1673,6 @@ class _SignInStep extends StatelessWidget {
     required this.onSignIn,
     required this.onForgotPassword,
     required this.onGoogleSignIn,
-    required this.onAppleSignIn,
     required this.onGuest,
     required this.roleTourKey,
     required this.googleTourKey,
@@ -1762,7 +1708,6 @@ class _SignInStep extends StatelessWidget {
   final VoidCallback onSignIn;
   final VoidCallback onForgotPassword;
   final ValueChanged<String?> onGoogleSignIn;
-  final ValueChanged<String?> onAppleSignIn;
   final VoidCallback onGuest;
   final GlobalKey roleTourKey;
   final GlobalKey googleTourKey;
@@ -1943,14 +1888,6 @@ class _SignInStep extends StatelessWidget {
                 ),
             ],
           ),
-        ),
-        const SizedBox(height: 10),
-        _AppleSignInButton(
-          enabled: !girisLoading && girisHesapTip != null,
-          label: girisHesapTip == null
-              ? 'Apple ile giriş (önce hesap türü seçin)'
-              : 'Apple ile ${_roleLabel(girisHesapTip)} olarak giriş',
-          onPressed: () => onAppleSignIn(girisHesapTip),
         ),
         if (girisHesapTip == null) ...[
           const SizedBox(height: 10),
@@ -2288,27 +2225,6 @@ class _SignInStep extends StatelessWidget {
             onGoogleSignIn(kayitTip);
           },
         ),
-        const SizedBox(height: 10),
-        _AppleSignInButton(
-          enabled: !kayitLoading && kayitTip != null && kayitSozlesme,
-          label: !kayitSozlesme
-              ? 'Apple ile üye ol (önce koşulları onaylayın)'
-              : 'Apple ile ${_roleLabel(kayitTip)} olarak üye ol',
-          onPressed: () {
-            if (!kayitSozlesme) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: L10nText(
-                    'Apple ile devam etmek için Kullanım Koşulları, '
-                    'Gizlilik Politikası ve Sorumluluk Reddi’ni onaylayın.',
-                  ),
-                ),
-              );
-              return;
-            }
-            onAppleSignIn(kayitTip);
-          },
-        ),
         ],
       ],
     );
@@ -2499,75 +2415,6 @@ class _GoogleSignInButton extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// iOS/macOS’ta native Apple; diğer platformlarda gizlenir.
-class _AppleSignInButton extends StatefulWidget {
-  const _AppleSignInButton({
-    required this.enabled,
-    required this.label,
-    required this.onPressed,
-  });
-
-  final bool enabled;
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  State<_AppleSignInButton> createState() => _AppleSignInButtonState();
-}
-
-class _AppleSignInButtonState extends State<_AppleSignInButton> {
-  bool? _available;
-
-  @override
-  void initState() {
-    super.initState();
-    AppleAuthService.isNativeAvailable.then((v) {
-      if (mounted) setState(() => _available = v);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_available != true) return const SizedBox.shrink();
-    return SizedBox(
-      height: 48,
-      child: ElevatedButton(
-        onPressed: widget.enabled ? widget.onPressed : null,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.black,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: const Color(0xFF444444),
-          disabledForegroundColor: const Color(0xFFBDBDBD),
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.apple, size: 22, color: Colors.white),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Text(
-                widget.label,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
