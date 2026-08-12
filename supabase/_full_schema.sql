@@ -2611,7 +2611,7 @@ insert into public.app_rights (
 ) values (
   'ozel-egitim',
   'Ücretsiz Özel Eğitim',
-  'Haftada 8 saat',
+  'Aylık 12 saat (8+4)',
   'egitim',
   '📚',
   4288441779,
@@ -2619,7 +2619,7 @@ insert into public.app_rights (
   0,
   18,
   false,
-  'MEB''e bağlı özel eğitim ve rehabilitasyon merkezlerinde haftada 8 saate kadar ücretsiz hizmet. RAM raporu zorunludur.',
+  'MEB''e bağlı özel eğitim ve rehabilitasyon merkezlerinde aylık 8 saat bireysel + 4 saat grup eğitimi (toplam 12 saat) ücretsiz hizmet. RAM raporu zorunludur.',
   '["RAM''a başvurun (randevu alın)","RAM raporu ve Özel Eğitim Değerlendirme Kurulu kararı alın","MEB sözleşmeli rehabilitasyon merkezini seçin","Her yıl yenileme gerekir"]'::jsonb,
   'RAM (Rehberlik ve Araştırma Merkezi)',
   14,

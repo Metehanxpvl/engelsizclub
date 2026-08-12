@@ -443,7 +443,7 @@ const allRights = <RightItem>[
   RightItem(
     id: 'ozel-egitim',
     title: 'Ücretsiz Özel Eğitim',
-    amount: 'Haftada 8 saat',
+    amount: 'Aylık 12 saat (8+4)',
     category: 'egitim',
     icon: '📚',
     color: Color(0xFF9C6DB3),
@@ -452,7 +452,7 @@ const allRights = <RightItem>[
     maxAge: 18,
     incomeLimit: false,
     desc:
-        "MEB'e bağlı özel eğitim ve rehabilitasyon merkezlerinde haftada 8 saate kadar ücretsiz hizmet. RAM raporu zorunludur.",
+        "MEB'e bağlı özel eğitim ve rehabilitasyon merkezlerinde aylık 8 saat bireysel + 4 saat grup eğitimi (toplam 12 saat) ücretsiz hizmet. RAM raporu zorunludur.",
     steps: [
       "RAM'a başvurun (randevu alın)",
       'RAM raporu ve Özel Eğitim Değerlendirme Kurulu kararı alın',
