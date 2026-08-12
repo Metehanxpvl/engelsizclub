@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../meto_theme.dart';
@@ -77,12 +78,13 @@ class _AileKocuHubPageState extends State<AileKocuHubPage> {
   }
 }
 
-/// Daha Fazlası’ndan açılır: Hive init + tıbbi uyarı (1 kez) + hub.
-Future<void> openAileKocu(BuildContext context) async {
-  await initAileKocuHive();
-  await AileKocuNotificationService.instance.init();
-  // Açılışta tüm ilaç/ders hatırlatıcılarını yeniden kur (reboot / izin sonrası)
+/// Uygulama açılışında / Aile Koçu girişinde: Hive + tam saatli alarm + yeniden planla.
+Future<void> bootstrapAileKocuReminders() async {
+  if (kIsWeb) return;
   try {
+    await initAileKocuHive();
+    await AileKocuNotificationService.instance.init();
+    await AileKocuNotificationService.instance.refreshExactAlarmMode();
     final s = loadSettings();
     for (final m in medicinesBox.values) {
       await AileKocuNotificationService.instance.rescheduleMedicine(
@@ -107,8 +109,13 @@ Future<void> openAileKocu(BuildContext context) async {
       );
     }
   } catch (e, st) {
-    debugPrint('AileKoçu hatırlatıcı yenileme: $e\n$st');
+    debugPrint('AileKoçu hatırlatıcı bootstrap: $e\n$st');
   }
+}
+
+/// Daha Fazlası’ndan açılır: Hive init + tıbbi uyarı (1 kez) + hub.
+Future<void> openAileKocu(BuildContext context) async {
+  await bootstrapAileKocuReminders();
 
   final settings = loadSettings();
   if (!settings.disclaimerAccepted && context.mounted) {

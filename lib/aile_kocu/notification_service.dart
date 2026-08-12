@@ -23,7 +23,10 @@ class AileKocuNotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   bool _ready = false;
+  /// İlaç: mümkünse alarmClock (ekran kapalı / Doze’da da tam saat).
+  AndroidScheduleMode _medScheduleMode = AndroidScheduleMode.inexactAllowWhileIdle;
   AndroidScheduleMode _scheduleMode = AndroidScheduleMode.inexactAllowWhileIdle;
+  bool exactAlarmsAllowed = false;
 
   /// Bildirim aksiyonları: lessons|done|id , med|taken|id|time , ...
   void Function(String payload)? onAction;
@@ -58,19 +61,8 @@ class AileKocuNotificationService {
         AndroidFlutterLocalNotificationsPlugin>();
     await androidPlugin?.requestNotificationsPermission();
 
-    // Android 12+: tam saatli alarm (USE_EXACT_ALARM değil — Play politikası)
-    try {
-      final canExact = await androidPlugin?.canScheduleExactNotifications();
-      if (canExact == false) {
-        await androidPlugin?.requestExactAlarmsPermission();
-      }
-      final ok = await androidPlugin?.canScheduleExactNotifications();
-      _scheduleMode = (ok == true)
-          ? AndroidScheduleMode.exactAllowWhileIdle
-          : AndroidScheduleMode.inexactAllowWhileIdle;
-    } catch (_) {
-      _scheduleMode = AndroidScheduleMode.inexactAllowWhileIdle;
-    }
+    // Android 12+: tam saatli alarm (SCHEDULE_EXACT_ALARM — kullanıcı izni)
+    await refreshExactAlarmMode();
 
     await androidPlugin?.createNotificationChannel(
       const AndroidNotificationChannel(
@@ -90,6 +82,33 @@ class AileKocuNotificationService {
       ),
     );
     _ready = true;
+  }
+
+  /// Exact alarm iznini yenile; ilaç için alarmClock tercih edilir.
+  Future<bool> refreshExactAlarmMode() async {
+    if (kIsWeb) return false;
+    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    try {
+      var ok = await androidPlugin?.canScheduleExactNotifications();
+      if (ok == false) {
+        await androidPlugin?.requestExactAlarmsPermission();
+        ok = await androidPlugin?.canScheduleExactNotifications();
+      }
+      exactAlarmsAllowed = ok == true;
+      if (exactAlarmsAllowed) {
+        _medScheduleMode = AndroidScheduleMode.alarmClock;
+        _scheduleMode = AndroidScheduleMode.exactAllowWhileIdle;
+      } else {
+        _medScheduleMode = AndroidScheduleMode.inexactAllowWhileIdle;
+        _scheduleMode = AndroidScheduleMode.inexactAllowWhileIdle;
+      }
+    } catch (_) {
+      exactAlarmsAllowed = false;
+      _medScheduleMode = AndroidScheduleMode.inexactAllowWhileIdle;
+      _scheduleMode = AndroidScheduleMode.inexactAllowWhileIdle;
+    }
+    return exactAlarmsAllowed;
   }
 
   /// Wall-clock saati Istanbul/local TZ’ye bağlar (DateTime.from kayması olmasın).
@@ -223,8 +242,8 @@ class AileKocuNotificationService {
     required String medicineId,
   }) async {
     if (!_ready || kIsWeb) return;
-    var when = _wallClock(scheduledAt);
-    when = respectQuietHours(when);
+    // İlaçta sessiz saat UYGULANMAZ — planlanan saatte düşmeli.
+    final when = _wallClock(scheduledAt);
     if (!when.isAfter(tz.TZDateTime.now(tz.local))) return;
 
     final icon = await _largeIcon(photoPath);
@@ -238,9 +257,11 @@ class AileKocuNotificationService {
             'İlaç hatırlatmaları',
             channelDescription: 'İlaç saatleri',
             importance: Importance.max,
-            priority: Priority.high,
+            priority: Priority.max,
             largeIcon: icon,
-            category: AndroidNotificationCategory.reminder,
+            category: AndroidNotificationCategory.alarm,
+            visibility: NotificationVisibility.public,
+            fullScreenIntent: true,
             styleInformation: BigTextStyleInformation(
               '$dosage · $time',
               contentTitle: '$childName · İlaç zamanı',
@@ -255,9 +276,11 @@ class AileKocuNotificationService {
           iOS: const DarwinNotificationDetails(
             presentAlert: true,
             presentSound: true,
+            presentBadge: true,
+            interruptionLevel: InterruptionLevel.timeSensitive,
           ),
         ),
-        androidScheduleMode: _scheduleMode,
+        androidScheduleMode: _medScheduleMode,
         payload: 'med|$medicineId|$title|$time|$dosage',
         title: '$childName · İlaç',
         body: '$time — $title ($dosage)',

@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_config.dart';
 import 'data/ilanlar_data.dart' show publicContactLabel, scrubEmailsInText;
+import 'services/broadcast_push_service.dart';
 import 'sohbet_store.dart';
 
 class AppBildirim {
@@ -494,6 +497,8 @@ Future<void> _insertBildirim({
   final owner = ownerEmail.trim().toLowerCase();
   if (user == null || actorEmail.isEmpty || owner.isEmpty) return;
   if (owner == actorEmail) return;
+  final safeBody =
+      body.length > 1800 ? '${body.substring(0, 1800)}…' : body;
   try {
     await client.from('bildirimler').insert({
       'owner_email': owner,
@@ -503,12 +508,34 @@ Future<void> _insertBildirim({
           : actorName.trim(),
       'type': type,
       'title': title,
-      'body': body.length > 1800 ? '${body.substring(0, 1800)}…' : body,
+      'body': safeBody,
       'ilan_id': ilanId,
       'sohbet_key': sohbetKey,
       'read': false,
     });
-  } catch (_) {}
+  } catch (_) {
+    return;
+  }
+
+  // Uygulama içi zil + cihaza FCM (ekran kapalıyken de görünsün)
+  final prefKey = switch (type) {
+    'mesaj' || 'teklif' => 'mesajlar',
+    'ilan' || 'ilan_yorum' => 'ilanlar',
+    _ => 'forum',
+  };
+  unawaited(
+    BroadcastPushService.instance.sendToUser(
+      toEmail: owner,
+      title: title,
+      body: safeBody,
+      prefKey: prefKey,
+      data: {
+        'type': type,
+        if (ilanId != null) 'id': '$ilanId',
+        if (sohbetKey != null) 'sohbet_key': sohbetKey,
+      },
+    ),
+  );
 }
 
 /// Forum yorum referansı (bildirim → deep link).

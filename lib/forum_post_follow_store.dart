@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'data/ilanlar_data.dart' show publicContactLabel;
+import 'services/broadcast_push_service.dart';
 
 /// Tek bir forum gönderisini takip (yorum / etkileşim bildirimi).
 class ForumPostFollowStore {
@@ -143,21 +146,39 @@ class ForumPostFollowStore {
     final body = commentPreview.trim().isEmpty
         ? '$actorName yorum yaptı.'
         : _short(commentPreview);
+    final pushTitle = title.length > 160
+        ? 'Yeni yorum — ${title.substring(0, 140)}…'
+        : 'Yeni yorum — $title';
+    final pushBody =
+        body.length > 1800 ? '${body.substring(0, 1800)}…' : body;
     try {
       await Supabase.instance.client.from('bildirimler').insert({
         'owner_email': owner,
         'actor_email': actorEmail,
         'actor_name': actorName,
         'type': 'forum_follow',
-        'title': title.length > 160
-            ? 'Yeni yorum — ${title.substring(0, 140)}…'
-            : 'Yeni yorum — $title',
-        'body': body.length > 1800 ? '${body.substring(0, 1800)}…' : body,
+        'title': pushTitle,
+        'body': pushBody,
         'ilan_id': postId,
         'sohbet_key': _commentRef(commentId),
         'read': false,
       });
-    } catch (_) {}
+    } catch (_) {
+      return;
+    }
+    unawaited(
+      BroadcastPushService.instance.sendToUser(
+        toEmail: owner,
+        title: pushTitle,
+        body: pushBody,
+        prefKey: 'forum',
+        data: {
+          'type': 'forum_follow',
+          'id': '$postId',
+          if (commentId != null) 'sohbet_key': 'c:$commentId',
+        },
+      ),
+    );
   }
 
   /// Gönderiye yeni yorum → takipçiler + daha önce yorum yazanlar.

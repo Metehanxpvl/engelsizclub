@@ -1845,6 +1845,7 @@ class _MainShellState extends State<MainShell> {
     unawaited(
       PushNotificationService.instance.syncTopics(cloud.notifications),
     );
+    unawaited(PushNotificationService.instance.registerTokenWithServer());
   }
 
   Future<void> _loadIlanlarVeFoto() async {

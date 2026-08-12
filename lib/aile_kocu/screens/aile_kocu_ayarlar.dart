@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../meto_theme.dart';
+import '../aile_kocu_entry.dart';
 import '../aile_kocu_store.dart';
 import '../child_photo.dart';
 import '../models/aile_kocu_models.dart';
+import '../notification_service.dart';
 
 class AileKocuAyarlarScreen extends StatefulWidget {
   const AileKocuAyarlarScreen({super.key});
@@ -166,6 +168,42 @@ class _AileKocuAyarlarScreenState extends State<AileKocuAyarlarScreen> {
               child: const Text('Fotoğrafı kaldır'),
             ),
           ],
+          const SizedBox(height: 28),
+          const Text(
+            'Bildirimler',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.alarm_on_outlined),
+            title: const Text('Tam saatli ilaç hatırlatması'),
+            subtitle: Text(
+              AileKocuNotificationService.instance.exactAlarmsAllowed
+                  ? 'Açık — ekran kapalıyken de planlanan saatte gelir.'
+                  : 'Kapalı — Android ayarlarından “Alarmlar ve hatırlatıcılar” iznini açın.',
+              style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+            ),
+            trailing: TextButton(
+              onPressed: () async {
+                final ok = await AileKocuNotificationService.instance
+                    .refreshExactAlarmMode();
+                await bootstrapAileKocuReminders();
+                if (!context.mounted) return;
+                setState(() {});
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      ok
+                          ? 'Tam saatli alarm açık. Hatırlatmalar yenilendi.'
+                          : 'İzin verilmedi. Telefon Ayarları → Uygulamalar → Engelsiz Club → Alarmlar.',
+                    ),
+                  ),
+                );
+              },
+              child: const Text('İzin ver'),
+            ),
+          ),
         ],
       ),
     );

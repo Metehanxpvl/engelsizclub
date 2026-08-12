@@ -1,4 +1,4 @@
-# Broadcast Push (FCM Topics)
+# Broadcast Push (FCM Topics + kişisel)
 
 ## Deploy
 ```bash
@@ -7,15 +7,19 @@ supabase secrets set FCM_SERVER_KEY="AAAA..."
 supabase functions deploy broadcast-push
 ```
 
-## Topics (uygulama tercih anahtarları)
+SQL (bir kez): `supabase/user_push_tokens.sql`
+
+## Topics
 | Topic | Tercih | Ne zaman |
 |-------|--------|----------|
-| `duyurular` | Duyurular / Haberler | Admin duyuru ekleyince (görselli) |
-| `ilanlar` | Yeni ilanlar | Yeni ilan yayınlanınca |
-| `forum` | Forum paylaşımları | Yeni forum gönderisi |
-| `mesajlar` | Mesajlar | (ileride) |
+| `duyurular` | Duyurular | Admin duyuru |
+| `ilanlar` | Yeni ilanlar | Yeni ilan |
+| `forum` | Forum | Yeni gönderi |
+| `mesajlar` | Mesajlar | Topic yayınları |
 
-Kullanıcı profil → Bildirimler ile aç/kapa; cihaz FCM topic'e abone olur/çıkar.
+## Kişisel push (forum yanıtı vb.)
+```json
+{ "toEmail": "user@x.com", "title": "...", "body": "...", "prefKey": "forum", "data": {} }
+```
 
-## Görsel
-Duyuru `image_url` **https** olmalı. Galeriden base64 (`data:`) yüklenirse push metin-only gider; görselli bildirim için URL kullanın veya R2'ye yükleyin.
+Token’lar `user_push_tokens` tablosunda; edge function service role ile okuyup FCM gönderir.

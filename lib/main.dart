@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 
+import 'aile_kocu/aile_kocu_entry.dart';
 import 'firebase_options.dart';
 import 'google_auth_service.dart';
 import 'guest_limit_store.dart';
@@ -178,6 +179,13 @@ Future<void> main() async {
     await PushNotificationService.instance.init();
   } catch (e, st) {
     debugPrint('FCM init failed: $e\n$st');
+  }
+
+  // Aile Koçu yerel ilaç/ders alarmları (ekran kapalıyken de çalışsın)
+  try {
+    await bootstrapAileKocuReminders();
+  } catch (e, st) {
+    debugPrint('AileKoçu bootstrap failed: $e\n$st');
   }
 
   try {

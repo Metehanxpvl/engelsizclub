@@ -101,4 +101,41 @@ class BroadcastPushService {
           if (postId != null) 'id': postId,
         },
       );
+
+  /// Belirli kullanıcıya FCM (token tablosu + edge function).
+  Future<bool> sendToUser({
+    required String toEmail,
+    required String title,
+    required String body,
+    String prefKey = 'forum',
+    Map<String, String>? data,
+  }) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return false;
+    final target = toEmail.trim().toLowerCase();
+    if (target.isEmpty) return false;
+    final me = (user.email ?? '').trim().toLowerCase();
+    if (target == me) return false;
+
+    try {
+      final res = await Supabase.instance.client.functions.invoke(
+        'broadcast-push',
+        body: {
+          'toEmail': target,
+          'title': title,
+          'body': body,
+          'prefKey': prefKey,
+          if (data != null) 'data': data,
+        },
+      );
+      final ok = res.status >= 200 && res.status < 300;
+      if (!ok) {
+        debugPrint('user-push status=${res.status} data=${res.data}');
+      }
+      return ok;
+    } catch (e) {
+      debugPrint('user-push hata: $e');
+      return false;
+    }
+  }
 }

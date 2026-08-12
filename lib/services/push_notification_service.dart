@@ -7,6 +7,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../firebase_options.dart';
 import '../user_cloud_store.dart';
@@ -67,6 +68,7 @@ class PushNotificationService {
     _messaging.onTokenRefresh.listen((token) {
       fcmToken = token;
       debugPrint('FCM token yenilendi: $token');
+      unawaited(registerTokenWithServer(token));
     });
 
     FirebaseMessaging.onMessage.listen(_onForegroundMessage);
@@ -75,6 +77,31 @@ class PushNotificationService {
     final initial = await _messaging.getInitialMessage();
     if (initial != null) {
       _handleOpen(initial);
+    }
+  }
+
+  /// Giriş sonrası / token yenilenince Supabase’e kaydet (kişisel push).
+  Future<void> registerTokenWithServer([String? token]) async {
+    if (kIsWeb || !_initialized) return;
+    final t = (token ?? fcmToken ?? '').trim();
+    if (t.isEmpty) return;
+    final client = Supabase.instance.client;
+    final user = client.auth.currentUser;
+    final email = (user?.email ?? '').trim().toLowerCase();
+    if (user == null || email.isEmpty) return;
+    try {
+      await client.from('user_push_tokens').upsert(
+        {
+          'token': t,
+          'owner_email': email,
+          'owner_id': user.id,
+          'platform': defaultTargetPlatform.name,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        },
+        onConflict: 'token',
+      );
+    } catch (e) {
+      debugPrint('FCM token kaydı: $e');
     }
   }
 
@@ -153,6 +180,7 @@ class PushNotificationService {
     try {
       fcmToken = await _messaging.getToken();
       debugPrint('FCM token: $fcmToken');
+      await registerTokenWithServer(fcmToken);
     } catch (e) {
       debugPrint('FCM token alınamadı: $e');
     }
