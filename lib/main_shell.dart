@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -35,6 +34,10 @@ import 'meto_theme.dart';
 import 'cvi/cvi_entry.dart';
 import 'aile_kocu/aile_kocu_entry.dart';
 import 'mchat/mchat_entry.dart';
+import 'data/more_menu_data.dart';
+import 'more_menu_store.dart';
+import 'pages/in_app_web_page.dart';
+import 'widgets/admin_more_menu_sheet.dart';
 import 'pages/forum_page.dart';
 import 'pages/haklar_page.dart';
 import 'pages/ilanlar_page.dart';
@@ -540,198 +543,102 @@ class _MainShellState extends State<MainShell> {
       ),
       builder: (ctx) {
         final maxH = MediaQuery.sizeOf(ctx).height * 0.88;
+        final isAdmin = isAppAdmin(widget.user.email);
         return SafeArea(
           child: ConstrainedBox(
             constraints: BoxConstraints(maxHeight: maxH),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(top: 8, bottom: 12),
-                  decoration: BoxDecoration(
-                    color: MetoColors.border,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      S.t('nav_more'),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: MetoColors.foreground,
+            child: FutureBuilder<List<MoreMenuItem>>(
+              future: loadMoreMenu(),
+              builder: (context, snap) {
+                final items = snap.data ??
+                    cachedMoreMenu ??
+                    defaultMoreMenuItems()
+                        .where((e) => e.isActive)
+                        .toList();
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 8, bottom: 12),
+                      decoration: BoxDecoration(
+                        color: MetoColors.border,
+                        borderRadius: BorderRadius.circular(99),
                       ),
                     ),
-                  ),
-                ),
-                Flexible(
-                  child: ListView(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
-                    children: [
-                      ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: const Color(0xFFE8F5E9),
-                          child: Icon(
-                            Icons.family_restroom,
-                            color: Colors.green.shade700,
-                          ),
-                        ),
-                        title: Text(
-                          S.t('more_aile_kocu'),
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        subtitle: Text(
-                          S.t('more_aile_kocu_sub'),
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          unawaited(openAileKocu(context));
-                        },
-                      ),
-                      ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor:
-                              MetoColors.primary.withValues(alpha: 0.12),
-                          child: const Icon(
-                            Icons.balance_outlined,
-                            color: MetoColors.primary,
-                          ),
-                        ),
-                        title: Text(
-                          S.t('more_rights'),
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        subtitle: Text(
-                          S.t('more_rights_sub'),
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          _goToTab(MetoTab.haklar);
-                        },
-                      ),
-                      ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor:
-                              MetoColors.primary.withValues(alpha: 0.12),
-                          child: const Icon(
-                            Icons.grid_view_outlined,
-                            color: MetoColors.primary,
-                          ),
-                        ),
-                        title: Text(
-                          S.t('more_cards'),
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        subtitle: Text(
-                          S.t('more_cards_sub'),
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          _goToTab(MetoTab.kartlar);
-                        },
-                      ),
-                      ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor:
-                              MetoColors.primary.withValues(alpha: 0.12),
-                          child: const Icon(
-                            Icons.search,
-                            color: MetoColors.primary,
-                          ),
-                        ),
-                        title: Text(
-                          S.t('more_mchat'),
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        subtitle: Text(
-                          S.t('more_mchat_sub'),
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          unawaited(
-                            openMchatFlow(
-                              context,
-                              isGuest: _isGuest,
-                              onRequireLogin: () => _requireLogin(
-                                'Otizm tarama için giriş yapmanız veya üye olmanız gerekiyor.',
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 12, 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              S.t('nav_more'),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: MetoColors.foreground,
                               ),
                             ),
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor:
-                              MetoColors.primary.withValues(alpha: 0.12),
-                          child: SvgPicture.asset(
-                            'assets/cvi/eye_icon.svg',
-                            width: 22,
-                            height: 22,
                           ),
-                        ),
-                        title: Text(
-                          S.t('more_cvi'),
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        subtitle: Text(
-                          S.t('more_cvi_sub'),
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          unawaited(
-                            openCviFlow(
-                              context,
-                              isGuest: _isGuest,
-                              onRequireLogin: () => _requireLogin(
-                                'CVI egzersizi için giriş yapmanız veya üye olmanız gerekiyor.',
-                              ),
+                          if (isAdmin)
+                            IconButton(
+                              tooltip: 'Menü yönetimi',
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                unawaited(_openMoreMenuAdmin());
+                              },
+                              icon: const Icon(Icons.tune),
                             ),
-                          );
-                        },
+                        ],
                       ),
-                      ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor:
-                              MetoColors.primary.withValues(alpha: 0.12),
-                          child: const Icon(
-                            Icons.extension_outlined,
-                            color: MetoColors.primary,
-                          ),
+                    ),
+                    if (snap.connectionState == ConnectionState.waiting &&
+                        snap.data == null)
+                      const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: CircularProgressIndicator(),
+                      )
+                    else
+                      Flexible(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+                          itemCount: items.length,
+                          itemBuilder: (_, i) {
+                            final item = items[i];
+                            return ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: item.link == 'aile_kocu'
+                                    ? const Color(0xFFE8F5E9)
+                                    : MetoColors.primary
+                                        .withValues(alpha: 0.12),
+                                child: _moreMenuLeading(item),
+                              ),
+                              title: Text(
+                                item.title,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              subtitle: item.subtitle.isEmpty
+                                  ? null
+                                  : Text(
+                                      item.subtitle,
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                unawaited(_openMoreMenuItem(item));
+                              },
+                            );
+                          },
                         ),
-                        title: Text(
-                          S.t('more_gelisim'),
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        subtitle: Text(
-                          S.t('more_gelisim_sub'),
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          unawaited(_openGelisimEtkinlikleri());
-                        },
                       ),
-                    ],
-                  ),
-                ),
-              ],
+                  ],
+                );
+              },
             ),
           ),
         );
@@ -739,21 +646,108 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
-  Future<void> _openGelisimEtkinlikleri() async {
-    const path = '/bilgi-kutuphanesi/gelisim-etkinlikleri.html';
-    final uri = Uri.parse(
-      kIsWeb ? path : 'https://www.engelsizclub.com$path',
-    );
-    final ok = await launchUrl(
-      uri,
-      mode: kIsWeb
-          ? LaunchMode.platformDefault
-          : LaunchMode.externalApplication,
-    );
-    if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sayfa açılamadı.')),
+  Widget _moreMenuLeading(MoreMenuItem item) {
+    if (item.icon == 'eye' || item.link == 'cvi') {
+      return SvgPicture.asset(
+        'assets/cvi/eye_icon.svg',
+        width: 22,
+        height: 22,
       );
+    }
+    final IconData icon;
+    final Color color;
+    switch (item.icon) {
+      case 'family':
+        icon = Icons.family_restroom;
+        color = Colors.green.shade700;
+      case 'balance':
+        icon = Icons.balance_outlined;
+        color = MetoColors.primary;
+      case 'grid':
+        icon = Icons.grid_view_outlined;
+        color = MetoColors.primary;
+      case 'search':
+        icon = Icons.search;
+        color = MetoColors.primary;
+      case 'extension':
+        icon = Icons.extension_outlined;
+        color = MetoColors.primary;
+      default:
+        icon = Icons.link;
+        color = MetoColors.primary;
+    }
+    return Icon(icon, color: color);
+  }
+
+  Future<void> _openMoreMenuAdmin() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: MetoColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => const AdminMoreMenuSheet(),
+    );
+  }
+
+  Future<void> _openMoreMenuItem(MoreMenuItem item) async {
+    if (item.isUrl) {
+      await InAppWebPage.open(
+        context,
+        title: item.title,
+        url: item.link,
+      );
+      return;
+    }
+
+    switch (item.link) {
+      case 'aile_kocu':
+        await openAileKocu(context);
+        return;
+      case 'haklar':
+        _goToTab(MetoTab.haklar);
+        return;
+      case 'kartlar':
+        _goToTab(MetoTab.kartlar);
+        return;
+      case 'mchat':
+        await openMchatFlow(
+          context,
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(
+            'Otizm tarama için giriş yapmanız veya üye olmanız gerekiyor.',
+          ),
+        );
+        return;
+      case 'cvi':
+        await openCviFlow(
+          context,
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(
+            'CVI egzersizi için giriş yapmanız veya üye olmanız gerekiyor.',
+          ),
+        );
+        return;
+      case 'gelisim':
+        await InAppWebPage.open(
+          context,
+          title: item.title,
+          url: '/bilgi-kutuphanesi/gelisim-etkinlikleri.html',
+        );
+        return;
+      default:
+        if (item.link.startsWith('http') || item.link.startsWith('/')) {
+          await InAppWebPage.open(
+            context,
+            title: item.title,
+            url: item.link,
+          );
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Bilinmeyen menü: ${item.link}')),
+          );
+        }
     }
   }
 

@@ -1,0 +1,125 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'admin_config.dart';
+import 'data/more_menu_data.dart';
+
+List<MoreMenuItem>? _memoryCache;
+DateTime? _cacheAt;
+const _cacheTtl = Duration(minutes: 5);
+
+List<MoreMenuItem>? get cachedMoreMenu => _memoryCache;
+
+void invalidateMoreMenuCache() {
+  _memoryCache = null;
+  _cacheAt = null;
+}
+
+void _setCache(List<MoreMenuItem> items) {
+  _memoryCache = List<MoreMenuItem>.unmodifiable(items);
+  _cacheAt = DateTime.now();
+}
+
+bool get _hasFreshCache {
+  final at = _cacheAt;
+  final list = _memoryCache;
+  if (at == null || list == null) return false;
+  return DateTime.now().difference(at) < _cacheTtl;
+}
+
+SupabaseClient get _db => Supabase.instance.client;
+
+String? _authEmail() {
+  final e = _db.auth.currentUser?.email?.trim().toLowerCase();
+  return (e == null || e.isEmpty) ? null : e;
+}
+
+/// Aktif menü (kullanıcı). Admin [includeInactive] ile pasifleri de alır.
+Future<List<MoreMenuItem>> loadMoreMenu({
+  bool includeInactive = false,
+  bool forceRefresh = false,
+}) async {
+  if (!forceRefresh && !includeInactive && _hasFreshCache) {
+    return _memoryCache!;
+  }
+
+  try {
+    var q = _db.from('daha_fazlasi_menu').select();
+    if (!includeInactive) {
+      q = q.eq('is_active', true);
+    }
+    final rows = await q.order('sort_order').order('id');
+    final items = <MoreMenuItem>[
+      for (final r in rows)
+        if (r is Map<String, dynamic>) MoreMenuItem.fromJson(r),
+    ];
+    if (items.isEmpty) {
+      final fallback = defaultMoreMenuItems();
+      if (!includeInactive) _setCache(fallback);
+      return fallback;
+    }
+    if (!includeInactive) _setCache(items);
+    return items;
+  } catch (_) {
+    final fallback = defaultMoreMenuItems()
+        .where((e) => includeInactive || e.isActive)
+        .toList();
+    if (!includeInactive) _setCache(fallback);
+    return fallback;
+  }
+}
+
+Future<MoreMenuItem> upsertMoreMenuItem(MoreMenuItem item) async {
+  final email = _authEmail();
+  if (!isAppAdmin(email)) {
+    throw StateError('Yalnız admin düzenleyebilir.');
+  }
+  final payload = item.toUpsertJson(includeCreatedMeta: item.id <= 0);
+  if (item.id <= 0) {
+    payload.remove('id');
+    final row = await _db
+        .from('daha_fazlasi_menu')
+        .insert(payload)
+        .select()
+        .single();
+    invalidateMoreMenuCache();
+    return MoreMenuItem.fromJson(row);
+  }
+  final row = await _db
+      .from('daha_fazlasi_menu')
+      .update(payload)
+      .eq('id', item.id)
+      .select()
+      .single();
+  invalidateMoreMenuCache();
+  return MoreMenuItem.fromJson(row);
+}
+
+Future<void> setMoreMenuActive({
+  required int id,
+  required bool isActive,
+}) async {
+  final email = _authEmail();
+  if (!isAppAdmin(email)) {
+    throw StateError('Yalnız admin düzenleyebilir.');
+  }
+  if (id <= 0) {
+    throw StateError('Önce Supabase tablosunu oluşturup seed edin.');
+  }
+  await _db.from('daha_fazlasi_menu').update({
+    'is_active': isActive,
+    'updated_at': DateTime.now().toUtc().toIso8601String(),
+  }).eq('id', id);
+  invalidateMoreMenuCache();
+}
+
+Future<void> deleteMoreMenuItem(int id) async {
+  final email = _authEmail();
+  if (!isAppAdmin(email)) {
+    throw StateError('Yalnız admin silebilir.');
+  }
+  if (id <= 0) {
+    throw StateError('Geçersiz kayıt.');
+  }
+  await _db.from('daha_fazlasi_menu').delete().eq('id', id);
+  invalidateMoreMenuCache();
+}

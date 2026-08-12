@@ -180,6 +180,14 @@
     }
     .sentinel { height: 1px; }
     .tip { font-size: 0.85rem; color: var(--accent); }
+    .kaynak {
+      font-size: 0.82rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+      margin-top: 2px;
+    }
+    .kaynak strong { color: var(--fg); font-weight: 800; }
   </style>
 </head>
 <body>
@@ -437,7 +445,92 @@
       return list.slice(0, 120).map((a, i) => ({ ...a, id: i + 1 }));
     }
 
-    const ALL = buildActivities();
+    function extractYtId(raw) {
+      const s = (raw || '').trim();
+      if (!s) return '';
+      if (/^[\w-]{11}$/.test(s)) return s;
+      try {
+        const u = new URL(s);
+        const v = u.searchParams.get('v');
+        if (v && v.length >= 11) return v.slice(0, 11);
+        const parts = u.pathname.split('/').filter(Boolean);
+        for (let i = 0; i < parts.length; i++) {
+          if ((parts[i] === 'embed' || parts[i] === 'shorts' || parts[i] === 'v') && parts[i + 1]) {
+            return parts[i + 1].slice(0, 11);
+          }
+        }
+        if (u.hostname.includes('youtu.be') && parts[0]) return parts[0].slice(0, 11);
+      } catch (_) {}
+      return '';
+    }
+
+    function escapeHtml(s) {
+      return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function cardHtml(a) {
+      const ytId = extractYtId(a.youtube || a.youtube_url || '');
+      const yt = ytId
+        ? '<div class="yt-facade" data-yt="' + ytId + '" role="button" tabindex="0" aria-label="Videoyu yükle"></div>'
+        : '';
+      const kaynak = (a.kaynak || '').trim()
+        ? '<p class="kaynak"><strong>Kaynak:</strong> ' + escapeHtml(a.kaynak) + '</p>'
+        : '';
+      return (
+        '<article class="card" data-id="' + a.id + '">' +
+          '<div class="tags">' +
+            '<span class="chip">' + escapeHtml(a.grupAd) + '</span>' +
+            '<span class="chip">' + escapeHtml(a.yasAd) + '</span>' +
+            '<span class="chip">' + escapeHtml(a.zorlukAd) + '</span>' +
+          '</div>' +
+          '<h2>' + escapeHtml(a.baslik) + '</h2>' +
+          '<p>' + escapeHtml(a.aciklama) + '</p>' +
+          '<p class="tip">İpucu: ' + escapeHtml(a.ipucu) + '</p>' +
+          yt +
+          kaynak +
+        '</article>'
+      );
+    }
+
+    function mapRow(r) {
+      return {
+        id: r.id,
+        baslik: r.title,
+        aciklama: r.description,
+        ipucu: r.tip,
+        grup: r.grup,
+        grupAd: r.grup_ad,
+        yas: r.yas,
+        yasAd: r.yas_ad,
+        zorluk: r.zorluk,
+        zorlukAd: r.zorluk_ad,
+        youtube: r.youtube_url || '',
+        kaynak: r.kaynak || '',
+      };
+    }
+
+    const SUPABASE_URL = 'https://qycrkqwqrysypvqaipqn.supabase.co';
+    const SUPABASE_ANON = 'sb_publishable_N7UfnXDF97YsuDTsFTq9zQ_lhnNtMgF';
+
+    async function loadFromSupabase() {
+      const url = SUPABASE_URL + '/rest/v1/gelisim_etkinlikleri?select=*&is_active=eq.true&order=sort_order.asc,id.asc';
+      const res = await fetch(url, {
+        headers: {
+          apikey: SUPABASE_ANON,
+          Authorization: 'Bearer ' + SUPABASE_ANON,
+        },
+      });
+      if (!res.ok) throw new Error('supabase ' + res.status);
+      const rows = await res.json();
+      if (!Array.isArray(rows) || !rows.length) throw new Error('empty');
+      return rows.map(mapRow);
+    }
+
+    let ALL = buildActivities();
     const PAGE = 12;
     let filtered = ALL.slice();
     let shown = 0;
@@ -472,25 +565,6 @@
       });
     }, { rootMargin: '200px' });
 
-    function cardHtml(a) {
-      const yt = a.youtube
-        ? '<div class="yt-facade" data-yt="' + a.youtube + '" role="button" tabindex="0" aria-label="Videoyu yükle"></div>'
-        : '';
-      return (
-        '<article class="card" data-id="' + a.id + '">' +
-          '<div class="tags">' +
-            '<span class="chip">' + a.grupAd + '</span>' +
-            '<span class="chip">' + a.yasAd + '</span>' +
-            '<span class="chip">' + a.zorlukAd + '</span>' +
-          '</div>' +
-          '<h2>' + a.baslik + '</h2>' +
-          '<p>' + a.aciklama + '</p>' +
-          '<p class="tip">İpucu: ' + a.ipucu + '</p>' +
-          yt +
-        '</article>'
-      );
-    }
-
     function applyFilters() {
       const q = (document.getElementById('q').value || '').trim().toLocaleLowerCase('tr');
       const yas = document.getElementById('f-yas').value;
@@ -501,7 +575,7 @@
         if (grup && a.grup !== grup) return false;
         if (zorluk && a.zorluk !== zorluk) return false;
         if (!q) return true;
-        const hay = (a.baslik + ' ' + a.aciklama + ' ' + a.grupAd + ' ' + a.ipucu).toLocaleLowerCase('tr');
+        const hay = (a.baslik + ' ' + a.aciklama + ' ' + a.grupAd + ' ' + a.ipucu + ' ' + (a.kaynak || '')).toLocaleLowerCase('tr');
         return hay.includes(q);
       });
       shown = 0;
@@ -582,7 +656,14 @@
       inject('#site-footer', 'includes/footer.html'),
     ]).then(loadDahaFazlasiMenu);
 
-    applyFilters();
+    loadFromSupabase()
+      .then((rows) => {
+        ALL = rows;
+        applyFilters();
+      })
+      .catch(() => {
+        applyFilters();
+      });
   </script>
 </body>
 </html>
