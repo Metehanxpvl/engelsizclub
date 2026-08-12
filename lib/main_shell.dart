@@ -37,6 +37,7 @@ import 'mchat/mchat_entry.dart';
 import 'data/more_menu_data.dart';
 import 'more_menu_store.dart';
 import 'pages/in_app_web_page.dart';
+import 'pages/gelisim_etkinlikleri_page.dart';
 import 'widgets/admin_more_menu_sheet.dart';
 import 'pages/forum_page.dart';
 import 'pages/haklar_page.dart';
@@ -581,15 +582,16 @@ class _MainShellState extends State<MainShell> {
                               ),
                             ),
                           ),
-                          if (isAdmin)
-                            IconButton(
-                              tooltip: 'Menü yönetimi',
+                          if (isAdmin) ...[
+                            TextButton.icon(
                               onPressed: () {
                                 Navigator.pop(ctx);
                                 unawaited(_openMoreMenuAdmin());
                               },
-                              icon: const Icon(Icons.tune),
+                              icon: const Icon(Icons.tune, size: 18),
+                              label: const Text('Yönet'),
                             ),
+                          ],
                         ],
                       ),
                     ),
@@ -687,7 +689,7 @@ class _MainShellState extends State<MainShell> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => const AdminMoreMenuSheet(),
+      builder: (_) => AdminMoreMenuSheet(adminEmail: widget.user.email),
     );
   }
 
@@ -730,10 +732,9 @@ class _MainShellState extends State<MainShell> {
         );
         return;
       case 'gelisim':
-        await InAppWebPage.open(
+        await GelisimEtkinlikleriPage.open(
           context,
-          title: item.title,
-          url: '/bilgi-kutuphanesi/gelisim-etkinlikleri.html',
+          adminEmail: widget.user.email,
         );
         return;
       default:
