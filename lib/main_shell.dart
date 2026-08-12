@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -704,6 +705,29 @@ class _MainShellState extends State<MainShell> {
                           );
                         },
                       ),
+                      ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor:
+                              MetoColors.primary.withValues(alpha: 0.12),
+                          child: const Icon(
+                            Icons.extension_outlined,
+                            color: MetoColors.primary,
+                          ),
+                        ),
+                        title: Text(
+                          S.t('more_gelisim'),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        subtitle: Text(
+                          S.t('more_gelisim_sub'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          unawaited(_openGelisimEtkinlikleri());
+                        },
+                      ),
                     ],
                   ),
                 ),
@@ -713,6 +737,24 @@ class _MainShellState extends State<MainShell> {
         );
       },
     );
+  }
+
+  Future<void> _openGelisimEtkinlikleri() async {
+    const path = '/bilgi-kutuphanesi/gelisim-etkinlikleri.html';
+    final uri = Uri.parse(
+      kIsWeb ? path : 'https://www.engelsizclub.com$path',
+    );
+    final ok = await launchUrl(
+      uri,
+      mode: kIsWeb
+          ? LaunchMode.platformDefault
+          : LaunchMode.externalApplication,
+    );
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sayfa açılamadı.')),
+      );
+    }
   }
 
   /// Alt menü / kaydırma / bildirimlerden sekme değiştir.

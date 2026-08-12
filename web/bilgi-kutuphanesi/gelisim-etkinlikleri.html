@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gelişim Etkinlikleri | Engelsiz Club</title>
+  <meta name="description" content="120 gelişim etkinliği: 7 grup, yaş/zorluk filtresi, arama ve YouTube videoları. Engelsiz Club Bilgi Kütüphanesi." />
+  <link rel="canonical" href="https://www.engelsizclub.com/bilgi-kutuphanesi/gelisim-etkinlikleri.html" />
+  <style>
+    :root {
+      --fg: #0d2b1f;
+      --muted: #4d7a62;
+      --bg: #f2f7f4;
+      --card: #fff;
+      --accent: #1a6b4a;
+      --selected: #e8f5ee;
+      --border: rgba(26, 107, 74, 0.18);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.55;
+    }
+    .site-header, .site-footer {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 18px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .site-footer {
+      border-bottom: 0;
+      border-top: 1px solid var(--border);
+      margin-top: 40px;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .site-header a, .site-footer a { color: var(--accent); font-weight: 700; text-decoration: none; }
+    .dropdown { position: relative; }
+    .dropdown-toggle {
+      background: var(--selected);
+      border: 1px solid var(--border);
+      color: var(--fg);
+      font-weight: 700;
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .dropdown-menu {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 6px);
+      min-width: 240px;
+      margin: 0;
+      padding: 8px;
+      list-style: none;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      z-index: 20;
+    }
+    .dropdown-menu a {
+      display: block;
+      padding: 10px 12px;
+      border-radius: 8px;
+      color: var(--fg);
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .dropdown-menu a:hover { background: var(--selected); }
+    main { max-width: 960px; margin: 0 auto; padding: 24px 18px 48px; }
+    h1 { font-size: clamp(1.45rem, 4vw, 2rem); margin: 0 0 8px; }
+    .lead { color: var(--muted); margin: 0 0 20px; }
+    .filters {
+      display: grid;
+      grid-template-columns: 1.4fr repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    @media (max-width: 800px) {
+      .filters { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 520px) {
+      .filters { grid-template-columns: 1fr; }
+    }
+    .filters input, .filters select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: var(--card);
+      color: var(--fg);
+      font: inherit;
+    }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 16px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    .chip {
+      display: inline-block;
+      background: var(--selected);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 180px;
+    }
+    .card h2 { font-size: 1.05rem; margin: 0; }
+    .card p { margin: 0; color: var(--muted); font-size: 0.94rem; }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .yt-facade {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #111;
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      margin-top: 4px;
+    }
+    .yt-facade img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      opacity: 0.85;
+    }
+    .yt-facade .play {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 0.9rem;
+      background: rgba(0,0,0,.28);
+    }
+    .yt-facade iframe {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
+    .empty {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 40px 12px;
+      color: var(--muted);
+      background: var(--card);
+      border: 1px dashed var(--border);
+      border-radius: 14px;
+    }
+    .sentinel { height: 1px; }
+    .tip { font-size: 0.85rem; color: var(--accent); }
+  </style>
+</head>
+<body>
+  <!--
+    PHP host kullanıyorsanız bu iki placeholder yerine:
+      <?php include __DIR__ . '/../includes/header.php'; ?>
+      ... içerik ...
+      <?php include __DIR__ . '/../includes/footer.php'; ?>
+    Statik hosting (Firebase): includes/*.html fetch ile yüklenir.
+  -->
+  <div id="site-header"><!-- include: includes/header.html --></div>
+
+  <main>
+    <h1>Gelişim Etkinlikleri</h1>
+    <p class="lead">120 etkinlik · 7 gelişim grubu · yaş, grup ve zorluk filtresi · arama · YouTube (lazy).</p>
+
+    <div class="filters">
+      <input id="q" type="search" placeholder="Etkinlik ara…" autocomplete="off" />
+      <select id="f-yas" aria-label="Yaş filtresi">
+        <option value="">Tüm yaşlar</option>
+        <option value="0-12ay">0–12 ay</option>
+        <option value="1-2yas">1–2 yaş</option>
+        <option value="2-3yas">2–3 yaş</option>
+        <option value="3-4yas">3–4 yaş</option>
+        <option value="4-6yas">4–6 yaş</option>
+      </select>
+      <select id="f-grup" aria-label="Grup filtresi">
+        <option value="">Tüm gruplar</option>
+        <option value="kaba-motor">Kaba Motor</option>
+        <option value="ince-motor">İnce Motor</option>
+        <option value="dil">Dil ve İletişim</option>
+        <option value="bilissel">Bilişsel</option>
+        <option value="sosyal">Sosyal-Duygusal</option>
+        <option value="duyusal">Duyusal</option>
+        <option value="ozbakim">Öz Bakım</option>
+      </select>
+      <select id="f-zorluk" aria-label="Zorluk filtresi">
+        <option value="">Tüm zorluklar</option>
+        <option value="kolay">Kolay</option>
+        <option value="orta">Orta</option>
+        <option value="zor">Zor</option>
+      </select>
+    </div>
+
+    <div class="meta-row">
+      <span id="count">0 etkinlik</span>
+      <span class="chip">Lazy load: 12’şer</span>
+    </div>
+
+    <div id="grid" class="grid" aria-live="polite"></div>
+    <div id="sentinel" class="sentinel" aria-hidden="true"></div>
+  </main>
+
+  <div id="site-footer"><!-- include: includes/footer.html --></div>
+
+  <script>
+    /* ========== 120 etkinlik verisi (7 grup) ========== */
+    const GROUPS = [
+      ['kaba-motor', 'Kaba Motor'],
+      ['ince-motor', 'İnce Motor'],
+      ['dil', 'Dil ve İletişim'],
+      ['bilissel', 'Bilişsel'],
+      ['sosyal', 'Sosyal-Duygusal'],
+      ['duyusal', 'Duyusal'],
+      ['ozbakim', 'Öz Bakım'],
+    ];
+    const AGES = [
+      ['0-12ay', '0–12 ay'],
+      ['1-2yas', '1–2 yaş'],
+      ['2-3yas', '2–3 yaş'],
+      ['3-4yas', '3–4 yaş'],
+      ['4-6yas', '4–6 yaş'],
+    ];
+    const LEVELS = [
+      ['kolay', 'Kolay'],
+      ['orta', 'Orta'],
+      ['zor', 'Zor'],
+    ];
+    const IDEAS = {
+      'kaba-motor': [
+        ['Top Yuvarlama', 'Yumuşak topu ileri geri yuvarlayın.', 'Boş koridor yeterlidir.'],
+        ['Minder Parkuru', 'Minder/yastıktan kısa engel parkuru.', 'Yumuşak zemin kullanın.'],
+        ['Ayı Yürüyüşü', 'Kısa mesafede ayı yürüyüşü.', 'Belini zorlamayın.'],
+        ['Zıpla-Dur', 'Müzikle zıpla, dur.', 'Yumuşak zıplama.'],
+        ['Tünelden Geç', 'Battaniye tünelinden emekleyin.', 'Gözetimde yapın.'],
+        ['Balon Takibi', 'Balonu düşürmeden takip.', 'Aşırı şişirmeyin.'],
+        ['Adım Taşları', 'Bantla adım taşları çizin.', 'Kaymaz zemin.'],
+        ['Çember İçinde', 'Çemberde gir-çık adımları.', 'Çemberi sabitleyin.'],
+        ['İleri Geri Koşu', 'Kısa ileri-geri koşu.', 'Yavaş tempo.'],
+        ['Tek Ayak Denge', 'Destekle tek ayak duruş.', 'Duvar desteği.'],
+        ['Top At-Tut', 'Yakından yumuşak top at-tut.', 'Yüze atmayın.'],
+        ['Hayvan Taklidi', 'Kurbağa/yengeç/fil yürüyüşü.', 'Baskısız oynayın.'],
+        ['Otur-Kalk', 'Yastıkta kontrollü otur-kalk.', 'Bel desteği.'],
+        ['İp Üstü Yürüme', 'Yere yapışık ip üzerinde yürüme.', 'Yanında olun.'],
+        ['Dans Durakları', 'Müzik açık dans, kapalı don.', 'Kısa şarkı.'],
+        ['Merdiven Adımı', 'Kontrollü basamak (uygun yaş).', 'Korkuluk kullanın.'],
+        ['Arabayı İt', 'Oyuncak arabayı itin.', 'Dar alanda dikkat.'],
+      ],
+      'ince-motor': [
+        ['Boncuk Dizme', 'Kalın ipe büyük boncuk dizin.', 'Yutma riskine dikkat.'],
+        ['Hamur Sıkma', 'Hamur sıkma/yuvarlama/ezme.', 'Yutturmayın.'],
+        ['Sticker', 'Büyük çıkartma yapıştırma.', 'Planlama destekler.'],
+        ['Maşa Aktar', 'Maşayla pamuk aktarma.', 'Çocuk maşası.'],
+        ['Çizgi Takibi', 'Kalın çizgiyi kalemle izleyin.', 'Kısa oturum.'],
+        ['Kağıt Yırtma', 'Şerit şerit kağıt yırtma.', 'Kolay kağıt.'],
+        ['Kapak Aç-Kapa', 'Kavanoz kapakları.', 'Keskin kenar olmasın.'],
+        ['Mandal Asma', 'Mandal asma pratiği.', 'Parmak gücü.'],
+        ['Makasla Kes', 'Kalın çizgide kesme.', 'Çocuk makası.'],
+        ['Düğme İlkleme', 'Büyük düğme ilikleme.', 'Gevşek düğme.'],
+        ['Pipet Boncuk', 'Pipet parçasına iplik.', 'Kısa parçalar.'],
+        ['Boya Damlatma', 'Pipetle boya damlatma.', 'Önlük takın.'],
+        ['Büyük Puzzle', '4–12 parça puzzle.', 'Yaşa göre.'],
+        ['Kilit Açma', 'Basit kilit/anahtar.', 'Küçük parça dikkat.'],
+        ['Kaşık Aktarma', 'Kaşıkla fasulye aktarma.', 'Dökülmeye hazır.'],
+        ['Parmak Boyası', 'Parmakla daire/çizgi.', 'Yenilebilir boya.'],
+        ['Lego Ayır', 'Renk/boyut ayırma.', 'Küçük parça dikkat.'],
+      ],
+      dil: [
+        ['Resimli Kitap', '"Ne görüyorsun?" ile kitap.', 'Aceele etmeyin.'],
+        ['Günlük Anlatım', 'Rutinleri sesli anlatın.', 'Kısa cümle.'],
+        ['Kukla Konuşması', 'Peluş ile diyalog.', 'Sıra alma.'],
+        ['Ses Avı', 'Evde 5 ses bulun.', 'Sakin ortam.'],
+        ['İsim Kartları', 'Nesne kartı isimleme.', 'Az kart.'],
+        ['Şarkı Tekrarı', 'Kısa şarkı tekrarı.', 'Yavaş tempo.'],
+        ['Ben Gördüm', 'Pencereden gördüklerini söyleyin.', 'Soru-cevap.'],
+        ['Hikaye Zinciri', 'Sırayla cümle ekleyin.', 'Yetişkin model.'],
+        ['Duygu Sözcükleri', 'Mutlu/üzgün/kızgın adlandırın.', 'Ayna kullanın.'],
+        ['Talimat Oyunu', '1–2 adımlı yönerge.', 'Başarıyı kutlayın.'],
+        ['Zıt Kavramlar', 'Büyük-küçük örnekleri.', 'Somut nesne.'],
+        ['Telefon Oyunu', 'Oyuncak telefon diyaloğu.', 'Sıra verin.'],
+        ['Hayvan Sesleri', 'Hayvan sesi taklidi.', 'Baskısız.'],
+        ['Alışveriş Listesi', '3–4 ürün ezberle-topla.', 'Görsel destek.'],
+        ['Ritim Söyle', 'Hece ritmiyle kelime.', 'El çırpın.'],
+        ['Soru Kartı', 'Kim/ne/nerede.', 'Tek soru.'],
+        ['Teşekkür Pratiği', 'Lütfen/teşekkür modeli.', 'Model olun.'],
+      ],
+      bilissel: [
+        ['Renk Sıralama', '2 renge ayırma.', 'Önce 2 renk.'],
+        ['Desen Tekrarı', 'Kırmızı-mavi desen.', 'Görsel ipucu.'],
+        ['Hazine Avı', '3 ipucuyla nesne bul.', 'Kolay ipucu.'],
+        ['Eşleştir Kart', 'Aynı resmi eşleştir.', 'Az kart.'],
+        ['Ölç-Dök', 'Kaplara su dökme.', 'Gözetim.'],
+        ['Sayı Sayma', '1–5 sayma.', 'Parmakla gösterin.'],
+        ['Ne Eksik?', '3 nesneden biri gizle.', 'Kısa bekleme.'],
+        ['Boyut Kulesi', 'Büyükten küçüğe kule.', 'Yeniden deneyin.'],
+        ['Zaman Sırası', 'Sabah rutini 3 kart.', 'Foto kullanın.'],
+        ['Şekil Avı', 'Daire/kare bul.', '1 şekil.'],
+        ['Hafıza Tepsisi', '4 nesneden biri kaldır.', 'İsimleyin.'],
+        ['Neden-Sonuç', 'Somut neden-sonuç.', 'Deney yapın.'],
+        ['Labirent', 'Kalın labirent izle.', 'Parmakla önce.'],
+        ['Kategori Kutusu', 'Yiyecek/oyuncak ayır.', '2 kategori.'],
+        ['Harita Oyunu', 'Basit haritada X bul.', 'Ok yönü.'],
+        ['Tahmin Et', 'Kutu sallayıp tahmin.', 'İpucu verin.'],
+        ['Blok Köprü', 'İki kuleye köprü.', 'Stabil zemin.'],
+      ],
+      sosyal: [
+        ['Duygu Mimikleri', 'Duygu canlandır-tahmin.', 'Ayna.'],
+        ['Sıra Alma', 'Zamanlayıcıyla sıra.', 'Kısa süre.'],
+        ['Aile Çizimi', 'Birlikte aile resmi.', 'Herkes eklesin.'],
+        ['Duygu Kitabı', 'Yüz foto kitabığı.', 'İsim yazın.'],
+        ['Doktor Oyunu', 'Doktor-hasta rolü.', 'Nazik dokunuş.'],
+        ['Teşekkür Notu', 'Teşekkür kartı.', 'Çizim yeter.'],
+        ['Yardım Eli', 'Masayı birlikte topla.', 'Küçük görev.'],
+        ['Paylaşım', 'İki tabak paylaşımı.', 'Senin-benim dili.'],
+        ['Selamlaşma', 'Sabah selam rutini.', 'Seçenek sunun.'],
+        ['Özür Cümlesi', 'Yumuşak özür modeli.', 'Zorlamayın.'],
+        ['Grup Dansı', 'Aynı hareket tekrarı.', 'Herkes lider.'],
+        ['Duygu Termometresi', 'Nasıl hissediyorum?', 'Renk skalası.'],
+        ['Misafir Oyunu', 'Oyuncaklara ikram.', 'Nezaket.'],
+        ['Alkış Kutlaması', 'Küçük başarı alkışı.', 'Somut övgü.'],
+        ['Birlikte Nefes', '3 derin nefes.', 'Yavaş sayın.'],
+        ['Foto Hikaye', 'Eski foto anlatımı.', 'Kısa tutun.'],
+        ['Empati Oyunu', 'Üzgün arkadaş senaryosu.', 'Seçenek sunun.'],
+      ],
+      duyusal: [
+        ['Duyusal Kutu', 'Kutuda saklı nesne.', 'Yutma riski.'],
+        ['Doku Yürüyüşü', 'Farklı zeminler.', 'Keskin cisim yok.'],
+        ['Su Oyunu', 'Dökme/süzme.', 'Havlu hazır.'],
+        ['Koku İstasyonu', 'Kokuları ayırt et.', 'Alerji kontrol.'],
+        ['Ses Şişeleri', 'Şişe sesi eşleştir.', 'Kapak bantlayın.'],
+        ['Işık-Karanlık', 'El feneri gölge.', 'Gözü yormayın.'],
+        ['Sıcak-Soğuk', 'Ilık/soğuk dokunuş.', 'Aşırı sıcak yok.'],
+        ['Köpük Oyun', 'Sabun köpüğü.', 'Göze kaçmasın.'],
+        ['Kokulu Hamur', 'Kokulu hamur şekil.', 'Yenmeyen malzeme.'],
+        ['Fırça Dokunuşu', 'Yumuşak fırça tarama.', 'Tempo çocukta.'],
+        ['Rüzgar Oyunu', 'Üfleyerek kağıt uçur.', 'Yüze üflemeyin.'],
+        ['Ağır Yorgan', 'Kısa dinlenme.', 'Nefes rahat.'],
+        ['Titreşim', 'Kısa titreşim deneyimi.', 'İsteğe bağlı.'],
+        ['Renkli Su', 'Renk karıştırma.', 'Önlük.'],
+        ['Kum Tepsisi', 'Kinetik kum izi.', 'Masa koruyucu.'],
+        ['Müzik Dinle', 'Yavaş müzikle sallanma.', 'Ses düşük.'],
+        ['Tat Tahmini', 'Güvenli tat tahmini.', 'Alerjen yoksa.'],
+      ],
+      ozbakim: [
+        ['El Yıkama Şarkısı', '20 sn el yıkama.', 'Köpürtün.'],
+        ['Diş Fırçalama', 'Aynada birlikte fırçala.', 'Model olun.'],
+        ['Çorap Giydirme', 'Oturarak çorap.', 'Geniş ağız.'],
+        ['Düğme Pratik', 'Ceket düğmesi.', 'Büyük düğme.'],
+        ['Ayakkabı', 'Cırtlı ayakkabı pratik.', 'Önce cırt.'],
+        ['Masa Kurma', 'Tabak-bardak yerleştir.', 'Kırılmaz set.'],
+        ['Oyuncak Topla', 'Kutulara yerleştir.', 'Şarkıyla.'],
+        ['Su Dökme', 'Sürahiden bardak.', 'Az miktar.'],
+        ['Peçete Katlama', 'Basit katlama.', 'Köşe hizala.'],
+        ['Saç Taraması', 'Yumuşak tarak.', 'Nazik hareket.'],
+        ['Mont Askı', 'Askıya mont as.', 'Alçak askı.'],
+        ['Meyve Yıkama', 'Meyve yıkama yardımı.', 'Kaymaz basamak.'],
+        ['Macun Sıkma', 'Bezelye kadar macun.', 'Birlikte ölçün.'],
+        ['Uyku Rutini', 'Pijama-kitap-ışık kartları.', 'Aynı sıra.'],
+        ['Tuvalet Adımları', 'Görsel adım kartları.', 'Baskısız.'],
+        ['Çanta Hazırlama', '3 eşya çantaya.', 'Liste kullanın.'],
+        ['Ayakkabı Çiftleme', 'Çiftleyip rafa koy.', 'Renk ipucu.'],
+      ],
+    };
+    /** İsterseniz grup bazlı YouTube ID koyun; boşsa video alanı gizlenir. */
+    const YT_BY_GROUP = {
+      'kaba-motor': '',
+      'ince-motor': '',
+      dil: '',
+      bilissel: '',
+      sosyal: '',
+      duyusal: '',
+      ozbakim: '',
+    };
+
+    function buildActivities() {
+      const list = [];
+      for (const [gkey, gname] of GROUPS) {
+        IDEAS[gkey].forEach((row, idx) => {
+          const age = AGES[idx % AGES.length];
+          const lvl = LEVELS[idx % LEVELS.length];
+          list.push({
+            id: list.length + 1,
+            baslik: row[0],
+            aciklama: row[1],
+            ipucu: row[2],
+            grup: gkey,
+            grupAd: gname,
+            yas: age[0],
+            yasAd: age[1],
+            zorluk: lvl[0],
+            zorlukAd: lvl[1],
+            youtube: YT_BY_GROUP[gkey] || '',
+          });
+        });
+      }
+      while (list.length < 120) {
+        const b = list[list.length % 119];
+        list.push({
+          ...b,
+          id: list.length + 1,
+          baslik: b.baslik + ' · Ek pratik',
+          aciklama: b.aciklama + ' Bu turda süreyi biraz uzatın.',
+        });
+      }
+      return list.slice(0, 120).map((a, i) => ({ ...a, id: i + 1 }));
+    }
+
+    const ALL = buildActivities();
+    const PAGE = 12;
+    let filtered = ALL.slice();
+    let shown = 0;
+    const grid = document.getElementById('grid');
+    const countEl = document.getElementById('count');
+    const ytObserver = new IntersectionObserver((entries) => {
+      entries.forEach((en) => {
+        if (!en.isIntersecting) return;
+        const el = en.target;
+        ytObserver.unobserve(el);
+        const id = el.getAttribute('data-yt');
+        if (!id) return;
+        const img = new Image();
+        img.alt = '';
+        img.loading = 'lazy';
+        img.src = 'https://i.ytimg.com/vi/' + id + '/hqdefault.jpg';
+        el.appendChild(img);
+        const play = document.createElement('div');
+        play.className = 'play';
+        play.textContent = '▶ Videoyu yükle';
+        el.appendChild(play);
+        el.addEventListener('click', () => {
+          el.innerHTML = '';
+          const iframe = document.createElement('iframe');
+          iframe.src = 'https://www.youtube-nocookie.com/embed/' + id + '?autoplay=1&rel=0';
+          iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+          iframe.allowFullscreen = true;
+          iframe.loading = 'lazy';
+          iframe.title = 'YouTube video';
+          el.appendChild(iframe);
+        }, { once: true });
+      });
+    }, { rootMargin: '200px' });
+
+    function cardHtml(a) {
+      const yt = a.youtube
+        ? '<div class="yt-facade" data-yt="' + a.youtube + '" role="button" tabindex="0" aria-label="Videoyu yükle"></div>'
+        : '';
+      return (
+        '<article class="card" data-id="' + a.id + '">' +
+          '<div class="tags">' +
+            '<span class="chip">' + a.grupAd + '</span>' +
+            '<span class="chip">' + a.yasAd + '</span>' +
+            '<span class="chip">' + a.zorlukAd + '</span>' +
+          '</div>' +
+          '<h2>' + a.baslik + '</h2>' +
+          '<p>' + a.aciklama + '</p>' +
+          '<p class="tip">İpucu: ' + a.ipucu + '</p>' +
+          yt +
+        '</article>'
+      );
+    }
+
+    function applyFilters() {
+      const q = (document.getElementById('q').value || '').trim().toLocaleLowerCase('tr');
+      const yas = document.getElementById('f-yas').value;
+      const grup = document.getElementById('f-grup').value;
+      const zorluk = document.getElementById('f-zorluk').value;
+      filtered = ALL.filter((a) => {
+        if (yas && a.yas !== yas) return false;
+        if (grup && a.grup !== grup) return false;
+        if (zorluk && a.zorluk !== zorluk) return false;
+        if (!q) return true;
+        const hay = (a.baslik + ' ' + a.aciklama + ' ' + a.grupAd + ' ' + a.ipucu).toLocaleLowerCase('tr');
+        return hay.includes(q);
+      });
+      shown = 0;
+      grid.innerHTML = '';
+      countEl.textContent = filtered.length + ' etkinlik';
+      if (!filtered.length) {
+        grid.innerHTML = '<div class="empty">Filtreye uyan etkinlik yok. Arama/filtreleri sıfırlayın.</div>';
+        return;
+      }
+      loadMore();
+    }
+
+    function loadMore() {
+      if (shown >= filtered.length) return;
+      const slice = filtered.slice(shown, shown + PAGE);
+      const wrap = document.createElement('div');
+      wrap.innerHTML = slice.map(cardHtml).join('');
+      [...wrap.children].forEach((node) => {
+        grid.appendChild(node);
+        const yt = node.querySelector('.yt-facade');
+        if (yt) ytObserver.observe(yt);
+      });
+      shown += slice.length;
+    }
+
+    const moreObserver = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) loadMore();
+    }, { rootMargin: '400px' });
+    moreObserver.observe(document.getElementById('sentinel'));
+
+    ['q', 'f-yas', 'f-grup', 'f-zorluk'].forEach((id) => {
+      document.getElementById(id).addEventListener('input', applyFilters);
+      document.getElementById(id).addEventListener('change', applyFilters);
+    });
+
+    /* Header / footer include (statik) */
+    async function inject(sel, url) {
+      const host = document.querySelector(sel);
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('fail');
+        host.innerHTML = await res.text();
+      } catch (_) {
+        if (sel === '#site-header') {
+          host.innerHTML = '<header class="site-header"><a class="brand" href="/">← Engelsiz Club · Bilgi Kütüphanesi</a></header>';
+        } else {
+          host.innerHTML = '<footer class="site-footer"><p>Engelsiz Club</p></footer>';
+        }
+      }
+    }
+
+    async function loadDahaFazlasiMenu() {
+      const menu = document.getElementById('daha-fazlasi-menu');
+      const toggle = document.querySelector('.dropdown-toggle');
+      if (!menu || !toggle) return;
+      let items = [];
+      try {
+        const res = await fetch('/admin/daha_fazlasi_menu.json');
+        if (res.ok) items = await res.json();
+      } catch (_) {}
+      if (!Array.isArray(items) || !items.length) {
+        items = [{ id: 1, isim: 'Gelişim Etkinlikleri', link: '/bilgi-kutuphanesi/gelisim-etkinlikleri.html', aktif: 1 }];
+      }
+      menu.innerHTML = items
+        .filter((x) => Number(x.aktif) === 1)
+        .map((x) => '<li><a href="' + x.link + '">' + x.isim + '</a></li>')
+        .join('');
+      toggle.addEventListener('click', () => {
+        const open = menu.hasAttribute('hidden');
+        if (open) menu.removeAttribute('hidden');
+        else menu.setAttribute('hidden', '');
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    }
+
+    Promise.all([
+      inject('#site-header', 'includes/header.html'),
+      inject('#site-footer', 'includes/footer.html'),
+    ]).then(loadDahaFazlasiMenu);
+
+    applyFilters();
+  </script>
+</body>
+</html>

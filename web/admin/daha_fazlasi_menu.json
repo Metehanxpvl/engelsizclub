@@ -1,0 +1,14 @@
+[
+  {
+    "id": 1,
+    "isim": "Gelişim Etkinlikleri",
+    "link": "/bilgi-kutuphanesi/gelisim-etkinlikleri.html",
+    "aktif": 1
+  },
+  {
+    "id": 2,
+    "isim": "Prematüre Bebek Rehberi",
+    "link": "/bilgi-kutuphanesi/premature-bebek/",
+    "aktif": 1
+  }
+]
