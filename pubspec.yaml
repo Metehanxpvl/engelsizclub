@@ -2,7 +2,7 @@ name: engelsizclub
 description: MetoCare — özel gereksinimli kahramanlarımız için rehber
 publish_to: "none"
 # Play: versionName+versionCode — her AAB yüklemesinde code artır (ör. 1.0.1+2)
-version: 1.0.54+58
+version: 1.0.55+59
 
 environment:
   sdk: ^3.5.0
