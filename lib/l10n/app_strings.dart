@@ -54,7 +54,7 @@ const _tables = <AppLang, Map<String, String>>{
     'more_cvi': 'CVI Görsel Egzersizleri',
     'more_cvi_sub': '20 adımlık yüksek kontrastlı görsel egzersiz',
     'more_cvi_find': 'CVI Objeyi Bul',
-    'more_cvi_find_sub': 'Seviye 1–2 görsel dikkat egzersizi',
+    'more_cvi_find_sub': '3 modül · sakin görsel dikkat oyunu',
     'more_aile_kocu': 'Aile Koçum',
     'more_aile_kocu_sub': 'Ders, ilaç ve not takibi (çevrimdışı)',
     'profile_swipe_close': 'Aşağı kaydırarak kapat',

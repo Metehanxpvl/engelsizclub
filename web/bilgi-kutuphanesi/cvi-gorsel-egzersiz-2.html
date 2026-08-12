@@ -3,325 +3,466 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>CVI Görsel Egzersizleri - 2 | Objeyi Bul | Engelsiz Club</title>
-  <meta name="description" content="CVI'lı çocuklar için Objeyi Bul görsel dikkat egzersizi. Sade zemin, yüksek kontrast." />
+  <title>CVI Görsel Egzersizleri - 2 | Engelsiz Club</title>
+  <meta name="description" content="CVI görsel dikkat oyunu: tek obje, doğruyu bul ve zorluk seviyeleri. Engelsiz Club." />
   <meta name="robots" content="index,follow" />
   <link rel="canonical" href="https://engelsizclub.com/bilgi-kutuphanesi/cvi-gorsel-egzersiz-2.html" />
   <style>
     :root {
-      --fg: #111;
-      --bg-page: #f4f6f5;
-      --card: #fff;
       --accent: #1a6b4a;
-      --btn: #1a6b4a;
-      --btn2: #0f5132;
-      --warn-bg: #fef3c7;
-      --warn-border: #f59e0b;
-      --play-bg: #000;
-      --muted: #555;
+      --page: #f3f6f4;
+      --fg: #122018;
+      --muted: #5a6f64;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg-page);
+      background: var(--page);
       color: var(--fg);
-      line-height: 1.55;
+      line-height: 1.5;
     }
-    main {
-      max-width: 720px;
-      margin: 0 auto;
-      padding: 20px 16px 48px;
+    main { max-width: 760px; margin: 0 auto; padding: 18px 14px 48px; }
+    h1 { font-size: clamp(1.35rem, 4.5vw, 1.85rem); margin: 0 0 8px; line-height: 1.25; }
+    .intro { color: var(--muted); margin: 0 0 16px; }
+    .back { color: var(--accent); font-weight: 700; text-decoration: none; display: inline-block; margin-bottom: 12px; }
+
+    .mods {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
     }
-    h1 {
-      font-size: clamp(1.35rem, 4.5vw, 1.85rem);
-      margin: 0 0 10px;
-      line-height: 1.25;
+    @media (min-width: 560px) {
+      .mods { grid-template-columns: repeat(3, 1fr); }
     }
-    .intro { color: var(--muted); margin: 0 0 18px; }
+    .mod-btn {
+      min-height: 58px;
+      border: 0;
+      border-radius: 14px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 1.05rem;
+      font-weight: 800;
+      cursor: pointer;
+      padding: 12px 10px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mod-btn.active { outline: 3px solid #86efac; outline-offset: 2px; }
+    .mod-btn:active { transform: scale(0.98); }
+
     .toolbar {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
-      margin-bottom: 14px;
-    }
-    button.level {
-      flex: 1 1 140px;
-      min-height: 56px;
-      font-size: 1.1rem;
-      font-weight: 800;
-      border: 0;
-      border-radius: 14px;
-      background: var(--btn);
-      color: #fff;
-      cursor: pointer;
-      padding: 14px 18px;
-      -webkit-tap-highlight-color: transparent;
-    }
-    button.level:active { transform: scale(0.98); }
-    button.level.active { outline: 3px solid #86efac; outline-offset: 2px; }
-    button.ghost {
+      margin-bottom: 12px;
       min-height: 48px;
-      font-size: 0.95rem;
-      font-weight: 700;
-      border: 2px solid var(--accent);
+    }
+    .action {
+      flex: 1 1 140px;
+      min-height: 52px;
+      border: 0;
       border-radius: 12px;
+      background: #0f5132;
+      color: #fff;
+      font-size: 1.05rem;
+      font-weight: 800;
+      cursor: pointer;
+      padding: 12px 14px;
+    }
+    .action.secondary {
       background: #fff;
       color: var(--accent);
-      cursor: pointer;
-      padding: 10px 14px;
+      border: 2px solid var(--accent);
     }
-    #oyun-alani {
+    .action:disabled { opacity: 0.45; cursor: default; }
+
+    #oyun {
       position: relative;
       width: 100%;
-      min-height: min(62vh, 520px);
-      background: var(--play-bg);
+      min-height: min(58vh, 480px);
       border-radius: 18px;
       overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
+      background: #000;
       touch-action: manipulation;
       user-select: none;
     }
-    #oyun-alani.bg-white { background: #fff; }
+    #oyun.bg-white { background: #fff; }
+    #oyun.bg-stripes {
+      background: repeating-linear-gradient(
+        90deg,
+        #111 0 18px,
+        #333 18px 36px
+      );
+    }
+
     .prompt {
       position: absolute;
-      top: 12px;
-      left: 12px;
-      right: 12px;
+      top: 12px; left: 12px; right: 12px;
+      z-index: 3;
       text-align: center;
       font-weight: 800;
-      font-size: clamp(1rem, 3.8vw, 1.25rem);
+      font-size: clamp(1.05rem, 4vw, 1.35rem);
       color: #fff;
-      text-shadow: 0 1px 4px rgba(0,0,0,.7);
+      text-shadow: 0 1px 3px rgba(0,0,0,.65);
       pointer-events: none;
-      z-index: 2;
     }
-    #oyun-alani.bg-white .prompt {
-      color: #111;
-      text-shadow: none;
-    }
-    .slot {
+    #oyun.bg-white .prompt { color: #111; text-shadow: none; }
+
+    .hint {
       position: absolute;
-      width: min(42vw, 180px);
-      height: min(42vw, 180px);
+      bottom: 12px; left: 12px; right: 12px;
+      z-index: 3;
+      text-align: center;
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #cfd8d3;
+      pointer-events: none;
+    }
+    #oyun.bg-white .hint { color: var(--muted); }
+
+    .stage {
+      width: 100%;
+      height: 100%;
+      min-height: min(58vh, 480px);
       display: flex;
       align-items: center;
       justify-content: center;
-      cursor: pointer;
+      gap: clamp(8px, 3vw, 20px);
+      padding: 56px 10px 48px;
+      position: relative;
+    }
+
+    .obj {
       border: 0;
       background: transparent;
       padding: 0;
+      cursor: pointer;
+      width: min(34vw, 150px);
+      height: min(34vw, 150px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
       -webkit-tap-highlight-color: transparent;
     }
-    .slot img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      pointer-events: none;
-      filter: drop-shadow(0 4px 8px rgba(0,0,0,.35));
+    .obj.big {
+      width: min(62vw, 260px);
+      height: min(62vw, 260px);
     }
-    .slot.big {
-      width: min(58vw, 240px);
-      height: min(58vw, 240px);
+    .obj .shape {
+      width: 78%;
+      height: 78%;
+      border-radius: 50%;
+      box-shadow: 0 6px 16px rgba(0,0,0,.35);
       position: relative;
+      overflow: hidden;
     }
-    .feedback {
-      position: absolute;
-      bottom: 14px;
-      left: 12px;
-      right: 12px;
-      text-align: center;
+    .obj .label {
+      font-size: 0.78rem;
       font-weight: 800;
-      font-size: 1.15rem;
-      color: #86efac;
-      min-height: 1.4em;
-      z-index: 2;
-      pointer-events: none;
-    }
-    #oyun-alani.bg-white .feedback { color: var(--accent); }
-    .placeholder {
-      color: #aaa;
-      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,.7);
       text-align: center;
-      padding: 24px;
-      font-size: 1.05rem;
+      max-width: 100%;
     }
-    #oyun-alani.bg-white .placeholder { color: #666; }
-    .warn {
-      background: var(--warn-bg);
-      padding: 15px;
-      border-left: 4px solid var(--warn-border);
-      margin-top: 30px;
-      border-radius: 0 12px 12px 0;
-      color: #44403c;
+    #oyun.bg-white .obj .label { color: #222; text-shadow: none; }
+
+    /* Placeholder şekiller (PNG gelince img ile değiştirilir) */
+    .shape.top { background: #F5C518; }
+    .shape.itfaiye {
+      background: #E53935;
+      border-radius: 18% 18% 22% 22%;
     }
-    .foot {
-      margin-top: 16px;
-      color: var(--muted);
+    .shape.itfaiye::before {
+      content: "";
+      position: absolute;
+      left: 18%; right: 18%; top: 10%;
+      height: 22%;
+      background: #B71C1C;
+      border-radius: 6px;
     }
-    .back {
-      display: inline-block;
-      margin-bottom: 14px;
-      color: var(--accent);
-      font-weight: 700;
-      text-decoration: none;
+    .shape.elma { background: #43A047; border-radius: 48% 48% 50% 50%; }
+    .shape.balina {
+      background: #1E88E5;
+      border-radius: 55% 45% 50% 50%;
+      transform: scaleX(1.15);
     }
+    .shape.ayicik { background: #FB8C00; border-radius: 42%; }
+    .shape.balon {
+      background: #8E24AA;
+      border-radius: 50% 50% 48% 48%;
+    }
+    .shape.balon::after {
+      content: "";
+      position: absolute;
+      left: 48%; bottom: -8%;
+      width: 3px; height: 18%;
+      background: #555;
+    }
+    .shape.cicek { background: #EC407A; border-radius: 40%; }
+    .shape.kopek { background: #6D4C41; border-radius: 40% 40% 35% 35%; }
+
+    .clap {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+      pointer-events: none;
+      background: rgba(0,0,0,.25);
+      font-size: clamp(2.5rem, 12vw, 4.5rem);
+      animation: pop .7s ease;
+    }
+    .clap.show { display: flex; }
+    @keyframes pop {
+      0% { transform: scale(.4); opacity: 0; }
+      40% { transform: scale(1.15); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .foot-note { margin-top: 14px; color: var(--muted); font-size: 0.9rem; }
   </style>
 </head>
 <body>
   <main>
     <a class="back" href="/">← Engelsiz Club</a>
     <h1>CVI Görsel Egzersizleri - 2</h1>
-    <p class="intro">CVI'lı çocuklar için görsel dikkat egzersizi. Sade zemin, tek obje ile başlayın.</p>
+    <p class="intro">
+      Görsel dikkat için sakin bir oyun. Objeler ekranda kalır; anne/baba birlikte gösterir.
+      Acele yok, süre yok.
+    </p>
 
-    <div class="toolbar">
-      <button type="button" class="level" id="btn-l1" onclick="startLevel(1)">Seviye 1</button>
-      <button type="button" class="level" id="btn-l2" onclick="startLevel(2)">Seviye 2</button>
-      <button type="button" class="ghost" id="btn-bg" onclick="toggleBg()">Zemin: Siyah</button>
+    <div class="mods" role="tablist">
+      <button type="button" class="mod-btn active" id="m1" onclick="setModule(1)">Modül 1 · Tek Obje</button>
+      <button type="button" class="mod-btn" id="m2" onclick="setModule(2)">Modül 2 · Doğruyu Bul</button>
+      <button type="button" class="mod-btn" id="m3" onclick="setModule(3)">Modül 3 · Zorluk</button>
     </div>
 
-    <div id="oyun-alani" aria-live="polite">
-      <p class="placeholder">Başlamak için Seviye 1 veya Seviye 2’ye dokunun.</p>
+    <div class="toolbar" id="toolbar"></div>
+    <div id="oyun" aria-live="polite">
+      <div class="prompt" id="prompt"></div>
+      <div class="stage" id="stage"></div>
+      <div class="hint" id="hint">Modül seçin veya butonlara dokunun.</div>
+      <div class="clap" id="clap" aria-hidden="true">👏</div>
     </div>
 
     <div style="background:#fef3c7; padding:15px; border-left:4px solid #f59e0b; margin-top:30px">
-      <b>Önemli Tıbbi Uyarı:</b> Bu etkinlik bilgilendirme amaçlıdır. CVI tanısı ve tedavisi sadece doktor ve görme rehabilitasyon uzmanı tarafından konulur.
-      Bu egzersizler tıbbi tedavi yerine geçmez. Çocuğunuzun durumuna uygun olup olmadığını mutlaka doktorunuza danışın.
+      <b>Önemli Tıbbi Uyarı:</b> Bu etkinlikler bilgilendirme amaçlıdır. CVI tanısı ve tedavisi sadece doktor tarafından yapılır.
+      Bu egzersizler tıbbi tedavi yerine geçmez. Uygulamadan önce doktorunuza danışın.
       Engelsiz Club içeriklerden doğabilecek sonuçlardan sorumlu değildir.
     </div>
-
-    <p class="foot"><small>Bu etkinlik CVI görsel erişim prensiplerine göre Engelsiz Club tarafından hazırlanmıştır.</small></p>
+    <p class="foot-note"><small>Bu etkinlik CVI görsel erişim prensiplerine göre Engelsiz Club tarafından hazırlanmıştır. Objeler orijinal çizim placeholder’larıdır; PNG’ler <code>/img/cvi/</code> altına eklenebilir.</small></p>
   </main>
 
   <script>
-    // Orijinal SVG varlıklar — telifli site yok
-    const ASSETS = {
-      'top-sari': { src: 'img/cvi/top-sari.svg', label: 'Sarı top' },
-      'top-kirmizi': { src: 'img/cvi/top-kirmizi.svg', label: 'Kırmızı top' },
-      'top-yesil': { src: 'img/cvi/top-yesil.svg', label: 'Yeşil top' },
-      'araba-kirmizi': { src: 'img/cvi/araba-kirmizi.svg', label: 'Kırmızı araba' },
-      'araba-sari': { src: 'img/cvi/araba-sari.svg', label: 'Sarı araba' },
-      'elma-yesil': { src: 'img/cvi/elma-yesil.svg', label: 'Yeşil elma' },
-      'elma-kirmizi': { src: 'img/cvi/elma-kirmizi.svg', label: 'Kırmızı elma' },
-    };
-
-    const L1_POOL = ['top-sari', 'araba-kirmizi', 'elma-yesil'];
-    const L2_SETS = [
-      { target: 'top-sari', distractors: ['top-kirmizi', 'top-yesil'] },
-      { target: 'top-kirmizi', distractors: ['top-sari', 'top-yesil'] },
-      { target: 'araba-sari', distractors: ['araba-kirmizi', 'top-yesil'] },
-      { target: 'elma-kirmizi', distractors: ['elma-yesil', 'top-sari'] },
-      { target: 'elma-yesil', distractors: ['elma-kirmizi', 'top-kirmizi'] },
+    // 8 obje — referans sitelerdeki setlerden farklı; orijinal isimler/renkler
+    const OBJECTS = [
+      { id: 'top', name: 'Sarı top', shape: 'top', img: 'img/cvi/top-sari.png' },
+      { id: 'itfaiye', name: 'Kırmızı itfaiye arabası', shape: 'itfaiye', img: 'img/cvi/itfaiye-kirmizi.png' },
+      { id: 'elma', name: 'Yeşil elma', shape: 'elma', img: 'img/cvi/elma-yesil.png' },
+      { id: 'balina', name: 'Mavi balina', shape: 'balina', img: 'img/cvi/balina-mavi.png' },
+      { id: 'ayicik', name: 'Turuncu ayıcık', shape: 'ayicik', img: 'img/cvi/ayicik-turuncu.png' },
+      { id: 'balon', name: 'Mor balon', shape: 'balon', img: 'img/cvi/balon-mor.png' },
+      { id: 'cicek', name: 'Pembe çiçek', shape: 'cicek', img: 'img/cvi/cicek-pembe.png' },
+      { id: 'kopek', name: 'Kahverengi köpek', shape: 'kopek', img: 'img/cvi/kopek-kahve.png' },
     ];
 
-    let darkBg = true;
-    let targetKey = null;
+    let module = 1;
+    let idx = 0;
+    let hardLevel = 1;
+    let targetId = null;
     let locked = false;
 
-    const area = document.getElementById('oyun-alani');
-    const btnBg = document.getElementById('btn-bg');
+    const oyun = document.getElementById('oyun');
+    const stage = document.getElementById('stage');
+    const promptEl = document.getElementById('prompt');
+    const hintEl = document.getElementById('hint');
+    const toolbar = document.getElementById('toolbar');
+    const clap = document.getElementById('clap');
 
-    function toggleBg() {
-      darkBg = !darkBg;
-      area.classList.toggle('bg-white', !darkBg);
-      btnBg.textContent = darkBg ? 'Zemin: Siyah' : 'Zemin: Beyaz';
+    function shuffle(a) {
+      const x = a.slice();
+      for (let i = x.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [x[i], x[j]] = [x[j], x[i]];
+      }
+      return x;
     }
 
-    function setActiveLevel(level) {
-      document.getElementById('btn-l1').classList.toggle('active', level === 1);
-      document.getElementById('btn-l2').classList.toggle('active', level === 2);
+    function setBg(mode) {
+      oyun.classList.remove('bg-white', 'bg-stripes');
+      if (mode === 'white') oyun.classList.add('bg-white');
+      if (mode === 'stripes') oyun.classList.add('bg-stripes');
     }
 
-    function clearArea() {
-      area.innerHTML = '';
-      locked = false;
-    }
-
-    function addPrompt(text) {
-      const p = document.createElement('div');
-      p.className = 'prompt';
-      p.textContent = text;
-      area.appendChild(p);
-    }
-
-    function addFeedback() {
-      const f = document.createElement('div');
-      f.className = 'feedback';
-      f.id = 'feedback';
-      area.appendChild(f);
-      return f;
-    }
-
-    function makeSlot(key, isTarget, className, style) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'slot ' + (className || '');
-      btn.setAttribute('aria-label', ASSETS[key].label);
-      if (style) Object.assign(btn.style, style);
+    function makeObj(item, { big = false, clickable = false } = {}) {
+      const btn = document.createElement(clickable ? 'button' : 'div');
+      if (clickable) btn.type = 'button';
+      btn.className = 'obj' + (big ? ' big' : '');
+      btn.setAttribute('aria-label', item.name);
+      const shape = document.createElement('div');
+      shape.className = 'shape ' + item.shape;
+      // PNG varsa dene; yoksa renkli placeholder kalır
       const img = document.createElement('img');
-      img.src = ASSETS[key].src;
-      img.alt = ASSETS[key].label;
-      btn.appendChild(img);
-      btn.addEventListener('click', () => onPick(isTarget));
+      img.alt = item.name;
+      img.src = item.img;
+      img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:none';
+      img.onload = () => {
+        img.style.display = 'block';
+        shape.style.background = 'transparent';
+        shape.style.boxShadow = 'none';
+      };
+      img.onerror = () => img.remove();
+      shape.appendChild(img);
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = item.name;
+      btn.appendChild(shape);
+      btn.appendChild(label);
+      if (clickable) {
+        btn.addEventListener('click', () => onPick(item.id));
+      }
       return btn;
     }
 
-    function onPick(isTarget) {
-      if (locked) return;
-      const fb = document.getElementById('feedback');
-      if (!fb) return;
-      if (isTarget) {
-        fb.textContent = 'Harika! Doğru obje.';
+    function showClap() {
+      clap.classList.add('show');
+      setTimeout(() => clap.classList.remove('show'), 900);
+    }
+
+    function onPick(id) {
+      if (locked || !targetId) return;
+      if (id === targetId) {
         locked = true;
+        hintEl.textContent = 'Harika! Doğru obje.';
+        showClap();
         setTimeout(() => {
-          const lvl = document.getElementById('btn-l2').classList.contains('active') ? 2 : 1;
-          startLevel(lvl);
-        }, 900);
+          locked = false;
+          if (module === 2) renderModule2();
+          else if (module === 3 && hardLevel === 3) renderModule3();
+        }, 1000);
       } else {
-        fb.textContent = 'Tekrar dene.';
+        hintEl.textContent = 'Birlikte tekrar bakalım — acele yok.';
       }
     }
 
-    function shuffle(arr) {
-      const a = arr.slice();
-      for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
+    function renderToolbar() {
+      toolbar.innerHTML = '';
+      if (module === 1) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'action';
+        b.textContent = 'Yeni Obje';
+        b.onclick = () => {
+          idx = (idx + 1) % OBJECTS.length;
+          renderModule1();
+        };
+        toolbar.appendChild(b);
+      } else if (module === 2) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'action';
+        b.textContent = 'Yeni Soru';
+        b.onclick = () => renderModule2();
+        toolbar.appendChild(b);
+      } else {
+        [1, 2, 3].forEach((lv) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'action' + (hardLevel === lv ? '' : ' secondary');
+          b.textContent = 'Seviye ' + lv;
+          b.onclick = () => {
+            hardLevel = lv;
+            renderToolbar();
+            renderModule3();
+          };
+          toolbar.appendChild(b);
+        });
       }
-      return a;
     }
 
-    function startLevel(level) {
-      setActiveLevel(level);
-      clearArea();
-
-      if (level === 1) {
-        const key = L1_POOL[Math.floor(Math.random() * L1_POOL.length)];
-        targetKey = key;
-        addPrompt(ASSETS[key].label + ' — dokun');
-        const slot = makeSlot(key, true, 'big');
-        area.appendChild(slot);
-        addFeedback();
-        return;
-      }
-
-      // Seviye 2: 3 obje, hedef farklı renkte
-      const set = L2_SETS[Math.floor(Math.random() * L2_SETS.length)];
-      targetKey = set.target;
-      const keys = shuffle([set.target, ...set.distractors]);
-      addPrompt(ASSETS[set.target].label + ' bul');
-      const positions = [
-        { left: '8%', top: '28%' },
-        { left: '50%', top: '28%', transform: 'translateX(-50%)' },
-        { right: '8%', top: '28%' },
-      ];
-      keys.forEach((key, i) => {
-        area.appendChild(makeSlot(key, key === set.target, '', positions[i]));
-      });
-      addFeedback();
+    function renderModule1() {
+      setBg('black');
+      const item = OBJECTS[idx];
+      targetId = null;
+      promptEl.textContent = item.name;
+      hintEl.textContent = 'Ekranda dursun. Anne/baba objeyi göstersin. Acele yok.';
+      stage.innerHTML = '';
+      stage.appendChild(makeObj(item, { big: true, clickable: false }));
     }
+
+    function renderModule2() {
+      setBg('white');
+      locked = false;
+      const target = OBJECTS[Math.floor(Math.random() * OBJECTS.length)];
+      targetId = target.id;
+      const others = shuffle(OBJECTS.filter((o) => o.id !== target.id)).slice(0, 2);
+      const trio = shuffle([target, ...others]);
+      promptEl.textContent = hedefCumlesi(target.name);
+      hintEl.textContent = 'Üç obje ekranda kalır. Doğru olana birlikte dokunun.';
+      stage.innerHTML = '';
+      trio.forEach((o) => stage.appendChild(makeObj(o, { clickable: true })));
+    }
+
+    function hedefCumlesi(name) {
+      const map = {
+        'Sarı top': 'Sarı topu göster',
+        'Kırmızı itfaiye arabası': 'Kırmızı itfaiye arabasını göster',
+        'Yeşil elma': 'Yeşil elmayı göster',
+        'Mavi balina': 'Mavi balinayı göster',
+        'Turuncu ayıcık': 'Turuncu ayıcığı göster',
+        'Mor balon': 'Mor balonu göster',
+        'Pembe çiçek': 'Pembe çiçeği göster',
+        'Kahverengi köpek': 'Kahverengi köpeği göster',
+      };
+      return map[name] || (name + ' göster');
+    }
+
+    function renderModule3() {
+      locked = false;
+      const item = OBJECTS[idx % OBJECTS.length];
+      stage.innerHTML = '';
+      if (hardLevel === 1) {
+        setBg('black');
+        targetId = null;
+        promptEl.textContent = item.name;
+        hintEl.textContent = 'Seviye 1: Siyah zemin, tek obje. Birlikte bakın.';
+        stage.appendChild(makeObj(item, { big: true, clickable: false }));
+      } else if (hardLevel === 2) {
+        setBg('stripes');
+        targetId = null;
+        promptEl.textContent = item.name;
+        hintEl.textContent = 'Seviye 2: Çizgili zemin. Obje hâlâ ekranda; stres yok.';
+        stage.appendChild(makeObj(item, { big: true, clickable: false }));
+      } else {
+        setBg('white');
+        targetId = item.id;
+        const others = shuffle(OBJECTS.filter((o) => o.id !== item.id)).slice(0, 2);
+        const trio = shuffle([item, ...others]);
+        promptEl.textContent = hedefCumlesi(item.name);
+        hintEl.textContent = 'Seviye 3: Üç obje içinde hedefi bulun.';
+        trio.forEach((o) => stage.appendChild(makeObj(o, { clickable: true })));
+      }
+    }
+
+    function setModule(n) {
+      module = n;
+      document.getElementById('m1').classList.toggle('active', n === 1);
+      document.getElementById('m2').classList.toggle('active', n === 2);
+      document.getElementById('m3').classList.toggle('active', n === 3);
+      renderToolbar();
+      if (n === 1) renderModule1();
+      if (n === 2) renderModule2();
+      if (n === 3) renderModule3();
+    }
+
+    setModule(1);
   </script>
 </body>
 </html>
