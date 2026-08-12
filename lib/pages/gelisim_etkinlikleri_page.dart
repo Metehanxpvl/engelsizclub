@@ -5,7 +5,9 @@ import '../admin_config.dart';
 import '../data/gelisim_etkinlik_data.dart';
 import '../gelisim_etkinlik_store.dart';
 import '../info_library/widgets/info_youtube_player.dart';
+import '../medical_disclaimer_store.dart';
 import '../meto_theme.dart';
+import '../widgets/medical_info_card.dart';
 
 /// Bilgi kütüphanesi tarzı: başlık → YouTube → kaynak → açıklama.
 /// Admin: ekle / düzenle / sil / aktif-pasif.
@@ -20,8 +22,48 @@ class GelisimEtkinlikleriPage extends StatefulWidget {
   static Future<void> open(
     BuildContext context, {
     required String adminEmail,
-  }) {
-    return Navigator.of(context).push(
+  }) async {
+    final gone = await isInfoCardDismissed(kDismissGelisimEtkinlikDisclaimer);
+    if (!gone && context.mounted) {
+      final ok = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: Text(
+            'Sorumluluk Beyanı',
+            style: GoogleFonts.nunito(fontWeight: FontWeight.w900),
+          ),
+          content: Text(
+            'Bu etkinlikler ve videolar yalnızca bilgilendirme / gelişim '
+            'desteği amaçlıdır; tıbbi teşhis veya tedavi yerine geçmez.\n\n'
+            'Çocuğunuzun özel durumu için mutlaka hekim, fizyoterapist veya '
+            'ilgili uzmana danışın. Uygulama klinik hizmet sunmaz.',
+            style: GoogleFonts.nunito(fontSize: 14, height: 1.45),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç'),
+            ),
+            TextButton(
+              onPressed: () async {
+                await dismissInfoCard(kDismissGelisimEtkinlikDisclaimer);
+                if (ctx.mounted) Navigator.pop(ctx, true);
+              },
+              child: const Text('Bir daha gösterme'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(backgroundColor: MetoColors.primary),
+              child: const Text('Anladım'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !context.mounted) return;
+    }
+    if (!context.mounted) return;
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => GelisimEtkinlikleriPage(adminEmail: adminEmail),
       ),
@@ -183,6 +225,16 @@ class _GelisimEtkinlikleriPageState extends State<GelisimEtkinlikleriPage> {
                     ),
                     isDense: true,
                   ),
+                ),
+                const SizedBox(height: 10),
+                const MedicalInfoCard(
+                  title: 'Sorumluluk beyanı',
+                  body:
+                      'Bu etkinlikler bilgilendirme amaçlıdır; tıbbi teşhis veya '
+                      'tedavi yerine geçmez. Kararları uzmanınızla birlikte alın.',
+                  icon: Icons.health_and_safety_outlined,
+                  dismissKey: kDismissGelisimEtkinlikDisclaimer,
+                  dismissLabel: 'Bir daha gösterme',
                 ),
                 const SizedBox(height: 8),
                 Row(

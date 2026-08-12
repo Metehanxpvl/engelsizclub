@@ -8,6 +8,8 @@ const kDismissPubmedInfo = 'info_dismiss_pubmed_v1';
 const kDismissLibraryInfo = 'info_dismiss_library_v1';
 /// Bilgi kütüphanesi video listesi sayfası uyarısı.
 const kDismissInfoVideosDisclaimer = 'info_dismiss_info_videos_v1';
+/// Gelişim Etkinlikleri sorumluluk beyanı popup.
+const kDismissGelisimEtkinlikDisclaimer = 'info_dismiss_gelisim_etkinlik_v1';
 
 Future<bool> isMedicalWelcomeAccepted() async {
   final prefs = await SharedPreferences.getInstance();
