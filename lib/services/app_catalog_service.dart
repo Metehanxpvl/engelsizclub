@@ -294,6 +294,86 @@ class AppCatalogService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> replaceRightRow(Map<String, dynamic> row) async {
+    final id = row['id']?.toString() ?? '';
+    if (id.isEmpty) return;
+    final active = row['active'] != false;
+    final list = List<Map<String, dynamic>>.from(
+      _lists[CatalogPack.rights] ?? const [],
+    );
+    final i = list.indexWhere((e) => e['id']?.toString() == id);
+    if (!active) {
+      if (i >= 0) list.removeAt(i);
+    } else if (i >= 0) {
+      list[i] = row;
+    } else {
+      list.add(row);
+    }
+    list.sort(
+      (a, b) => ((a['sort_order'] as num?)?.toInt() ?? 0)
+          .compareTo((b['sort_order'] as num?)?.toInt() ?? 0),
+    );
+    _lists[CatalogPack.rights] = list;
+    _localVersions[CatalogPack.rights] =
+        (_localVersions[CatalogPack.rights] ?? 0) + 1;
+    _fetchedAt[CatalogPack.rights] = DateTime.now();
+    await _persistPack(CatalogPack.rights);
+    notifyListeners();
+  }
+
+  Future<void> removeRightRow(String id) async {
+    final list = List<Map<String, dynamic>>.from(
+      _lists[CatalogPack.rights] ?? const [],
+    );
+    list.removeWhere((e) => e['id']?.toString() == id);
+    _lists[CatalogPack.rights] = list;
+    _localVersions[CatalogPack.rights] =
+        (_localVersions[CatalogPack.rights] ?? 0) + 1;
+    _fetchedAt[CatalogPack.rights] = DateTime.now();
+    await _persistPack(CatalogPack.rights);
+    notifyListeners();
+  }
+
+  Future<void> replaceCategoryRow(Map<String, dynamic> row) async {
+    final id = row['id']?.toString() ?? '';
+    if (id.isEmpty) return;
+    final active = row['active'] != false;
+    final list = List<Map<String, dynamic>>.from(
+      _lists[CatalogPack.categories] ?? const [],
+    );
+    final i = list.indexWhere((e) => e['id']?.toString() == id);
+    if (!active) {
+      if (i >= 0) list.removeAt(i);
+    } else if (i >= 0) {
+      list[i] = row;
+    } else {
+      list.add(row);
+    }
+    list.sort(
+      (a, b) => ((a['sort_order'] as num?)?.toInt() ?? 0)
+          .compareTo((b['sort_order'] as num?)?.toInt() ?? 0),
+    );
+    _lists[CatalogPack.categories] = list;
+    _localVersions[CatalogPack.categories] =
+        (_localVersions[CatalogPack.categories] ?? 0) + 1;
+    _fetchedAt[CatalogPack.categories] = DateTime.now();
+    await _persistPack(CatalogPack.categories);
+    notifyListeners();
+  }
+
+  Future<void> removeCategoryRow(String id) async {
+    final list = List<Map<String, dynamic>>.from(
+      _lists[CatalogPack.categories] ?? const [],
+    );
+    list.removeWhere((e) => e['id']?.toString() == id);
+    _lists[CatalogPack.categories] = list;
+    _localVersions[CatalogPack.categories] =
+        (_localVersions[CatalogPack.categories] ?? 0) + 1;
+    _fetchedAt[CatalogPack.categories] = DateTime.now();
+    await _persistPack(CatalogPack.categories);
+    notifyListeners();
+  }
+
   /// Cache'i temizle (debug / zorla yenile).
   Future<void> clearCache() async {
     final prefs = await SharedPreferences.getInstance();

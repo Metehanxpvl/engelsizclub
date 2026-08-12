@@ -2175,7 +2175,7 @@ class _MainShellState extends State<MainShell> {
           openCommentId: _openForumCommentId,
           openPostToken: _openForumToken,
         ),
-        const HaklarPage(),
+        HaklarPage(adminEmail: widget.user.email),
         const KartlarPage(),
       ],
     );

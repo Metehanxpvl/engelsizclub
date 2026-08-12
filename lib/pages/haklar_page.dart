@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 
+import '../admin_config.dart';
 import '../data/rights_data.dart';
 import '../meto_theme.dart';
+import '../rights_catalog_store.dart';
 import '../services/app_catalog_service.dart';
 import '../services/catalog_adapters.dart';
 import '../l10n/l10n_text.dart';
+import '../widgets/admin_right_edit_sheet.dart';
+import '../widgets/admin_rights_manage_sheet.dart';
 
 /// Figma Make `HaklarTab` + `RightsSihirbazi` — Flutter portu.
 class HaklarPage extends StatefulWidget {
-  const HaklarPage({super.key});
+  const HaklarPage({super.key, this.adminEmail});
+
+  final String? adminEmail;
 
   @override
   State<HaklarPage> createState() => _HaklarPageState();
@@ -19,6 +25,8 @@ class _HaklarPageState extends State<HaklarPage> {
   String _activeCategory = 'tümü';
   String? _expandedId;
 
+  bool get _isAdmin => isAppAdmin(widget.adminEmail);
+
   List<RightItem> get _allRights => CatalogAdapters.rightsItems();
 
   List<RightItem> get _filtered => _activeCategory == 'tümü'
@@ -26,6 +34,31 @@ class _HaklarPageState extends State<HaklarPage> {
       : _allRights.where((r) => r.category == _activeCategory).toList();
 
   List<RightsCategory> get _categories => CatalogAdapters.rightsCategories();
+
+  Future<void> _openManage() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const AdminRightsManageSheet(),
+    );
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _editRight(RightItem? item, {bool isNew = false}) async {
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AdminRightEditSheet(
+        item: item ?? emptyRightItem(
+          category: _activeCategory == 'tümü' ? 'maddi' : _activeCategory,
+        ),
+        isNew: isNew || item == null,
+      ),
+    );
+    if (ok == true && mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,24 +71,46 @@ class _HaklarPageState extends State<HaklarPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 24, 16, 12),
-                child: Column(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 24, 8, 12),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    L10nText(
-                      'Devlet Destekleri',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: MetoColors.foreground,
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          L10nText(
+                            'Devlet Destekleri',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: MetoColors.foreground,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          L10nText(
+                            'Yasal haklar, maaşlar ve başvuru rehberleri',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: MetoColors.mutedFg,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    SizedBox(height: 2),
-                    L10nText(
-                      'Yasal haklar, maaşlar ve başvuru rehberleri',
-                      style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
-                    ),
+                    if (_isAdmin) ...[
+                      IconButton(
+                        tooltip: 'Yönet',
+                        onPressed: _openManage,
+                        icon: const Icon(Icons.settings_outlined),
+                      ),
+                      IconButton(
+                        tooltip: 'Yeni hak',
+                        onPressed: () => _editRight(null, isNew: true),
+                        icon: const Icon(Icons.add_circle_outline),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -124,6 +179,7 @@ class _HaklarPageState extends State<HaklarPage> {
                       onTap: () => setState(() {
                         _expandedId = _expandedId == r.id ? null : r.id;
                       }),
+                      onEdit: _isAdmin ? () => _editRight(r) : null,
                     );
                   },
                 ),
@@ -242,11 +298,13 @@ class _RightCard extends StatelessWidget {
     required this.item,
     required this.expanded,
     required this.onTap,
+    this.onEdit,
   });
 
   final RightItem item;
   final bool expanded;
   final VoidCallback onTap;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -301,6 +359,13 @@ class _RightCard extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (onEdit != null)
+                    IconButton(
+                      tooltip: 'Düzenle',
+                      onPressed: onEdit,
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      visualDensity: VisualDensity.compact,
+                    ),
                   Icon(
                     expanded ? Icons.expand_less : Icons.expand_more,
                     size: 16,
