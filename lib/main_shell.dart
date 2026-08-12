@@ -534,27 +534,29 @@ class _MainShellState extends State<MainShell> {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: MetoColors.card,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
+        final maxH = MediaQuery.sizeOf(ctx).height * 0.88;
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxH),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   width: 40,
                   height: 4,
-                  margin: const EdgeInsets.only(bottom: 12),
+                  margin: const EdgeInsets.only(top: 8, bottom: 12),
                   decoration: BoxDecoration(
                     color: MetoColors.border,
                     borderRadius: BorderRadius.circular(99),
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
@@ -567,158 +569,171 @@ class _MainShellState extends State<MainShell> {
                     ),
                   ),
                 ),
-                ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: MetoColors.primary.withValues(alpha: 0.12),
-                    child: const Icon(
-                      Icons.balance_outlined,
-                      color: MetoColors.primary,
-                    ),
-                  ),
-                  title: Text(
-                    S.t('more_rights'),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: Text(
-                    S.t('more_rights_sub'),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _goToTab(MetoTab.haklar);
-                  },
-                ),
-                ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: MetoColors.primary.withValues(alpha: 0.12),
-                    child: const Icon(
-                      Icons.grid_view_outlined,
-                      color: MetoColors.primary,
-                    ),
-                  ),
-                  title: Text(
-                    S.t('more_cards'),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: Text(
-                    S.t('more_cards_sub'),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _goToTab(MetoTab.kartlar);
-                  },
-                ),
-                ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: MetoColors.primary.withValues(alpha: 0.12),
-                    child: const Icon(
-                      Icons.search,
-                      color: MetoColors.primary,
-                    ),
-                  ),
-                  title: Text(
-                    S.t('more_mchat'),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: Text(
-                    S.t('more_mchat_sub'),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    unawaited(
-                      openMchatFlow(
-                        context,
-                        isGuest: _isGuest,
-                        onRequireLogin: () => _requireLogin(
-                          'Otizm tarama için giriş yapmanız veya üye olmanız gerekiyor.',
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+                    children: [
+                      ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: const Color(0xFFE8F5E9),
+                          child: Icon(
+                            Icons.family_restroom,
+                            color: Colors.green.shade700,
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: MetoColors.primary.withValues(alpha: 0.12),
-                    child: SvgPicture.asset(
-                      'assets/cvi/eye_icon.svg',
-                      width: 22,
-                      height: 22,
-                    ),
-                  ),
-                  title: Text(
-                    S.t('more_cvi'),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: Text(
-                    S.t('more_cvi_sub'),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    unawaited(
-                      openCviFlow(
-                        context,
-                        isGuest: _isGuest,
-                        onRequireLogin: () => _requireLogin(
-                          'CVI egzersizi için giriş yapmanız veya üye olmanız gerekiyor.',
+                        title: Text(
+                          S.t('more_aile_kocu'),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
+                        subtitle: Text(
+                          S.t('more_aile_kocu_sub'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          unawaited(openAileKocu(context));
+                        },
                       ),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: MetoColors.primary.withValues(alpha: 0.12),
-                    child: const Icon(
-                      Icons.center_focus_strong,
-                      color: MetoColors.primary,
-                    ),
-                  ),
-                  title: Text(
-                    S.t('more_cvi_find'),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: Text(
-                    S.t('more_cvi_find_sub'),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const CviFindObjectPage(),
+                      ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor:
+                              MetoColors.primary.withValues(alpha: 0.12),
+                          child: const Icon(
+                            Icons.balance_outlined,
+                            color: MetoColors.primary,
+                          ),
+                        ),
+                        title: Text(
+                          S.t('more_rights'),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        subtitle: Text(
+                          S.t('more_rights_sub'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _goToTab(MetoTab.haklar);
+                        },
                       ),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: const Color(0xFFE8F5E9),
-                    child: Icon(
-                      Icons.family_restroom,
-                      color: Colors.green.shade700,
-                    ),
+                      ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor:
+                              MetoColors.primary.withValues(alpha: 0.12),
+                          child: const Icon(
+                            Icons.grid_view_outlined,
+                            color: MetoColors.primary,
+                          ),
+                        ),
+                        title: Text(
+                          S.t('more_cards'),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        subtitle: Text(
+                          S.t('more_cards_sub'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _goToTab(MetoTab.kartlar);
+                        },
+                      ),
+                      ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor:
+                              MetoColors.primary.withValues(alpha: 0.12),
+                          child: const Icon(
+                            Icons.search,
+                            color: MetoColors.primary,
+                          ),
+                        ),
+                        title: Text(
+                          S.t('more_mchat'),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        subtitle: Text(
+                          S.t('more_mchat_sub'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          unawaited(
+                            openMchatFlow(
+                              context,
+                              isGuest: _isGuest,
+                              onRequireLogin: () => _requireLogin(
+                                'Otizm tarama için giriş yapmanız veya üye olmanız gerekiyor.',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor:
+                              MetoColors.primary.withValues(alpha: 0.12),
+                          child: SvgPicture.asset(
+                            'assets/cvi/eye_icon.svg',
+                            width: 22,
+                            height: 22,
+                          ),
+                        ),
+                        title: Text(
+                          S.t('more_cvi'),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        subtitle: Text(
+                          S.t('more_cvi_sub'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          unawaited(
+                            openCviFlow(
+                              context,
+                              isGuest: _isGuest,
+                              onRequireLogin: () => _requireLogin(
+                                'CVI egzersizi için giriş yapmanız veya üye olmanız gerekiyor.',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor:
+                              MetoColors.primary.withValues(alpha: 0.12),
+                          child: const Icon(
+                            Icons.center_focus_strong,
+                            color: MetoColors.primary,
+                          ),
+                        ),
+                        title: Text(
+                          S.t('more_cvi_find'),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        subtitle: Text(
+                          S.t('more_cvi_find_sub'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const CviFindObjectPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
-                  title: Text(
-                    S.t('more_aile_kocu'),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: Text(
-                    S.t('more_aile_kocu_sub'),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    unawaited(openAileKocu(context));
-                  },
                 ),
               ],
             ),
