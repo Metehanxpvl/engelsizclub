@@ -6,6 +6,8 @@ const _kWelcomeAcceptedKey = 'tibbi_hosgeldin_kabul_v1';
 const kDismissHomeDisclaimer = 'info_dismiss_home_disclaimer_v1';
 const kDismissPubmedInfo = 'info_dismiss_pubmed_v1';
 const kDismissLibraryInfo = 'info_dismiss_library_v1';
+/// Bilgi kütüphanesi video listesi sayfası uyarısı.
+const kDismissInfoVideosDisclaimer = 'info_dismiss_info_videos_v1';
 
 Future<bool> isMedicalWelcomeAccepted() async {
   final prefs = await SharedPreferences.getInstance();

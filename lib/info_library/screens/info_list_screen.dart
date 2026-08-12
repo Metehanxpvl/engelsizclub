@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../admin_config.dart';
+import '../../medical_disclaimer_store.dart';
 import '../../meto_theme.dart';
+import '../../widgets/medical_info_card.dart';
 import '../info_library_repository.dart';
 import '../models/info_content.dart';
 import '../widgets/info_youtube_player.dart';
@@ -172,6 +174,16 @@ class _InfoListScreenState extends State<InfoListScreen> {
             fontWeight: FontWeight.w600,
             color: MetoColors.mutedFg,
           ),
+        ),
+        const SizedBox(height: 12),
+        const MedicalInfoCard(
+          title: 'Bilgilendirici not',
+          body:
+              'Bu videolar yalnızca bilgilendirme amaçlıdır; tıbbi teşhis veya '
+              'tedavi yerine geçmez. Sağlık kararlarınız için hekiminize danışın.',
+          icon: Icons.health_and_safety_outlined,
+          dismissKey: kDismissInfoVideosDisclaimer,
+          dismissLabel: 'Bir daha gösterme',
         ),
         if (_isAdmin && _items.isNotEmpty) ...[
           const SizedBox(height: 8),
