@@ -32,7 +32,6 @@ import 'l10n/locale_controller.dart';
 import 'medical_disclaimer_store.dart';
 import 'meto_theme.dart';
 import 'cvi/cvi_entry.dart';
-import 'cvi/cvi_find_object_page.dart';
 import 'aile_kocu/aile_kocu_entry.dart';
 import 'mchat/mchat_entry.dart';
 import 'pages/forum_page.dart';
@@ -701,33 +700,6 @@ class _MainShellState extends State<MainShell> {
                               onRequireLogin: () => _requireLogin(
                                 'CVI egzersizi için giriş yapmanız veya üye olmanız gerekiyor.',
                               ),
-                            ),
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor:
-                              MetoColors.primary.withValues(alpha: 0.12),
-                          child: const Icon(
-                            Icons.center_focus_strong,
-                            color: MetoColors.primary,
-                          ),
-                        ),
-                        title: Text(
-                          S.t('more_cvi_find'),
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        subtitle: Text(
-                          S.t('more_cvi_find_sub'),
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const CviFindObjectPage(),
                             ),
                           );
                         },
