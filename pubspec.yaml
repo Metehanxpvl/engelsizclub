@@ -69,5 +69,6 @@ flutter:
   assets:
     - assets/images/
     - assets/cvi/
+    - assets/cvi/find/
     - assets/aile_kocu/
     - src/imports/119686.png

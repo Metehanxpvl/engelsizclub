@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Engelsiz Club  orijinal çizim: ye_il elma -->
+  <ellipse cx="100" cy="118" rx="62" ry="58" fill="#43A047"/>
+  <ellipse cx="78" cy="98" rx="18" ry="12" fill="#81C784" opacity="0.8"/>
+  <rect x="94" y="48" width="12" height="28" rx="4" fill="#5D4037"/>
+  <path d="M106 58 Q132 40 140 62 Q118 70 106 58 Z" fill="#2E7D32"/>
+</svg>

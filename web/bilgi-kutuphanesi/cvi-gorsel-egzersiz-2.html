@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>CVI Görsel Egzersizleri - 2 | Objeyi Bul | Engelsiz Club</title>
+  <meta name="description" content="CVI'lı çocuklar için Objeyi Bul görsel dikkat egzersizi. Sade zemin, yüksek kontrast." />
+  <meta name="robots" content="index,follow" />
+  <link rel="canonical" href="https://engelsizclub.com/bilgi-kutuphanesi/cvi-gorsel-egzersiz-2.html" />
+  <style>
+    :root {
+      --fg: #111;
+      --bg-page: #f4f6f5;
+      --card: #fff;
+      --accent: #1a6b4a;
+      --btn: #1a6b4a;
+      --btn2: #0f5132;
+      --warn-bg: #fef3c7;
+      --warn-border: #f59e0b;
+      --play-bg: #000;
+      --muted: #555;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg-page);
+      color: var(--fg);
+      line-height: 1.55;
+    }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 20px 16px 48px;
+    }
+    h1 {
+      font-size: clamp(1.35rem, 4.5vw, 1.85rem);
+      margin: 0 0 10px;
+      line-height: 1.25;
+    }
+    .intro { color: var(--muted); margin: 0 0 18px; }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    button.level {
+      flex: 1 1 140px;
+      min-height: 56px;
+      font-size: 1.1rem;
+      font-weight: 800;
+      border: 0;
+      border-radius: 14px;
+      background: var(--btn);
+      color: #fff;
+      cursor: pointer;
+      padding: 14px 18px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button.level:active { transform: scale(0.98); }
+    button.level.active { outline: 3px solid #86efac; outline-offset: 2px; }
+    button.ghost {
+      min-height: 48px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      border: 2px solid var(--accent);
+      border-radius: 12px;
+      background: #fff;
+      color: var(--accent);
+      cursor: pointer;
+      padding: 10px 14px;
+    }
+    #oyun-alani {
+      position: relative;
+      width: 100%;
+      min-height: min(62vh, 520px);
+      background: var(--play-bg);
+      border-radius: 18px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: manipulation;
+      user-select: none;
+    }
+    #oyun-alani.bg-white { background: #fff; }
+    .prompt {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      text-align: center;
+      font-weight: 800;
+      font-size: clamp(1rem, 3.8vw, 1.25rem);
+      color: #fff;
+      text-shadow: 0 1px 4px rgba(0,0,0,.7);
+      pointer-events: none;
+      z-index: 2;
+    }
+    #oyun-alani.bg-white .prompt {
+      color: #111;
+      text-shadow: none;
+    }
+    .slot {
+      position: absolute;
+      width: min(42vw, 180px);
+      height: min(42vw, 180px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: 0;
+      background: transparent;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .slot img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,.35));
+    }
+    .slot.big {
+      width: min(58vw, 240px);
+      height: min(58vw, 240px);
+      position: relative;
+    }
+    .feedback {
+      position: absolute;
+      bottom: 14px;
+      left: 12px;
+      right: 12px;
+      text-align: center;
+      font-weight: 800;
+      font-size: 1.15rem;
+      color: #86efac;
+      min-height: 1.4em;
+      z-index: 2;
+      pointer-events: none;
+    }
+    #oyun-alani.bg-white .feedback { color: var(--accent); }
+    .placeholder {
+      color: #aaa;
+      font-weight: 700;
+      text-align: center;
+      padding: 24px;
+      font-size: 1.05rem;
+    }
+    #oyun-alani.bg-white .placeholder { color: #666; }
+    .warn {
+      background: var(--warn-bg);
+      padding: 15px;
+      border-left: 4px solid var(--warn-border);
+      margin-top: 30px;
+      border-radius: 0 12px 12px 0;
+      color: #44403c;
+    }
+    .foot {
+      margin-top: 16px;
+      color: var(--muted);
+    }
+    .back {
+      display: inline-block;
+      margin-bottom: 14px;
+      color: var(--accent);
+      font-weight: 700;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="/">← Engelsiz Club</a>
+    <h1>CVI Görsel Egzersizleri - 2</h1>
+    <p class="intro">CVI'lı çocuklar için görsel dikkat egzersizi. Sade zemin, tek obje ile başlayın.</p>
+
+    <div class="toolbar">
+      <button type="button" class="level" id="btn-l1" onclick="startLevel(1)">Seviye 1</button>
+      <button type="button" class="level" id="btn-l2" onclick="startLevel(2)">Seviye 2</button>
+      <button type="button" class="ghost" id="btn-bg" onclick="toggleBg()">Zemin: Siyah</button>
+    </div>
+
+    <div id="oyun-alani" aria-live="polite">
+      <p class="placeholder">Başlamak için Seviye 1 veya Seviye 2’ye dokunun.</p>
+    </div>
+
+    <div style="background:#fef3c7; padding:15px; border-left:4px solid #f59e0b; margin-top:30px">
+      <b>Önemli Tıbbi Uyarı:</b> Bu etkinlik bilgilendirme amaçlıdır. CVI tanısı ve tedavisi sadece doktor ve görme rehabilitasyon uzmanı tarafından konulur.
+      Bu egzersizler tıbbi tedavi yerine geçmez. Çocuğunuzun durumuna uygun olup olmadığını mutlaka doktorunuza danışın.
+      Engelsiz Club içeriklerden doğabilecek sonuçlardan sorumlu değildir.
+    </div>
+
+    <p class="foot"><small>Bu etkinlik CVI görsel erişim prensiplerine göre Engelsiz Club tarafından hazırlanmıştır.</small></p>
+  </main>
+
+  <script>
+    // Orijinal SVG varlıklar — telifli site yok
+    const ASSETS = {
+      'top-sari': { src: 'img/cvi/top-sari.svg', label: 'Sarı top' },
+      'top-kirmizi': { src: 'img/cvi/top-kirmizi.svg', label: 'Kırmızı top' },
+      'top-yesil': { src: 'img/cvi/top-yesil.svg', label: 'Yeşil top' },
+      'araba-kirmizi': { src: 'img/cvi/araba-kirmizi.svg', label: 'Kırmızı araba' },
+      'araba-sari': { src: 'img/cvi/araba-sari.svg', label: 'Sarı araba' },
+      'elma-yesil': { src: 'img/cvi/elma-yesil.svg', label: 'Yeşil elma' },
+      'elma-kirmizi': { src: 'img/cvi/elma-kirmizi.svg', label: 'Kırmızı elma' },
+    };
+
+    const L1_POOL = ['top-sari', 'araba-kirmizi', 'elma-yesil'];
+    const L2_SETS = [
+      { target: 'top-sari', distractors: ['top-kirmizi', 'top-yesil'] },
+      { target: 'top-kirmizi', distractors: ['top-sari', 'top-yesil'] },
+      { target: 'araba-sari', distractors: ['araba-kirmizi', 'top-yesil'] },
+      { target: 'elma-kirmizi', distractors: ['elma-yesil', 'top-sari'] },
+      { target: 'elma-yesil', distractors: ['elma-kirmizi', 'top-kirmizi'] },
+    ];
+
+    let darkBg = true;
+    let targetKey = null;
+    let locked = false;
+
+    const area = document.getElementById('oyun-alani');
+    const btnBg = document.getElementById('btn-bg');
+
+    function toggleBg() {
+      darkBg = !darkBg;
+      area.classList.toggle('bg-white', !darkBg);
+      btnBg.textContent = darkBg ? 'Zemin: Siyah' : 'Zemin: Beyaz';
+    }
+
+    function setActiveLevel(level) {
+      document.getElementById('btn-l1').classList.toggle('active', level === 1);
+      document.getElementById('btn-l2').classList.toggle('active', level === 2);
+    }
+
+    function clearArea() {
+      area.innerHTML = '';
+      locked = false;
+    }
+
+    function addPrompt(text) {
+      const p = document.createElement('div');
+      p.className = 'prompt';
+      p.textContent = text;
+      area.appendChild(p);
+    }
+
+    function addFeedback() {
+      const f = document.createElement('div');
+      f.className = 'feedback';
+      f.id = 'feedback';
+      area.appendChild(f);
+      return f;
+    }
+
+    function makeSlot(key, isTarget, className, style) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'slot ' + (className || '');
+      btn.setAttribute('aria-label', ASSETS[key].label);
+      if (style) Object.assign(btn.style, style);
+      const img = document.createElement('img');
+      img.src = ASSETS[key].src;
+      img.alt = ASSETS[key].label;
+      btn.appendChild(img);
+      btn.addEventListener('click', () => onPick(isTarget));
+      return btn;
+    }
+
+    function onPick(isTarget) {
+      if (locked) return;
+      const fb = document.getElementById('feedback');
+      if (!fb) return;
+      if (isTarget) {
+        fb.textContent = 'Harika! Doğru obje.';
+        locked = true;
+        setTimeout(() => {
+          const lvl = document.getElementById('btn-l2').classList.contains('active') ? 2 : 1;
+          startLevel(lvl);
+        }, 900);
+      } else {
+        fb.textContent = 'Tekrar dene.';
+      }
+    }
+
+    function shuffle(arr) {
+      const a = arr.slice();
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function startLevel(level) {
+      setActiveLevel(level);
+      clearArea();
+
+      if (level === 1) {
+        const key = L1_POOL[Math.floor(Math.random() * L1_POOL.length)];
+        targetKey = key;
+        addPrompt(ASSETS[key].label + ' — dokun');
+        const slot = makeSlot(key, true, 'big');
+        area.appendChild(slot);
+        addFeedback();
+        return;
+      }
+
+      // Seviye 2: 3 obje, hedef farklı renkte
+      const set = L2_SETS[Math.floor(Math.random() * L2_SETS.length)];
+      targetKey = set.target;
+      const keys = shuffle([set.target, ...set.distractors]);
+      addPrompt(ASSETS[set.target].label + ' bul');
+      const positions = [
+        { left: '8%', top: '28%' },
+        { left: '50%', top: '28%', transform: 'translateX(-50%)' },
+        { right: '8%', top: '28%' },
+      ];
+      keys.forEach((key, i) => {
+        area.appendChild(makeSlot(key, key === set.target, '', positions[i]));
+      });
+      addFeedback();
+    }
+  </script>
+</body>
+</html>

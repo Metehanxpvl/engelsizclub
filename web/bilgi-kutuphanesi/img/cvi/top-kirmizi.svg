@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Engelsiz Club  orijinal çizim: k1rm1z1 top -->
+  <circle cx="100" cy="100" r="78" fill="#E53935"/>
+  <ellipse cx="72" cy="72" rx="28" ry="18" fill="#FF8A80" opacity="0.85"/>
+  <circle cx="100" cy="100" r="78" fill="none" stroke="#B71C1C" stroke-width="4"/>
+</svg>
