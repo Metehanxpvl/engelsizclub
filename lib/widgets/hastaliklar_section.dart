@@ -1076,7 +1076,7 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
                           'Katalog id (video kategorisi, örn. otizm)',
                         ),
                         helperText: S.auto(
-                          'Boş bırakırsan başlıktan üretilir. Detayda “Daha fazlası” ile video eklenir.',
+                          'Boş bırakırsan başlıktan üretilir. Detayda “Bilgilendirici Videolar İçin Tıklayınız” ile video eklenir.',
                         ),
                         border: OutlineInputBorder(),
                       ),

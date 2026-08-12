@@ -813,7 +813,6 @@ class _HomePageState extends State<HomePage> {
                 InfoLibraryMoreCard(
                   category: d.id,
                   title: 'Daha fazla içerik',
-                  subtitle: 'Daha fazlası için tıklayınız',
                   listTitle: '${d.name} — Bilgi Kütüphanesi',
                   adminEmail: widget.userEmail,
                 ),
@@ -1171,7 +1170,6 @@ class _HomePageState extends State<HomePage> {
                 InfoLibraryMoreCard(
                   category: item.id,
                   title: 'Daha fazla içerik',
-                  subtitle: 'Daha fazlası için tıklayınız',
                   listTitle: '${item.name} — Bilgi Kütüphanesi',
                   adminEmail: widget.userEmail,
                 ),

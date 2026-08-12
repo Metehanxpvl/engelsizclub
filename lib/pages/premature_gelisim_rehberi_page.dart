@@ -206,7 +206,6 @@ class PrematureGelisimRehberiPage extends StatelessWidget {
           InfoLibraryMoreCard(
             category: InfoLibraryCategories.premature,
             title: 'Daha fazla prematüre içeriği',
-            subtitle: 'Daha fazlası için tıklayınız',
             listTitle: 'Prematüre Bilgi Kütüphanesi',
             adminEmail:
                 Supabase.instance.client.auth.currentUser?.email ?? '',

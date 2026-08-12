@@ -8,13 +8,13 @@ import 'package:google_fonts/google_fonts.dart';
 import '../meto_theme.dart';
 import 'screens/info_list_screen.dart';
 
-/// Rehber sayfalarının altına konan "Daha fazlası" kartı.
+/// Rehber sayfalarının altına konan video kütüphanesi kartı.
 class InfoLibraryMoreCard extends StatelessWidget {
   const InfoLibraryMoreCard({
     super.key,
     required this.category,
     this.title = 'Daha fazla içerik',
-    this.subtitle = 'Daha fazlası için tıklayınız',
+    this.subtitle = 'Bilgilendirici Videolar İçin Tıklayınız',
     this.listTitle = 'Bilgi Kütüphanesi',
     this.adminEmail = '',
   });
