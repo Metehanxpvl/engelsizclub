@@ -73,9 +73,8 @@ Future<MoreMenuItem> upsertMoreMenuItem(MoreMenuItem item) async {
   if (!isAppAdmin(email)) {
     throw StateError('Yalnız admin düzenleyebilir.');
   }
-  final payload = item.toUpsertJson(includeCreatedMeta: item.id <= 0);
+  final payload = item.toWriteJson()..remove('id');
   if (item.id <= 0) {
-    payload.remove('id');
     final row = await _db
         .from('daha_fazlasi_menu')
         .insert(payload)

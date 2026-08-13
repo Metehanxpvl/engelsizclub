@@ -64,9 +64,9 @@ class MoreMenuItem {
     );
   }
 
-  Map<String, dynamic> toUpsertJson({required bool includeCreatedMeta}) {
+  /// DB yazımı için map. `id` asla gönderilmez (identity otomatik üretir).
+  Map<String, dynamic> toWriteJson() {
     return {
-      if (id > 0) 'id': id,
       'title': title.trim(),
       'subtitle': subtitle.trim(),
       'link_type': linkType,
