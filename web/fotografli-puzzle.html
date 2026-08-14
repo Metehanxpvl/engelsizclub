@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Fotoğraflı Puzzle - Engelsiz Club</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: { colors: { brand: "#22c55e" } } } };
+  </script>
+  <style>
+    html, body { background: #fff; }
+    .slot { touch-action: none; user-select: none; -webkit-user-select: none; }
+    .ghost {
+      position: fixed;
+      pointer-events: none;
+      z-index: 50;
+      opacity: .92;
+      border-radius: 10px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.28);
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-white text-slate-800">
+  <div class="max-w-md mx-auto px-3 pt-4 pb-10">
+    <h1 class="text-center text-[1.35rem] sm:text-2xl font-extrabold text-brand leading-tight">Fotoğraflı Puzzle - Engelsiz Club</h1>
+    <p class="text-center text-sm text-slate-500 mt-1 mb-4">Fotoğrafını seç, parçala, yerine oturt.</p>
+
+    <input id="file" type="file" accept="image/*" class="hidden" />
+
+    <div id="setup" class="space-y-3">
+      <button id="pickBtn" type="button" class="w-full min-h-[52px] rounded-2xl bg-brand text-white text-lg font-extrabold shadow-sm">Fotoğraf Seç / Çek</button>
+      <p id="photoHint" class="text-center text-sm text-slate-500 hidden">Fotoğraf hazır. Parça sayısını seç.</p>
+      <div class="grid grid-cols-2 gap-2">
+        <button type="button" data-n="3" class="piece-btn min-h-[48px] rounded-2xl border-2 border-brand text-brand font-extrabold text-base">3 Parça</button>
+        <button type="button" data-n="5" class="piece-btn min-h-[48px] rounded-2xl border-2 border-brand text-brand font-extrabold text-base">5 Parça</button>
+        <button type="button" data-n="10" class="piece-btn min-h-[48px] rounded-2xl border-2 border-brand text-brand font-extrabold text-base">10 Parça</button>
+        <button type="button" data-n="20" class="piece-btn min-h-[48px] rounded-2xl border-2 border-brand text-brand font-extrabold text-base">20 Parça</button>
+      </div>
+    </div>
+
+    <div id="game" class="hidden">
+      <div class="flex gap-2 mb-3">
+        <button id="helpBtn" type="button" class="flex-1 min-h-[48px] rounded-2xl bg-brand text-white font-extrabold">Yardım Göster</button>
+        <button id="resetBtn" type="button" class="flex-1 min-h-[48px] rounded-2xl border-2 border-brand text-brand font-extrabold">Yeni Fotoğraf</button>
+      </div>
+      <div id="boardWrap" class="relative mx-auto w-full max-w-[360px] rounded-2xl overflow-hidden border-2 border-brand bg-white">
+        <div id="board" class="relative grid w-full"></div>
+        <img id="helpImg" alt="" class="absolute inset-0 w-full h-full object-cover opacity-40 hidden pointer-events-none z-10" />
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-6 hidden z-40 px-4 py-3 rounded-2xl bg-slate-800 text-white font-bold text-sm shadow-lg"></div>
+
+  <div id="win" class="fixed inset-0 hidden z-50 bg-black/50 items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 w-full max-w-sm text-center shadow-xl">
+      <p class="text-3xl font-black text-brand">Harikasın! 🎉</p>
+      <p class="mt-2 text-slate-600 font-semibold">Tüm parçalar yerine oturdu.</p>
+      <button id="winOk" type="button" class="mt-5 w-full min-h-[48px] rounded-2xl bg-brand text-white font-extrabold">Tamam</button>
+    </div>
+  </div>
+
+  <script>
+    const LAYOUT = { 3: [1, 3], 5: [1, 5], 10: [2, 5], 20: [4, 5] };
+    const fileInput = document.getElementById("file");
+    const pickBtn = document.getElementById("pickBtn");
+    const photoHint = document.getElementById("photoHint");
+    const setup = document.getElementById("setup");
+    const game = document.getElementById("game");
+    const board = document.getElementById("board");
+    const helpImg = document.getElementById("helpImg");
+    const helpBtn = document.getElementById("helpBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const toast = document.getElementById("toast");
+    const win = document.getElementById("win");
+    let photoUrl = "";
+    let sourceImg = null;
+    let pieces = [];
+    let rows = 1;
+    let cols = 1;
+    let helpOn = false;
+    let dragFrom = -1;
+    let ghost = null;
+    let won = false;
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.remove("hidden");
+      clearTimeout(showToast.t);
+      showToast.t = setTimeout(() => toast.classList.add("hidden"), 2200);
+    }
+
+    function gridFor(n) {
+      return LAYOUT[n] || [1, n];
+    }
+
+    function shuffle(arr) {
+      const a = arr.slice();
+      do {
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          const t = a[i];
+          a[i] = a[j];
+          a[j] = t;
+        }
+      } while (a.length > 1 && a.every((p, i) => p.correct === i));
+      return a;
+    }
+
+    function slicePhoto(img, r, c) {
+      const size = Math.min(img.naturalWidth, img.naturalHeight);
+      const sx = (img.naturalWidth - size) / 2;
+      const sy = (img.naturalHeight - size) / 2;
+      const pw = size / c;
+      const ph = size / r;
+      const out = [];
+      for (let y = 0; y < r; y++) {
+        for (let x = 0; x < c; x++) {
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(2, Math.round(pw));
+          canvas.height = Math.max(2, Math.round(ph));
+          canvas.getContext("2d").drawImage(img, sx + x * pw, sy + y * ph, pw, ph, 0, 0, canvas.width, canvas.height);
+          out.push({ correct: y * c + x, src: canvas.toDataURL("image/jpeg", 0.88) });
+        }
+      }
+      return out;
+    }
+
+    function render() {
+      board.style.gridTemplateColumns = "repeat(" + cols + ", minmax(0, 1fr))";
+      board.style.aspectRatio = cols + " / " + rows;
+      board.innerHTML = "";
+      pieces.forEach((p, i) => {
+        const cell = document.createElement("div");
+        cell.className = "slot relative overflow-hidden bg-slate-100";
+        cell.dataset.i = String(i);
+        cell.draggable = true;
+        const img = document.createElement("img");
+        img.src = p.src;
+        img.alt = "";
+        img.draggable = false;
+        img.className = "w-full h-full object-cover pointer-events-none";
+        cell.appendChild(img);
+        cell.addEventListener("dragstart", onDragStart);
+        cell.addEventListener("dragover", onDragOver);
+        cell.addEventListener("drop", onDrop);
+        cell.addEventListener("dragend", onDragEnd);
+        cell.addEventListener("pointerdown", onPointerDown);
+        board.appendChild(cell);
+      });
+    }
+
+    function swap(a, b) {
+      if (a === b || a < 0 || b < 0) return;
+      const t = pieces[a];
+      pieces[a] = pieces[b];
+      pieces[b] = t;
+      render();
+      checkWin();
+    }
+
+    function onDragStart(e) {
+      dragFrom = Number(e.currentTarget.dataset.i);
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", String(dragFrom));
+    }
+    function onDragOver(e) { e.preventDefault(); }
+    function onDrop(e) {
+      e.preventDefault();
+      const to = Number(e.currentTarget.dataset.i);
+      const from = Number(e.dataTransfer.getData("text/plain") || dragFrom);
+      swap(from, to);
+      dragFrom = -1;
+    }
+    function onDragEnd() { dragFrom = -1; }
+
+    function onPointerDown(e) {
+      if (e.pointerType === "mouse") return;
+      e.preventDefault();
+      const from = Number(e.currentTarget.dataset.i);
+      dragFrom = from;
+      const rect = e.currentTarget.getBoundingClientRect();
+      ghost = document.createElement("img");
+      ghost.src = pieces[from].src;
+      ghost.className = "ghost";
+      ghost.style.width = rect.width + "px";
+      ghost.style.height = rect.height + "px";
+      ghost.style.left = rect.left + "px";
+      ghost.style.top = rect.top + "px";
+      document.body.appendChild(ghost);
+      e.currentTarget.setPointerCapture(e.pointerId);
+      const move = (ev) => {
+        ghost.style.left = (ev.clientX - rect.width / 2) + "px";
+        ghost.style.top = (ev.clientY - rect.height / 2) + "px";
+      };
+      const up = (ev) => {
+        e.currentTarget.releasePointerCapture(ev.pointerId);
+        e.currentTarget.removeEventListener("pointermove", move);
+        e.currentTarget.removeEventListener("pointerup", up);
+        e.currentTarget.removeEventListener("pointercancel", up);
+        const el = document.elementFromPoint(ev.clientX, ev.clientY);
+        const slot = el && el.closest ? el.closest(".slot") : null;
+        if (ghost) ghost.remove();
+        ghost = null;
+        if (slot) swap(from, Number(slot.dataset.i));
+        dragFrom = -1;
+      };
+      e.currentTarget.addEventListener("pointermove", move);
+      e.currentTarget.addEventListener("pointerup", up);
+      e.currentTarget.addEventListener("pointercancel", up);
+    }
+
+    function checkWin() {
+      if (won || !pieces.length) return;
+      if (!pieces.every((p, i) => p.correct === i)) return;
+      won = true;
+      win.classList.remove("hidden");
+      win.classList.add("flex");
+      clap();
+    }
+
+    function clap() {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      const ctx = new AC();
+      for (let i = 0; i < 10; i++) {
+        setTimeout(() => {
+          const dur = 0.18;
+          const buffer = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let n = 0; n < data.length; n++) data[n] = (Math.random() * 2 - 1) * (1 - n / data.length);
+          const src = ctx.createBufferSource();
+          src.buffer = buffer;
+          const filter = ctx.createBiquadFilter();
+          filter.type = "bandpass";
+          filter.frequency.value = 1800 + Math.random() * 1200;
+          const gain = ctx.createGain();
+          gain.gain.value = 0.22;
+          src.connect(filter);
+          filter.connect(gain);
+          gain.connect(ctx.destination);
+          src.start();
+        }, i * 70);
+      }
+    }
+
+    function startGame(n) {
+      if (!sourceImg) {
+        showToast("Önce fotoğraf seç");
+        return;
+      }
+      const g = gridFor(n);
+      rows = g[0];
+      cols = g[1];
+      pieces = shuffle(slicePhoto(sourceImg, rows, cols));
+      won = false;
+      helpOn = false;
+      helpImg.classList.add("hidden");
+      helpBtn.textContent = "Yardım Göster";
+      setup.classList.add("hidden");
+      game.classList.remove("hidden");
+      render();
+    }
+
+    function resetAll() {
+      if (photoUrl) URL.revokeObjectURL(photoUrl);
+      photoUrl = "";
+      sourceImg = null;
+      pieces = [];
+      won = false;
+      helpOn = false;
+      fileInput.value = "";
+      photoHint.classList.add("hidden");
+      helpImg.removeAttribute("src");
+      helpImg.classList.add("hidden");
+      board.innerHTML = "";
+      game.classList.add("hidden");
+      setup.classList.remove("hidden");
+      win.classList.add("hidden");
+      win.classList.remove("flex");
+    }
+
+    pickBtn.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      const f = fileInput.files && fileInput.files[0];
+      if (!f) return;
+      if (photoUrl) URL.revokeObjectURL(photoUrl);
+      photoUrl = URL.createObjectURL(f);
+      const img = new Image();
+      img.onload = () => {
+        sourceImg = img;
+        helpImg.src = photoUrl;
+        photoHint.classList.remove("hidden");
+      };
+      img.onerror = () => showToast("Fotoğraf okunamadı");
+      img.src = photoUrl;
+    });
+    document.querySelectorAll(".piece-btn").forEach((btn) => {
+      btn.addEventListener("click", () => startGame(Number(btn.dataset.n)));
+    });
+    helpBtn.addEventListener("click", () => {
+      helpOn = !helpOn;
+      helpImg.classList.toggle("hidden", !helpOn);
+      helpBtn.textContent = helpOn ? "Yardımı Gizle" : "Yardım Göster";
+    });
+    resetBtn.addEventListener("click", resetAll);
+    document.getElementById("winOk").addEventListener("click", () => {
+      win.classList.add("hidden");
+      win.classList.remove("flex");
+    });
+  </script>
+</body>
+</html>

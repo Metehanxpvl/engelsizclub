@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>0–2 Yaş Bebek ve Çocuk Gelişim Rehberi | Engelsiz Club</title>
+  <meta name="description" content="0–2 yaş bebek ve çocuk gelişimi: kaba motor, ince motor, dil, sosyal ve bilişsel öneriler. Dönem dönem ev aktiviteleri ve videolar." />
+  <meta name="robots" content="index,follow" />
+  <link rel="canonical" href="https://www.engelsizclub.com/bilgi-kutuphanesi/0-2-yas-gelisim-rehberi" />
+  <meta property="og:title" content="0–2 Yaş Bebek ve Çocuk Gelişim Rehberi | Engelsiz Club" />
+  <meta property="og:description" content="0–3, 3–6, 6–9, 9–12 ve 12–24 ay dönemleri için evde gelişim önerileri ve videolar." />
+  <meta property="og:url" content="https://www.engelsizclub.com/bilgi-kutuphanesi/0-2-yas-gelisim-rehberi" />
+  <meta property="og:type" content="article" />
+  <style>
+    :root {
+      --fg: #0d2b1f;
+      --muted: #4d7a62;
+      --bg: #f2f7f4;
+      --card: #fff;
+      --accent: #1a6b4a;
+      --selected: #e8f5ee;
+      --border: rgba(26,107,74,.18);
+      --warn: #fff4e5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.65;
+    }
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 18px;
+    }
+    header a { color: var(--accent); font-weight: 700; text-decoration: none; }
+    main { max-width: 760px; margin: 0 auto; padding: 28px 18px 72px; }
+    h1 { font-size: clamp(1.5rem, 4.5vw, 2rem); line-height: 1.25; margin: 0 0 16px; }
+    h2 { font-size: 1.2rem; color: var(--accent); margin: 32px 0 10px; }
+    h3 { font-size: 1.02rem; margin: 0 0 10px; }
+    p, li { color: var(--muted); }
+    .lead { margin-bottom: 8px; }
+    .period {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px 16px 16px;
+      margin: 18px 0 0;
+    }
+    .period h2 { margin: 0 0 12px; }
+    .activity {
+      background: var(--selected);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      margin: 10px 0 0;
+    }
+    .activity strong { color: var(--fg); display: block; margin-bottom: 6px; }
+    .video-wrap {
+      background: var(--card);
+      border: 2px solid var(--accent);
+      border-radius: 16px;
+      padding: 14px;
+      margin: 14px 0 0;
+    }
+    .yt-facade {
+      position: relative;
+      width: 100%;
+      padding-bottom: 56.25%;
+      height: 0;
+      background: #111;
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .yt-facade img, .yt-facade iframe {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      object-fit: cover;
+    }
+    .yt-facade .play {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(26,107,74,.92);
+      color: #fff;
+      font-weight: 800;
+      font-size: .95rem;
+      padding: 10px 16px;
+      border-radius: 999px;
+      pointer-events: none;
+    }
+    .warn {
+      background: var(--warn);
+      border-radius: 14px;
+      padding: 14px;
+      font-weight: 700;
+      color: var(--fg);
+      margin-top: 28px;
+    }
+    .source { font-size: .9rem; color: var(--muted); margin-top: 18px; }
+    .kaynak {
+      font-size: .9rem;
+      color: var(--muted);
+      margin: 10px 0 0;
+      font-style: italic;
+    }
+    .kaynak strong { color: var(--fg); font-weight: 800; font-style: normal; }
+    .kaynak a { color: var(--accent); font-weight: 700; }
+    .btn {
+      display: inline-block;
+      margin-top: 20px;
+      background: var(--accent);
+      color: #fff !important;
+      text-decoration: none;
+      font-weight: 800;
+      padding: 12px 18px;
+      border-radius: 12px;
+    }
+    body.disclaimer-locked main,
+    body.disclaimer-locked header { visibility: hidden; }
+    #disclaimer-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(13, 43, 31, 0.55);
+    }
+    #disclaimer-overlay[hidden] { display: none; }
+    .disclaimer-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 22px 18px 16px;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 10px 36px rgba(0,0,0,.2);
+    }
+    .disclaimer-card h2 {
+      margin: 0 0 10px;
+      color: var(--fg);
+      font-size: 1.15rem;
+    }
+    .disclaimer-card p {
+      color: var(--muted);
+      margin: 0 0 16px;
+      font-size: .95rem;
+      white-space: pre-line;
+    }
+    .disclaimer-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+    .disclaimer-actions button {
+      border: 0;
+      background: transparent;
+      color: var(--accent);
+      font-weight: 800;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: .92rem;
+    }
+    .disclaimer-actions .ok {
+      background: var(--accent);
+      color: #fff;
+    }
+  </style>
+</head>
+<body class="disclaimer-locked">
+  <header><a href="/">← Engelsiz Club · Bilgi Kütüphanesi</a></header>
+  <main>
+    <article>
+      <h1>0–2 Yaş Bebek ve Çocuk Gelişim Rehberi</h1>
+      <p class="lead">
+        Bu rehber, 0–24 ay arası gelişimi dönem dönem hatırlatmak için hazırlandı.
+        Her bebek kendi temposunda ilerler; öneriler baskı değil, evde nazik
+        birer başlangıçtır.
+      </p>
+
+      <section class="period">
+        <h2>1. Dönem: 0–3 Ay</h2>
+        <div class="activity">
+          <strong>Kaba Motor &amp; Kas Gelişimi</strong>
+          Karın üstü zamanı (Tummy Time) ile boyun ve omuz kasları desteklenir.
+        </div>
+        <div class="activity">
+          <strong>Duyusal &amp; Bilişsel</strong>
+          Siyah-beyaz yüksek kontrastlı kartlar ve görsel takip çalışmaları yapılır.
+        </div>
+        <div class="activity">
+          <strong>Sosyal &amp; Dil</strong>
+          Bebekle bolca konuşulur, seslere karşılık verilerek göz teması kurulur.
+        </div>
+        <div class="video-wrap">
+          <h3>0–3 Ay Bebek Aktiviteleri</h3>
+          <div class="yt-facade" data-yt="iDlTFPRu7cM"></div>
+          <p class="kaynak"><strong>Kaynak:</strong> <a href="https://www.youtube.com/@betterwithq9035" target="_blank" rel="noopener">BetterWithQ</a></p>
+        </div>
+      </section>
+
+      <section class="period">
+        <h2>2. Dönem: 3–6 Ay</h2>
+        <div class="activity">
+          <strong>Kaba Motor</strong>
+          Sırt üstü pozisyondan yanlara doğru dönme denemeleri teşvik edilir.
+        </div>
+        <div class="activity">
+          <strong>İnce Motor</strong>
+          Oyun halısındaki hafif çıngıraklara uzanma ve kavrama çalışmaları yapılır.
+        </div>
+        <div class="activity">
+          <strong>Bilişsel</strong>
+          Bebek güvenli bir ayna önüne tutularak yansımasını incelemesi sağlanır.
+        </div>
+        <div class="video-wrap">
+          <h3>Bebek Beyin Gelişimi ve Oyunlar</h3>
+          <div class="yt-facade" data-yt="u2Ewzf2Bcmc"></div>
+          <p class="kaynak"><strong>Kaynak:</strong> <a href="https://www.youtube.com/@dr.osmangonulal" target="_blank" rel="noopener">Osman GÖNÜLAL</a></p>
+        </div>
+      </section>
+
+      <section class="period">
+        <h2>3. Dönem: 6–9 Ay</h2>
+        <div class="activity">
+          <strong>Kaba Motor</strong>
+          Destekli ve desteksiz oturma denemeleri, oturma dengesini geliştirme oyunları oynanır.
+        </div>
+        <div class="activity">
+          <strong>İnce Motor</strong>
+          Bir elindeki nesneyi diğer eline aktarma (nesne transferi) becerisi desteklenir.
+        </div>
+        <div class="activity">
+          <strong>Sosyal</strong>
+          “Cee-e” (saklambaç) oynanarak nesne kalıcılığı kavramının temeli atılır.
+        </div>
+        <div class="video-wrap">
+          <h3>6–9 Ay Bebek Gelişimi Önerileri</h3>
+          <div class="yt-facade" data-yt="CTnwvK25CPQ"></div>
+          <p class="kaynak"><strong>Kaynak:</strong> <a href="https://www.youtube.com/@sermonedilvekonusmamerkezi2685" target="_blank" rel="noopener">Sermone TV · Dil ve Konuşma Merkezi</a></p>
+        </div>
+      </section>
+
+      <section class="period">
+        <h2>4. Dönem: 9–12 Ay</h2>
+        <div class="activity">
+          <strong>Kaba Motor</strong>
+          Güvenli emekleme parkurları kurulur, koltuk kenarlarından sıralama veya ilk adım denemeleri yapılır.
+        </div>
+        <div class="activity">
+          <strong>İnce Motor</strong>
+          Geniş kutuların içine oyuncak doldurma ve boşaltma etkinlikleri düzenlenir.
+        </div>
+        <div class="activity">
+          <strong>Dil</strong>
+          Ritmik parmak oyunları ve şarkılarla kelime dağarcığı ile taklit becerileri güçlendirilir.
+        </div>
+        <div class="video-wrap">
+          <h3>9–12 Ay Bebek Aktiviteleri</h3>
+          <div class="yt-facade" data-yt="mA51SdR_51A"></div>
+          <p class="kaynak"><strong>Kaynak:</strong> <a href="https://www.youtube.com/@dr.osmangonulal" target="_blank" rel="noopener">Osman GÖNÜLAL</a></p>
+        </div>
+      </section>
+
+      <section class="period">
+        <h2>5. Dönem: 12–24 Ay (1–2 Yaş)</h2>
+        <div class="activity">
+          <strong>Kaba Motor</strong>
+          Bağımsız yürümeyi pekiştirme, merdiven çıkma (destekli) ve top atma/yakalama oyunları oynanır.
+        </div>
+        <div class="activity">
+          <strong>İnce Motor</strong>
+          Kalemle karalama yapma, üst üste blok veya kule dizme etkinlikleri düzenlenir.
+        </div>
+        <div class="activity">
+          <strong>Dil &amp; Bilişsel</strong>
+          Basit emirleri anlama, resimli kitapları inceleme ve nesneleri isimlendirme çalışmaları yapılır.
+        </div>
+        <div class="activity">
+          <strong>Sosyal &amp; Öz Bakım</strong>
+          Basit yardımlarla kaşık kullanma, ellerini yıkama ve akranlarla sosyal oyunlar teşvik edilir.
+        </div>
+        <div class="video-wrap">
+          <h3>1–2 Yaş Arası Gelişim ve Öneriler</h3>
+          <div class="yt-facade" data-yt="YoBN3HaGkks"></div>
+          <p class="kaynak"><strong>Kaynak:</strong> <a href="https://www.youtube.com/@dr.osmangonulal" target="_blank" rel="noopener">Osman GÖNÜLAL</a></p>
+        </div>
+      </section>
+
+      <div class="warn">
+        Bu içerik tıbbi tavsiye değildir. Bebeğin için kararları mutlaka doktorunuzla birlikte alın.
+      </div>
+      <p class="source">
+        Kaynak: <a href="https://engelsiz.club" rel="noopener">engelsiz.club</a>
+      </p>
+      <a class="btn" href="/">Uygulamada daha fazlası için tıklayınız</a>
+    </article>
+  </main>
+  <div id="disclaimer-overlay" role="dialog" aria-modal="true" aria-labelledby="disclaimer-title">
+    <div class="disclaimer-card">
+      <h2 id="disclaimer-title">Sorumluluk Beyanı</h2>
+      <p>Bu rehber ve videolar yalnızca bilgilendirme amaçlıdır; tıbbi teşhis veya tedavi yerine geçmez.
+
+Bebeğinizin özel durumu için mutlaka çocuk doktoru veya ilgili uzmana danışın. Uygulama klinik hizmet sunmaz.</p>
+      <div class="disclaimer-actions">
+        <button type="button" id="disclaimer-cancel">Vazgeç</button>
+        <button type="button" id="disclaimer-never">Bir daha gösterme</button>
+        <button type="button" class="ok" id="disclaimer-ok">Anladım</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var KEY = 'ec_disclaimer_0_2_yas_v1';
+      var overlay = document.getElementById('disclaimer-overlay');
+      var skipped = false;
+      try { skipped = localStorage.getItem(KEY) === '1'; } catch (_) {}
+      function unlock() {
+        document.body.classList.remove('disclaimer-locked');
+        if (overlay) overlay.hidden = true;
+      }
+      if (skipped) {
+        unlock();
+      } else if (overlay) {
+        overlay.hidden = false;
+      }
+      document.getElementById('disclaimer-ok').addEventListener('click', unlock);
+      document.getElementById('disclaimer-never').addEventListener('click', function () {
+        try { localStorage.setItem(KEY, '1'); } catch (_) {}
+        unlock();
+      });
+      document.getElementById('disclaimer-cancel').addEventListener('click', function () {
+        if (history.length > 1) history.back();
+        else location.href = '/';
+      });
+    })();
+
+    document.querySelectorAll('.yt-facade').forEach((el) => {
+      const id = el.getAttribute('data-yt');
+      if (!id) return;
+      const img = new Image();
+      img.alt = '';
+      img.loading = 'lazy';
+      img.src = 'https://i.ytimg.com/vi/' + id + '/hqdefault.jpg';
+      el.appendChild(img);
+      const play = document.createElement('div');
+      play.className = 'play';
+      play.textContent = '▶ Videoyu izle';
+      el.appendChild(play);
+      el.addEventListener('click', () => {
+        el.innerHTML = '';
+        const iframe = document.createElement('iframe');
+        iframe.src = 'https://www.youtube-nocookie.com/embed/' + id + '?autoplay=1&rel=0&modestbranding=1';
+        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+        iframe.allowFullscreen = true;
+        iframe.title = 'YouTube video';
+        el.appendChild(iframe);
+      }, { once: true });
+    });
+  </script>
+</body>
+</html>

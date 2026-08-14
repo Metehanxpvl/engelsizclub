@@ -19,6 +19,7 @@ class AdminMoreMenuSheet extends StatefulWidget {
 class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
   List<MoreMenuItem> _items = const [];
   bool _loading = true;
+  bool _savingOrder = false;
   String? _error;
   int? _busyId;
 
@@ -86,6 +87,10 @@ class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
       _sqlNeeded();
       return;
     }
+    var maxSort = 0;
+    for (final e in _items) {
+      if (e.sortOrder > maxSort) maxSort = e.sortOrder;
+    }
     final result = await showModalBottomSheet<MoreMenuItem>(
       context: context,
       isScrollControlled: true,
@@ -93,7 +98,10 @@ class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => _MoreMenuEditSheet(item: existing),
+      builder: (_) => _MoreMenuEditSheet(
+        item: existing,
+        nextSort: maxSort + 10,
+      ),
     );
     if (result == null) return;
     try {
@@ -105,6 +113,48 @@ class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
         SnackBar(content: Text('Kaydedilemedi: $e')),
       );
     }
+  }
+
+  Future<void> _persistOrder() async {
+    if (_items.any((e) => e.id <= 0)) {
+      _sqlNeeded();
+      return;
+    }
+    setState(() => _savingOrder = true);
+    try {
+      await reorderMoreMenuItems(_items);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sıra kaydedilemedi: $e')),
+      );
+      await _reload();
+    } finally {
+      if (mounted) setState(() => _savingOrder = false);
+    }
+  }
+
+  Future<void> _move(int from, int to) async {
+    if (_savingOrder) return;
+    if (from == to ||
+        from < 0 ||
+        to < 0 ||
+        from >= _items.length ||
+        to >= _items.length) {
+      return;
+    }
+    setState(() {
+      final next = List<MoreMenuItem>.from(_items);
+      final item = next.removeAt(from);
+      next.insert(to, item);
+      _items = next;
+    });
+    await _persistOrder();
+  }
+
+  void _onReorder(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) newIndex -= 1;
+    _move(oldIndex, newIndex);
   }
 
   Future<void> _delete(MoreMenuItem item) async {
@@ -238,6 +288,20 @@ class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
               ),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Sırayı değiştirmek için tutup sürükleyin veya okları kullanın.',
+                style: GoogleFonts.nunito(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: MetoColors.mutedFg,
+                ),
+              ),
+            ),
+          ),
           const Divider(height: 1),
           if (_loading)
             const Expanded(
@@ -265,107 +329,145 @@ class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
                         style: GoogleFonts.nunito(color: MetoColors.mutedFg),
                       ),
                     )
-                  : ListView.separated(
+                  : ReorderableListView.builder(
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
                       itemCount: _items.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      buildDefaultDragHandles: false,
+                      onReorder: _onReorder,
+                      proxyDecorator: (child, index, animation) {
+                        return Material(
+                          elevation: 6,
+                          borderRadius: BorderRadius.circular(14),
+                          color: Colors.transparent,
+                          child: child,
+                        );
+                      },
                       itemBuilder: (context, i) {
                         final item = _items[i];
-                        final busy = _busyId == item.id;
-                        return Material(
-                          color: MetoColors.background,
-                          borderRadius: BorderRadius.circular(14),
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(10, 10, 6, 10),
-                            child: Row(
-                              children: [
-                                _leading(item),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item.title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: GoogleFonts.nunito(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 14,
-                                        ),
+                        final busy = _busyId == item.id || _savingOrder;
+                        return Padding(
+                          key: ValueKey(item.id),
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Material(
+                            color: MetoColors.background,
+                            borderRadius: BorderRadius.circular(14),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(4, 10, 2, 10),
+                              child: Row(
+                                children: [
+                                  ReorderableDragStartListener(
+                                    index: i,
+                                    child: const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 8,
                                       ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        [
-                                          item.isUrl ? 'Link' : 'Uygulama',
-                                          item.isActive ? 'Aktif' : 'Pasif',
-                                          if (item.isBuiltin) 'Yerleşik',
-                                        ].join(' · '),
-                                        style: GoogleFonts.nunito(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: item.isActive
-                                              ? MetoColors.primary
-                                              : MetoColors.mutedFg,
-                                        ),
-                                      ),
-                                      if (item.subtitle.isNotEmpty) ...[
-                                        const SizedBox(height: 2),
+                                      child: Icon(Icons.drag_handle),
+                                    ),
+                                  ),
+                                  _leading(item),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
                                         Text(
-                                          item.subtitle,
+                                          item.title,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: GoogleFonts.nunito(
-                                            fontSize: 11,
-                                            color: MetoColors.mutedFg,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          [
+                                            item.isUrl ? 'Link' : 'Uygulama',
+                                            item.isActive ? 'Aktif' : 'Pasif',
+                                            if (item.isBuiltin) 'Yerleşik',
+                                          ].join(' · '),
+                                          style: GoogleFonts.nunito(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: item.isActive
+                                                ? MetoColors.primary
+                                                : MetoColors.mutedFg,
                                           ),
                                         ),
                                       ],
-                                    ],
+                                    ),
                                   ),
-                                ),
-                                if (busy)
-                                  const Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
+                                  if (busy)
+                                    const Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    )
+                                  else ...[
+                                    Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          visualDensity: VisualDensity.compact,
+                                          tooltip: 'Yukarı',
+                                          onPressed: i == 0
+                                              ? null
+                                              : () => _move(i, i - 1),
+                                          icon: const Icon(
+                                            Icons.keyboard_arrow_up,
+                                            size: 22,
+                                          ),
+                                        ),
+                                        IconButton(
+                                          visualDensity: VisualDensity.compact,
+                                          tooltip: 'Aşağı',
+                                          onPressed: i == _items.length - 1
+                                              ? null
+                                              : () => _move(i, i + 1),
+                                          icon: const Icon(
+                                            Icons.keyboard_arrow_down,
+                                            size: 22,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    IconButton(
+                                      tooltip: item.isActive
+                                          ? 'Pasife al'
+                                          : 'Aktif et',
+                                      onPressed: () => _toggle(item),
+                                      icon: Icon(
+                                        item.isActive
+                                            ? Icons.visibility
+                                            : Icons.visibility_off_outlined,
+                                        color: item.isActive
+                                            ? MetoColors.primary
+                                            : MetoColors.mutedFg,
                                       ),
                                     ),
-                                  )
-                                else ...[
-                                  IconButton(
-                                    tooltip: item.isActive
-                                        ? 'Pasife al'
-                                        : 'Aktif et',
-                                    onPressed: () => _toggle(item),
-                                    icon: Icon(
-                                      item.isActive
-                                          ? Icons.visibility
-                                          : Icons.visibility_off_outlined,
-                                      color: item.isActive
-                                          ? MetoColors.primary
-                                          : MetoColors.mutedFg,
+                                    IconButton(
+                                      tooltip: 'Düzenle',
+                                      onPressed: () => _edit(item),
+                                      icon: const Icon(Icons.edit_outlined),
                                     ),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Düzenle',
-                                    onPressed: () => _edit(item),
-                                    icon: const Icon(Icons.edit_outlined),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Sil',
-                                    onPressed: () => _delete(item),
-                                    icon: const Icon(
-                                      Icons.delete_outline,
-                                      color: Color(0xFFDC2626),
+                                    IconButton(
+                                      tooltip: 'Sil',
+                                      onPressed: () => _delete(item),
+                                      icon: const Icon(
+                                        Icons.delete_outline,
+                                        color: Color(0xFFDC2626),
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ),
                         );
@@ -379,9 +481,10 @@ class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
 }
 
 class _MoreMenuEditSheet extends StatefulWidget {
-  const _MoreMenuEditSheet({this.item});
+  const _MoreMenuEditSheet({this.item, required this.nextSort});
 
   final MoreMenuItem? item;
+  final int nextSort;
 
   @override
   State<_MoreMenuEditSheet> createState() => _MoreMenuEditSheetState();
@@ -404,7 +507,7 @@ class _MoreMenuEditSheetState extends State<_MoreMenuEditSheet> {
     _link = TextEditingController(text: e?.link ?? '');
     _linkType = e?.linkType ?? 'url';
     _isActive = e?.isActive ?? true;
-    _sortOrder = e?.sortOrder ?? 100;
+    _sortOrder = e?.sortOrder ?? widget.nextSort;
   }
 
   @override
@@ -424,6 +527,12 @@ class _MoreMenuEditSheetState extends State<_MoreMenuEditSheet> {
       );
       return;
     }
+    var linkType = _linkType;
+    if (link.startsWith('http://') ||
+        link.startsWith('https://') ||
+        link.startsWith('/')) {
+      linkType = 'url';
+    }
     final base = widget.item;
     Navigator.pop(
       context,
@@ -431,7 +540,7 @@ class _MoreMenuEditSheetState extends State<_MoreMenuEditSheet> {
         id: base?.id ?? 0,
         title: title,
         subtitle: _subtitle.text.trim(),
-        linkType: _linkType,
+        linkType: linkType,
         link: link,
         icon: base?.icon ?? 'link',
         sortOrder: _sortOrder,
@@ -458,6 +567,15 @@ class _MoreMenuEditSheetState extends State<_MoreMenuEditSheet> {
               style: GoogleFonts.nunito(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Web linkini yapıştırıp kaydet. Play Store ve iOS uygulamasında Daha Fazlası’nda görünür; dokununca uygulama içinde açılır.',
+              style: GoogleFonts.nunito(
+                fontSize: 12.5,
+                height: 1.4,
+                color: MetoColors.mutedFg,
               ),
             ),
             const SizedBox(height: 14),

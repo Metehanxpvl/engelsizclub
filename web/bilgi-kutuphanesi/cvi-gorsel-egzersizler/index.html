@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CVI Görsel Egzersiz Rehberi | Engelsiz Club</title>
+  <meta name="description" content="Serebral görme bozukluğu (CVI) için evde uygulanabilir 20 aşamalı görsel egzersiz rehberi. Evre seç, filtrele, tamamlandı işaretle." />
+  <meta name="robots" content="index,follow" />
+  <link rel="canonical" href="https://www.engelsizclub.com/bilgi-kutuphanesi/cvi-gorsel-egzersizler" />
+  <meta property="og:title" content="CVI Görsel Egzersiz Rehberi | Engelsiz Club" />
+  <meta property="og:description" content="CVI evrelerine göre 20 ev egzersizi: filtrele ve tamamlandı olarak işaretle." />
+  <meta property="og:url" content="https://www.engelsizclub.com/bilgi-kutuphanesi/cvi-gorsel-egzersizler" />
+  <meta property="og:type" content="article" />
+  <style>
+    :root {
+      --fg: #0d2b1f;
+      --muted: #4d7a62;
+      --bg: #f2f7f4;
+      --card: #fff;
+      --accent: #1a6b4a;
+      --selected: #e8f5ee;
+      --border: rgba(26,107,74,.18);
+      --warn: #fff4e5;
+      --done: #ecf8f1;
+      --done-border: #2f9e68;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.65;
+    }
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 18px;
+    }
+    header a { color: var(--accent); font-weight: 700; text-decoration: none; }
+    main { max-width: 760px; margin: 0 auto; padding: 28px 18px 72px; }
+    h1 { font-size: clamp(1.5rem, 4.5vw, 2rem); line-height: 1.25; margin: 0 0 10px; }
+    p, li { color: var(--muted); }
+    .lead { margin: 0 0 18px; }
+    .count {
+      font-size: .92rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 0 0 16px;
+    }
+    .warn {
+      background: var(--warn);
+      border-left: 4px solid #d97706;
+      border-radius: 12px;
+      padding: 14px;
+      margin: 0 0 20px;
+    }
+    .warn strong { display: block; color: var(--fg); margin-bottom: 6px; }
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0 0 18px;
+    }
+    .filters button {
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--fg);
+      font-weight: 800;
+      font-size: .85rem;
+      padding: 8px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    .filters button.on {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .ex {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      margin: 0 0 12px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+    .ex.done {
+      background: var(--done);
+      border-color: var(--done-border);
+    }
+    .ex-body { flex: 1; min-width: 0; }
+    .chip {
+      display: inline-block;
+      background: var(--selected);
+      color: var(--accent);
+      font-size: .72rem;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 999px;
+    }
+    .ex h3 {
+      margin: 8px 0 4px;
+      font-size: 1.02rem;
+      color: var(--fg);
+    }
+    .ex.done h3 { text-decoration: line-through; color: #7a9a8a; }
+    .ex p { margin: 0; font-size: .92rem; }
+    .ex.done p { color: #8aa898; }
+    .done-btn {
+      flex-shrink: 0;
+      border: 0;
+      border-radius: 10px;
+      font-weight: 800;
+      font-size: .78rem;
+      padding: 8px 12px;
+      cursor: pointer;
+      background: #eef3f0;
+      color: var(--fg);
+    }
+    .ex.done .done-btn {
+      background: var(--accent);
+      color: #fff;
+    }
+    .source { font-size: .9rem; color: var(--muted); margin-top: 18px; }
+    .btn {
+      display: inline-block;
+      margin-top: 16px;
+      background: var(--accent);
+      color: #fff !important;
+      text-decoration: none;
+      font-weight: 800;
+      padding: 12px 18px;
+      border-radius: 12px;
+    }
+    body.disclaimer-locked main,
+    body.disclaimer-locked header { visibility: hidden; }
+    #disclaimer-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(13, 43, 31, 0.55);
+    }
+    #disclaimer-overlay[hidden] { display: none; }
+    .disclaimer-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 22px 18px 16px;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 10px 36px rgba(0,0,0,.2);
+    }
+    .disclaimer-card h2 { margin: 0 0 10px; color: var(--fg); font-size: 1.15rem; }
+    .disclaimer-card p {
+      color: var(--muted);
+      margin: 0 0 16px;
+      font-size: .95rem;
+      white-space: pre-line;
+    }
+    .disclaimer-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+    .disclaimer-actions button {
+      border: 0;
+      background: transparent;
+      color: var(--accent);
+      font-weight: 800;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: .92rem;
+    }
+    .disclaimer-actions .ok { background: var(--accent); color: #fff; }
+  </style>
+</head>
+<body class="disclaimer-locked">
+  <header><a href="/">← Engelsiz Club · Bilgi Kütüphanesi</a></header>
+  <main>
+    <article>
+      <h1>CVI Görsel Egzersiz Rehberi</h1>
+      <p class="lead">
+        Serebral görme bozukluğu (CVI) olan çocuklar için evde uygulanabilir
+        aşamalı takip aracı. Evre seç, egzersizleri filtrele, tamamlananları işaretle.
+      </p>
+
+      <div class="warn">
+        <strong>Yasal ve Tıbbi Sorumluluk Beyanı</strong>
+        engelsizclub.com üzerindeki bu egzersizler yalnızca bilgilendirme ve
+        rehberlik amaçlıdır. Tıbbi tavsiye, teşhis veya tedavi niteliği taşımaz.
+        Her çocuğun CVI durumu benzersizdir; uygulamadan önce çocuk nöroloğu,
+        göz doktoru, CVI uzmanı veya ergoterapiste danışın.
+      </div>
+
+      <div class="filters" id="filters"></div>
+      <p class="count" id="count"></p>
+      <div id="list"></div>
+
+      <p class="source">Kaynak: <a href="https://www.engelsizclub.com" rel="noopener">engelsizclub.com</a></p>
+      <a class="btn" href="/">Uygulamada daha fazlası için tıklayınız</a>
+    </article>
+  </main>
+
+  <div id="disclaimer-overlay" role="dialog" aria-modal="true" aria-labelledby="disclaimer-title">
+    <div class="disclaimer-card">
+      <h2 id="disclaimer-title">Sorumluluk Beyanı</h2>
+      <p>Bu egzersizler yalnızca bilgilendirme ve rehberlik amaçlıdır; tıbbi tavsiye, teşhis veya tedavi yerine geçmez.
+
+Her çocuğun CVI durumu benzersizdir. Uygulamadan önce mutlaka çocuk nöroloğu, göz doktoru, CVI uzmanı veya ergoterapiste danışın. Uygulama klinik hizmet sunmaz.</p>
+      <div class="disclaimer-actions">
+        <button type="button" id="disclaimer-cancel">Vazgeç</button>
+        <button type="button" id="disclaimer-never">Bir daha gösterme</button>
+        <button type="button" class="ok" id="disclaimer-ok">Anladım</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var DATA = [
+      { id: 1, stage: 1, title: "Kırmızı Parlak Nesneye Sabitleme (Fixation)", desc: "Siyah/mat bir arka plan önünde, çocuğun en çok tepki verdiği parlak kırmızı nesneyi 25-30 cm mesafede tutarak sabit bakmasını sağlama." },
+      { id: 2, stage: 1, title: "Işık Kutusu (Light Box) ile Işık Takibi", desc: "Işık kutusu veya arkadan aydınlatılmış beyaz tablet ekranı üzerinde parlak sarı/kırmızı transparan şekilleri yavaşça hareket ettirme." },
+      { id: 3, stage: 1, title: "Tek Yönlü Fener Takibi (Flashlight Tracking)", desc: "Karanlık bir odada mat bir yüzeye yansıtılan tek parlak ışık noktasını sağa ve sola çok yavaşça kaydırarak takip ettirme." },
+      { id: 4, stage: 1, title: "Yanıp Sönen (Flash) Işık Uyaranı", desc: "Saniyede 1-2 kez yanıp sönen parlak renkli bir LED ışık göstererek göz teması süresini test etme ve artırma." },
+      { id: 5, stage: 1, title: "Yüksek Kontrastlı Siyah-Beyaz Çizgi Çalışması", desc: "Kalın siyah-beyaz dikey şeritlerin yavaşça görüş alanından geçirilmesi." },
+      { id: 6, stage: 2, title: "Yavaş Yatay Hareket (Horizontal Tracking)", desc: "Parlak kırmızı nesneyi çocuğun görüş alanının ortasından soluna ve sağına doğru çok yavaş bir tempoyla hareket ettirme." },
+      { id: 7, stage: 2, title: "Dikey Eksen Takibi (Vertical Tracking)", desc: "Aynı parlak nesneyi yukarıdan aşağıya ve aşağıdan yukarıya doğru yavaşça hareket ettirerek dikey kas koordinasyonunu destekleme." },
+      { id: 8, stage: 2, title: "Dairesel (Yay) Takibi", desc: "Nesneyi çocuğun göz hizasında geniş kavisler çizerek hareket ettirme, çevresel görüş alanını uyarma." },
+      { id: 9, stage: 2, title: "Refleksif Yaklaşma / Uzaklaşma (Looming)", desc: "Parlak nesneyi çocuğun yüzüne doğru çok yavaş ve kontrollü şekilde yaklaştırıp uzaklaştırma." },
+      { id: 10, stage: 2, title: "Hareketli ve Sesli Uyaran Kombinasyonu", desc: "Hem hareket eden hem de hafif ses çıkaran parlak renkli bir nesneyle işitsel ve görsel odaklanmayı tetikleme." },
+      { id: 11, stage: 3, title: "Tek Renk Seçim Çalışması", desc: "Çocuğun favori rengi olan bir nesneyi nötr zemin üzerinde tek başına sunarak ‘bak ve bul’ çalışması yapma." },
+      { id: 12, stage: 3, title: "Nesneye Uzanma ve Dokunma (Reach-to-Touch)", desc: "Gözle görülen parlak nesneye aynı anda elle dokunmasını sağlama (göz-el koordinasyonu)." },
+      { id: 13, stage: 3, title: "Yansıtıcı (Reflektif) Materyal Çalışması", desc: "Işığı yansıtan parlak folyo veya metalik yüzeyli nesnelerle ışık yansımalarını fark etme egzersizi." },
+      { id: 14, stage: 3, title: "İki Nesne Arasından Seçim", desc: "Çocuğun önüne aralarında renk kontrastı olan iki farklı nesne koyup hedef rengi göstermesini isteme." },
+      { id: 15, stage: 3, title: "Tanıdık Nesne Tanıma", desc: "Çocuğun günlük hayatta sürekli kullandığı aşina nesneyi farklı açılardan göstererek tanımasını sağlama." },
+      { id: 16, stage: 4, title: "2 Boyutlu Resim Eşleştirme", desc: "Gerçek nesne ile o nesnenin yüksek kontrastlı, sade 2 boyutlu fotoğrafını yan yana koyarak eşleştirme." },
+      { id: 17, stage: 4, title: "Azaltılmış Arka Planda Resim İnceleme", desc: "Arkasında karmaşık desenler olmayan, düz renk fonlu büyük ve net resimli kartları inceletme." },
+      { id: 18, stage: 4, title: "Kalabalık İçinde Nesne Bulma (Visual Search)", desc: "Masanın üzerine birkaç farklı nesne koyarak hedef nesneyi aralarından bulmasını isteme." },
+      { id: 19, stage: 4, title: "Yüz Tanıma ve İfade Algılama", desc: "Doğal ışıkta, sade arka planda net yüz ifadeleriyle çocukla göz teması kurarak sosyal görsel iletişim kurma." },
+      { id: 20, stage: 4, title: "Açık Hava / Doğal Işık Adaptasyon Çalışması", desc: "Kontrollü dış ortam ışığında çevredeki büyük renkli nesneleri fark etme denemeleri." }
+    ];
+    var STAGE_LABELS = {
+      0: "Tüm Egzersizler",
+      1: "Aşama 1 (Evre 1–3)",
+      2: "Aşama 2 (Evre 3–5)",
+      3: "Aşama 3 (Evre 5–7)",
+      4: "Aşama 4 (Evre 7–10)"
+    };
+    var DISCLAIMER_KEY = "ec_disclaimer_cvi_rehber_v1";
+    var DONE_KEY = "ec_cvi_rehber_done_v1";
+    var selectedStage = 0;
+    var completed = {};
+
+    try {
+      completed = JSON.parse(localStorage.getItem(DONE_KEY) || "{}") || {};
+    } catch (_) { completed = {}; }
+
+    function saveDone() {
+      try { localStorage.setItem(DONE_KEY, JSON.stringify(completed)); } catch (_) {}
+    }
+
+    function esc(s) {
+      return String(s || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function renderFilters() {
+      var host = document.getElementById("filters");
+      host.innerHTML = [0, 1, 2, 3, 4].map(function (n) {
+        return '<button type="button" data-stage="' + n + '" class="' + (selectedStage === n ? "on" : "") + '">' + STAGE_LABELS[n] + "</button>";
+      }).join("");
+      host.querySelectorAll("button").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          selectedStage = Number(btn.getAttribute("data-stage"));
+          renderFilters();
+          renderList();
+        });
+      });
+    }
+
+    function renderList() {
+      var items = selectedStage === 0 ? DATA : DATA.filter(function (x) { return x.stage === selectedStage; });
+      var doneCount = DATA.filter(function (x) { return !!completed[x.id]; }).length;
+      document.getElementById("count").textContent = doneCount + " / 20 tamamlandı · " + items.length + " gösteriliyor";
+      document.getElementById("list").innerHTML = items.map(function (item) {
+        var done = !!completed[item.id];
+        return (
+          '<article class="ex' + (done ? " done" : "") + '">' +
+            '<div class="ex-body">' +
+              '<span class="chip">Aşama ' + item.stage + "</span>" +
+              "<h3>" + item.id + ". " + esc(item.title) + "</h3>" +
+              "<p>" + esc(item.desc) + "</p>" +
+            "</div>" +
+            '<button type="button" class="done-btn" data-id="' + item.id + '">' +
+              (done ? "Tamamlandı ✓" : "Tamamla") +
+            "</button>" +
+          "</article>"
+        );
+      }).join("");
+      document.getElementById("list").querySelectorAll(".done-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var id = Number(btn.getAttribute("data-id"));
+          completed[id] = !completed[id];
+          saveDone();
+          renderList();
+        });
+      });
+    }
+
+    (function () {
+      var overlay = document.getElementById("disclaimer-overlay");
+      var skipped = false;
+      try { skipped = localStorage.getItem(DISCLAIMER_KEY) === "1"; } catch (_) {}
+      function unlock() {
+        document.body.classList.remove("disclaimer-locked");
+        if (overlay) overlay.hidden = true;
+      }
+      if (skipped) unlock();
+      else if (overlay) overlay.hidden = false;
+      document.getElementById("disclaimer-ok").addEventListener("click", unlock);
+      document.getElementById("disclaimer-never").addEventListener("click", function () {
+        try { localStorage.setItem(DISCLAIMER_KEY, "1"); } catch (_) {}
+        unlock();
+      });
+      document.getElementById("disclaimer-cancel").addEventListener("click", function () {
+        if (history.length > 1) history.back();
+        else location.href = "/";
+      });
+    })();
+
+    renderFilters();
+    renderList();
+  </script>
+</body>
+</html>

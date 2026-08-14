@@ -122,3 +122,20 @@ Future<void> deleteMoreMenuItem(int id) async {
   await _db.from('daha_fazlasi_menu').delete().eq('id', id);
   invalidateMoreMenuCache();
 }
+
+Future<void> reorderMoreMenuItems(List<MoreMenuItem> ordered) async {
+  final email = _authEmail();
+  if (!isAppAdmin(email)) {
+    throw StateError('Yalnız admin düzenleyebilir.');
+  }
+  final now = DateTime.now().toUtc().toIso8601String();
+  for (var i = 0; i < ordered.length; i++) {
+    final item = ordered[i];
+    if (item.id <= 0) continue;
+    await _db.from('daha_fazlasi_menu').update({
+      'sort_order': (i + 1) * 10,
+      'updated_at': now,
+    }).eq('id', item.id);
+  }
+  invalidateMoreMenuCache();
+}

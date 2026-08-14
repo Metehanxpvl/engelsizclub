@@ -549,7 +549,7 @@ class _MainShellState extends State<MainShell> {
           child: ConstrainedBox(
             constraints: BoxConstraints(maxHeight: maxH),
             child: FutureBuilder<List<MoreMenuItem>>(
-              future: loadMoreMenu(),
+              future: loadMoreMenu(forceRefresh: true),
               builder: (context, snap) {
                 final items = snap.data ??
                     cachedMoreMenu ??

@@ -38,6 +38,34 @@
         "destination": "/bilgi-kutuphanesi/premature-bebek-gelisimi/index.html"
       },
       {
+        "source": "/bilgi-kutuphanesi/0-2-yas-gelisim-rehberi",
+        "destination": "/bilgi-kutuphanesi/0-2-yas-gelisim-rehberi/index.html"
+      },
+      {
+        "source": "/bilgi-kutuphanesi/0-2-yas-gelisim-rehberi/**",
+        "destination": "/bilgi-kutuphanesi/0-2-yas-gelisim-rehberi/index.html"
+      },
+      {
+        "source": "/bilgi-kutuphanesi/cvi-gorsel-egzersizler",
+        "destination": "/bilgi-kutuphanesi/cvi-gorsel-egzersizler/index.html"
+      },
+      {
+        "source": "/bilgi-kutuphanesi/cvi-gorsel-egzersizler/**",
+        "destination": "/bilgi-kutuphanesi/cvi-gorsel-egzersizler/index.html"
+      },
+      {
+        "source": "/fotografli-puzzle",
+        "destination": "/fotografli-puzzle.html"
+      },
+      {
+        "source": "/daha-fazlasi/ozel",
+        "destination": "/daha-fazlasi/ozel/index.html"
+      },
+      {
+        "source": "/daha-fazlasi/ozel/**",
+        "destination": "/daha-fazlasi/ozel/index.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
@@ -108,6 +136,15 @@
       },
       {
         "source": "/bilgi-kutuphanesi/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/fotografli-puzzle.html",
         "headers": [
           {
             "key": "Cache-Control",
