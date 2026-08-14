@@ -1,7 +1,9 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import '../meto_theme.dart';
 
@@ -75,7 +77,9 @@ class _InAppWebPageState extends State<InAppWebPage> {
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController()
+    _controller = WebViewController(
+      onPermissionRequest: (request) => request.grant(),
+    )
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
@@ -94,6 +98,66 @@ class _InAppWebPageState extends State<InAppWebPage> {
         ),
       )
       ..loadRequest(Uri.parse(widget.url));
+    _enableNativeFilePicker();
+  }
+
+  /// Android WebView hides `<input type="file">` unless this callback is set
+  /// *and* `setSynchronousReturnValueForOnShowFileChooser(true)` succeeds.
+  /// iOS WKWebView shows the native picker if camera / photo usage strings exist.
+  ///
+  /// Do not show a Flutter sheet over the WebView — hybrid composition puts the
+  /// native view on top, so the sheet is invisible and the chooser appears stuck.
+  Future<void> _enableNativeFilePicker() async {
+    final platform = _controller.platform;
+    if (platform is! AndroidWebViewController) return;
+    await platform.setAllowFileAccess(true);
+    await platform.setAllowContentAccess(true);
+    await platform.setOnShowFileSelector(_androidFileSelector);
+  }
+
+  Future<List<String>> _androidFileSelector(FileSelectorParams params) async {
+    try {
+      if (params.mode == FileSelectorMode.save) {
+        return const <String>[];
+      }
+      final multiple = params.mode == FileSelectorMode.openMultiple;
+      final picker = ImagePicker();
+
+      if (params.isCaptureEnabled) {
+        final captured = await picker.pickImage(
+          source: ImageSource.camera,
+          imageQuality: 92,
+        );
+        if (captured != null) {
+          return _urisFromPaths(<String>[captured.path]);
+        }
+      }
+
+      if (multiple) {
+        final files = await picker.pickMultiImage(imageQuality: 92);
+        return _urisFromPaths(files.map((f) => f.path).toList());
+      }
+
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 92,
+      );
+      if (picked == null) return const <String>[];
+      return _urisFromPaths(<String>[picked.path]);
+    } catch (e, st) {
+      debugPrint('Android WebView file selector failed: $e\n$st');
+      return const <String>[];
+    }
+  }
+
+  List<String> _urisFromPaths(List<String> paths) {
+    return [
+      for (final path in paths)
+        if (path.startsWith('content:') || path.startsWith('file:'))
+          path
+        else
+          Uri.file(path).toString(),
+    ];
   }
 
   Future<void> _openExternal() async {

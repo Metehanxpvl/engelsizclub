@@ -53,8 +53,14 @@
 	<string>Yakınınızdaki rehabilitasyon merkezlerini göstermek için konumunuz kullanılır.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Yakınınızdaki rehabilitasyon merkezlerini göstermek ve uygun sonuçları sunmak için konumunuza erişim gerekir.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Fotoğraflı puzzle ve iletişim kartları için kamera ile fotoğraf çekebilirsiniz.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>İletişim kartlarını kişiselleştirmek için galerinizden fotoğraf seçebilirsiniz.</string>
+	<string>Fotoğraflı puzzle ve iletişim kartları için galerinizden fotoğraf seçebilirsiniz.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Çekilen fotoğrafları kaydetmek için fotoğraf kütüphanesine erişim gerekir.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Kamera ile fotoğraf çekerken mikrofon erişimi gerekebilir.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
