@@ -10,13 +10,37 @@
   </script>
   <style>
     html, body { background: #fff; }
+    /* Tailwind preflight sets img{max-width:100%} which boxed each
+       jigsaw into its cell so tabs never overlapped — that was the gap. */
     #boardWrap {
       background: #d9d0ea;
-      padding: 8%;
+      padding: 10%;
+      overflow: visible;
     }
     #board {
+      display: block;
+      position: relative;
+      gap: 0;
+      padding: 0;
+      margin: 0;
       overflow: visible;
       aspect-ratio: 1;
+      min-width: 0;
+    }
+    .board-grid {
+      display: grid;
+      gap: 0;
+      padding: 0;
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+    .piece-layer {
+      position: absolute;
+      inset: 0;
+      overflow: visible;
+      pointer-events: none;
     }
     .slot {
       position: relative;
@@ -24,20 +48,49 @@
       touch-action: none;
       user-select: none;
       -webkit-user-select: none;
-      background: rgba(255, 255, 255, 0.28);
+      background: rgba(255, 255, 255, 0.18);
+      padding: 0;
+      margin: 0;
+      border: none;
+      min-width: 0;
+      min-height: 0;
     }
-    .slot.filled { background: transparent; }
+    .slot.filled { background: transparent; cursor: grab; }
+    .slot.snap-lock img.piece,
+    img.piece.snap-lock {
+      animation: piece-snap 0.2s ease-out;
+    }
+    @keyframes piece-snap {
+      0% { filter: brightness(1.1); }
+      100% { filter: none; }
+    }
+    .slot.grouped { z-index: 3; }
+    .slot.grouped img.piece {
+      filter: drop-shadow(0 0 0.6px rgba(34, 197, 94, 0.4));
+    }
     .slot.drop-target {
-      background: rgba(34, 197, 94, 0.22);
+      background: rgba(34, 197, 94, 0.14);
       box-shadow: inset 0 0 0 2px #22c55e;
     }
-    .slot img.piece {
+    .slot img.piece,
+    #board > img.piece {
       position: absolute;
       pointer-events: none;
-      width: calc(100% * (1 + 2 * var(--tabx)));
-      height: calc(100% * (1 + 2 * var(--taby)));
-      left: calc(-100% * var(--tabx));
-      top: calc(-100% * var(--taby));
+      max-width: none !important;
+      max-height: none !important;
+      margin: 0;
+      padding: 0;
+      border: none;
+    }
+    .slot img.piece {
+      width: calc(100% * (1 + 2 * var(--tabx, 0.22)));
+      height: calc(100% * (1 + 2 * var(--taby, 0.22)));
+      left: calc(-100% * var(--tabx, 0.22));
+      top: calc(-100% * var(--taby, 0.22));
+    }
+    img.piece, .tray-piece, .ghost img {
+      max-width: none !important;
+      max-height: none !important;
     }
     #trayWrap {
       background: #f3eef9;
@@ -57,7 +110,6 @@
       user-select: none;
       -webkit-user-select: none;
       cursor: grab;
-      height: auto;
       filter: drop-shadow(2px 8px 10px rgba(0, 0, 0, .38));
     }
     .ghost {
@@ -134,8 +186,8 @@
       <div id="trayWrap" class="relative mx-auto w-full max-w-[360px] rounded-2xl mb-3 hidden">
         <div id="tray"></div>
       </div>
-      <div id="boardWrap" class="relative mx-auto w-full max-w-[360px] rounded-2xl overflow-hidden border-2 border-brand">
-        <div id="board" class="relative grid w-full"></div>
+      <div id="boardWrap" class="relative mx-auto w-full max-w-[360px] rounded-2xl border-2 border-brand">
+        <div id="board" class="relative w-full"></div>
         <img id="helpImg" alt="" class="absolute inset-0 w-full h-full object-cover opacity-40 hidden pointer-events-none z-10" />
       </div>
     </div>
@@ -217,6 +269,26 @@
       return { r: Math.floor(slot / cols), c: slot % cols };
     }
 
+    // Row-major: left/right are i-1 / i+1 on the SAME row; up/down are i-cols / i+cols.
+    function neighborIndex(index, dr, dc) {
+      const r = Math.floor(index / cols);
+      const c = index % cols;
+      const nr = r + dr;
+      const nc = c + dc;
+      if (nr < 0 || nc < 0 || nr >= rows || nc >= cols) return -1;
+      return nr * cols + nc;
+    }
+
+    function neighborIdsOf(id) {
+      const i = catalog[id].correct;
+      const out = [];
+      [[0, -1], [0, 1], [-1, 0], [1, 0]].forEach(([dr, dc]) => {
+        const ni = neighborIndex(i, dr, dc);
+        if (ni >= 0) out.push(ni);
+      });
+      return out;
+    }
+
     function find(i) {
       while (parent[i] !== i) {
         parent[i] = parent[parent[i]];
@@ -252,9 +324,34 @@
     }
 
     function areNeighbors(a, b) {
-      const pa = catalog[a];
-      const pb = catalog[b];
-      return Math.abs(pa.row - pb.row) + Math.abs(pa.col - pb.col) === 1;
+      return neighborIdsOf(a).indexOf(catalog[b].correct) >= 0;
+    }
+
+    function slotOf(id) {
+      return boardSlots.indexOf(id);
+    }
+
+    function movingSet(grabbedId) {
+      const s = {};
+      membersOf(grabbedId).forEach((pid) => { s[pid] = true; });
+      return s;
+    }
+
+    // True when two board slots are orthogonally adjacent AND those slots
+    // match the pieces' real left/right (same row) or up/down offset.
+    function areCorrectlyAdjacentOnBoard(idA, slotA, idB, slotB) {
+      if (slotA < 0 || slotB < 0 || idA == null || idB == null) return false;
+      const sa = rcOf(slotA);
+      const sb = rcOf(slotB);
+      const dr = sb.r - sa.r;
+      const dc = sb.c - sa.c;
+      if (Math.abs(dr) + Math.abs(dc) !== 1) return false;
+      return (catalog[idB].row - catalog[idA].row) === dr &&
+        (catalog[idB].col - catalog[idA].col) === dc;
+    }
+
+    function slotOffsetMatchesPieces(slotA, slotB, idA, idB) {
+      return areCorrectlyAdjacentOnBoard(idA, slotA, idB, slotB);
     }
 
     function clearGhost() {
@@ -434,8 +531,8 @@
           paintBevel(ctx, cellW, cellH, L, T, R, B, tab);
           ctx.beginPath();
           piecePath(ctx, cellW, cellH, L, T, R, B, tab);
-          ctx.strokeStyle = "rgba(16, 10, 24, 0.9)";
-          ctx.lineWidth = Math.max(1.5, Math.min(cellW, cellH) * 0.024);
+          ctx.strokeStyle = "rgba(16, 10, 24, 0.38)";
+          ctx.lineWidth = Math.max(0.8, Math.min(cellW, cellH) * 0.01);
           ctx.lineJoin = "round";
           ctx.lineCap = "round";
           ctx.stroke();
@@ -549,47 +646,86 @@
         const tr = s.r + (catalog[id].row - g.row);
         const tc = s.c + (catalog[id].col - g.col);
         if (tr < 0 || tc < 0 || tr >= rows || tc >= cols) return null;
-        const ti = tr * cols + tc;
-        if (catalog[id].correct !== ti) return null;
-        out.push({ id, ti });
+        out.push({ id, ti: tr * cols + tc });
       }
       return out;
     }
 
-    function canLockGroup(grabbedId, slotIndex) {
-      if (catalog[grabbedId].correct !== slotIndex) return false;
-      const targets = groupTargets(grabbedId, slotIndex);
-      if (!targets) return false;
-      const mem = membersOf(grabbedId);
-      for (let i = 0; i < targets.length; i++) {
-        const occ = boardSlots[targets[i].ti];
-        if (occ != null && mem.indexOf(occ) < 0) return false;
+    function mergeGroups() {
+      let merged = false;
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (let slotA = 0; slotA < boardSlots.length; slotA++) {
+          const idA = boardSlots[slotA];
+          if (idA == null) continue;
+          const sa = rcOf(slotA);
+          [[0, 1], [1, 0]].forEach(([dr, dc]) => {
+            const nr = sa.r + dr;
+            const nc = sa.c + dc;
+            if (nr >= rows || nc >= cols) return;
+            const slotB = nr * cols + nc;
+            const idB = boardSlots[slotB];
+            if (idB == null) return;
+            if (find(idA) === find(idB)) return;
+            if (!areCorrectlyAdjacentOnBoard(idA, slotA, idB, slotB)) return;
+            union(idA, idB);
+            merged = true;
+            grew = true;
+          });
+        }
       }
-      return true;
+      return merged;
     }
 
-    function lockGroupToBoard(grabbedId, slotIndex) {
+    function placeGroupOnBoard(grabbedId, slotIndex) {
+      slotIndex = resolveBoardDropSlot(grabbedId, slotIndex);
       const targets = groupTargets(grabbedId, slotIndex);
-      if (!targets || !canLockGroup(grabbedId, slotIndex)) return false;
+      if (!targets) return null;
+      const mem = membersOf(grabbedId);
+      const moving = {};
+      mem.forEach((id) => { moving[id] = true; });
+      const displaced = {};
+      for (let i = 0; i < targets.length; i++) {
+        const { id, ti } = targets[i];
+        const occ = boardSlots[ti];
+        if (occ == null || moving[occ]) continue;
+        if (areNeighbors(id, occ)) return null;
+        const root = find(occ);
+        if (!displaced[root]) displaced[root] = occ;
+      }
+      Object.keys(displaced).forEach((k) => addGroupToTray(displaced[k]));
       takeFromTray(grabbedId);
+      mem.forEach((pid) => {
+        const from = boardSlots.indexOf(pid);
+        if (from >= 0) boardSlots[from] = null;
+      });
       targets.forEach(({ id, ti }) => {
         boardSlots[ti] = id;
       });
-      targets.forEach(({ id, ti }) => {
-        const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-        const p = rcOf(ti);
-        dirs.forEach(([dr, dc]) => {
-          const nr = p.r + dr;
-          const nc = p.c + dc;
-          if (nr < 0 || nc < 0 || nr >= rows || nc >= cols) return;
-          const ni = nr * cols + nc;
-          const oid = boardSlots[ni];
-          if (oid == null) return;
-          if (catalog[oid].correct !== ni) return;
-          if (areNeighbors(id, oid)) union(id, oid);
-        });
-      });
-      return true;
+      mergeGroups();
+      return targets;
+    }
+
+    function snapSound() {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      try {
+        const ctx = snapSound.ctx || (snapSound.ctx = new AC());
+        if (ctx.state === "suspended") ctx.resume();
+        const t = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(520, t);
+        osc.frequency.exponentialRampToValueAtTime(190, t + 0.09);
+        gain.gain.setValueAtTime(0.14, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.11);
+      } catch (err) { /* ignore */ }
     }
 
     function setGroupPosFromPiece(pid) {
@@ -618,8 +754,10 @@
     function trySnapTray(movedId) {
       const size = smallPieceSize();
       const core = trayCore(size);
-      const thresh = Math.min(core.w, core.h) * 0.48;
+      const threshX = core.w * 0.72;
+      const threshY = core.h * 0.72;
       let grew = true;
+      let snapped = false;
       while (grew) {
         grew = false;
         const mem = trayMembers(movedId);
@@ -627,10 +765,11 @@
           const id = mem[i];
           layoutGroupInTray(id);
           const box = catalog[id]._box;
-          for (let n = 0; n < catalog.length; n++) {
+          const nbrs = neighborIdsOf(id);
+          for (let k = 0; k < nbrs.length; k++) {
+            const n = nbrs[k];
             if (trayIds.indexOf(n) < 0) continue;
             if (find(n) === find(id)) continue;
-            if (!areNeighbors(id, n)) continue;
             layoutGroupInTray(n);
             const nb = catalog[n]._box;
             const wantDx = (catalog[id].col - catalog[n].col) * core.w;
@@ -639,7 +778,9 @@
             const idCy = box.t + box.h / 2;
             const nCx = nb.l + nb.w / 2;
             const nCy = nb.t + nb.h / 2;
-            if (Math.hypot((idCx - nCx) - wantDx, (idCy - nCy) - wantDy) > thresh) continue;
+            const errX = (idCx - nCx) - wantDx;
+            const errY = (idCy - nCy) - wantDy;
+            if (Math.abs(errX) > threshX || Math.abs(errY) > threshY) continue;
             const rootM = find(id);
             if (!groupPos[rootM]) groupPos[rootM] = { l: 8, t: 8, z: ++zTop };
             groupPos[rootM].l += (nCx + wantDx) - idCx;
@@ -650,16 +791,171 @@
             groupPos[find(n)].z = ++zTop;
             layoutGroupInTray(find(n));
             grew = true;
+            snapped = true;
             break;
           }
           if (grew) break;
         }
       }
+      return snapped;
     }
 
-    function slotAtPoint(x, y) {
+    function groupFitsEmpty(grabbedId, grabbedSlot, moving) {
+      const targets = groupTargets(grabbedId, grabbedSlot);
+      if (!targets) return false;
+      for (let i = 0; i < targets.length; i++) {
+        const occ = boardSlots[targets[i].ti];
+        if (occ != null && !moving[occ]) return false;
+      }
+      return true;
+    }
+
+    function attachSlotBeside(memberId, neighborId, neighborSlot, grabbedId) {
+      const ns = rcOf(neighborSlot);
+      const wantR = ns.r + (catalog[memberId].row - catalog[neighborId].row);
+      const wantC = ns.c + (catalog[memberId].col - catalog[neighborId].col);
+      if (wantR < 0 || wantC < 0 || wantR >= rows || wantC >= cols) return -1;
+      const gR = wantR + (catalog[grabbedId].row - catalog[memberId].row);
+      const gC = wantC + (catalog[grabbedId].col - catalog[memberId].col);
+      if (gR < 0 || gC < 0 || gR >= rows || gC >= cols) return -1;
+      return gR * cols + gC;
+    }
+
+    // If the pointer is on a neighbor (or 1 slot off the join cell), land on the
+    // empty slot that keeps true left/right or up/down geometry — do NOT occupy
+    // the neighbor and kick it back to the tray.
+    function resolveBoardDropSlot(grabbedId, slotIndex) {
+      if (slotIndex < 0) return slotIndex;
+      const mem = membersOf(grabbedId);
+      const moving = movingSet(grabbedId);
+      const drop = rcOf(slotIndex);
+      const home = catalog[grabbedId].correct;
+      const homeRc = rcOf(home);
+      const homeD = Math.abs(homeRc.r - drop.r) + Math.abs(homeRc.c - drop.c);
+      if (homeD === 0 && groupFitsEmpty(grabbedId, home, moving)) return home;
+
+      let best = -1;
+      let bestD = Infinity;
+      for (let ti = 0; ti < boardSlots.length; ti++) {
+        const oid = boardSlots[ti];
+        if (oid == null || moving[oid]) continue;
+        for (let i = 0; i < mem.length; i++) {
+          const id = mem[i];
+          if (!areNeighbors(id, oid)) continue;
+          const gSlot = attachSlotBeside(id, oid, ti, grabbedId);
+          if (gSlot < 0) continue;
+          if (!groupFitsEmpty(grabbedId, gSlot, moving)) continue;
+          const gs = rcOf(gSlot);
+          const d = Math.abs(gs.r - drop.r) + Math.abs(gs.c - drop.c);
+          const nd = Math.abs(rcOf(ti).r - drop.r) + Math.abs(rcOf(ti).c - drop.c);
+          const score = Math.min(d, nd);
+          if (score < bestD) {
+            bestD = score;
+            best = gSlot;
+          }
+        }
+      }
+      if (best >= 0 && bestD <= 1) return best;
+      return slotIndex;
+    }
+
+    function slotIndexAt(x, y) {
+      const wrap = document.getElementById("boardWrap");
+      const wr = wrap.getBoundingClientRect();
+      const overBoard = x >= wr.left && x <= wr.right && y >= wr.top && y <= wr.bottom;
       const el = document.elementFromPoint(x, y);
-      return el && el.closest ? el.closest(".slot") : null;
+      const hit = el && el.closest ? el.closest(".slot") : null;
+      if (hit && board.contains(hit)) return Number(hit.dataset.i);
+      if (!overBoard) return -1;
+      let best = -1;
+      let bestD = Infinity;
+      board.querySelectorAll(".slot").forEach((s) => {
+        const r = s.getBoundingClientRect();
+        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+          best = Number(s.dataset.i);
+          bestD = 0;
+          return;
+        }
+        const cx = (r.left + r.right) / 2;
+        const cy = (r.top + r.bottom) / 2;
+        const d = Math.hypot(x - cx, y - cy);
+        if (d < bestD) {
+          bestD = d;
+          best = Number(s.dataset.i);
+        }
+      });
+      return best;
+    }
+
+    function cellSize() {
+      const s = board.querySelector(".slot");
+      const r = s && s.getBoundingClientRect();
+      const br = board.getBoundingClientRect();
+      return {
+        w: r ? r.width : (br.width / Math.max(1, cols)),
+        h: r ? r.height : (br.height / Math.max(1, rows))
+      };
+    }
+
+    // Snap if pointer is in a slot, or piece-core is within 40% of a slot origin.
+    function snapSlotAt(x, y, coreLeft, coreTop, cellW, cellH) {
+      const threshX = cellW * 0.4;
+      const threshY = cellH * 0.4;
+      let best = -1;
+      let bestD = Infinity;
+      board.querySelectorAll(".slot").forEach((s) => {
+        const r = s.getBoundingClientRect();
+        const i = Number(s.dataset.i);
+        const dx = coreLeft - r.left;
+        const dy = coreTop - r.top;
+        const inside = x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+        const close = Math.abs(dx) <= threshX && Math.abs(dy) <= threshY;
+        if (!inside && !close) return;
+        const d = Math.hypot(dx, dy);
+        if (d < bestD) {
+          bestD = d;
+          best = i;
+        }
+      });
+      return best;
+    }
+
+    // If not on a slot, lock to a true neighbor already on the board (dx=cellW, dy=cellH).
+    function neighborSnapSlot(grabbedId, coreLeft, coreTop, cellW, cellH) {
+      const mem = membersOf(grabbedId);
+      const moving = movingSet(grabbedId);
+      const threshX = cellW * 0.4;
+      const threshY = cellH * 0.4;
+      let best = -1;
+      let bestD = Infinity;
+      for (let i = 0; i < mem.length; i++) {
+        const id = mem[i];
+        const myLeft = coreLeft + (catalog[id].col - catalog[grabbedId].col) * cellW;
+        const myTop = coreTop + (catalog[id].row - catalog[grabbedId].row) * cellH;
+        const nbrs = neighborIdsOf(id);
+        for (let k = 0; k < nbrs.length; k++) {
+          const n = nbrs[k];
+          const nSlot = boardSlots.indexOf(n);
+          if (nSlot < 0) continue;
+          const slotEl = board.querySelector('.slot[data-i="' + nSlot + '"]');
+          if (!slotEl) continue;
+          const nr = slotEl.getBoundingClientRect();
+          const wantLeft = nr.left + (catalog[id].col - catalog[n].col) * cellW;
+          const wantTop = nr.top + (catalog[id].row - catalog[n].row) * cellH;
+          const dx = myLeft - wantLeft;
+          const dy = myTop - wantTop;
+          if (Math.abs(dx) > threshX || Math.abs(dy) > threshY) continue;
+          const gSlot = attachSlotBeside(id, n, nSlot, grabbedId);
+          if (gSlot < 0) continue;
+          if (!groupFitsEmpty(grabbedId, gSlot, moving)) continue;
+          const d = Math.hypot(dx, dy);
+          if (d < bestD) {
+            bestD = d;
+            best = gSlot;
+          }
+        }
+      }
+      return best;
     }
 
     function clearDropTargets() {
@@ -668,7 +964,7 @@
 
     function highlightTargets(grabbedId, slotIndex) {
       clearDropTargets();
-      const targets = canLockGroup(grabbedId, slotIndex) ? groupTargets(grabbedId, slotIndex) : null;
+      const targets = groupTargets(grabbedId, slotIndex);
       if (!targets) {
         const slot = board.querySelector('.slot[data-i="' + slotIndex + '"]');
         if (slot) slot.classList.add("drop-target");
@@ -681,25 +977,80 @@
     }
 
     function renderBoard() {
-      board.style.gridTemplateColumns = "repeat(" + cols + ", minmax(0, 1fr))";
-      board.style.gridTemplateRows = "repeat(" + rows + ", minmax(0, 1fr))";
-      board.style.setProperty("--tabx", String(tabFracX));
-      board.style.setProperty("--taby", String(tabFracY));
+      board.style.display = "block";
+      board.style.position = "relative";
+      board.style.gap = "0px";
+      board.style.padding = "0px";
+      board.style.margin = "0px";
+      board.style.overflow = "visible";
+      const wrap = document.getElementById("boardWrap");
+      const tabPad = tabFracX / Math.max(1, cols);
+      wrap.style.padding = ((tabPad / (1 + 2 * tabPad)) * 100).toFixed(3) + "%";
       board.innerHTML = "";
+      const grid = document.createElement("div");
+      grid.className = "board-grid";
+      grid.style.display = "grid";
+      grid.style.gap = "0px";
+      grid.style.padding = "0px";
+      grid.style.margin = "0px";
+      grid.style.width = "100%";
+      grid.style.height = "100%";
+      grid.style.overflow = "visible";
+      grid.style.gridTemplateColumns = "repeat(" + cols + ", minmax(0, 1fr))";
+      grid.style.gridTemplateRows = "repeat(" + rows + ", minmax(0, 1fr))";
+      grid.style.setProperty("--tabx", String(tabFracX));
+      grid.style.setProperty("--taby", String(tabFracY));
       boardSlots.forEach((pieceId, i) => {
         const cell = document.createElement("div");
         cell.className = "slot" + (pieceId == null ? "" : " filled");
         cell.dataset.i = String(i);
-        if (pieceId != null) {
-          const img = document.createElement("img");
-          img.className = "piece";
-          img.src = catalog[pieceId].src;
-          img.alt = "";
-          img.draggable = false;
-          cell.appendChild(img);
+        cell.style.padding = "0";
+        cell.style.margin = "0";
+        cell.style.border = "none";
+        cell.style.overflow = "visible";
+        if (pieceId != null && phase === "playing") {
+          if (membersOf(pieceId).length > 1) cell.classList.add("grouped");
+          cell.addEventListener("pointerdown", (e) => onPointerDown(e, pieceId));
         }
-        board.appendChild(cell);
+        grid.appendChild(cell);
       });
+      const layer = document.createElement("div");
+      layer.className = "piece-layer";
+      layer.style.position = "absolute";
+      layer.style.left = "0";
+      layer.style.top = "0";
+      layer.style.width = "100%";
+      layer.style.height = "100%";
+      layer.style.overflow = "visible";
+      layer.style.pointerEvents = "none";
+      boardSlots.forEach((pieceId, i) => {
+        if (pieceId == null) return;
+        const r = Math.floor(i / cols);
+        const c = i % cols;
+        const img = document.createElement("img");
+        img.className = "piece";
+        img.src = catalog[pieceId].src;
+        img.alt = "";
+        img.draggable = false;
+        img.dataset.i = String(i);
+        img.style.position = "absolute";
+        img.style.pointerEvents = "none";
+        img.style.maxWidth = "none";
+        img.style.maxHeight = "none";
+        img.style.margin = "0";
+        img.style.padding = "0";
+        img.style.left = ((c - tabFracX) / cols * 100) + "%";
+        img.style.top = ((r - tabFracY) / rows * 100) + "%";
+        img.style.width = ((1 + 2 * tabFracX) / cols * 100) + "%";
+        img.style.height = ((1 + 2 * tabFracY) / rows * 100) + "%";
+        img.style.zIndex = String(10 + i);
+        if (phase === "playing" && membersOf(pieceId).length > 1) {
+          img.style.filter = "drop-shadow(0 0 0.6px rgba(34, 197, 94, 0.4))";
+        }
+        layer.appendChild(img);
+      });
+      board.appendChild(grid);
+      board.appendChild(layer);
     }
 
     function renderTray() {
@@ -720,11 +1071,14 @@
           img.alt = "";
           img.draggable = false;
           img.dataset.id = String(pid);
+          img.style.maxWidth = "none";
+          img.style.maxHeight = "none";
           img.style.left = b.l + "px";
           img.style.top = b.t + "px";
           img.style.width = b.w + "px";
           img.style.height = b.h + "px";
           img.style.zIndex = String(b.z);
+          if (mem.length > 1) img.style.filter = "drop-shadow(0 0 0.6px rgba(34, 197, 94, 0.4)) drop-shadow(2px 8px 10px rgba(0, 0, 0, .38))";
           if (dragging && membersOf(dragging.id).indexOf(pid) >= 0) img.style.opacity = "0.2";
           img.addEventListener("pointerdown", (e) => onPointerDown(e, pid));
           tray.appendChild(img);
@@ -758,10 +1112,13 @@
         const img = document.createElement("img");
         img.src = catalog[pid].src;
         img.alt = "";
+        img.style.maxWidth = "none";
+        img.style.maxHeight = "none";
         img.style.width = d.w + "px";
         img.style.height = d.h + "px";
         img.style.left = (dx * cellW - d.ox) + "px";
         img.style.top = (dy * cellH - d.oy) + "px";
+        img.style.margin = "0";
         ghost.appendChild(img);
       });
       document.body.appendChild(ghost);
@@ -777,33 +1134,73 @@
       if (phase !== "playing" || won) return;
       if (e.button != null && e.button !== 0) return;
       if (dragging) return;
+      const onBoard = boardSlots.indexOf(id) >= 0;
+      const inTray = trayIds.indexOf(id) >= 0;
+      if (!onBoard && !inTray) return;
       e.preventDefault();
-      const mem = trayMembers(id);
-      if (!mem.length) return;
-      layoutGroupInTray(id);
-      const box = catalog[id]._box;
-      const root = find(id);
-      if (groupPos[root]) groupPos[root].z = ++zTop;
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      const mem = membersOf(id);
       const size = smallPieceSize();
       const core = trayCore(size);
+      const root = find(id);
+      const prevSlots = mem.map((pid) => ({ id: pid, ti: boardSlots.indexOf(pid) }));
+      let ox;
+      let oy;
+      let cellW = core.w;
+      let cellH = core.h;
+      if (onBoard) {
+        const slotEl = board.querySelector('.slot[data-i="' + boardSlots.indexOf(id) + '"]');
+        const sr = slotEl ? slotEl.getBoundingClientRect() : null;
+        cellW = sr ? sr.width : core.w;
+        cellH = sr ? sr.height : core.h;
+        ox = sr ? e.clientX - sr.left : cellW / 2;
+        oy = sr ? e.clientY - sr.top : cellH / 2;
+        mem.forEach((pid) => {
+          const from = boardSlots.indexOf(pid);
+          if (from >= 0) boardSlots[from] = null;
+        });
+      } else {
+        layoutGroupInTray(id);
+        const box = catalog[id]._box;
+        if (groupPos[root]) groupPos[root].z = ++zTop;
+        const origin = tray.getBoundingClientRect();
+        ox = e.clientX - (origin.left + box.l);
+        oy = e.clientY - (origin.top + box.t);
+      }
       dragging = {
         id: id,
         pointerId: e.pointerId,
-        ox: e.clientX - box.l,
-        oy: e.clientY - box.t,
-        startW: box.w,
-        startH: box.h,
+        ox: ox,
+        oy: oy,
+        oxFromCore: onBoard,
+        startW: cellW,
+        startH: cellH,
         coreW: core.w,
         coreH: core.h,
+        cellW: cellW,
+        cellH: cellH,
         moved: false,
+        fromBoard: onBoard,
+        prevSlots: prevSlots,
+        hoverSlot: onBoard ? prevSlots.filter((p) => p.id === id)[0].ti : -1,
         sx: e.clientX,
         sy: e.clientY
       };
-      dragging.cellW = core.w;
-      dragging.cellH = core.h;
-      buildGhost(id, core.w, core.h);
-      placeGhost(e.clientX, e.clientY, dragging.ox - core.w * tabFracX, dragging.oy - core.h * tabFracY);
-      renderTray();
+      buildGhost(id, cellW, cellH);
+      if (onBoard) {
+        const slotEl = board.querySelector('.slot[data-i="' + dragging.hoverSlot + '"]');
+        const sr = slotEl && slotEl.getBoundingClientRect();
+        if (sr) {
+          ghost.style.left = sr.left + "px";
+          ghost.style.top = sr.top + "px";
+        } else {
+          placeGhost(e.clientX, e.clientY, ox - cellW * tabFracX, oy - cellH * tabFracY);
+        }
+        render();
+      } else {
+        placeGhost(e.clientX, e.clientY, ox - cellW * tabFracX, oy - cellH * tabFracY);
+        renderTray();
+      }
       window.addEventListener("pointermove", onWinPointerMove);
       window.addEventListener("pointerup", onWinPointerUp);
       window.addEventListener("pointercancel", onWinPointerUp);
@@ -813,20 +1210,37 @@
       if (!dragging || e.pointerId !== dragging.pointerId) return;
       e.preventDefault();
       if (Math.hypot(e.clientX - dragging.sx, e.clientY - dragging.sy) > 10) dragging.moved = true;
-      const slot = slotAtPoint(e.clientX, e.clientY);
+      const cs = cellSize();
+      const cellW = cs.w || dragging.cellW;
+      const cellH = cs.h || dragging.cellH;
+      let coreLeft = e.clientX - dragging.ox + (dragging.oxFromCore ? 0 : cellW * tabFracX);
+      let coreTop = e.clientY - dragging.oy + (dragging.oxFromCore ? 0 : cellH * tabFracY);
+      if (ghost && dragging.hoverSlot >= 0) {
+        const gr = ghost.getBoundingClientRect();
+        coreLeft = gr.left;
+        coreTop = gr.top;
+      }
+      let slotIndex = snapSlotAt(e.clientX, e.clientY, coreLeft, coreTop, cellW, cellH);
+      if (slotIndex < 0) slotIndex = neighborSnapSlot(dragging.id, coreLeft, coreTop, cellW, cellH);
+      if (slotIndex < 0) slotIndex = slotIndexAt(e.clientX, e.clientY);
+      if (slotIndex >= 0) slotIndex = resolveBoardDropSlot(dragging.id, slotIndex);
       clearDropTargets();
-      if (slot) {
-        const slotIndex = Number(slot.dataset.i);
+      if (slotIndex >= 0) {
+        dragging.hoverSlot = slotIndex;
         highlightTargets(dragging.id, slotIndex);
-        const sr = slot.getBoundingClientRect();
-        if (dragging.cellW !== sr.width || dragging.cellH !== sr.height || !ghost) {
-          dragging.cellW = sr.width;
-          dragging.cellH = sr.height;
-          buildGhost(dragging.id, sr.width, sr.height);
+        const slot = board.querySelector('.slot[data-i="' + slotIndex + '"]');
+        const sr = slot && slot.getBoundingClientRect();
+        if (sr) {
+          if (dragging.cellW !== sr.width || dragging.cellH !== sr.height || !ghost) {
+            dragging.cellW = sr.width;
+            dragging.cellH = sr.height;
+            buildGhost(dragging.id, sr.width, sr.height);
+          }
+          ghost.style.left = sr.left + "px";
+          ghost.style.top = sr.top + "px";
         }
-        ghost.style.left = sr.left + "px";
-        ghost.style.top = sr.top + "px";
       } else {
+        dragging.hoverSlot = -1;
         if (dragging.cellW !== dragging.coreW || dragging.cellH !== dragging.coreH || !ghost) {
           dragging.cellW = dragging.coreW;
           dragging.cellH = dragging.coreH;
@@ -836,6 +1250,13 @@
       }
     }
 
+    function restorePrevSlots(prevSlots) {
+      if (!prevSlots) return;
+      prevSlots.forEach(({ id, ti }) => {
+        if (ti >= 0 && boardSlots[ti] == null) boardSlots[ti] = id;
+      });
+    }
+
     function endDrag(e) {
       if (!dragging || e.pointerId !== dragging.pointerId) return;
       window.removeEventListener("pointermove", onWinPointerMove);
@@ -843,36 +1264,96 @@
       window.removeEventListener("pointercancel", onWinPointerUp);
       const x = e.clientX;
       const y = e.clientY;
-      const slot = slotAtPoint(x, y);
-      const slotIndex = slot ? Number(slot.dataset.i) : -1;
       const id = dragging.id;
       const ox = dragging.ox;
       const oy = dragging.oy;
+      const fromBoard = dragging.fromBoard;
+      const prevSlots = dragging.prevSlots;
+      const cs = cellSize();
+      const cellW = cs.w || dragging.cellW;
+      const cellH = cs.h || dragging.cellH;
+      let coreLeft;
+      let coreTop;
+      if (ghost) {
+        const gr = ghost.getBoundingClientRect();
+        coreLeft = gr.left;
+        coreTop = gr.top;
+      } else {
+        const tabOx = dragging.oxFromCore ? 0 : cellW * tabFracX;
+        const tabOy = dragging.oxFromCore ? 0 : cellH * tabFracY;
+        coreLeft = x - ox + tabOx;
+        coreTop = y - oy + tabOy;
+      }
+      let slotIndex = snapSlotAt(x, y, coreLeft, coreTop, cellW, cellH);
+      if (slotIndex < 0) {
+        slotIndex = neighborSnapSlot(id, coreLeft, coreTop, cellW, cellH);
+      }
+      if (slotIndex < 0 && dragging.hoverSlot >= 0) {
+        const wr = document.getElementById("boardWrap").getBoundingClientRect();
+        if (x >= wr.left && x <= wr.right && y >= wr.top && y <= wr.bottom) {
+          const slot = board.querySelector('.slot[data-i="' + dragging.hoverSlot + '"]');
+          const sr = slot && slot.getBoundingClientRect();
+          if (sr && Math.abs(coreLeft - sr.left) <= cellW * 0.4 && Math.abs(coreTop - sr.top) <= cellH * 0.4) {
+            slotIndex = dragging.hoverSlot;
+          }
+        }
+      }
+      if (slotIndex >= 0) slotIndex = resolveBoardDropSlot(id, slotIndex);
       clearDropTargets();
       clearGhost();
       dragging = null;
-      let locked = false;
+      const sizeBefore = membersOf(id).length;
+      let placed = null;
+      let didMerge = false;
       if (slotIndex >= 0) {
-        if (canLockGroup(id, slotIndex)) {
-          locked = lockGroupToBoard(id, slotIndex);
-        } else if (catalog[id].correct !== slotIndex) {
-          showToast("Bu parça buraya kilitlenmez");
+        placed = placeGroupOnBoard(id, slotIndex);
+      }
+      if (placed) {
+        didMerge = membersOf(id).length > sizeBefore;
+      }
+      if (!placed) {
+        const tr = trayWrap.getBoundingClientRect();
+        const overTray = x >= tr.left - 24 && x <= tr.right + 24 && y >= tr.top - 24 && y <= tr.bottom + 24;
+        if (fromBoard && !overTray) {
+          restorePrevSlots(prevSlots);
+          didMerge = mergeGroups() || membersOf(id).length > sizeBefore;
+        } else {
+          const root = find(id);
+          if (trayIds.indexOf(id) < 0) addGroupToTray(id);
+          if (!groupPos[root]) groupPos[root] = { l: 8, t: 8, z: ++zTop };
+          if (overTray) {
+            const origin = tray.getBoundingClientRect();
+            groupPos[root].l = Math.max(4, Math.min(tr.width - 48, x - origin.left - ox));
+            groupPos[root].t = Math.max(4, Math.min(tr.height - 48, y - origin.top - oy));
+          }
+          groupPos[root].z = ++zTop;
+          layoutGroupInTray(id);
+          setGroupPosFromPiece(id);
+          didMerge = trySnapTray(id) || didMerge;
         }
       }
-      if (!locked) {
-        const tr = trayWrap.getBoundingClientRect();
-        const root = find(id);
-        if (!groupPos[root]) groupPos[root] = { l: 8, t: 8, z: ++zTop };
-        if (x >= tr.left - 24 && x <= tr.right + 24 && y >= tr.top - 24 && y <= tr.bottom + 24) {
-          groupPos[root].l = Math.max(4, Math.min(tr.width - 48, x - tr.left - ox));
-          groupPos[root].t = Math.max(4, Math.min(tr.height - 48, y - tr.top - oy));
-        }
-        groupPos[root].z = ++zTop;
-        layoutGroupInTray(id);
-        setGroupPosFromPiece(id);
-        trySnapTray(id);
+      const snapSlots = [];
+      if (placed) {
+        placed.forEach(({ id: pid, ti }) => {
+          if (catalog[pid].correct === ti) snapSlots.push(ti);
+        });
+      }
+      if (didMerge) {
+        membersOf(id).forEach((pid) => {
+          const ti = slotOf(pid);
+          if (ti >= 0 && snapSlots.indexOf(ti) < 0) snapSlots.push(ti);
+        });
       }
       render();
+      if (snapSlots.length || didMerge) {
+        snapSound();
+        snapSlots.forEach((ti) => {
+          const slot = board.querySelector('.slot[data-i="' + ti + '"]');
+          if (slot) slot.classList.add("snap-lock");
+          const piece = board.querySelector('img.piece[data-i="' + ti + '"]');
+          if (piece) piece.classList.add("snap-lock");
+        });
+      }
       checkWin();
     }
 
