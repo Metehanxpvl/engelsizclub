@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(__file__).resolve().parent
 ICON = ROOT / "assets" / "icon" / "app_icon_clean.png"
-FAMILY = OUT / "cozger-family-illustration.png"
+FAMILY = OUT / "cozger-doctor-family-illustration.png"
 
 W, H = 1080, 1350
 
@@ -126,19 +126,29 @@ def paste_family(base: Image.Image, box: tuple[int, int, int, int]) -> None:
     if not FAMILY.exists():
         return
     x0, y0, x1, y1 = box
-    image = Image.open(FAMILY).convert("RGBA")
-    # Transparently blend the white illustration background.
-    pixels = []
-    for red, green, blue, alpha in image.getdata():
-        distance = max(0, 255 - min(red, green, blue))
-        pixels.append((red, green, blue, min(alpha, distance * 4)))
-    image.putdata(pixels)
-    image = ImageOps.contain(image, (x1 - x0, y1 - y0), Image.Resampling.LANCZOS)
-    base.paste(
+    width, height = x1 - x0, y1 - y0
+    image = Image.open(FAMILY).convert("RGB")
+    # Remove the generated checkerboard-style outer background.
+    pixels = image.load()
+    for py in range(image.height):
+        for px in range(image.width):
+            red, green, blue = pixels[px, py]
+            if red > 225 and green > 230 and blue > 235 and max(red, green, blue) - min(red, green, blue) < 18:
+                pixels[px, py] = BLUE_SOFT
+    image = ImageOps.fit(
         image,
-        (x0 + (x1 - x0 - image.width) // 2, y0 + (y1 - y0 - image.height) // 2),
-        image,
+        (width, height),
+        Image.Resampling.LANCZOS,
+        centering=(0.52, 0.52),
+    ).convert("RGBA")
+    mask = Image.new("L", (width, height), 0)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        (0, 0, width - 1, height - 1),
+        radius=32,
+        fill=255,
     )
+    image.putalpha(mask)
+    base.paste(image, (x0, y0), image)
 
 
 def numbered_step(
@@ -183,7 +193,7 @@ def build() -> Image.Image:
     paste_logo(base, (38, 28), 64)
     draw.text((114, 34), "Engelsiz Club", font=font(29, True), fill=BRAND)
     draw.text((114, 72), "Aileler için bilgi", font=font(17), fill=MUTED)
-    paste_family(base, (700, 20, 1040, 275))
+    paste_family(base, (670, 20, 1040, 275))
 
     draw.text((42, 121), "ÇOCUKLAR İÇİN ÖZEL", font=font(31, True), fill=NAVY)
     draw.text((42, 160), "GEREKSİNİM RAPORU", font=font(34, True), fill=BLUE)
