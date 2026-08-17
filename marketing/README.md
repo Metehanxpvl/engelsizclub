@@ -16,13 +16,13 @@ Marka renkleri: yeşil `#1A6B4A`, koyu metin `#0D2B1F`, altın `#F4A832`, zemin 
 
 | Dosya | Süre | Kullanım |
 |-------|------|----------|
-| `engelsizclub-promo-9x16.mp4` | ~20–25 sn | Ana tanıtım (6 sahne + TR ses) |
+| `engelsizclub-promo-9x16.mp4` | ~26 sn | Uygulama ekranlı tanıtım (TR ses) |
 | `engelsizclub-intro-9x16.mp4` | ~8 sn | Story / Reels kısa kesit |
-| `build_promo_video.py` | — | Yeniden üretmek için script |
+| `build_walkthrough_video.py` | — | Screenshot’lardan yeniden render |
 
 Yeniden render:
 ```bash
-python3 marketing/promo/build_promo_video.py
+python3 marketing/promo/build_walkthrough_video.py
 ```
 
 ## Sonraki adımlar
