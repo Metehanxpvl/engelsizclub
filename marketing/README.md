@@ -16,10 +16,17 @@ Marka renkleri: yeşil `#1A6B4A`, koyu metin `#0D2B1F`, altın `#F4A832`, zemin 
 
 | Dosya | Süre | Kullanım |
 |-------|------|----------|
-| `engelsizclub-intro-9x16.mp4` | ~8 sn | Reels / Story intro (logo + slogan) |
+| `engelsizclub-promo-9x16.mp4` | ~20–25 sn | Ana tanıtım (6 sahne + TR ses) |
+| `engelsizclub-intro-9x16.mp4` | ~8 sn | Story / Reels kısa kesit |
+| `build_promo_video.py` | — | Yeniden üretmek için script |
+
+Yeniden render:
+```bash
+python3 marketing/promo/build_promo_video.py
+```
 
 ## Sonraki adımlar
 
 1. Uygulama ekran görüntüleri eklenince walkthrough videosu
-2. Sesli anlatım (TTS veya kayıt)
-3. Platforma özel kırpımlar ve A/B metin varyasyonları
+2. Gerçek ses kaydı ile TTS değişimi
+3. 16:9 yatay kesim (YouTube / landing)
