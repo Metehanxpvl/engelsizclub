@@ -122,30 +122,13 @@ def make_cta() -> Path:
 
 
 def make_overlay(label: str, title: str, accent: tuple[int, int, int], name: str) -> Path:
+    """Create a transparent scene overlay.
+
+    The live app already contains clear section headings. Keeping the app scenes
+    free of extra text prevents transition stacking and preserves Reels safe
+    zones. The parameters remain for readable build call sites.
+    """
     overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
-
-    # Bottom readability gradient.
-    shade = Image.new("RGBA", (W, 520), (0, 0, 0, 0))
-    shade_pixels = shade.load()
-    for y in range(shade.height):
-        alpha = int(175 * (y / (shade.height - 1)) ** 1.6)
-        for x in range(W):
-            shade_pixels[x, y] = (8, 31, 23, alpha)
-    overlay.alpha_composite(shade, (0, H - 520))
-
-    # Section chip.
-    chip_font = font(29, True)
-    chip_width = draw.textlength(label, font=chip_font)
-    draw.rounded_rectangle((58, 135, 58 + chip_width + 46, 205), radius=24, fill=(*accent, 240))
-    draw.text((81, 151), label, font=chip_font, fill=WHITE)
-
-    # Main scene caption.
-    title_font = font(47, True)
-    title_width = draw.textlength(title, font=title_font)
-    x = max(58, (W - title_width) / 2)
-    draw.text((x, 1570), title, font=title_font, fill=WHITE)
-    draw.rounded_rectangle((58, 1645, 260, 1653), radius=4, fill=GOLD)
 
     path = BUILD / f"overlay-{name}.png"
     overlay.save(path, "PNG", optimize=True)
