@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(__file__).resolve().parent
 ICON = ROOT / "assets" / "icon" / "app_icon_clean.png"
-ILLUSTRATION = OUT / "engelli-ayligi-illustration.png"
+ILLUSTRATION = OUT / "engelli-ayligi-cocuk-illustration.png"
 
 URL = "https://www.turkiye.gov.tr/aile-ve-sosyal-hizmetler-sosyal-yardim-basvuru-hizmeti"
 
@@ -206,7 +206,7 @@ def build() -> Image.Image:
     paste_logo(base, (38, 28), 64)
     draw.text((114, 34), "Engelsiz Club", font=font(29, True), fill=BRAND)
     draw.text((114, 72), "Haklarınızı bilin", font=font(17), fill=MUTED)
-    paste_illustration(base, (655, 18, 1040, 275))
+    paste_illustration(base, (635, 18, 1040, 275))
 
     draw.text((42, 129), "ENGELLİ", font=font(48, True), fill=NAVY)
     draw.text((42, 187), "AYLIĞI", font=font(52, True), fill=BLUE)
