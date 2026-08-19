@@ -43,9 +43,11 @@ workflows:
       cocoapods: default
       vars:
         APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: "--use-old-altool --apple-id 6799422264"
+      # Use only the profile uploaded in Codemagic (reference: engelsiz_club).
+      # distribution_type auto-fetch also pulls stale EngelsizClub_AppStore. from Apple.
       ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.sakircaykara.engelsizclub
+        provisioning_profiles:
+          - engelsiz_club
     scripts:
       - name: Get Flutter packages
         script: |
@@ -60,8 +62,21 @@ workflows:
         script: |
           #!/usr/bin/env sh
           set -e
-          # Apply Codemagic Distribution cert + App Store profile to the Xcode project
-          # BEFORE Flutter archives (must run first).
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          if [ -d "$PROFILE_DIR" ]; then
+            echo "==== Provisioning profiles on build machine (before cleanup) ===="
+            for f in "$PROFILE_DIR"/*.mobileprovision; do
+              [ -f "$f" ] || continue
+              NAME=$(security cms -D -i "$f" 2>/dev/null | plutil -extract Name raw - 2>/dev/null || echo "<unknown>")
+              echo "  ${NAME}"
+              case "$NAME" in
+                EngelsizClub_AppStore|EngelsizClub_AppStore.)
+                  echo "  -> removing stale profile"
+                  rm -f "$f"
+                  ;;
+              esac
+            done
+          fi
           xcode-project use-profiles
           echo "==== Release signing settings after use-profiles ===="
           xcodebuild -workspace ios/Runner.xcworkspace \
@@ -74,17 +89,25 @@ workflows:
           PROF="$(xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings 2>/dev/null | awk -F' = ' '/PROVISIONING_PROFILE_SPECIFIER/ {print $2; exit}')"
           echo "DEVELOPMENT_TEAM=${TEAM:-<empty>}"
           echo "PROVISIONING_PROFILE_SPECIFIER=${PROF:-<empty>}"
-          if [ "$PROF" != "EngelsizClub_AppStore_v2" ]; then
-            echo "ERROR: Yanlış provisioning profile: '${PROF:-<empty>}'"
-            echo "Beklenen: EngelsizClub_AppStore_v2 (Sign In with Apple + com.sakircaykara.engelsizclub)"
-            echo "Codemagic → Settings → Code signing identities → iOS provisioning profiles:"
-            echo "  1) Eski EngelsizClub_AppStore* profillerini sil"
-            echo "  2) Fetch profiles → EngelsizClub_AppStore_v2 ekle (reference adı fark etmez)"
-            exit 1
-          fi
+          case "$PROF" in
+            EngelsizClub_AppStore|EngelsizClub_AppStore.)
+              echo "ERROR: Eski provisioning profile hâlâ seçili: '${PROF}'"
+              echo "Codemagic → Settings → Code signing identities → engelsiz_club profilini sil,"
+              echo "Fetch profiles → EngelsizClub_AppStore_v2 → reference: engelsiz_club"
+              echo "Apple Developer → Profiles → EngelsizClub_AppStore.* sil"
+              exit 1
+              ;;
+            EngelsizClub_AppStore_v2)
+              echo "OK: doğru profil"
+              ;;
+            *)
+              echo "ERROR: Beklenmeyen profil: '${PROF:-<empty>}'"
+              echo "EngelsizClub_AppStore_v2 olmalı (Sign In with Apple)."
+              exit 1
+              ;;
+          esac
           if [ -z "${TEAM}" ] || [ -z "${PROF}" ]; then
             echo "ERROR: use-profiles did not apply DEVELOPMENT_TEAM / PROVISIONING_PROFILE_SPECIFIER."
-            echo "Check Codemagic Code signing identities: Apple Distribution cert + App Store profile for com.sakircaykara.engelsizclub"
             exit 1
           fi
       - name: Flutter build IPA
@@ -136,8 +159,8 @@ workflows:
       vars:
         APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: "--use-old-altool --apple-id 6799422264"
       ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.sakircaykara.engelsizclub
+        provisioning_profiles:
+          - engelsiz_club
     scripts:
       - name: Get Flutter packages
         script: |
@@ -152,14 +175,17 @@ workflows:
         script: |
           #!/usr/bin/env sh
           set -e
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          if [ -d "$PROFILE_DIR" ]; then
+            for f in "$PROFILE_DIR"/*.mobileprovision; do
+              [ -f "$f" ] || continue
+              NAME=$(security cms -D -i "$f" 2>/dev/null | plutil -extract Name raw - 2>/dev/null || echo "")
+              case "$NAME" in
+                EngelsizClub_AppStore|EngelsizClub_AppStore.) rm -f "$f" ;;
+              esac
+            done
+          fi
           xcode-project use-profiles
-          echo "==== Release signing settings after use-profiles ===="
-          xcodebuild -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -showBuildSettings 2>/dev/null \
-            | grep -E 'CODE_SIGN_STYLE|CODE_SIGN_IDENTITY|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|PRODUCT_BUNDLE_IDENTIFIER' \
-            || true
           PROF="$(xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings 2>/dev/null | awk -F' = ' '/PROVISIONING_PROFILE_SPECIFIER/ {print $2; exit}')"
           if [ "$PROF" != "EngelsizClub_AppStore_v2" ]; then
             echo "ERROR: Yanlış provisioning profile: '${PROF:-<empty>}' — EngelsizClub_AppStore_v2 bekleniyor."
