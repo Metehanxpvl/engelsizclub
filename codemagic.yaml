@@ -43,12 +43,9 @@ workflows:
       cocoapods: default
       vars:
         APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: "--use-old-altool --apple-id 6799422264"
-      # Reference names must match Codemagic → Team settings → Code signing identities
       ios_signing:
-        provisioning_profiles:
-          - engelsizclub_appstore_v2
-        certificates:
-          - engelsizclub_distribution
+        distribution_type: app_store
+        bundle_identifier: com.sakircaykara.engelsizclub
     scripts:
       - name: Get Flutter packages
         script: |
@@ -80,10 +77,9 @@ workflows:
           if [ "$PROF" != "EngelsizClub_AppStore_v2" ]; then
             echo "ERROR: Yanlış provisioning profile: '${PROF:-<empty>}'"
             echo "Beklenen: EngelsizClub_AppStore_v2 (Sign In with Apple + com.sakircaykara.engelsizclub)"
-            echo "Codemagic → Team settings → codemagic.yaml settings → Code signing identities:"
+            echo "Codemagic → Settings → Code signing identities → iOS provisioning profiles:"
             echo "  1) Eski EngelsizClub_AppStore* profillerini sil"
-            echo "  2) Fetch profiles → EngelsizClub_AppStore_v2 → reference: engelsizclub_appstore_v2"
-            echo "  3) Distribution cert reference: engelsizclub_distribution"
+            echo "  2) Fetch profiles → EngelsizClub_AppStore_v2 ekle (reference adı fark etmez)"
             exit 1
           fi
           if [ -z "${TEAM}" ] || [ -z "${PROF}" ]; then
@@ -140,10 +136,8 @@ workflows:
       vars:
         APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: "--use-old-altool --apple-id 6799422264"
       ios_signing:
-        provisioning_profiles:
-          - engelsizclub_appstore_v2
-        certificates:
-          - engelsizclub_distribution
+        distribution_type: app_store
+        bundle_identifier: com.sakircaykara.engelsizclub
     scripts:
       - name: Get Flutter packages
         script: |
