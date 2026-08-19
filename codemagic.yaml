@@ -48,6 +48,8 @@ workflows:
       ios_signing:
         provisioning_profiles:
           - engelsiz_club
+        certificates:
+          - "EngelsizClub Apple Distribution"
     scripts:
       - name: Get Flutter packages
         script: |
@@ -123,10 +125,15 @@ workflows:
             echo "Select branch release/ios-1.0.66-71 (main is still +61)."
             exit 1
           fi
+          echo "==== Code signing identities in keychain ===="
+          security find-identity -v -p codesigning || true
+          echo "==== export_options.plist ===="
+          plutil -p /Users/builder/export_options.plist || true
           flutter build ipa --release \
             --build-name="$BUILD_NAME" \
             --build-number="$BUILD_NUMBER" \
-            --export-options-plist=/Users/builder/export_options.plist
+            --export-options-plist=/Users/builder/export_options.plist \
+            --verbose
           ls -la build/ios/ipa/
           test -n "$(ls -A build/ios/ipa/*.ipa 2>/dev/null)"
           IPA=$(ls build/ios/ipa/*.ipa | head -n 1)
@@ -161,6 +168,8 @@ workflows:
       ios_signing:
         provisioning_profiles:
           - engelsiz_club
+        certificates:
+          - "EngelsizClub Apple Distribution"
     scripts:
       - name: Get Flutter packages
         script: |
