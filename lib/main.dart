@@ -1891,14 +1891,14 @@ class _SignInStep extends StatelessWidget {
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-            child: authTab == 'giris' ? _buildGiris() : _buildKayit(context),
+            child: authTab == 'giris' ? _buildGiris(context) : _buildKayit(context),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildGiris() {
+  Widget _buildGiris(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
