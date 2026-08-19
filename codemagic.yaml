@@ -79,31 +79,28 @@ workflows:
             echo "Check Codemagic Code signing identities: Apple Distribution cert + App Store profile for com.sakircaykara.engelsizclub"
             exit 1
           fi
-      - name: Verify iOS build number
+      - name: Flutter build IPA
         script: |
           #!/usr/bin/env sh
           set -e
           VERSION_LINE=$(grep '^version:' pubspec.yaml | head -n 1 | awk '{print $2}')
           BUILD_NAME=$(echo "$VERSION_LINE" | cut -d+ -f1)
           BUILD_NUMBER=$(echo "$VERSION_LINE" | cut -d+ -f2)
-          echo "pubspec version: $VERSION_LINE (name=$BUILD_NAME, number=$BUILD_NUMBER)"
+          echo "==== pubspec version: $VERSION_LINE (name=$BUILD_NAME number=$BUILD_NUMBER) ===="
           if [ -z "$BUILD_NUMBER" ] || [ "$BUILD_NUMBER" -le 61 ]; then
-            echo "ERROR: iOS build number must be > 61 (App Store already has 61)."
-            echo "Use branch release/ios-1.0.66-71 — main still has +61."
+            echo "ERROR: iOS build number must be > 61."
+            echo "Select branch release/ios-1.0.66-71 (main is still +61)."
             exit 1
           fi
-          echo "BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
-          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
-      - name: Flutter build IPA
-        script: |
-          #!/usr/bin/env sh
-          set -e
           flutter build ipa --release \
             --build-name="$BUILD_NAME" \
             --build-number="$BUILD_NUMBER" \
             --export-options-plist=/Users/builder/export_options.plist
           ls -la build/ios/ipa/
           test -n "$(ls -A build/ios/ipa/*.ipa 2>/dev/null)"
+          IPA=$(ls build/ios/ipa/*.ipa | head -n 1)
+          echo "==== CFBundleVersion inside IPA ===="
+          unzip -p "$IPA" "Payload/Runner.app/Info.plist" | plutil -p - | grep -E 'CFBundleVersion|CFBundleShortVersionString' || true
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
@@ -155,31 +152,28 @@ workflows:
             -showBuildSettings 2>/dev/null \
             | grep -E 'CODE_SIGN_STYLE|CODE_SIGN_IDENTITY|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|PRODUCT_BUNDLE_IDENTIFIER' \
             || true
-      - name: Verify iOS build number
+      - name: Flutter build IPA
         script: |
           #!/usr/bin/env sh
           set -e
           VERSION_LINE=$(grep '^version:' pubspec.yaml | head -n 1 | awk '{print $2}')
           BUILD_NAME=$(echo "$VERSION_LINE" | cut -d+ -f1)
           BUILD_NUMBER=$(echo "$VERSION_LINE" | cut -d+ -f2)
-          echo "pubspec version: $VERSION_LINE (name=$BUILD_NAME, number=$BUILD_NUMBER)"
+          echo "==== pubspec version: $VERSION_LINE (name=$BUILD_NAME number=$BUILD_NUMBER) ===="
           if [ -z "$BUILD_NUMBER" ] || [ "$BUILD_NUMBER" -le 61 ]; then
-            echo "ERROR: iOS build number must be > 61 (App Store already has 61)."
-            echo "Use branch release/ios-1.0.66-71 — main still has +61."
+            echo "ERROR: iOS build number must be > 61."
+            echo "Select branch release/ios-1.0.66-71 (main is still +61)."
             exit 1
           fi
-          echo "BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
-          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
-      - name: Flutter build IPA
-        script: |
-          #!/usr/bin/env sh
-          set -e
           flutter build ipa --release \
             --build-name="$BUILD_NAME" \
             --build-number="$BUILD_NUMBER" \
             --export-options-plist=/Users/builder/export_options.plist
           ls -la build/ios/ipa/
           test -n "$(ls -A build/ios/ipa/*.ipa 2>/dev/null)"
+          IPA=$(ls build/ios/ipa/*.ipa | head -n 1)
+          echo "==== CFBundleVersion inside IPA ===="
+          unzip -p "$IPA" "Payload/Runner.app/Info.plist" | plutil -p - | grep -E 'CFBundleVersion|CFBundleShortVersionString' || true
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
