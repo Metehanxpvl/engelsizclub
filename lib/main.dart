@@ -1954,6 +1954,25 @@ class _SignInStep extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
+        if (AppleAuthService.isAvailable) ...[
+          _AppleSignInButton(
+            onPressed: () {
+              if (girisHesapTip == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: L10nText(
+                      'Apple ile devam etmek için önce Aile, Uzman veya Bakıcı seçin.',
+                    ),
+                  ),
+                );
+                return;
+              }
+              if (girisLoading) return;
+              onAppleSignIn(girisHesapTip);
+            },
+          ),
+          const SizedBox(height: 10),
+        ],
         Showcase(
           key: googleTourKey,
           title: 'Google ile giriş',
@@ -2000,13 +2019,6 @@ class _SignInStep extends StatelessWidget {
             ],
           ),
         ),
-        if (AppleAuthService.isAvailable) ...[
-          const SizedBox(height: 10),
-          _AppleSignInButton(
-            enabled: !girisLoading && girisHesapTip != null,
-            onPressed: () => onAppleSignIn(girisHesapTip),
-          ),
-        ],
         if (girisHesapTip == null) ...[
           const SizedBox(height: 10),
           const L10nText(
@@ -2323,6 +2335,34 @@ class _SignInStep extends StatelessWidget {
         const SizedBox(height: 12),
         const _OrDivider(label: 'veya'),
         const SizedBox(height: 12),
+        if (AppleAuthService.isAvailable) ...[
+          _AppleSignInButton(
+            onPressed: () {
+              if (!kayitSozlesme) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: L10nText(
+                      'Apple ile devam etmek için Kullanım Koşulları, '
+                      'Gizlilik Politikası ve Sorumluluk Reddi’ni onaylayın.',
+                    ),
+                  ),
+                );
+                return;
+              }
+              if (kayitTip == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: L10nText('Önce hesap türünü seçin.'),
+                  ),
+                );
+                return;
+              }
+              if (kayitLoading) return;
+              onAppleSignIn(kayitTip);
+            },
+          ),
+          const SizedBox(height: 10),
+        ],
         _GoogleSignInButton(
           enabled: !kayitLoading && kayitTip != null && kayitSozlesme,
           label: !kayitSozlesme
@@ -2343,26 +2383,6 @@ class _SignInStep extends StatelessWidget {
             onGoogleSignIn(kayitTip);
           },
         ),
-        if (AppleAuthService.isAvailable) ...[
-          const SizedBox(height: 10),
-          _AppleSignInButton(
-            enabled: !kayitLoading && kayitTip != null && kayitSozlesme,
-            onPressed: () {
-              if (!kayitSozlesme) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: L10nText(
-                      'Apple ile devam etmek için Kullanım Koşulları, '
-                      'Gizlilik Politikası ve Sorumluluk Reddi’ni onaylayın.',
-                    ),
-                  ),
-                );
-                return;
-              }
-              onAppleSignIn(kayitTip);
-            },
-          ),
-        ],
         ],
       ],
     );
@@ -2560,20 +2580,22 @@ class _GoogleSignInButton extends StatelessWidget {
 
 class _AppleSignInButton extends StatelessWidget {
   const _AppleSignInButton({
-    required this.enabled,
     required this.onPressed,
   });
 
-  final bool enabled;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return SignInWithAppleButton(
-      onPressed: enabled ? onPressed : null,
-      style: SignInWithAppleButtonStyle.black,
+    return SizedBox(
+      width: double.infinity,
       height: 48,
-      borderRadius: BorderRadius.circular(8),
+      child: SignInWithAppleButton(
+        onPressed: onPressed,
+        style: SignInWithAppleButtonStyle.black,
+        height: 48,
+        borderRadius: BorderRadius.circular(8),
+      ),
     );
   }
 }

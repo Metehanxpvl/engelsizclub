@@ -846,10 +846,17 @@ class ForumPageState extends State<ForumPage> {
     if (!await _requireMember('Yorum yazmak için üye olmanız gerekiyor.')) {
       return;
     }
+    if (!mounted) return;
+    if (!await ensureUgcTermsAccepted(context)) return;
     final post = _selectedPost;
     final text = _commentController.text.trim();
-    // Senkron kilit: setState gelmeden ikinci çağrı (Enter+buton) girmesin
     if (post == null || text.isEmpty || _commentSending) return;
+    if (containsBlockedContent(text)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: L10nText(blockedContentMessage())),
+      );
+      return;
+    }
     _commentSending = true;
 
     final parent = _replyingTo;
