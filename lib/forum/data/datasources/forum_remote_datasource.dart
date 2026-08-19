@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../domain/entities/forum_disease.dart';
 import '../../domain/entities/forum_topic.dart';
+import '../../../content_view_store.dart';
 
 class ForumRemoteDataSource {
   ForumRemoteDataSource({SupabaseClient? client})
@@ -211,10 +212,8 @@ class ForumRemoteDataSource {
   Future<void> incrementViews(int topicId) async {
     if (topicId <= 0) return;
     try {
-      await _client.rpc('forum_increment_views', params: {'p_id': topicId});
-    } catch (_) {
-      // RPC yoksa sessiz geç
-    }
+      await recordForumView(topicId);
+    } catch (_) {}
   }
 
   ForumTopic _mapTopic(

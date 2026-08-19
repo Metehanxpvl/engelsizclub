@@ -22,6 +22,16 @@ extension LegalDocKindX on LegalDocKind {
       };
 }
 
+/// UGC / topluluk kuralları özeti (kayıt onayı, paylaşım öncesi diyalog).
+const kUgcPolicySummaryTr =
+    'Engelsiz Club’da kullanıcıların oluşturduğu içeriklere (forum, ilan, '
+    'yorum, mesaj) uygunsuz içeriğe sıfır tolerans uygulanır. Hakaret, taciz, '
+    'tehdit, nefret söylemi ve yasa dışı paylaşımlar yasaktır. '
+    'Uygunsuz içerikleri uygulama içinden “Şikayet Et / Raporla” ile '
+    'bildirebilir, rahatsız edici kullanıcıları “Engelle” ile gizleyebilirsiniz. '
+    'Şikayetler 24 saat içinde incelenir; ihlal tespit edilirse içerik kaldırılır '
+    've/veya hesap askıya alınır.';
+
 /// Ana sorumluluk reddi özeti (kayıt, banner, kısa uyarılar).
 const kDisclaimerSummaryTr =
     'Bu uygulama (Engelsiz Club) sadece ailelerin ve uzmanların deneyim '
@@ -89,7 +99,9 @@ Engelsiz Club; özel gereksinimli bireyler ve yakınları için topluluk, ilan, 
 • 18 yaşından küçükler, yasal temsilci gözetiminde kullanmalıdır.
 • Hesabınızı kötüye kullanmanız halinde erişim kısıtlanabilir veya sonlandırılabilir.
 
-4. Kullanıcı davranış kuralları
+4. Kullanıcı davranış kuralları ve sıfır tolerans
+
+$kUgcPolicySummaryTr
 
 Yasaklardır:
 • Hakaret, tehdit, taciz, nefret söylemi veya ayrımcılık.
@@ -97,6 +109,14 @@ Yasaklardır:
 • Başkalarının kişisel verilerini izinsiz paylaşma.
 • Spam, dolandırıcılık, zararlı yazılım veya sistemi bozmaya yönelik eylemler.
 • Telif veya fikri mülkiyet ihlali.
+
+4.1 Kullanıcı tarafından oluşturulan içerik (UGC)
+
+Forum, ilan, yorum ve mesajlaşma alanlarındaki içerikler kullanıcılar tarafından üretilir. Paylaşım yaparak bu kuralları ve sıfır tolerans politikasını kabul etmiş sayılırsınız.
+
+Uygulama içinde her gönderi ve yorumda “Şikayet Et / Raporla” seçeneği bulunur. Rahatsız edici kullanıcıları “Engelle” ile gizleyebilirsiniz. Otomatik filtreler uygunsuz ifadeleri engellemeye yardımcı olur; nihai sorumluluk paylaşım yapan kullanıcıya aittir.
+
+Engelsiz Club, bildirilen uygunsuz içerikleri makul sürede (hedef: 24 saat içinde) inceler; ihlal tespit edilirse içeriği kaldırır ve/veya ihlal eden hesabı askıya alır veya sonlandırır.
 
 5. İlanlar, teklifler ve ödemeler
 
@@ -118,9 +138,9 @@ Uygulama menüsündeki “Hesabımı Sil” yoluyla silme talebi iletebilirsiniz
 
 Uyuşmazlıklarda Türkiye Cumhuriyeti hukuku uygulanır; yetkili mahkemeler Türkiye’deki kanunlarla belirlenir.
 
-10. İletişim
+10. İletişim ve destek
 
-Görüş, şikâyet ve önerileriniz için uygulama içi “Dilek, Şikayet & Öneri” kanalını kullanabilirsiniz.
+Görüş, şikâyet ve önerileriniz için uygulama içi “Dilek, Şikayet & Öneri” kanalını veya https://engelsizclub.com/support.html adresini kullanabilirsiniz.
 ''';
 
 const _privacyBody = '''

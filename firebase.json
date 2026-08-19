@@ -58,6 +58,14 @@
         "destination": "/fotografli-puzzle.html"
       },
       {
+        "source": "/support",
+        "destination": "/support.html"
+      },
+      {
+        "source": "/support/**",
+        "destination": "/support.html"
+      },
+      {
         "source": "/daha-fazlasi/ozel",
         "destination": "/daha-fazlasi/ozel/index.html"
       },
@@ -163,6 +171,15 @@
       },
       {
         "source": "/about.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/support.html",
         "headers": [
           {
             "key": "Cache-Control",

@@ -127,28 +127,37 @@ class PushNotificationService {
   }
 
   Future<void> _initLocalNotifications() async {
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosInit = DarwinInitializationSettings(
       requestAlertPermission: false,
       requestBadgePermission: false,
       requestSoundPermission: false,
     );
-    await _local.initialize(
-      settings: const InitializationSettings(
-        android: androidInit,
-        iOS: iosInit,
-      ),
-      onDidReceiveNotificationResponse: (response) {
-        final payload = response.payload;
-        if (payload == null || payload.isEmpty) return;
-        try {
-          final map = jsonDecode(payload) as Map<String, dynamic>;
-          _opens.add(
-            RemoteMessage(data: map.map((k, v) => MapEntry(k, '$v'))),
-          );
-        } catch (_) {}
-      },
-    );
+    var ok = false;
+    for (final icon in const ['ic_stat_notify', 'ic_launcher']) {
+      try {
+        await _local.initialize(
+          settings: InitializationSettings(
+            android: AndroidInitializationSettings(icon),
+            iOS: iosInit,
+          ),
+          onDidReceiveNotificationResponse: (response) {
+            final payload = response.payload;
+            if (payload == null || payload.isEmpty) return;
+            try {
+              final map = jsonDecode(payload) as Map<String, dynamic>;
+              _opens.add(
+                RemoteMessage(data: map.map((k, v) => MapEntry(k, '$v'))),
+              );
+            } catch (_) {}
+          },
+        );
+        ok = true;
+        break;
+      } catch (e) {
+        debugPrint('FCM local notify init ($icon): $e');
+      }
+    }
+    if (!ok) return;
 
     final androidPlugin = _local.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
@@ -173,7 +182,12 @@ class PushNotificationService {
 
     final androidPlugin = _local.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
-    await androidPlugin?.requestNotificationsPermission();
+    try {
+      // runApp öncesi mainActivity null olabilir — FCM init'i düşürmesin.
+      await androidPlugin?.requestNotificationsPermission();
+    } catch (e) {
+      debugPrint('POST_NOTIFICATIONS isteği: $e');
+    }
   }
 
   Future<void> _refreshToken() async {
@@ -227,7 +241,7 @@ class PushNotificationService {
           channelDescription: 'Genel uygulama bildirimleri',
           importance: Importance.high,
           priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
+          icon: 'ic_stat_notify',
           largeIcon: largeIcon,
           styleInformation: style,
         ),

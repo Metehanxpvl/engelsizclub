@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -10,9 +8,11 @@ import '../admin_config.dart';
 import '../data/forum_data.dart';
 import '../data/forum_tags.dart';
 import '../data/ilanlar_data.dart' show maskPersonDisplayName;
+import '../content_moderation.dart';
 import '../forum_follow_store.dart';
 import '../forum_post_follow_store.dart';
 import '../forum_store.dart';
+import '../content_view_store.dart';
 import '../meto_theme.dart';
 import '../services/catalog_adapters.dart';
 import '../services/image_optimize_service.dart';
@@ -23,6 +23,7 @@ import '../widgets/user_avatar.dart';
 import '../widgets/user_safety_sheet.dart';
 import '../user_safety_store.dart';
 import '../widgets/guest_gate.dart';
+import '../widgets/ugc_terms_gate.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n_text.dart';
 import '../services/broadcast_push_service.dart';
@@ -587,6 +588,17 @@ class ForumPageState extends State<ForumPage> {
         _replyingTo = null;
       }
     });
+    unawaited(() async {
+      final n = await recordForumView(post.id);
+      if (!mounted || n < 0 || _selectedPost?.id != post.id) return;
+      setState(() {
+        _selectedPost = _selectedPost!.copyWith(views: n);
+        _cloudPosts = [
+          for (final p in _cloudPosts)
+            if (p.id == post.id) p.copyWith(views: n) else p,
+        ];
+      });
+    }());
     if (!_isGuest && widget.userEmail.trim().isNotEmpty && post.id > 0) {
       unawaited(() async {
         final on = await ForumPostFollowStore.isFollowing(
@@ -928,16 +940,6 @@ class ForumPageState extends State<ForumPage> {
     });
   }
 
-  Uint8List? _decodeForumPhoto(String dataUrl) {
-    try {
-      var raw = dataUrl;
-      if (raw.contains(',')) raw = raw.split(',').last;
-      return Uint8List.fromList(base64Decode(raw));
-    } catch (_) {
-      return null;
-    }
-  }
-
   Future<void> _pickForumPhoto() async {
     if (_formPhotos.length >= 2 || _pickingPhoto) return;
     final source = await showModalBottomSheet<ImageSource>(
@@ -1031,6 +1033,9 @@ class ForumPageState extends State<ForumPage> {
     if (!await _requireMember('Gönderi paylaşmak için üye olmanız gerekiyor.')) {
       return;
     }
+    if (!mounted) return;
+    if (!await ensureUgcTermsAccepted(context)) return;
+    if (!mounted) return;
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
 
@@ -1040,6 +1045,12 @@ class ForumPageState extends State<ForumPage> {
     if (eksik.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: L10nText('Lütfen doldurun: ${eksik.join(', ')}')),
+      );
+      return;
+    }
+    if (containsBlockedContent('$title\n$content')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: L10nText(blockedContentMessage())),
       );
       return;
     }
@@ -1513,6 +1524,24 @@ class ForumPageState extends State<ForumPage> {
                         _isPostOwner(post) ? () => _startEditPost(post) : null,
                     onDelete:
                         _canModeratePost(post) ? () => _deletePost(post) : null,
+                    onReport: !_isPostOwner(post)
+                        ? () async {
+                            if (!await _requireMember(
+                              'Şikayet için giriş yapmanız veya üye olmanız gerekiyor.',
+                            )) {
+                              return;
+                            }
+                            if (!mounted) return;
+                            showUserSafetySheet(
+                              context,
+                              targetEmail: post.ownerEmail,
+                              targetDisplayName: post.author,
+                              contextLabel: 'forum_post',
+                              contentType: 'forum_post',
+                              contentId: '${post.id}',
+                            );
+                          }
+                        : null,
                   ),
                 ),
               ),
@@ -1680,9 +1709,11 @@ class ForumPageState extends State<ForumPage> {
                   children: [
                     Row(
                       children: [
-                        Flexible(
+                        Expanded(
                           child: Text(
                             _displayName(post.author),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -1723,12 +1754,51 @@ class ForumPageState extends State<ForumPage> {
                   ],
                 ),
               ),
+              _ForumReadBadge(count: post.views),
               PopupMenuButton<String>(
                 tooltip: S.auto('Seçenekler'),
-                onSelected: (v) {
+                onSelected: (v) async {
                   if (v == 'follow') unawaited(_togglePostFollow(post));
+                  if (v == 'report') {
+                    if (!await _requireMember(
+                      'Şikayet için giriş yapmanız veya üye olmanız gerekiyor.',
+                    )) {
+                      return;
+                    }
+                    if (!mounted) return;
+                    showUserSafetySheet(
+                      context,
+                      targetEmail: post.ownerEmail,
+                      targetDisplayName: post.author,
+                      contextLabel: 'forum_post',
+                      contentType: 'forum_post',
+                      contentId: '${post.id}',
+                      onBlocked: () {
+                        setState(() {
+                          _selectedPost = null;
+                          _cloudPosts = [
+                            for (final p in _cloudPosts)
+                              if (p.ownerEmail.trim().toLowerCase() !=
+                                  post.ownerEmail.trim().toLowerCase())
+                                p,
+                          ];
+                        });
+                      },
+                    );
+                  }
                 },
                 itemBuilder: (ctx) => [
+                  if (!_isPostOwner(post))
+                    const PopupMenuItem(
+                      value: 'report',
+                      child: Row(
+                        children: [
+                          Icon(Icons.flag_outlined, size: 20, color: Color(0xFFEF4444)),
+                          SizedBox(width: 10),
+                          Expanded(child: Text('Şikayet et / Engelle', style: TextStyle(fontSize: 13))),
+                        ],
+                      ),
+                    ),
                   PopupMenuItem(
                     value: 'follow',
                     enabled: !_postFollowBusy,
@@ -2477,31 +2547,29 @@ class ForumPageState extends State<ForumPage> {
             runSpacing: 8,
             children: [
               ..._formPhotos.asMap().entries.map((e) {
-                final bytes = _decodeForumPhoto(e.value);
                 return Stack(
                   children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: MetoColors.muted,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: MetoColors.border),
-                        image: bytes == null
-                            ? null
-                            : DecorationImage(
-                                image: MemoryImage(bytes),
-                                fit: BoxFit.cover,
-                              ),
-                      ),
-                      child: bytes == null
-                          ? const Center(
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: SizedBox(
+                        width: 80,
+                        height: 80,
+                        child: FillPhoto(
+                          source: e.value,
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.cover,
+                          placeholder: ColoredBox(
+                            color: MetoColors.muted,
+                            child: Center(
                               child: Icon(
                                 Icons.image_outlined,
                                 color: MetoColors.mutedFg,
                               ),
-                            )
-                          : null,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                     Positioned(
                       top: 2,
@@ -2640,6 +2708,7 @@ class _PostCard extends StatelessWidget {
     required this.onLike,
     this.onEdit,
     this.onDelete,
+    this.onReport,
   });
 
   final ForumPost post;
@@ -2648,6 +2717,7 @@ class _PostCard extends StatelessWidget {
   final VoidCallback onLike;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onReport;
 
   @override
   Widget build(BuildContext context) {
@@ -2706,9 +2776,11 @@ class _PostCard extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Flexible(
+                            Expanded(
                               child: Text(
                                 authorLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
@@ -2716,7 +2788,7 @@ class _PostCard extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            if (post.expert) ...[
+                            if (post.expert && post.meslek.isEmpty) ...[
                               const SizedBox(width: 6),
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -2727,9 +2799,9 @@ class _PostCard extends StatelessWidget {
                                   color: MetoColors.primary.withValues(alpha: 0.10),
                                   borderRadius: BorderRadius.circular(999),
                                 ),
-                                child: Text(
-                                  post.meslek.isNotEmpty ? post.meslek : 'Uzman',
-                                  style: const TextStyle(
+                                child: const Text(
+                                  'Uzman',
+                                  style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                     color: MetoColors.primary,
@@ -2749,26 +2821,35 @@ class _PostCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: forumCategoryColor(chipLabel),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      chipLabel,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
+                  _ForumReadBadge(count: post.views),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: forumCategoryColor(chipLabel),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    chipLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
                     ),
                   ),
-                ],
+                ),
               ),
               const SizedBox(height: 8),
               L10nText(
                 post.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -2862,8 +2943,22 @@ class _PostCard extends StatelessWidget {
                       size: 12, color: MetoColors.mutedFg),
                   const SizedBox(width: 4),
                   L10nText('${post.comments}', style: ForumPageState._metaStyle),
-                  if (onEdit != null || onDelete != null) ...[
+                  if (onReport != null || onEdit != null || onDelete != null) ...[
                     const Spacer(),
+                    if (onReport != null)
+                      IconButton(
+                        tooltip: S.auto('Şikayet / Engelle'),
+                        onPressed: onReport,
+                        icon: const Icon(
+                          Icons.flag_outlined,
+                          size: 18,
+                          color: MetoColors.mutedFg,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints:
+                            const BoxConstraints(minWidth: 32, minHeight: 32),
+                      ),
                     if (onEdit != null)
                       IconButton(
                         tooltip: S.auto('Düzenle'),
@@ -2903,16 +2998,6 @@ class _PostCard extends StatelessWidget {
   }
 }
 
-Uint8List? _forumPhotoBytes(String dataUrl) {
-  try {
-    var raw = dataUrl;
-    if (raw.contains(',')) raw = raw.split(',').last;
-    return Uint8List.fromList(base64Decode(raw));
-  } catch (_) {
-    return null;
-  }
-}
-
 class _ForumPhotoStrip extends StatelessWidget {
   const _ForumPhotoStrip({
     required this.photos,
@@ -2934,39 +3019,37 @@ class _ForumPhotoStrip extends StatelessWidget {
     );
   }
 
+  Widget _tile(BuildContext context, String source, int index) {
+    return GestureDetector(
+      onTap: () => _open(context, index),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(compact ? 10 : 12),
+        child: FillPhoto(
+          source: source,
+          height: height,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          placeholder: ColoredBox(
+            color: MetoColors.muted,
+            child: Center(
+              child: Icon(
+                Icons.image_outlined,
+                color: MetoColors.mutedFg,
+                size: compact ? 28 : 36,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (photos.isEmpty) return const SizedBox.shrink();
 
     if (photos.length == 1) {
-      final bytes = _forumPhotoBytes(photos.first);
-      return GestureDetector(
-        onTap: () => _open(context, 0),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(compact ? 10 : 12),
-          child: ColoredBox(
-            color: MetoColors.muted,
-            child: bytes == null
-                ? SizedBox(
-                    height: height,
-                    child: const Center(
-                      child: Icon(Icons.broken_image_outlined,
-                          color: MetoColors.mutedFg),
-                    ),
-                  )
-                : SizedBox(
-                    height: height,
-                    width: double.infinity,
-                    child: Image.memory(
-                      bytes,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      height: height,
-                    ),
-                  ),
-          ),
-        ),
-      );
+      return _tile(context, photos.first, 0);
     }
 
     return SizedBox(
@@ -2975,37 +3058,7 @@ class _ForumPhotoStrip extends StatelessWidget {
         children: [
           for (var i = 0; i < photos.length && i < 2; i++) ...[
             if (i > 0) const SizedBox(width: 8),
-            Expanded(
-              child: GestureDetector(
-                onTap: () => _open(context, i),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(compact ? 10 : 12),
-                  child: ColoredBox(
-                    color: MetoColors.muted,
-                    child: Builder(
-                      builder: (context) {
-                        final bytes = _forumPhotoBytes(photos[i]);
-                        if (bytes == null) {
-                          return SizedBox(
-                            height: height,
-                            child: const Center(
-                              child: Icon(Icons.broken_image_outlined,
-                                  color: MetoColors.mutedFg),
-                            ),
-                          );
-                        }
-                        return Image.memory(
-                          bytes,
-                          height: height,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            Expanded(child: _tile(context, photos[i], i)),
           ],
         ],
       ),
@@ -3196,6 +3249,43 @@ class _CommentBubble extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ForumReadBadge extends StatelessWidget {
+  const _ForumReadBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: MetoColors.muted,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: MetoColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.visibility_outlined,
+            size: 14,
+            color: MetoColors.mutedFg,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            forumReadLabel(count),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: MetoColors.mutedFg,
             ),
           ),
         ],

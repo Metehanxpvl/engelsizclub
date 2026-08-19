@@ -187,7 +187,7 @@ class _AileKocuAyarlarScreenState extends State<AileKocuAyarlarScreen> {
             trailing: TextButton(
               onPressed: () async {
                 final ok = await AileKocuNotificationService.instance
-                    .refreshExactAlarmMode();
+                    .refreshExactAlarmMode(promptUser: true);
                 await bootstrapAileKocuReminders();
                 if (!context.mounted) return;
                 setState(() {});
@@ -196,13 +196,80 @@ class _AileKocuAyarlarScreenState extends State<AileKocuAyarlarScreen> {
                     content: Text(
                       ok
                           ? 'Tam saatli alarm açık. Hatırlatmalar yenilendi.'
-                          : 'İzin verilmedi. Telefon Ayarları → Uygulamalar → Engelsiz Club → Alarmlar.',
+                          : 'İzin verilmedi. Telefon Ayarları → Uygulamalar → Engelsiz Club → Alarmlar ve hatırlatıcılar.',
                     ),
                   ),
                 );
               },
               child: const Text('İzin ver'),
             ),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              AileKocuNotificationService.instance.notificationsAllowed
+                  ? Icons.notifications_active_outlined
+                  : Icons.notifications_off_outlined,
+            ),
+            title: const Text('Bildirim izni'),
+            subtitle: Text(
+              AileKocuNotificationService.instance.notificationsAllowed
+                  ? 'Açık — hatırlatmalar bildirim olarak gelebilir.'
+                  : 'Kapalı — Android 13+ cihazlarda izin olmadan bildirim gelmez.',
+              style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+            ),
+            trailing: TextButton(
+              onPressed: () async {
+                await AileKocuNotificationService.instance.ensurePermissions();
+                if (!context.mounted) return;
+                setState(() {});
+                final ok =
+                    AileKocuNotificationService.instance.notificationsAllowed;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      ok
+                          ? 'Bildirim izni açık.'
+                          : 'İzin verilmedi. Telefon Ayarları → Uygulamalar → Engelsiz Club → Bildirimler.',
+                    ),
+                  ),
+                );
+              },
+              child: const Text('İzin ver'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () async {
+              final n = AileKocuNotificationService.instance;
+              final nowOk = await n.showTestNow();
+              if (!context.mounted) return;
+              if (!nowOk) {
+                final reason = !n.notificationsAllowed
+                    ? 'Anlık bildirim gönderilemedi. Bildirim iznini açın.'
+                    : !n.isReady
+                        ? 'Bildirim motoru başlatılamadı. Play’den güncel sürümü kurun.'
+                        : 'Anlık bildirim gönderilemedi. Uygulamayı kapatıp tekrar deneyin.';
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(reason)),
+                );
+                return;
+              }
+              final laterOk = await n.scheduleTestInSeconds(15);
+              final pending = await n.pendingCount();
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    laterOk
+                        ? 'Deneme bildirimi geldi. 15 sn sonra bir tane daha gelecek (kuyrukta $pending hatırlatma).'
+                        : 'Anlık bildirim geldi; zamanlanmış deneme kurulamadı (kuyruk: $pending).',
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.notification_add_outlined),
+            label: const Text('Deneme bildirimi gönder'),
           ),
         ],
       ),

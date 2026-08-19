@@ -129,13 +129,13 @@ Future<void> reorderMoreMenuItems(List<MoreMenuItem> ordered) async {
     throw StateError('Yalnız admin düzenleyebilir.');
   }
   final now = DateTime.now().toUtc().toIso8601String();
-  for (var i = 0; i < ordered.length; i++) {
-    final item = ordered[i];
-    if (item.id <= 0) continue;
-    await _db.from('daha_fazlasi_menu').update({
-      'sort_order': (i + 1) * 10,
-      'updated_at': now,
-    }).eq('id', item.id);
-  }
+  await Future.wait([
+    for (var i = 0; i < ordered.length; i++)
+      if (ordered[i].id > 0)
+        _db.from('daha_fazlasi_menu').update({
+          'sort_order': (i + 1) * 10,
+          'updated_at': now,
+        }).eq('id', ordered[i].id),
+  ]);
   invalidateMoreMenuCache();
 }

@@ -10,9 +10,12 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:showcaseview/showcaseview.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
 
 import 'aile_kocu/aile_kocu_entry.dart';
+import 'admin_catalog_extras.dart';
+import 'apple_auth_service.dart';
 import 'firebase_options.dart';
 import 'google_auth_service.dart';
 import 'guest_limit_store.dart';
@@ -26,7 +29,9 @@ import 'main_shell.dart';
 import 'meto_theme.dart';
 import 'pages/legal_document_page.dart';
 import 'services/app_catalog_service.dart';
+import 'services/force_update_service.dart';
 import 'services/push_notification_service.dart';
+import 'widgets/force_update_gate.dart';
 
 export 'meto_theme.dart';
 
@@ -124,7 +129,7 @@ Future<User?> _finalizePendingGoogleRoleImpl(User user) async {
             if (name is String && name.trim().isNotEmpty) 'name': name.trim(),
             'user_type': pending,
             if (pending == 'bakici') 'uzmanlik': 'Bakıcı',
-            if (isNewRole) 'welcome_credits': kWelcomeKredi,
+            if (isNewRole) 'welcome_credits': kMemberStartKredi,
           },
         ),
       );
@@ -181,13 +186,6 @@ Future<void> main() async {
     debugPrint('FCM init failed: $e\n$st');
   }
 
-  // Aile Koçu yerel ilaç/ders alarmları (ekran kapalıyken de çalışsın)
-  try {
-    await bootstrapAileKocuReminders();
-  } catch (e, st) {
-    debugPrint('AileKoçu bootstrap failed: $e\n$st');
-  }
-
   try {
     await Supabase.initialize(
       url: 'https://qycrkqwqrysypvqaipqn.supabase.co',
@@ -241,9 +239,17 @@ class _MetoCareAppState extends State<MetoCareApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(bootstrapAileKocuReminders());
+      unawaited(ForceUpdateService.instance.check());
+      Future<void>.delayed(const Duration(seconds: 2), () {
+        unawaited(ForceUpdateService.instance.check());
+      });
+    });
     try {
       unawaited(LocaleController.instance.ensureLoaded());
       unawaited(ContentTranslator.instance.ensureLoaded());
+      unawaited(AdminCatalogExtras.instance.ensureLoaded());
       _restoreSession();
       _authSub =
           Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
@@ -451,7 +457,9 @@ class _MetoCareAppState extends State<MetoCareApp> {
             return Directionality(
               textDirection:
                   lang.isRtl ? TextDirection.rtl : TextDirection.ltr,
-              child: child ?? const SizedBox.shrink(),
+              child: ForceUpdateGate(
+                child: child ?? const SizedBox.shrink(),
+              ),
             );
           },
           home: _booting
@@ -1030,6 +1038,99 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  Future<void> _signInWithApple(String? role) async {
+    if (!AppleAuthService.isAvailable) return;
+    if (role == null || role.isEmpty) {
+      _snack('Devam etmek için önce hesap türünü seçin.');
+      return;
+    }
+    setState(() {
+      _girisLoading = true;
+      _kayitLoading = true;
+      _step = 'loading';
+    });
+    try {
+      await savePendingGoogleRole(role);
+      final res = await AppleAuthService.signIn();
+      final user = res?.user ?? Supabase.instance.client.auth.currentUser;
+      if (user == null) {
+        if (mounted) {
+          setState(() => _step = 'signin');
+          _snack('Apple ile giriş iptal edildi.');
+        }
+        return;
+      }
+
+      final finalized = await finalizePendingGoogleRole(user);
+      if (finalized == null) {
+        throw StateError('Apple oturumu tamamlanamadı.');
+      }
+      final notice = googleAuthNotice;
+      googleAuthNotice = null;
+      final authUser = authUserFromSupabase(
+        finalized,
+        fallbackUserType: role,
+      );
+      final safeUser = authUser.userType == null || authUser.userType!.isEmpty
+          ? authUser.copyWith(userType: role)
+          : authUser;
+      widget.onLogin?.call(safeUser);
+      _snack(notice ?? 'Hoş geldin, ${safeUser.name}!');
+      if (mounted) setState(() => _step = 'signin');
+    } catch (e) {
+      final still = Supabase.instance.client.auth.currentSession;
+      if (still != null) {
+        final authUser = authUserFromSupabase(
+          still.user,
+          fallbackUserType: role,
+        );
+        final safeUser =
+            authUser.userType == null || authUser.userType!.isEmpty
+                ? authUser.copyWith(userType: role)
+                : authUser;
+        widget.onLogin?.call(safeUser);
+        if (mounted) {
+          setState(() => _step = 'signin');
+          _snack(_appleErrorMessage(e));
+        }
+        return;
+      }
+      await clearPendingGoogleRole();
+      if (mounted) {
+        setState(() => _step = 'signin');
+        _snack(_appleErrorMessage(e));
+      }
+    } finally {
+      if (mounted && _step != 'loading') {
+        setState(() {
+          _girisLoading = false;
+          _kayitLoading = false;
+        });
+      }
+    }
+  }
+
+  String _appleErrorMessage(Object error) {
+    if (error is SignInWithAppleAuthorizationException) {
+      if (error.code == AuthorizationErrorCode.canceled) {
+        return 'Apple ile giriş iptal edildi.';
+      }
+    }
+    final raw = error is AuthException
+        ? error.message
+        : (error is StateError ? error.message : error.toString());
+    final lower = raw.toLowerCase();
+    if (lower.contains('provider') || lower.contains('audience')) {
+      return 'Apple girişi yapılandırılmamış. Supabase → Authentication → '
+          'Providers → Apple’ı açın.';
+    }
+    if (lower.contains('signup') && lower.contains('disabled')) {
+      return 'Yeni Apple üyelikleri kapalı. Supabase → Authentication → '
+          'Settings: “Allow new users to sign up” açın.';
+    }
+    return 'Apple ile giriş başarısız: $raw';
+  }
+
   String _googleErrorMessage(Object error) {
     final raw = error is AuthException
         ? error.message
@@ -1136,8 +1237,7 @@ class _AuthScreenState extends State<AuthScreen> {
           if (tip == 'uzman' && _kayitUzmanlik != null)
             'uzmanlik': _kayitUzmanlik,
           if (tip == 'bakici') 'uzmanlik': 'Bakıcı',
-          'welcome_credits':
-              (tip == 'uzman' || tip == 'bakici') ? kWelcomeKredi : 0,
+          'welcome_credits': kMemberStartKredi,
         },
       );
       final user = res.user;
@@ -1168,7 +1268,7 @@ class _AuthScreenState extends State<AuthScreen> {
         _snack(
           hediyeKredi > 0
               ? 'Hoş geldin ${authUser.name}! $hediyeKredi hediye puan hesabına tanımlandı.'
-              : 'Hoş geldin ${authUser.name}! Aile rolünde hediye puan yok; ilan verebilir, 2. el ilanlara teklif verebilirsiniz.',
+              : 'Hoş geldin ${authUser.name}! Aile rolünde $kMemberStartKredi hediye puan hesabına tanımlandı; ilan paylaşabilir, 2. el ilanlarda ücretsiz iletişim kurabilirsiniz.',
         );
         if (mounted) setState(() => _step = 'signin');
         return;
@@ -1340,6 +1440,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         onSignIn: _signIn,
                         onForgotPassword: _forgotPassword,
                         onGoogleSignIn: _signInWithGoogle,
+                        onAppleSignIn: _signInWithApple,
                         onGuest: () => widget.onLogin?.call(AuthUser.guest),
                         roleTourKey: _roleTourKey,
                         googleTourKey: _googleTourKey,
@@ -1681,6 +1782,7 @@ class _SignInStep extends StatelessWidget {
     required this.onSignIn,
     required this.onForgotPassword,
     required this.onGoogleSignIn,
+    required this.onAppleSignIn,
     required this.onGuest,
     required this.roleTourKey,
     required this.googleTourKey,
@@ -1716,6 +1818,7 @@ class _SignInStep extends StatelessWidget {
   final VoidCallback onSignIn;
   final VoidCallback onForgotPassword;
   final ValueChanged<String?> onGoogleSignIn;
+  final ValueChanged<String?> onAppleSignIn;
   final VoidCallback onGuest;
   final GlobalKey roleTourKey;
   final GlobalKey googleTourKey;
@@ -1897,6 +2000,13 @@ class _SignInStep extends StatelessWidget {
             ],
           ),
         ),
+        if (AppleAuthService.isAvailable) ...[
+          const SizedBox(height: 10),
+          _AppleSignInButton(
+            enabled: !girisLoading && girisHesapTip != null,
+            onPressed: () => onAppleSignIn(girisHesapTip),
+          ),
+        ],
         if (girisHesapTip == null) ...[
           const SizedBox(height: 10),
           const L10nText(
@@ -2233,6 +2343,26 @@ class _SignInStep extends StatelessWidget {
             onGoogleSignIn(kayitTip);
           },
         ),
+        if (AppleAuthService.isAvailable) ...[
+          const SizedBox(height: 10),
+          _AppleSignInButton(
+            enabled: !kayitLoading && kayitTip != null && kayitSozlesme,
+            onPressed: () {
+              if (!kayitSozlesme) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: L10nText(
+                      'Apple ile devam etmek için Kullanım Koşulları, '
+                      'Gizlilik Politikası ve Sorumluluk Reddi’ni onaylayın.',
+                    ),
+                  ),
+                );
+                return;
+              }
+              onAppleSignIn(kayitTip);
+            },
+          ),
+        ],
         ],
       ],
     );
@@ -2329,7 +2459,7 @@ class _KayitLegalCheckbox extends StatelessWidget {
                     child: const Text('Sorumluluk Reddi Beyanı', style: _linkStyle),
                   ),
                 ),
-                const TextSpan(text: '’nı okudum, onaylıyorum.'),
+                const TextSpan(text: '’nı okudum, onaylıyorum. Uygunsuz içeriğe sıfır tolerans uygulanır.'),
               ],
             ),
           ),
@@ -2424,6 +2554,26 @@ class _GoogleSignInButton extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AppleSignInButton extends StatelessWidget {
+  const _AppleSignInButton({
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SignInWithAppleButton(
+      onPressed: enabled ? onPressed : null,
+      style: SignInWithAppleButtonStyle.black,
+      height: 48,
+      borderRadius: BorderRadius.circular(8),
     );
   }
 }

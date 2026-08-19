@@ -41,7 +41,20 @@ class _DerslerScreenState extends State<DerslerScreen> {
     );
     if (r != null) {
       await _refreshNotifs();
+      if (!mounted) return;
       setState(() {});
+      final n = AileKocuNotificationService.instance;
+      await n.ensurePermissions();
+      if (!mounted) return;
+      if (!n.notificationsAllowed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Ders kaydedildi ama bildirim izni kapalı. Ayarlar’dan açın.',
+            ),
+          ),
+        );
+      }
     }
   }
 

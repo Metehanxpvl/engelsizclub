@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -122,6 +123,15 @@ class _DuyurularSectionState extends State<DuyurularSection> {
   }
 
   List<DuyuruItem> get _visibleForStrip => _stripItems;
+
+  void _onStorySeen(DuyuruItem item) {
+    unawaited(markDuyuruSeen(email: widget.userEmail, id: item.id));
+    if (!mounted || _seen.contains(item.id)) return;
+    setState(() {
+      _seen = {..._seen, item.id};
+      _syncStripCache();
+    });
+  }
 
   Future<void> _maybeShowPopup() async {
     if (!mounted || _popupChecked) return;
@@ -289,12 +299,10 @@ class _DuyurularSectionState extends State<DuyurularSection> {
   }
 
   Future<void> _openViewer(DuyuruItem item) async {
-    await markDuyuruSeen(email: widget.userEmail, id: item.id);
-    if (!mounted) return;
-    setState(() {
-      _seen = {..._seen, item.id};
-      _syncStripCache();
-    });
+    final items = List<DuyuruItem>.from(_visibleForStrip);
+    if (items.isEmpty) return;
+    var start = items.indexWhere((d) => d.id == item.id);
+    if (start < 0) start = 0;
 
     await showGeneralDialog<void>(
       context: context,
@@ -304,12 +312,14 @@ class _DuyurularSectionState extends State<DuyurularSection> {
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (ctx, anim, secondary) {
         return _DuyuruFullscreen(
-          item: item,
+          items: items,
+          initialIndex: start,
           isAdmin: _isAdmin,
           onClose: () => Navigator.of(ctx).pop(),
-          onDelete: () async {
+          onSeen: _onStorySeen,
+          onDelete: (current) async {
             Navigator.of(ctx).pop();
-            await _confirmDelete(item);
+            await _confirmDelete(current);
           },
         );
       },
@@ -679,28 +689,147 @@ class _InstagramStoryThumb extends StatelessWidget {
 
 class _DuyuruFullscreen extends StatefulWidget {
   const _DuyuruFullscreen({
-    required this.item,
+    required this.items,
+    required this.initialIndex,
     required this.onClose,
+    required this.onSeen,
     this.isAdmin = false,
     this.onDelete,
   });
 
-  final DuyuruItem item;
+  final List<DuyuruItem> items;
+  final int initialIndex;
   final VoidCallback onClose;
+  final ValueChanged<DuyuruItem> onSeen;
   final bool isAdmin;
-  final VoidCallback? onDelete;
+  final ValueChanged<DuyuruItem>? onDelete;
 
   @override
   State<_DuyuruFullscreen> createState() => _DuyuruFullscreenState();
 }
 
-class _DuyuruFullscreenState extends State<_DuyuruFullscreen> {
+class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
+    with SingleTickerProviderStateMixin {
+  static const _storyDuration = Duration(seconds: 5);
+
+  late final AnimationController _progress;
+  late final PageController _pageController;
+  late int _index;
+  int _holdCount = 0;
   double _dragY = 0;
 
-  DuyuruItem get item => widget.item;
+  DuyuruItem get item => widget.items[_index];
   bool get isAdmin => widget.isAdmin;
   VoidCallback get onClose => widget.onClose;
-  VoidCallback? get onDelete => widget.onDelete;
+  VoidCallback? get onDelete {
+    final cb = widget.onDelete;
+    if (cb == null) return null;
+    return () => cb(item);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.initialIndex.clamp(0, widget.items.length - 1);
+    _pageController = PageController(initialPage: _index);
+    _progress = AnimationController(vsync: this, duration: _storyDuration)
+      ..addStatusListener(_onProgressStatus);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _startCurrent();
+    });
+  }
+
+  @override
+  void dispose() {
+    _progress.removeStatusListener(_onProgressStatus);
+    _progress.dispose();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onProgressStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed) _goNext();
+  }
+
+  void _startCurrent() {
+    widget.onSeen(item);
+    _progress.stop();
+    _progress.value = 0;
+    if (_holdCount == 0) {
+      _progress.forward();
+    }
+  }
+
+  void _goTo(int i) {
+    if (!mounted) return;
+    final next = i.clamp(0, widget.items.length - 1);
+    if (next == _index) {
+      if (i < 0) _startCurrent();
+      return;
+    }
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(
+        next,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      setState(() {
+        _index = next;
+        _dragY = 0;
+      });
+      _startCurrent();
+    }
+  }
+
+  void _goNext() {
+    if (!mounted) return;
+    if (_index + 1 < widget.items.length) {
+      _goTo(_index + 1);
+    } else {
+      onClose();
+    }
+  }
+
+  void _goPrev() {
+    if (!mounted) return;
+    if (_index > 0) {
+      _goTo(_index - 1);
+    } else {
+      _startCurrent();
+    }
+  }
+
+  void _onPageChanged(int i) {
+    if (!mounted || i == _index) return;
+    setState(() {
+      _index = i;
+      _dragY = 0;
+    });
+    _startCurrent();
+  }
+
+  void _onHorizontalDragEnd(DragEndDetails details) {
+    final v = details.primaryVelocity ?? 0;
+    if (v <= -280) {
+      _goNext();
+    } else if (v >= 280) {
+      _goPrev();
+    }
+  }
+
+  void _pauseHold() {
+    _holdCount++;
+    _progress.stop();
+  }
+
+  void _resumeHold() {
+    if (_holdCount > 0) _holdCount--;
+    if (_holdCount == 0 && mounted && _progress.value < 1) {
+      _progress.forward();
+    }
+  }
 
   Future<void> _openSource(BuildContext context) async {
     final raw = item.sourceUrl?.trim() ?? '';
@@ -729,6 +858,36 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen> {
     setState(() => _dragY = 0);
   }
 
+  Widget _progressRow({required Color track, required Color fill}) {
+    return AnimatedBuilder(
+      animation: _progress,
+      builder: (context, _) {
+        return Row(
+          children: [
+            for (var i = 0; i < widget.items.length; i++) ...[
+              if (i > 0) const SizedBox(width: 3),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(
+                    minHeight: 3,
+                    value: i < _index
+                        ? 1
+                        : i > _index
+                            ? 0
+                            : _progress.value,
+                    backgroundColor: track,
+                    color: fill,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
   Widget _closeChrome({required bool dark}) {
     final fg = dark ? Colors.white : MetoColors.foreground;
     final btnBg = dark ? Colors.black54 : MetoColors.muted.withValues(alpha: 0.85);
@@ -736,6 +895,7 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen> {
       behavior: HitTestBehavior.opaque,
       onVerticalDragUpdate: _onVerticalDragUpdate,
       onVerticalDragEnd: _onVerticalDragEnd,
+      onHorizontalDragEnd: _onHorizontalDragEnd,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
@@ -758,7 +918,7 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen> {
                     ),
                   ),
                   L10nText(
-                    'Aşağı sürükleyerek kapat',
+                    'Aşağı kapat · sağa/sola kaydır',
                     style: GoogleFonts.nunito(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -801,14 +961,50 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title = item.title.trim();
-    final body = item.body.trim();
-    final ig = item.isInstagramEmbed;
-    final hasText = !ig && (title.isNotEmpty || body.isNotEmpty);
-    final screenH = MediaQuery.sizeOf(context).height;
     final dragOpacity = (1 - (_dragY / 320)).clamp(0.35, 1.0);
 
-    final card = ConstrainedBox(
+    return Material(
+      color: Colors.transparent,
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _pauseHold(),
+        onPointerUp: (_) => _resumeHold(),
+        onPointerCancel: (_) => _resumeHold(),
+        child: SafeArea(
+          child: Opacity(
+            opacity: dragOpacity,
+            child: Transform.translate(
+              offset: Offset(0, _dragY),
+              child: GestureDetector(
+                onVerticalDragUpdate: _onVerticalDragUpdate,
+                onVerticalDragEnd: _onVerticalDragEnd,
+                behavior: HitTestBehavior.deferToChild,
+                child: PageView.builder(
+                  controller: _pageController,
+                  onPageChanged: _onPageChanged,
+                  itemCount: widget.items.length,
+                  itemBuilder: (context, i) {
+                    return Center(
+                      child: _storyCard(context, widget.items[i]),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _storyCard(BuildContext context, DuyuruItem pageItem) {
+    final title = pageItem.title.trim();
+    final body = pageItem.body.trim();
+    final ig = pageItem.isInstagramEmbed;
+    final hasText = !ig && (title.isNotEmpty || body.isNotEmpty);
+    final screenH = MediaQuery.sizeOf(context).height;
+
+    return ConstrainedBox(
       constraints: BoxConstraints(
         maxWidth: ig ? 440 : 520,
         maxHeight: screenH * 0.92,
@@ -829,21 +1025,55 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen> {
             ),
           ],
         ),
-        // Platform view (Instagram iframe) clip ile bozulmasın.
         clipBehavior: ig ? Clip.hardEdge : Clip.antiAlias,
         child: ig
             ? Column(
                 children: [
-                  // X + sürükleme: iframe DIŞINDA (web'de iframe üstündeki Flutter butonları tıklanmaz).
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                    child: _progressRow(
+                      track: Colors.white24,
+                      fill: Colors.white,
+                    ),
+                  ),
                   _closeChrome(dark: true),
                   Expanded(
-                    child: InstagramEmbedView(
-                      pageUrl:
-                          item.instagramUrl ?? item.sourceUrl?.trim() ?? '',
-                      embedUrl: instagramEmbedUrl(
-                        item.instagramUrl ?? item.sourceUrl,
-                      ),
-                      initialVideoUrl: item.playableVideoUrl,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        InstagramEmbedView(
+                          key: ValueKey('ig_story_${pageItem.id}'),
+                          pageUrl: pageItem.instagramUrl ??
+                              pageItem.sourceUrl?.trim() ??
+                              '',
+                          embedUrl: instagramEmbedUrl(
+                            pageItem.instagramUrl ?? pageItem.sourceUrl,
+                          ),
+                          initialVideoUrl: pageItem.playableVideoUrl,
+                        ),
+                        Positioned(
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: 52,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onHorizontalDragEnd: _onHorizontalDragEnd,
+                            onTap: _goPrev,
+                          ),
+                        ),
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: 52,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onHorizontalDragEnd: _onHorizontalDragEnd,
+                            onTap: _goNext,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -852,7 +1082,7 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen> {
                 children: [
                   Expanded(
                     flex: hasText ? 5 : 1,
-                    child: _fullscreenImageStack(context),
+                    child: _fullscreenImageStack(pageItem.imageUrl),
                   ),
                   if (hasText)
                     Expanded(
@@ -888,7 +1118,7 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen> {
                         ),
                       ),
                     ),
-                  if (item.hasSource)
+                  if (pageItem.hasSource)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       child: SizedBox(
@@ -921,44 +1151,28 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen> {
               ),
       ),
     );
-
-    return Material(
-      color: Colors.transparent,
-      child: SafeArea(
-        child: Opacity(
-          opacity: dragOpacity,
-          child: Transform.translate(
-            offset: Offset(0, _dragY),
-            child: ig
-                ? GestureDetector(
-                    onVerticalDragUpdate: _onVerticalDragUpdate,
-                    onVerticalDragEnd: _onVerticalDragEnd,
-                    behavior: HitTestBehavior.deferToChild,
-                    child: Center(child: card),
-                  )
-                : Dismissible(
-                    key: ValueKey('duyuru_fs_${item.id}'),
-                    direction: DismissDirection.down,
-                    onDismissed: (_) => onClose(),
-                    child: Center(child: card),
-                  ),
-          ),
-        ),
-      ),
-    );
   }
 
-  Widget _fullscreenImageStack(BuildContext context) {
+  Widget _fullscreenImageStack(String imageUrl) {
     return Stack(
       fit: StackFit.expand,
       children: [
         GestureDetector(
           onVerticalDragUpdate: _onVerticalDragUpdate,
           onVerticalDragEnd: _onVerticalDragEnd,
-          child: _DuyuruImage(source: item.imageUrl),
+          child: _DuyuruImage(source: imageUrl),
         ),
         Positioned(
-          top: 10,
+          top: 8,
+          left: 10,
+          right: 10,
+          child: _progressRow(
+            track: Colors.white24,
+            fill: Colors.white,
+          ),
+        ),
+        Positioned(
+          top: 22,
           right: 10,
           child: Row(
             mainAxisSize: MainAxisSize.min,

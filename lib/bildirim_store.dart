@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_config.dart';
-import 'data/ilanlar_data.dart' show publicContactLabel, scrubEmailsInText;
+import 'data/ilanlar_data.dart'
+    show kIlanCatUzmanAriyorum, publicContactLabel, scrubEmailsInText;
+import 'kredi_store.dart';
 import 'services/broadcast_push_service.dart';
 import 'sohbet_store.dart';
 
@@ -100,6 +102,8 @@ Future<bool> notifyIlanSahibiTeklif({
   required String actorName,
   int? ilanId,
   String? ilanTitle,
+  String kind = 'uzman',
+  String listingCategory = kIlanCatUzmanAriyorum,
 }) async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
@@ -110,6 +114,18 @@ Future<bool> notifyIlanSahibiTeklif({
   }
   if (owner == actorEmail) {
     throw StateError('Kendi ilanınıza teklif veremezsiniz.');
+  }
+  if (!canOfferOnIlan(
+    kind: kind,
+    userType: currentAuthUserType(),
+    email: user.email,
+    listingCategory: listingCategory,
+  )) {
+    throw StateError(
+      kind == 'ikinciel'
+          ? 'Bu ilana teklif veremezsiniz.'
+          : 'Teklif vermek için Uzman veya Bakıcı rolü gerekir (1 puan).',
+    );
   }
 
   // Zaten teklif var mı? (çift tıklama / yarış durumu)

@@ -123,6 +123,13 @@ class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
     setState(() => _savingOrder = true);
     try {
       await reorderMoreMenuItems(_items);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sıra kaydedildi.'),
+          duration: Duration(seconds: 1),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -333,6 +340,7 @@ class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
                       itemCount: _items.length,
                       buildDefaultDragHandles: false,
+                      physics: const AlwaysScrollableScrollPhysics(),
                       onReorder: _onReorder,
                       proxyDecorator: (child, index, animation) {
                         return Material(
@@ -359,10 +367,14 @@ class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
                                     index: i,
                                     child: const Padding(
                                       padding: EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 8,
+                                        horizontal: 8,
+                                        vertical: 12,
                                       ),
-                                      child: Icon(Icons.drag_handle),
+                                      child: Icon(
+                                        Icons.drag_handle,
+                                        size: 28,
+                                        color: MetoColors.primary,
+                                      ),
                                     ),
                                   ),
                                   _leading(item),

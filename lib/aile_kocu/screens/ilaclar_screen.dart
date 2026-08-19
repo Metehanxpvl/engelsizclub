@@ -20,20 +20,18 @@ class IlaclarScreen extends StatefulWidget {
 }
 
 class _IlaclarScreenState extends State<IlaclarScreen> {
-  Future<void> _refreshNotifs() async {
+  Future<void> _rescheduleMedicine(Medicine m) async {
     final s = loadSettings();
-    for (final m in medicinesBox.values) {
-      await AileKocuNotificationService.instance.rescheduleMedicine(
-        medicineId: m.id,
-        childName: s.childName,
-        title: m.name,
-        dosage: m.dosage,
-        times: m.times,
-        weekdays: m.days,
-        photoPath: s.photoPath,
-        endDate: m.endDate,
-      );
-    }
+    await AileKocuNotificationService.instance.rescheduleMedicine(
+      medicineId: m.id,
+      childName: s.childName,
+      title: m.name,
+      dosage: m.dosage,
+      times: m.times,
+      weekdays: m.days,
+      photoPath: s.photoPath,
+      endDate: m.endDate,
+    );
   }
 
   int _streak(Medicine m) {
@@ -89,7 +87,7 @@ class _IlaclarScreenState extends State<IlaclarScreen> {
             MaterialPageRoute(builder: (_) => const IlacEkleScreen()),
           );
           if (r != null) {
-            await _refreshNotifs();
+            await _rescheduleMedicine(r);
             if (!mounted) return;
             setState(() {});
             if (kIsWeb) {
@@ -101,11 +99,16 @@ class _IlaclarScreenState extends State<IlaclarScreen> {
                 ),
               );
             } else {
+              final n = AileKocuNotificationService.instance;
+              await n.ensurePermissions();
+              if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    '"${r.name}" için hatırlatıcı kuruldu '
-                    '(${r.times.join(', ')})',
+                    !n.notificationsAllowed
+                        ? 'İlaç kaydedildi ama bildirim izni kapalı. Ayarlar’dan açın.'
+                        : '"${r.name}" için hatırlatıcı kuruldu '
+                            '(${r.times.join(', ')})',
                   ),
                 ),
               );
@@ -226,15 +229,17 @@ class _IlaclarScreenState extends State<IlaclarScreen> {
                                   child: const Text('İÇTİM'),
                                 ),
                           onTap: () async {
-                            await Navigator.push(
+                            final updated = await Navigator.push<Medicine>(
                               context,
                               MaterialPageRoute(
                                 builder: (_) =>
                                     IlacEkleScreen(existing: item.m),
                               ),
                             );
-                            await _refreshNotifs();
-                            setState(() {});
+                            if (updated != null) {
+                              await _rescheduleMedicine(updated);
+                            }
+                            if (mounted) setState(() {});
                           },
                         ),
                       ),

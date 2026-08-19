@@ -2,8 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../admin_catalog_extras.dart';
 import '../data/cards_data.dart';
 import '../data/diseases_data.dart';
+import '../data/ilanlar_data.dart';
 import '../data/rights_data.dart';
 import '../services/app_catalog_service.dart';
 
@@ -72,20 +74,131 @@ class CatalogAdapters {
   }
 
   static List<String> uzmanlikSecenekleri() {
-    final remote = AppCatalogService.instance.categoriesOf('uzmanlik');
-    if (remote.isEmpty) {
-      return const [
-        'Fizyoterapist',
-        'Ergoterapist',
-        'Dil Konuşma Terapisti',
-        'Özel Eğitim Öğretmeni',
-        'Gölge Öğretmen',
-        'Psikolog',
-      ];
+    return _mergeLabels(
+      kUzmanlikSecenekleri,
+      AppCatalogService.instance.categoriesOf('uzmanlik'),
+      localExtras: AdminCatalogExtras.instance.labelsFor('uzmanlik'),
+      scope: 'uzmanlik',
+    );
+  }
+
+  /// İlan formu ana kategori seçenekleri (3 sabit + admin ekledikleri).
+  static List<IlanFormKategoriOpt> ilanFormKategorileri() {
+    const builtins = <IlanFormKategoriOpt>[
+      IlanFormKategoriOpt(
+        value: 'Uzman Arıyorum',
+        kind: 'uzman',
+        builtin: true,
+      ),
+      IlanFormKategoriOpt(
+        value: 'Bakıcı/Temizlik Görevlisi Arıyorum',
+        kind: 'bakici',
+        builtin: true,
+      ),
+      IlanFormKategoriOpt(
+        value: '2. El Alet',
+        kind: 'ikinciel',
+        builtin: true,
+      ),
+    ];
+    final remote = AppCatalogService.instance.categoriesOf('ilan');
+    final extra = <IlanFormKategoriOpt>[];
+    final seen = {for (final b in builtins) b.value.toLowerCase()};
+    for (final r in remote) {
+      final label = (r['label']?.toString() ?? '').trim();
+      if (label.isEmpty || !seen.add(label.toLowerCase())) continue;
+      if (AdminCatalogExtras.instance.isRemoved('ilan', label)) continue;
+      extra.add(
+        IlanFormKategoriOpt(
+          value: label,
+          kind: _kindFromMeta(r['meta']),
+        ),
+      );
     }
+    for (final label in AdminCatalogExtras.instance.labelsFor('ilan')) {
+      if (label.isEmpty || !seen.add(label.toLowerCase())) continue;
+      if (AdminCatalogExtras.instance.isRemoved('ilan', label)) continue;
+      extra.add(IlanFormKategoriOpt(value: label, kind: 'uzman'));
+    }
+    return [...builtins, ...extra];
+  }
+
+  static String ilanKindForFormValue(String value) {
+    final v = value.trim();
+    for (final o in ilanFormKategorileri()) {
+      if (o.value == v) return o.kind;
+    }
+    switch (v) {
+      case 'Uzman':
+        return 'uzman';
+      case 'Bakıcı Arıyorum':
+      case 'Bakıcı':
+        return 'bakici';
+      default:
+        return 'uzman';
+    }
+  }
+
+  static List<String> ikincielAltKategoriler() {
+    return _mergeLabels(
+      kIkincielAltKategoriler,
+      AppCatalogService.instance.categoriesOf('ikinciel'),
+      localExtras: AdminCatalogExtras.instance.labelsFor('ikinciel'),
+      scope: 'ikinciel',
+    );
+  }
+
+  static List<String> ikincielCustomAlts() {
     return [
-      for (final r in remote) r['label']?.toString() ?? r['id']?.toString() ?? '',
-    ].where((e) => e.isNotEmpty).toList();
+      for (final a in ikincielAltKategoriler())
+        if (!kIkincielAltKategoriler.contains(a)) a,
+    ];
+  }
+
+  static List<String> _mergeLabels(
+    List<String> fallback,
+    List<Map<String, dynamic>> remote, {
+    List<String> localExtras = const [],
+    String? scope,
+  }) {
+    final seen = <String>{};
+    final out = <String>[];
+    void add(String raw) {
+      final s = raw.trim();
+      if (s.isEmpty) return;
+      if (scope != null && AdminCatalogExtras.instance.isRemoved(scope, s)) {
+        return;
+      }
+      if (seen.add(s.toLowerCase())) out.add(s);
+    }
+
+    for (final e in fallback) {
+      add(e);
+    }
+    for (final r in remote) {
+      add(r['label']?.toString() ?? r['id']?.toString() ?? '');
+    }
+    for (final e in localExtras) {
+      add(e);
+    }
+    return out;
+  }
+
+  static String _kindFromMeta(dynamic meta) {
+    Map<String, dynamic>? map;
+    if (meta is Map) {
+      map = Map<String, dynamic>.from(meta);
+    } else if (meta is String && meta.trim().startsWith('{')) {
+      try {
+        final decoded = jsonDecode(meta);
+        if (decoded is Map) map = Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+    }
+    final k = (map?['kind'] ?? '').toString().trim().toLowerCase();
+    return switch (k) {
+      'uzman' || 'bakici' || 'ikinciel' => k,
+      _ => 'uzman',
+    };
   }
 
   static List<String> centerFilterLabels() {
@@ -295,3 +408,15 @@ class CatalogAdapters {
 }
 
 const rightsCategoriesFallback = rightsCategories;
+
+class IlanFormKategoriOpt {
+  const IlanFormKategoriOpt({
+    required this.value,
+    required this.kind,
+    this.builtin = false,
+  });
+
+  final String value;
+  final String kind;
+  final bool builtin;
+}

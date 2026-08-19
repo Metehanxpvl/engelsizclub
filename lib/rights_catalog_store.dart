@@ -168,13 +168,37 @@ Future<void> upsertRightsCategory({
     'active': active,
     'updated_at': DateTime.now().toUtc().toIso8601String(),
   };
-  final row = Map<String, dynamic>.from(
-    await Supabase.instance.client
-        .from('app_categories')
-        .upsert(payload)
-        .select()
-        .single(),
-  );
+  Map<String, dynamic> row;
+  try {
+    final raw = await Supabase.instance.client.rpc(
+      'admin_upsert_app_category',
+      params: {
+        'p_id': key,
+        'p_scope': 'rights',
+        'p_label': label.trim(),
+        'p_icon': icon.trim().isEmpty ? '📁' : icon.trim(),
+        'p_sort_order': order,
+        'p_meta': <String, dynamic>{},
+      },
+    );
+    row = raw is Map
+        ? Map<String, dynamic>.from(raw)
+        : Map<String, dynamic>.from(
+            await Supabase.instance.client
+                .from('app_categories')
+                .upsert(payload)
+                .select()
+                .single(),
+          );
+  } catch (_) {
+    row = Map<String, dynamic>.from(
+      await Supabase.instance.client
+          .from('app_categories')
+          .upsert(payload)
+          .select()
+          .single(),
+    );
+  }
   await AppCatalogService.instance.replaceCategoryRow(row);
 }
 

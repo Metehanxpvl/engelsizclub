@@ -8,6 +8,7 @@ import '../../widgets/medical_info_card.dart';
 import '../info_library_repository.dart';
 import '../models/info_content.dart';
 import '../widgets/info_youtube_player.dart';
+import '../widgets/info_video_chrome.dart';
 
 /// Kategori sayfası: başlık → uygulama içi video → açıklama blokları.
 /// Admin istediği kadar blok ekler; DB’de yalnızca metin + YouTube linki tutulur.
@@ -410,17 +411,8 @@ class _InfoContentBlockState extends State<_InfoContentBlock>
     final videoId = item.youtubeVideoId;
     final dragIndex = widget.dragIndex;
 
-    return Material(
-      color: MetoColors.card,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: MetoColors.border),
-        ),
-        child: Column(
+    return InfoVideoFrame(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -558,43 +550,13 @@ class _InfoContentBlockState extends State<_InfoContentBlock>
                           ),
                         ),
                         Container(color: Colors.black38),
-                        const Center(
-                          child: Icon(
-                            Icons.play_circle_fill,
-                            color: Colors.white,
-                            size: 64,
-                          ),
-                        ),
-                        Positioned(
-                          left: 12,
-                          bottom: 10,
-                          right: 12,
-                          child: Text(
-                            'İzlemek için dokunun · YouTube’a çıkılmaz',
-                            style: GoogleFonts.nunito(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
+                        const Center(child: InfoVideoyuIzleBadge()),
                       ],
                     ),
                   ),
                 ),
               ),
-            if (item.source.trim().isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Kaynak: ${item.source.trim()}',
-                style: GoogleFonts.nunito(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: MetoColors.mutedFg,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ],
+            InfoKaynakLine(item.source),
             if (item.description.trim().isNotEmpty) ...[
               const SizedBox(height: 14),
               Text(
@@ -609,7 +571,6 @@ class _InfoContentBlockState extends State<_InfoContentBlock>
             ],
           ],
         ),
-      ),
     );
   }
 }

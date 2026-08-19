@@ -124,8 +124,8 @@
     }
     .card {
       background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
+      border: 2px solid var(--accent);
+      border-radius: 16px;
       padding: 14px;
       display: flex;
       flex-direction: column;
@@ -154,13 +154,16 @@
     }
     .yt-facade .play {
       position: absolute;
-      inset: 0;
-      display: grid;
-      place-items: center;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(26,107,74,.92);
       color: #fff;
       font-weight: 800;
-      font-size: 0.9rem;
-      background: rgba(0,0,0,.28);
+      font-size: 0.95rem;
+      padding: 10px 16px;
+      border-radius: 999px;
+      pointer-events: none;
     }
     .yt-facade iframe {
       position: absolute;
@@ -181,13 +184,12 @@
     .sentinel { height: 1px; }
     .tip { font-size: 0.85rem; color: var(--accent); }
     .kaynak {
-      font-size: 0.82rem;
+      font-size: 0.9rem;
       color: var(--muted);
-      border-top: 1px solid var(--border);
-      padding-top: 8px;
-      margin-top: 2px;
+      margin-top: 6px;
+      font-style: italic;
     }
-    .kaynak strong { color: var(--fg); font-weight: 800; }
+    .kaynak strong { color: var(--fg); font-weight: 800; font-style: normal; }
   </style>
 </head>
 <body>
@@ -550,7 +552,7 @@
         el.appendChild(img);
         const play = document.createElement('div');
         play.className = 'play';
-        play.textContent = '▶ Videoyu yükle';
+        play.textContent = '▶ Videoyu izle';
         el.appendChild(play);
         el.addEventListener('click', () => {
           el.innerHTML = '';

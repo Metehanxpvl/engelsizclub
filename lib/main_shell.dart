@@ -25,6 +25,7 @@ import 'data/ilanlar_data.dart'
         scrubEmailsInText;
 import 'data/location_models.dart';
 import 'ilan_store.dart';
+import 'content_view_store.dart';
 import 'kredi_store.dart';
 import 'kullanici_profil_store.dart';
 import 'l10n/app_strings.dart';
@@ -340,7 +341,6 @@ class _MainShellState extends State<MainShell> {
         unawaited(_refreshFeedDots());
       },
     );
-    unawaited(_initStoreBilling());
     unawaited(_refreshFeedDots());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_maybeShowMedicalWelcome());
@@ -466,27 +466,29 @@ class _MainShellState extends State<MainShell> {
   }
 
   Future<void> _initStoreBilling() async {
-    await StoreBillingService.instance.init(
-      onPurchased: (purchase, adet) async {
-        if (!mounted) return;
-        setState(() => _userKredi += adet);
-        await _saveKredi();
-        // Admin bildirimi: DB trigger (kredi_admin_notify.sql) yazar.
-        if (!mounted) return;
-        _showCenteredNotice(
-          '${StoreBillingService.instance.storeName} ödemesi alındı · +$adet $_krediBirimLabel',
-        );
-        setState(() {
-          _krediStep = _KrediStep.paket;
-          _krediSatin = false;
-          _seciliPaket = null;
-        });
-      },
-      onError: (msg) {
-        if (!mounted) return;
-        _showCenteredNotice(msg);
-      },
-    );
+    try {
+      await StoreBillingService.instance.init(
+        onPurchased: (purchase, adet) async {
+          if (!mounted) return;
+          setState(() => _userKredi += adet);
+          await _saveKredi();
+          if (!mounted) return;
+          _showCenteredNotice(
+            '${StoreBillingService.instance.storeName} ödemesi alındı · +$adet $_krediBirimLabel',
+          );
+          setState(() {
+            _krediStep = _KrediStep.paket;
+            _krediSatin = false;
+            _seciliPaket = null;
+          });
+        },
+        onError: (msg) {
+          debugPrint('Store billing: $msg');
+        },
+      );
+    } catch (e) {
+      debugPrint('Store billing init: $e');
+    }
   }
 
   @override
@@ -685,27 +687,73 @@ class _MainShellState extends State<MainShell> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      enableDrag: false,
       backgroundColor: MetoColors.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => AdminMoreMenuSheet(adminEmail: widget.user.email),
     );
+    invalidateMoreMenuCache();
   }
 
   Future<void> _openMoreMenuItem(MoreMenuItem item) async {
+    final extraApp = item.isUrl ||
+        item.link == 'aile_kocu' ||
+        item.link == 'gelisim' ||
+        item.link.startsWith('http') ||
+        item.link.startsWith('/');
+    if (_isGuest && extraApp && item.link != 'haklar' && item.link != 'kartlar' &&
+        item.link != 'mchat' && item.link != 'cvi') {
+      final ok = await GuestLimitStore.allowTimedTab('daha_fazlasi');
+      if (!ok) {
+        if (mounted) {
+          _requireLogin(
+            'Misafir erişimi 2 dakika ile sınırlıdır. Devam etmek için üye olun.',
+          );
+        }
+        return;
+      }
+      if (!mounted) return;
+      final left = await GuestLimitStore.remainingTimedSeconds('daha_fazlasi');
+      if (mounted && left > 0) {
+        final mins = (left / 60).ceil().clamp(1, 2);
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: L10nText(
+              'Misafir erişimi: yaklaşık $mins dk. Süre bitince üyelik gerekir.',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+
+    if (!mounted) return;
+
     if (item.isUrl) {
       await InAppWebPage.open(
         context,
         title: item.title,
         url: item.link,
+        isGuest: _isGuest,
+        onRequireLogin: () => _requireLogin(
+          'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
+        ),
       );
       return;
     }
 
     switch (item.link) {
       case 'aile_kocu':
-        await openAileKocu(context);
+        await openAileKocu(
+          context,
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(
+            'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
+          ),
+        );
         return;
       case 'haklar':
         _goToTab(MetoTab.haklar);
@@ -735,6 +783,10 @@ class _MainShellState extends State<MainShell> {
         await GelisimEtkinlikleriPage.open(
           context,
           adminEmail: widget.user.email,
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(
+            'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
+          ),
         );
         return;
       default:
@@ -743,6 +795,10 @@ class _MainShellState extends State<MainShell> {
             context,
             title: item.title,
             url: item.link,
+            isGuest: _isGuest,
+            onRequireLogin: () => _requireLogin(
+              'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
+            ),
           );
         } else if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -2028,8 +2084,8 @@ class _MainShellState extends State<MainShell> {
         SnackBar(
           content: Text(
             next == 'aile'
-                ? 'Rol: $label. İlan verebilirsiniz; teklif yalnız 2. el ilanlarda.'
-                : 'Rol: $label. Uzman ve bakıcı aynı puan bakiyesini kullanır · $_userKredi puan',
+                ? 'Rol: $label. İlan paylaşabilirsiniz; yalnızca 2. el ilanlarına ücretsiz iletişim kurabilirsiniz.'
+                : 'Rol: $label. İlan paylaşmak için Aile rolüne geçmeniz gerekir · uzman/bakıcı ilanlarına teklifte 1 puan düşer',
           ),
         ),
       );
@@ -2070,8 +2126,8 @@ class _MainShellState extends State<MainShell> {
           const SizedBox(height: 4),
           Text(
             _role == 'aile'
-                ? 'İlan verebilirsiniz. Teklif yalnız 2. el ilanlarda.'
-                : 'Uzman & bakıcı aynı puan bakiyesini paylaşır; teklifte 1 puan düşer.',
+                ? 'İlan paylaşabilirsiniz. Yalnızca 2. el ilanlarına ücretsiz iletişim kurabilirsiniz; uzman/bakıcı ilanlarına teklif için Uzman veya Bakıcı rolüne geçin.'
+                : 'İlan paylaşmak için Aile rolüne geçin. Uzman ve bakıcı ilanlarına teklifte 1 puan düşer.',
             style: TextStyle(
               fontSize: 11,
               color: MetoColors.mutedFg.withValues(alpha: 0.95),
@@ -2663,6 +2719,7 @@ class _MainShellState extends State<MainShell> {
       String title,
       String konum,
       String fiyat,
+      int views,
     })>[
       ...myUzmanIlanlar(email).map((i) => (
             kind: 'uzman',
@@ -2672,6 +2729,7 @@ class _MainShellState extends State<MainShell> {
             title: i.title,
             konum: '${i.district.isEmpty ? '' : '${i.district}, '}${i.city}',
             fiyat: i.budget,
+            views: i.views,
           )),
       ...myBakiciIlanlar(email).map((i) => (
             kind: 'bakici',
@@ -2681,6 +2739,7 @@ class _MainShellState extends State<MainShell> {
             title: i.title,
             konum: '${i.district.isEmpty ? '' : '${i.district}, '}${i.city}',
             fiyat: i.budget,
+            views: i.views,
           )),
       ...myIkincielIlanlar(email).map((i) => (
             kind: 'ikinciel',
@@ -2690,6 +2749,7 @@ class _MainShellState extends State<MainShell> {
             title: i.title,
             konum: '${i.district.isEmpty ? '' : '${i.district}, '}${i.city}',
             fiyat: i.price,
+            views: i.views,
           )),
     ];
 
@@ -2990,6 +3050,15 @@ class _MainShellState extends State<MainShell> {
                           style: const TextStyle(
                             fontSize: 11,
                             color: MetoColors.mutedFg,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '👁 ${ilanViewLabel(e.views)}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF047857),
                           ),
                         ),
                         if (teklifler.isNotEmpty) ...[
@@ -4686,11 +4755,11 @@ class _MainShellState extends State<MainShell> {
       return;
     }
     setState(() => _odemeYukleniyor = true);
-    // Yükleme kartını ortada göster (alt snackbar yerine).
     unawaited(
       _showCenteredLoading('${store.storeName} açılıyor…'),
     );
     try {
+      await _initStoreBilling();
       final ok = await store.buyKrediPaket(paket.adet);
       _hideCenteredLoading();
       if (!ok && mounted) {

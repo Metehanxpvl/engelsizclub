@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../meto_theme.dart';
 import '../models/info_content.dart';
 import '../widgets/info_youtube_player.dart';
+import '../widgets/info_video_chrome.dart';
 
 /// Başlık → uygulama içi video → açıklama.
 class InfoDetailScreen extends StatelessWidget {
@@ -28,29 +29,25 @@ class InfoDetailScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
         children: [
-          Text(
-            content.title,
-            style: GoogleFonts.nunito(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: MetoColors.foreground,
-              height: 1.25,
+          InfoVideoFrame(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  content.title,
+                  style: GoogleFonts.nunito(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: MetoColors.foreground,
+                    height: 1.25,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                InfoYoutubePlayer(youtubeUrlOrId: content.youtubeUrl),
+                InfoKaynakLine(content.source),
+              ],
             ),
           ),
-          const SizedBox(height: 14),
-          InfoYoutubePlayer(youtubeUrlOrId: content.youtubeUrl),
-          if (content.source.trim().isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Kaynak: ${content.source.trim()}',
-              style: GoogleFonts.nunito(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: MetoColors.mutedFg,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
           const SizedBox(height: 18),
           Text(
             content.description.trim().isEmpty

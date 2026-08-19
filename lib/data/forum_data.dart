@@ -21,6 +21,7 @@ class ForumPost {
     this.meslek = '',
     this.ownerEmail = '',
     this.photos = const [],
+    this.views = 0,
   });
 
   final int id;
@@ -42,6 +43,7 @@ class ForumPost {
   final String meslek;
   final String ownerEmail;
   final List<String> photos;
+  final int views;
 
   bool get isAnonymous =>
       anon || author.trim().toLowerCase() == 'anonim';
@@ -60,6 +62,7 @@ class ForumPost {
     bool? anon,
     DateTime? createdAt,
     List<String>? tags,
+    int? views,
   }) =>
       ForumPost(
         id: id,
@@ -81,6 +84,7 @@ class ForumPost {
         meslek: meslek ?? this.meslek,
         ownerEmail: ownerEmail,
         photos: photos ?? this.photos,
+        views: views ?? this.views,
       );
 }
 

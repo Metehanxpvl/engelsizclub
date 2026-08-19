@@ -130,10 +130,12 @@ values
   ('diseases', 1)
 on conflict (name) do nothing;
 
--- Güncellemede version++ otomatik
+-- Güncellemede version++ otomatik (SECURITY DEFINER — admin yazınca RLS takılmasın)
 create or replace function public.bump_catalog_version()
 returns trigger
 language plpgsql
+security definer
+set search_path = public
 as $$
 declare
   v_name text;

@@ -69,6 +69,7 @@ class AppCatalogService extends ChangeNotifier {
   List<Map<String, dynamic>> categoriesOf(String scope) {
     return list(CatalogPack.categories)
         .where((e) => (e['scope']?.toString() ?? '') == scope)
+        .where((e) => e['active'] != false)
         .toList()
       ..sort((a, b) =>
           ((a['sort_order'] as num?)?.toInt() ?? 0)

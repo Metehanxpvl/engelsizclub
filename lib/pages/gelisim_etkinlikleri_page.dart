@@ -5,9 +5,11 @@ import '../admin_config.dart';
 import '../data/gelisim_etkinlik_data.dart';
 import '../gelisim_etkinlik_store.dart';
 import '../info_library/widgets/info_youtube_player.dart';
+import '../info_library/widgets/info_video_chrome.dart';
 import '../medical_disclaimer_store.dart';
 import '../meto_theme.dart';
 import '../widgets/medical_info_card.dart';
+import '../widgets/guest_timed_guard.dart';
 
 /// Bilgi kütüphanesi tarzı: başlık → YouTube → kaynak → açıklama.
 /// Admin: ekle / düzenle / sil / aktif-pasif.
@@ -22,6 +24,8 @@ class GelisimEtkinlikleriPage extends StatefulWidget {
   static Future<void> open(
     BuildContext context, {
     required String adminEmail,
+    bool isGuest = false,
+    VoidCallback? onRequireLogin,
   }) async {
     final gone = await isInfoCardDismissed(kDismissGelisimEtkinlikDisclaimer);
     if (!gone && context.mounted) {
@@ -65,7 +69,12 @@ class GelisimEtkinlikleriPage extends StatefulWidget {
     if (!context.mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => GelisimEtkinlikleriPage(adminEmail: adminEmail),
+        builder: (_) => GuestTimedGuard(
+          isGuest: isGuest,
+          tab: 'daha_fazlasi',
+          onRequireLogin: onRequireLogin,
+          child: GelisimEtkinlikleriPage(adminEmail: adminEmail),
+        ),
       ),
     );
   }
@@ -400,12 +409,8 @@ class _GelisimCardState extends State<_GelisimCard> {
     final item = widget.item;
     final videoId = item.youtubeId;
 
-    return Material(
-      color: MetoColors.card,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
+    return InfoVideoFrame(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -499,30 +504,13 @@ class _GelisimCardState extends State<_GelisimCard> {
                           ),
                         ),
                         Container(color: Colors.black38),
-                        const Center(
-                          child: Icon(
-                            Icons.play_circle_fill,
-                            color: Colors.white,
-                            size: 64,
-                          ),
-                        ),
+                        const Center(child: InfoVideoyuIzleBadge()),
                       ],
                     ),
                   ),
                 ),
               ),
-            if (item.kaynak.trim().isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Kaynak: ${item.kaynak.trim()}',
-                style: GoogleFonts.nunito(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: MetoColors.mutedFg,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ],
+            InfoKaynakLine(item.kaynak),
             if (item.description.trim().isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(
@@ -548,7 +536,6 @@ class _GelisimCardState extends State<_GelisimCard> {
             ],
           ],
         ),
-      ),
     );
   }
 

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../meto_theme.dart';
+import '../widgets/guest_timed_guard.dart';
 import 'aile_kocu_store.dart';
 import 'notification_service.dart';
 import 'screens/aile_kocu_ayarlar.dart';
@@ -82,47 +83,67 @@ class _AileKocuHubPageState extends State<AileKocuHubPage> {
 
 /// Uygulama açılışında / Aile Koçu girişinde: Hive + (mobilde) alarm yeniden planla.
 Future<void> bootstrapAileKocuReminders() async {
+  if (AileKocuNotificationService.bootstrapRunning) return;
+  AileKocuNotificationService.bootstrapRunning = true;
   try {
-    await initAileKocuHive();
-  } catch (e, st) {
-    debugPrint('AileKoçu Hive init: $e\n$st');
-    return;
-  }
-  // Bildirimler yalnızca mobil
-  if (kIsWeb) return;
-  try {
-    await AileKocuNotificationService.instance.init();
-    await AileKocuNotificationService.instance.refreshExactAlarmMode();
-    final s = loadSettings();
-    for (final m in medicinesBox.values) {
-      await AileKocuNotificationService.instance.rescheduleMedicine(
-        medicineId: m.id,
-        childName: s.childName,
-        title: m.name,
-        dosage: m.dosage,
-        times: m.times,
-        weekdays: m.days,
-        photoPath: s.photoPath,
-        endDate: m.endDate,
-      );
+    try {
+      await initAileKocuHive();
+    } catch (e, st) {
+      debugPrint('AileKoçu Hive init: $e\n$st');
+      return;
     }
-    for (final l in lessonsBox.values) {
-      await AileKocuNotificationService.instance.rescheduleLesson(
-        lessonId: l.id,
-        childName: s.childName,
-        title: l.name,
-        timeHhmm: l.time,
-        weekdays: l.days,
-        photoPath: s.photoPath,
-      );
+    // Bildirimler yalnızca mobil
+    if (kIsWeb) return;
+    try {
+      await AileKocuNotificationService.instance.init();
+      await AileKocuNotificationService.instance.ensurePermissions();
+      final s = loadSettings();
+      for (final m in medicinesBox.values) {
+        await AileKocuNotificationService.instance.rescheduleMedicine(
+          medicineId: m.id,
+          childName: s.childName,
+          title: m.name,
+          dosage: m.dosage,
+          times: m.times,
+          weekdays: m.days,
+          photoPath: s.photoPath,
+          endDate: m.endDate,
+        );
+      }
+      for (final l in lessonsBox.values) {
+        await AileKocuNotificationService.instance.rescheduleLesson(
+          lessonId: l.id,
+          childName: s.childName,
+          title: l.name,
+          timeHhmm: l.time,
+          weekdays: l.days,
+          photoPath: s.photoPath,
+        );
+      }
+      for (final n in personalNotesBox.values) {
+        final when = n.reminderDateTime;
+        if (when == null) continue;
+        await AileKocuNotificationService.instance.showPersonalNoteNotification(
+          title: n.title,
+          body: n.detail,
+          scheduledTime: when,
+          noteId: n.id,
+        );
+      }
+    } catch (e, st) {
+      debugPrint('AileKoçu hatırlatıcı bootstrap: $e\n$st');
     }
-  } catch (e, st) {
-    debugPrint('AileKoçu hatırlatıcı bootstrap: $e\n$st');
+  } finally {
+    AileKocuNotificationService.bootstrapRunning = false;
   }
 }
 
 /// Daha Fazlası’ndan açılır: Hive init + tıbbi uyarı (1 kez) + hub.
-Future<void> openAileKocu(BuildContext context) async {
+Future<void> openAileKocu(
+  BuildContext context, {
+  bool isGuest = false,
+  VoidCallback? onRequireLogin,
+}) async {
   try {
     await initAileKocuHive();
   } catch (e) {
@@ -166,6 +187,13 @@ Future<void> openAileKocu(BuildContext context) async {
 
   if (!context.mounted) return;
   await Navigator.of(context).push(
-    MaterialPageRoute(builder: (_) => const AileKocuHubPage()),
+    MaterialPageRoute(
+      builder: (_) => GuestTimedGuard(
+        isGuest: isGuest,
+        tab: 'daha_fazlasi',
+        onRequireLogin: onRequireLogin,
+        child: const AileKocuHubPage(),
+      ),
+    ),
   );
 }

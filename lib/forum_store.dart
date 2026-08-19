@@ -61,6 +61,7 @@ ForumPost forumPostFromRow(
     meslek: json['meslek']?.toString() ?? '',
     ownerEmail: (json['owner_email']?.toString() ?? '').toLowerCase(),
     photos: photos,
+    views: (json['views'] as num?)?.toInt() ?? 0,
   );
 }
 

@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'admin_config.dart';
 import 'data/ilanlar_data.dart';
 import 'data/location_models.dart';
+import 'kredi_store.dart';
 import 'meto_theme.dart';
 import 'services/broadcast_push_service.dart';
 import 'utils/price_format.dart';
@@ -52,6 +53,47 @@ Map<String, dynamic> locationDbFields(LocationData loc) {
     'city': normalized.legacyCity,
     'district': normalized.legacyDistrict,
   };
+}
+
+/// Supabase ilan insert/update hatalarını kullanıcıya anlaşılır metne çevirir.
+String formatIlanCloudError(Object error) {
+  final msg = error.toString();
+  final lower = msg.toLowerCase();
+  if (lower.contains('42501') ||
+      lower.contains('row-level security') ||
+      lower.contains('policy')) {
+    return 'İlan kaydedilemedi: yetki hatası. Hesap rolünüzün Aile olduğundan emin olun '
+        '(Menü → Hesap rolü → Aile). Uzman/bakıcı rolü ilan paylaşamaz.';
+  }
+  if (lower.contains('does not exist') &&
+      (lower.contains('ilanlar') || lower.contains('relation'))) {
+    return 'Supabase ilanlar tablosu bulunamadı. '
+        'Dashboard → SQL Editor → supabase/ilanlar_ensure.sql dosyasını çalıştırın.';
+  }
+  if (lower.contains('country_code') ||
+      lower.contains('location_data') ||
+      (lower.contains('column') && lower.contains('status'))) {
+    return 'Supabase ilanlar şeması güncel değil. '
+        'supabase/ilanlar_ensure.sql dosyasını SQL Editor\'da çalıştırın.';
+  }
+  if (lower.contains('aile rol')) {
+    return msg.replaceFirst('Bad state: ', '').replaceFirst('StateError: ', '');
+  }
+  return 'İlan buluta kaydedilemedi: $msg';
+}
+
+/// RLS / rol hatalarında yerel kayda düşülmemeli.
+bool shouldFallbackIlanLocally(Object error) {
+  final lower = error.toString().toLowerCase();
+  if (lower.contains('42501') ||
+      lower.contains('row-level security') ||
+      lower.contains('policy')) {
+    return false;
+  }
+  if (lower.contains('aile rol') || lower.contains('giriş yapmalı')) {
+    return false;
+  }
+  return true;
 }
 
 
@@ -106,6 +148,7 @@ Map<String, dynamic> _uzmanToJson(UzmanIlani i, {bool forLocalCache = false}) =>
       'offers': i.offers,
       'urgent': i.urgent,
       'photos': _photosToJson(i.photos, forLocalCache: forLocalCache),
+      'category': i.category,
       'posterName': i.poster.fullName.trim().isNotEmpty
           ? i.poster.fullName
           : i.poster.name,
@@ -187,6 +230,9 @@ Map<String, dynamic> _ikincielToJson(
       'ownerEmail': ilanOwnerById[i.id] ?? '',
     };
 
+String _safeIlanText(String? raw) =>
+    scrubIlanListingText((raw ?? '').toString());
+
 IlanPoster _posterFrom(Map<String, dynamic> j) {
   final rawName = (j['posterName'] ?? j['poster_name'])?.toString() ?? 'Siz';
   final fullName = rawName.trim().isEmpty ? 'Siz' : rawName.trim();
@@ -212,7 +258,7 @@ UzmanIlani _uzmanFromJson(Map<String, dynamic> j) {
   final loc = locationFromIlanJson(j);
   return UzmanIlani(
     id: (j['id'] as num?)?.toInt() ?? nextIlanId(),
-    title: j['title']?.toString() ?? '',
+    title: _safeIlanText(j['title']),
     uzmanlik: (j['uzmanlik'] ?? 'Uzman').toString(),
     tani: (j['tani'] ?? 'Belirtilmedi').toString(),
     city: loc.state.isNotEmpty ? loc.state : (j['city']?.toString() ?? ''),
@@ -221,7 +267,10 @@ UzmanIlani _uzmanFromJson(Map<String, dynamic> j) {
     countryCode: _countryCodeOf(j),
     age: (j['age'] ?? 'Belirtilmedi').toString(),
     frequency: (j['frequency'] ?? 'Belirtilmedi').toString(),
-    note: (j['note'] ?? '—').toString(),
+    note: () {
+      final n = _safeIlanText(j['note']);
+      return n.isEmpty ? '—' : n;
+    }(),
     budget: (j['budget'] ?? '').toString(),
     posted: (j['posted'] ?? 'Az önce').toString(),
     views: (j['views'] as num?)?.toInt() ?? 0,
@@ -231,6 +280,7 @@ UzmanIlani _uzmanFromJson(Map<String, dynamic> j) {
         ? photos.take(kUzmanBakiciMaxPhotos).toList()
         : photos,
     poster: _posterFrom(j),
+    category: normalizeUzmanListingCategory(j['category']),
   );
 }
 
@@ -239,7 +289,7 @@ BakiciIlani _bakiciFromJson(Map<String, dynamic> j) {
   final loc = locationFromIlanJson(j);
   return BakiciIlani(
     id: (j['id'] as num?)?.toInt() ?? nextIlanId(),
-    title: j['title']?.toString() ?? '',
+    title: _safeIlanText(j['title']),
     city: loc.state.isNotEmpty ? loc.state : (j['city']?.toString() ?? ''),
     district:
         loc.city.isNotEmpty ? loc.city : ((j['district'] ?? '').toString()),
@@ -247,7 +297,10 @@ BakiciIlani _bakiciFromJson(Map<String, dynamic> j) {
     tani: (j['tani'] ?? 'Belirtilmedi').toString(),
     age: (j['age'] ?? 'Belirtilmedi').toString(),
     hours: (j['hours'] ?? 'Belirtilmedi').toString(),
-    note: (j['note'] ?? '—').toString(),
+    note: () {
+      final n = _safeIlanText(j['note']);
+      return n.isEmpty ? '—' : n;
+    }(),
     budget: (j['budget'] ?? '').toString(),
     posted: (j['posted'] ?? 'Az önce').toString(),
     views: (j['views'] as num?)?.toInt() ?? 0,
@@ -264,7 +317,7 @@ IkincielIlani _ikincielFromJson(Map<String, dynamic> j) {
   final loc = locationFromIlanJson(j);
   return IkincielIlani(
     id: (j['id'] as num?)?.toInt() ?? nextIlanId(),
-    title: j['title']?.toString() ?? '',
+    title: _safeIlanText(j['title']),
     category: (j['category'] ?? 'Diğer').toString(),
     city: loc.state.isNotEmpty ? loc.state : (j['city']?.toString() ?? ''),
     district:
@@ -272,7 +325,10 @@ IkincielIlani _ikincielFromJson(Map<String, dynamic> j) {
     countryCode: _countryCodeOf(j),
     condition: (j['condition'] ?? 'İyi').toString(),
     brand: (j['brand'] ?? '—').toString(),
-    note: (j['note'] ?? '—').toString(),
+    note: () {
+      final n = _safeIlanText(j['note']);
+      return n.isEmpty ? '—' : n;
+    }(),
     price: (j['price'] ?? '').toString(),
     originalPrice: (j['original_price'] ?? j['originalPrice'] ?? '').toString(),
     posted: (j['posted'] ?? 'Az önce').toString(),
@@ -578,16 +634,29 @@ Future<void> publishIlanToCloud({
   String age = 'Belirtilmedi',
   String frequency = 'Belirtilmedi',
   String hours = 'Belirtilmedi',
-  String category = 'Diğer',
+  String category = kIlanCatUzmanAriyorum,
   String condition = 'İyi',
   String brand = '—',
   String emoji = '📦',
   List<IlanPhoto> photos = const [],
   bool urgent = false,
 }) async {
+  title = _safeIlanText(title);
+  note = _safeIlanText(note);
   final user = Supabase.instance.client.auth.currentUser;
   if (user == null) {
     throw StateError('İlan yayınlamak için giriş yapmalısınız.');
+  }
+  final userType = currentAuthUserType();
+  if (!canPostIlan(
+    userType: userType,
+    email: user.email,
+    listingCategory: category,
+  )) {
+    throw StateError(
+      'İlan yalnızca Aile rolündeki hesaplarla paylaşılabilir. '
+      'Uzman ve bakıcı hesapları Menü → Hesap rolü bölümünden Aile rolüne geçmelidir.',
+    );
   }
   final resolvedEmail = ownerEmail.trim().isNotEmpty
       ? ownerEmail.trim().toLowerCase()
@@ -620,9 +689,9 @@ Future<void> publishIlanToCloud({
 
   final payload = <String, dynamic>{
     'kind': kind,
-    'title': title,
+    'title': _safeIlanText(title),
     ...locFields,
-    'note': note,
+    'note': _safeIlanText(note),
     'budget': formatPriceTl(budget),
     'price': formatPriceTl(price),
     'original_price': formatPriceTl(originalPrice),
@@ -673,7 +742,10 @@ Future<void> publishIlanToCloud({
     );
     return;
   } catch (e) {
-    // Supabase yoksa yerel düş — yine de cihazlar arası paylaşılmaz.
+    if (!shouldFallbackIlanLocally(e)) {
+      throw StateError(formatIlanCloudError(e));
+    }
+    // Supabase yoksa / şema eksikse yerel düş — yine de cihazlar arası paylaşılmaz.
     final id = nextIlanId();
     final poster = IlanPoster(
       name: displayPosterName,
@@ -708,6 +780,7 @@ Future<void> publishIlanToCloud({
             urgent: urgent,
             photos: cappedPhotos,
             poster: poster,
+            category: normalizeUzmanListingCategory(category),
           ),
         );
         break;
@@ -760,10 +833,7 @@ Future<void> publishIlanToCloud({
     }
     ilanOwnerById[id] = resolvedEmail;
     await persistUserIlanlar(resolvedEmail);
-    throw StateError(
-      'İlan yalnızca bu cihaza kaydedildi. Ortak görünüm için Supabase '
-      'ilanlar tablosunu oluşturun (supabase/ilanlar.sql). Detay: $e',
-    );
+    throw StateError('LOCAL_ILAN_SAVED:${formatIlanCloudError(e)}');
   }
 }
 
@@ -781,9 +851,11 @@ Future<void> updateIlanInCloud({
   String price = '',
   String uzmanlik = 'Uzman',
   String condition = 'İyi',
-  String category = kIkincielAltDiger,
+  String category = kIlanCatUzmanAriyorum,
   List<IlanPhoto> photos = const [],
 }) async {
+  title = _safeIlanText(title);
+  note = _safeIlanText(note);
   final user = Supabase.instance.client.auth.currentUser;
   if (user == null) {
     throw StateError('İlan düzenlemek için giriş yapmalısınız.');
@@ -810,13 +882,14 @@ Future<void> updateIlanInCloud({
 
   final myEmail = (user.email ?? '').trim().toLowerCase();
   final payload = <String, dynamic>{
-    'title': title,
+    'title': _safeIlanText(title),
     ...locFields,
-    'note': note,
+    'note': _safeIlanText(note),
     'budget': budget,
     'price': price,
     'uzmanlik': uzmanlik,
     'photos': cappedPhotos.map((p) => p.toJson()).toList(),
+    if (kind == 'uzman') 'category': normalizeUzmanListingCategory(category),
     if (kind == 'ikinciel') ...{
       'condition': condition,
       'category': category,
@@ -863,6 +936,208 @@ Future<void> updateIlanInCloud({
   try {
     await loadAllIlanlar(preferEmail: resolvedEmail);
   } catch (_) {}
+}
+
+String _normalizedIlanKind(String kind) {
+  final k = kind.trim().toLowerCase();
+  return switch (k) {
+    'uzman' || 'bakici' || 'ikinciel' => k,
+    _ => '',
+  };
+}
+
+void _applySingleIlanRow(Map<String, dynamic> row) {
+  final status = (row['status']?.toString() ?? 'active').toLowerCase();
+  final id = (row['id'] as num?)?.toInt() ?? 0;
+  if (id <= 0) return;
+
+  runtimeUzmanIlanlar.removeWhere((i) => i.id == id);
+  runtimeBakiciIlanlar.removeWhere((i) => i.id == id);
+  runtimeIkincielIlanlar.removeWhere((i) => i.id == id);
+
+  if (status == 'sold') return;
+
+  final j = _rowToLocalJson(row);
+  final owner = (j['ownerEmail'] ?? j['owner_email'])?.toString() ?? '';
+  if (owner.isNotEmpty) ilanOwnerById[id] = owner.toLowerCase();
+
+  switch (j['kind']?.toString()) {
+    case 'uzman':
+      runtimeUzmanIlanlar.insert(0, _uzmanFromJson(j));
+      break;
+    case 'bakici':
+      runtimeBakiciIlanlar.insert(0, _bakiciFromJson(j));
+      break;
+    case 'ikinciel':
+      runtimeIkincielIlanlar.insert(0, _ikincielFromJson(j));
+      break;
+  }
+}
+
+Future<void> _reloadIlanAfterKindChange(int id, String preferEmail) async {
+  final client = Supabase.instance.client;
+  try {
+    final row = await client.from('ilanlar').select().eq('id', id).maybeSingle();
+    if (row != null) {
+      _applySingleIlanRow(Map<String, dynamic>.from(row));
+    }
+  } catch (_) {}
+  try {
+    await loadAllIlanlar(preferEmail: preferEmail);
+  } catch (_) {}
+}
+
+String _adminKindChangeError(Object e, String email) {
+  final msg = e.toString();
+  if (msg.contains('not allowed') || msg.contains('Yalnızca admin')) {
+    return 'Admin yetkisi tanınmadı ($email). '
+        'sakir.caykara@gmail.com ile giriş yapın.';
+  }
+  if (msg.contains('ilanlar_photos_max_check') ||
+      msg.contains('photos') && msg.contains('check')) {
+    return 'Fotoğraf sayısı fazla. 2. el ilanı uzman/bakıcıya taşınırken '
+        'en fazla 2 fotoğraf kalır.';
+  }
+  if (msg.contains('42883') ||
+      msg.contains('admin_change_ilan_kind') ||
+      msg.contains('admin-ilan-kind')) {
+    return 'Sunucu güncellemesi gerekli. Supabase’de '
+        'ilanlar_admin_change_kind.sql çalıştırın veya '
+        'admin-ilan-kind edge function deploy edin.';
+  }
+  if (msg.contains('42501') || msg.contains('policy')) {
+    return 'Güncelleme yetkisi yok. Supabase’de '
+        'ilanlar_admin_change_kind.sql çalıştırın.';
+  }
+  return 'Taşınamadı: $e';
+}
+
+/// Admin: ilanı başka sekmeye taşır (ör. uzman → ikinciel).
+Future<void> adminChangeIlanKind({
+  required int id,
+  required String toKind,
+  String ikincielCategory = kIkincielAltDiger,
+  String uzmanlik = 'Uzman',
+}) async {
+  final user = Supabase.instance.client.auth.currentUser;
+  final me = (user?.email ?? '').trim().toLowerCase();
+  if (user == null) {
+    throw StateError('Kategori değiştirmek için giriş yapmalısınız.');
+  }
+  if (!isAppAdmin(me)) {
+    throw StateError('Yalnızca admin kategori değiştirebilir.');
+  }
+  if (id <= 0) throw StateError('Geçersiz ilan.');
+
+  final kind = _normalizedIlanKind(toKind);
+  if (kind.isEmpty) throw StateError('Geçersiz kategori.');
+
+  final category = ikincielAltKategoriOf(ikincielCategory);
+  final uzman = uzmanlik.trim().isEmpty ? 'Uzman' : uzmanlik.trim();
+  final client = Supabase.instance.client;
+
+  Future<void> finishAfterDbOk() async {
+    await _reloadIlanAfterKindChange(id, me);
+  }
+
+  // 1) RPC (Supabase'de zaten var — edge function gerekmez)
+  try {
+    await client.rpc(
+      'admin_change_ilan_kind',
+      params: {
+        'p_id': id,
+        'p_kind': kind,
+        'p_category': category,
+        'p_uzmanlik': uzman,
+      },
+    );
+    await finishAfterDbOk();
+    return;
+  } on PostgrestException catch (e) {
+    if (e.code != '42883' && !e.message.contains('Could not find')) {
+      throw StateError(_adminKindChangeError(e, me));
+    }
+    // RPC yok → edge function / doğrudan güncelleme dene
+  }
+
+  // 2) Edge function (deploy edilmişse — yoksa sessizce atla)
+  try {
+    final res = await client.functions.invoke(
+      'admin-ilan-kind',
+      body: {
+        'id': id,
+        'kind': kind,
+        'category': category,
+        'uzmanlik': uzman,
+      },
+    );
+    if (res.status >= 200 && res.status < 300) {
+      final data = res.data;
+      if (data is Map && data['row'] is Map) {
+        _applySingleIlanRow(Map<String, dynamic>.from(data['row'] as Map));
+      }
+      await finishAfterDbOk();
+      return;
+    }
+  } catch (_) {
+    // Deploy edilmemiş / ağ hatası — doğrudan güncellemeye geç
+  }
+
+  // 3) Doğrudan güncelleme (admin RLS policy sonrası)
+  final row = await client
+        .from('ilanlar')
+        .select(
+          'photos, budget, price, condition, brand, emoji, uzmanlik, category',
+        )
+        .eq('id', id)
+        .maybeSingle();
+    if (row == null) {
+      throw StateError('İlan bulunamadı (id: $id).');
+    }
+
+    final payload = <String, dynamic>{
+      'kind': kind,
+    };
+    if (kind == 'ikinciel') {
+      payload['category'] = category;
+      final price = (row['price'] ?? '').toString().trim();
+      final budget = (row['budget'] ?? '').toString().trim();
+      if (price.isEmpty && budget.isNotEmpty) payload['price'] = budget;
+      if ((row['condition'] ?? '').toString().trim().isEmpty) {
+        payload['condition'] = 'İyi';
+      }
+      if ((row['brand'] ?? '').toString().trim().isEmpty) {
+        payload['brand'] = '—';
+      }
+      if ((row['emoji'] ?? '').toString().trim().isEmpty) {
+        payload['emoji'] = '📦';
+      }
+    }
+    if (kind == 'uzman') {
+      payload['uzmanlik'] = uzman;
+    }
+    if (kind == 'uzman' || kind == 'bakici') {
+      final budget = (row['budget'] ?? '').toString().trim();
+      final price = (row['price'] ?? '').toString().trim();
+      if (budget.isEmpty && price.isNotEmpty) payload['budget'] = price;
+      final photos = _photosFromJson(row['photos']);
+      if (photos.length > kUzmanBakiciMaxPhotos) {
+        payload['photos'] =
+            photos.take(kUzmanBakiciMaxPhotos).map((p) => p.toJson()).toList();
+      }
+    }
+
+    final updated = await client
+        .from('ilanlar')
+        .update(payload)
+        .eq('id', id)
+        .select()
+        .maybeSingle();
+    if (updated == null) {
+      throw StateError(_adminKindChangeError('policy/42501', me));
+    }
+    _applySingleIlanRow(Map<String, dynamic>.from(updated));
+  await finishAfterDbOk();
 }
 
 Future<void> deleteUserIlan({
@@ -979,6 +1254,26 @@ int myIlanCount(String email) =>
     myUzmanIlanlar(email).length +
     myBakiciIlanlar(email).length +
     myIkincielIlanlar(email).length;
+
+void applyRuntimeIlanViews(int id, int views) {
+  if (id <= 0 || views < 0) return;
+  for (var i = 0; i < runtimeUzmanIlanlar.length; i++) {
+    if (runtimeUzmanIlanlar[i].id == id) {
+      runtimeUzmanIlanlar[i] = runtimeUzmanIlanlar[i].copyWith(views: views);
+    }
+  }
+  for (var i = 0; i < runtimeBakiciIlanlar.length; i++) {
+    if (runtimeBakiciIlanlar[i].id == id) {
+      runtimeBakiciIlanlar[i] = runtimeBakiciIlanlar[i].copyWith(views: views);
+    }
+  }
+  for (var i = 0; i < runtimeIkincielIlanlar.length; i++) {
+    if (runtimeIkincielIlanlar[i].id == id) {
+      runtimeIkincielIlanlar[i] =
+          runtimeIkincielIlanlar[i].copyWith(views: views);
+    }
+  }
+}
 
 /// Teklif / sohbet için ilan sahibinin tam adı (e-posta ile).
 String? revealedPosterNameForOwner(String email) {

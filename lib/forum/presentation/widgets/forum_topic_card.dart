@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/entities/forum_topic.dart';
 import '../../../meto_theme.dart';
+import '../../../widgets/photo_gallery_lightbox.dart';
 
 /// Material 3 uyumlu forum konu kartı.
 class ForumTopicCard extends StatelessWidget {
@@ -65,7 +66,7 @@ class ForumTopicCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (topic.isResolved)
+                  if (topic.isResolved) ...[
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -91,12 +92,15 @@ class ForumTopicCard extends StatelessWidget {
                         ],
                       ),
                     ),
+                    const SizedBox(width: 6),
+                  ],
+                  _stat(Icons.visibility_outlined, topic.views),
                 ],
               ),
               const SizedBox(height: 10),
               Text(
                 topic.title,
-                maxLines: 2,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
@@ -114,6 +118,10 @@ class ForumTopicCard extends StatelessWidget {
                         height: 1.35,
                       ),
                 ),
+              ],
+              if (topic.photos.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _TopicPhotoStrip(photos: topic.photos),
               ],
               if (topic.tags.isNotEmpty) ...[
                 const SizedBox(height: 8),
@@ -161,7 +169,6 @@ class ForumTopicCard extends StatelessWidget {
                           ),
                     ),
                   ),
-                  _stat(Icons.visibility_outlined, topic.views),
                   const SizedBox(width: 10),
                   _stat(Icons.chat_bubble_outline, topic.replyCount),
                   const SizedBox(width: 10),
@@ -213,6 +220,64 @@ class ForumTopicCard extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _TopicPhotoStrip extends StatelessWidget {
+  const _TopicPhotoStrip({required this.photos});
+
+  final List<String> photos;
+
+  static const _height = 168.0;
+
+  void _open(BuildContext context, int index) {
+    final images = galleryProvidersFromSources(photos);
+    if (images.isEmpty) return;
+    openPhotoGallery(
+      context,
+      images: images,
+      initialIndex: index.clamp(0, images.length - 1),
+    );
+  }
+
+  Widget _photo(BuildContext context, String source, int index) {
+    return GestureDetector(
+      onTap: () => _open(context, index),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: FillPhoto(
+          source: source,
+          height: _height,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          placeholder: const ColoredBox(
+            color: Color(0xFFE2E8F0),
+            child: Center(
+              child: Icon(Icons.image_outlined, color: Color(0xFF94A3B8)),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (photos.isEmpty) return const SizedBox.shrink();
+    if (photos.length == 1) {
+      return _photo(context, photos.first, 0);
+    }
+    return SizedBox(
+      height: _height,
+      child: Row(
+        children: [
+          for (var i = 0; i < photos.length && i < 2; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            Expanded(child: _photo(context, photos[i], i)),
+          ],
+        ],
+      ),
     );
   }
 }

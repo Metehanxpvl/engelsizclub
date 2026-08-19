@@ -85,6 +85,7 @@ class ForumTopic {
         meslek: meslek,
         ownerEmail: ownerEmail,
         photos: photos,
+        views: views,
       );
 
   static String _relative(DateTime createdAt) {

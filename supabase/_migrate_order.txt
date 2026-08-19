@@ -6,9 +6,13 @@ user_kredi.sql
 user_presence.sql
 user_profiles_photos_rpc.sql
 user_blocks_reports.sql
-ilanlar.sql
-ilanlar_status.sql
+ilanlar_ensure.sql
+locations.sql
 ilanlar_update_own.sql
+ilanlar_admin_change_kind.sql
+app_catalog_bump_rls_fix.sql
+admin_catalog_category.sql
+admin_catalog_delete.sql
 ilan_photos_storage.sql
 forum_posts.sql
 forum_post_photos.sql
@@ -20,6 +24,7 @@ forum_topic_follows.sql
 forum_scale_taxonomy.sql
 forum_tags_ensure.sql
 bildirimler.sql
+ilan_role_permissions.sql
 bildirimler_delete.sql
 bildirimler_mesaj_collapse.sql
 bildirimler_teklif_unique.sql
@@ -48,3 +53,4 @@ google_places_proxy.sql
 cross_platform_sync.sql
 play_ready.sql
 cvi_sessions.sql
+view_counts.sql

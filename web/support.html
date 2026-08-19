@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Engelsiz Club destek, iletişim ve yardım merkezi." />
+  <title>Destek — Engelsiz Club</title>
+  <style>
+    :root {
+      --fg: #0f2f24;
+      --muted: #5a7168;
+      --bg: #f4faf7;
+      --card: #ffffff;
+      --accent: #1a6b4a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.65;
+    }
+    main { max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; }
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+      margin-bottom: 16px;
+    }
+    h1 { font-size: 1.6rem; margin: 0 0 8px; color: var(--accent); }
+    h2 { font-size: 1.15rem; margin: 0 0 8px; color: var(--fg); }
+    p, li { color: var(--muted); }
+    a { color: var(--accent); font-weight: 600; }
+    .cta {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 10px 16px;
+      background: var(--accent);
+      color: #fff !important;
+      text-decoration: none;
+      border-radius: 10px;
+      font-weight: 700;
+    }
+    ul { padding-left: 1.2rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="card">
+      <h1>Destek</h1>
+      <p>
+        Engelsiz Club, özel gereksinimli bireyler ve aileleri için bir dayanışma
+        platformudur. Sorularınız, teknik destek ve geri bildirimleriniz için
+        aşağıdaki kanalları kullanabilirsiniz.
+      </p>
+      <h2>İletişim</h2>
+      <p>
+        E-posta:
+        <a href="mailto:sakir.caykara@gmail.com?subject=Engelsiz%20Club%20Destek">
+          sakir.caykara@gmail.com
+        </a>
+      </p>
+      <p>
+        Uygulama içinden <strong>Menü → Dilek, Şikayet &amp; Öneri</strong>
+        bölümünden de bize ulaşabilirsiniz.
+      </p>
+      <a class="cta" href="mailto:sakir.caykara@gmail.com?subject=Engelsiz%20Club%20Destek">
+        Destek e-postası gönder
+      </a>
+    </div>
+
+    <div class="card" id="terms">
+      <h2>Topluluk kuralları ve uygunsuz içerik</h2>
+      <p>
+        Engelsiz Club’da <strong>uygunsuz içeriğe sıfır tolerans</strong> uygulanır.
+        Hakaret, taciz, nefret söylemi, tehdit ve yasa dışı içerik yasaktır.
+      </p>
+      <ul>
+        <li>Forum gönderileri, yorumlar ve ilanlarda <strong>Şikayet Et / Raporla</strong> düğmesini kullanın.</li>
+        <li>Rahatsız edici kullanıcıları <strong>Engelle</strong> seçeneği ile gizleyebilirsiniz.</li>
+        <li>Şikayetler 24 saat içinde incelenir; ihlal tespit edilirse içerik kaldırılır veya hesap askıya alınır.</li>
+      </ul>
+      <p>
+        Ayrıntılı koşullar:
+        <a href="/privacy.html">Gizlilik Politikası</a> ·
+        <a href="/about.html">Hakkında</a>
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Sık sorulan sorular</h2>
+      <p><strong>Hesabımı nasıl silerim?</strong><br />
+        Uygulama menüsündeki “Hesabımı Sil” seçeneğini kullanın veya
+        <a href="/delete-account.html">hesap silme sayfasına</a> bakın.</p>
+      <p><strong>Uygulama tıbbi tavsiye veriyor mu?</strong><br />
+        Hayır. Engelsiz Club bir sosyal destek platformudur; profesyonel tıbbi
+        tanı veya tedavi yerine geçmez.</p>
+      <p><strong>Google ile giriş yapamıyorum</strong><br />
+        İnternet bağlantınızı kontrol edin. Sorun sürerse destek e-postasına
+        cihaz modeli ve ekran görüntüsü ile yazın.</p>
+    </div>
+
+    <p style="text-align:center;font-size:0.85rem;color:var(--muted);">
+      © Engelsiz Club ·
+      <a href="https://engelsizclub-e5842.web.app/">Ana sayfa</a>
+    </p>
+  </main>
+</body>
+</html>

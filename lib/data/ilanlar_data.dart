@@ -71,10 +71,12 @@ class IlanPoster {
   final List<IlanReview> reviews;
   final PosterCv? cv;
 
-  /// Sohbet / teklif sonrası: tam ad; yoksa kart adı.
+  /// Teklif / sohbet: tam ad yerine maskeli ad (M**** Ç****).
   String get revealedName {
     final full = fullName.trim();
-    if (full.isNotEmpty && !full.contains('@')) return full;
+    if (full.isNotEmpty && !full.contains('@')) {
+      return maskPersonDisplayName(full);
+    }
     final n = name.trim();
     return n.isEmpty ? 'Üye' : n;
   }
@@ -106,6 +108,21 @@ class SohbetKisi {
 
 enum IlanKategori { uzmanlar, bakici, ikinciel }
 
+/// Uzman sekmesinde ilan türü (`ilanlar.category`).
+const kIlanCatUzmanAriyorum = 'Uzman Arıyorum';
+const kIlanCatIsAriyorum = 'İş Arıyorum';
+
+String normalizeUzmanListingCategory(dynamic raw) {
+  final s = (raw ?? '').toString().trim();
+  if (s.toLowerCase() == kIlanCatIsAriyorum.toLowerCase()) {
+    return kIlanCatIsAriyorum;
+  }
+  return kIlanCatUzmanAriyorum;
+}
+
+bool isIlanIsAriyorum(String? category) =>
+    normalizeUzmanListingCategory(category) == kIlanCatIsAriyorum;
+
 /// 2. el ilan alt kategorisi (filtre + form).
 const kIkincielAltMedikal = 'Medikal Malzemeler';
 const kIkincielAltDiger = 'Diğer';
@@ -125,10 +142,17 @@ String _normTrIkinciel(String s) => s
     .replaceAll('ö', 'o')
     .replaceAll('ç', 'c');
 
-/// Kayıtlı `category` değerini Medikal / Diğer altına çözer.
-String ikincielAltKategoriOf(String category) {
+/// Kayıtlı `category` değerini Medikal / Diğer veya özel alt kategoriye çözer.
+String ikincielAltKategoriOf(String category, {List<String>? extras}) {
   final c = _normTrIkinciel(category);
   if (c.isEmpty) return kIkincielAltDiger;
+  final known = <String>[
+    ...kIkincielAltKategoriler,
+    ...?extras,
+  ];
+  for (final a in known) {
+    if (_normTrIkinciel(a) == c) return a;
+  }
   if (c == 'diger' || c == 'other' || c == 'autres' || c == 'sonstiges') {
     return kIkincielAltDiger;
   }
@@ -213,6 +237,7 @@ class UzmanIlani {
     required this.poster,
     this.photos = const [],
     this.countryCode = 'TR',
+    this.category = kIlanCatUzmanAriyorum,
   });
 
   final int id;
@@ -233,6 +258,29 @@ class UzmanIlani {
   /// Uzman / bakıcı ilanlarında en fazla 2 fotoğraf.
   final List<IlanPhoto> photos;
   final String countryCode;
+  /// `Uzman Arıyorum` (aile) veya `İş Arıyorum` (uzman/bakıcı).
+  final String category;
+
+  UzmanIlani copyWith({int? views}) => UzmanIlani(
+        id: id,
+        title: title,
+        uzmanlik: uzmanlik,
+        tani: tani,
+        city: city,
+        district: district,
+        age: age,
+        frequency: frequency,
+        note: note,
+        budget: budget,
+        posted: posted,
+        views: views ?? this.views,
+        offers: offers,
+        urgent: urgent,
+        poster: poster,
+        photos: photos,
+        countryCode: countryCode,
+        category: category,
+      );
 }
 
 class BakiciIlani {
@@ -270,6 +318,24 @@ class BakiciIlani {
   /// Uzman / bakıcı ilanlarında en fazla 2 fotoğraf.
   final List<IlanPhoto> photos;
   final String countryCode;
+
+  BakiciIlani copyWith({int? views}) => BakiciIlani(
+        id: id,
+        title: title,
+        city: city,
+        district: district,
+        tani: tani,
+        age: age,
+        hours: hours,
+        note: note,
+        budget: budget,
+        posted: posted,
+        views: views ?? this.views,
+        urgent: urgent,
+        poster: poster,
+        photos: photos,
+        countryCode: countryCode,
+      );
 }
 
 /// 2. el ürün durumu seçenekleri (ilan formu + badge).
@@ -336,6 +402,25 @@ class IkincielIlani {
   final List<IlanPhoto> photos;
   final IlanPoster poster;
   final String countryCode;
+
+  IkincielIlani copyWith({int? views}) => IkincielIlani(
+        id: id,
+        title: title,
+        category: category,
+        city: city,
+        district: district,
+        condition: condition,
+        brand: brand,
+        note: note,
+        price: price,
+        originalPrice: originalPrice,
+        posted: posted,
+        views: views ?? this.views,
+        emoji: emoji,
+        photos: photos,
+        poster: poster,
+        countryCode: countryCode,
+      );
 }
 
 /// 2. el ilan görseli — gerçek foto (data URL) veya örnek renk kutusu.
@@ -1198,28 +1283,58 @@ final List<IkincielIlani> runtimeIkincielIlanlar = <IkincielIlani>[];
 int _ilanIdSeq = 1000;
 int nextIlanId() => ++_ilanIdSeq;
 
-/// İlan sahibi görünen adı: ad açık, soyad ****.
+/// İlan / iletişim görünen adı: M**** Ç**** (her kelimenin ilk harfi + ****).
 String maskPersonDisplayName(String raw) {
   final parts = raw
       .trim()
       .split(RegExp(r'\s+'))
       .where((p) => p.isNotEmpty)
       .toList();
-  if (parts.isEmpty) return 'Siz';
-  if (parts.length == 1) return parts.first;
-  return '${parts.first} ****';
+  if (parts.isEmpty) return 'Üye';
+  String maskWord(String word) {
+    final w = word.trim();
+    if (w.isEmpty) return '****';
+    return '${w[0].toUpperCase()}****';
+  }
+  if (parts.length == 1) return maskWord(parts.first);
+  return '${maskWord(parts.first)} ${maskWord(parts.last)}';
 }
 
 final _emailInTextRe = RegExp(
   r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}',
 );
 
-/// Mesaj / önizleme metnindeki e-postaları gizler.
-String scrubEmailsInText(String text) {
-  return text.replaceAllMapped(_emailInTextRe, (_) => 'üye');
+/// TR cep / sabit ve uluslararası telefon kalıpları.
+final _phoneInTextRe = RegExp(
+  r'(?<!\d)(?:\+90[\s\-.]?|0)?(?:5\d{2}[\s\-.]?\d{3}[\s\-.]?\d{2}[\s\-.]?\d{2}|'
+  r'(?:2|3|4)\d{2}[\s\-.]?\d{3}[\s\-.]?\d{2}[\s\-.]?\d{2})(?!\d)|'
+  r'(?<!\d)\+?\d[\d\s\-().]{7,}\d(?!\d)',
+  multiLine: true,
+);
+
+final _socialContactRe = RegExp(
+  r'(?:https?://)?(?:wa\.me|api\.whatsapp\.com|t\.me|telegram\.me)/\S+',
+  caseSensitive: false,
+);
+
+/// İlan başlık/açıklama: telefon, e-posta ve dış iletişim linklerini temizler.
+String scrubIlanListingText(String text) {
+  if (text.trim().isEmpty) return text;
+  return text
+      .replaceAllMapped(_emailInTextRe, (_) => '***')
+      .replaceAllMapped(_phoneInTextRe, (_) => '***')
+      .replaceAllMapped(_socialContactRe, (_) => '***');
 }
 
-/// Sohbet / bildirimde gösterilecek ad — e-posta gizler, ad soyadı açık bırakır.
+/// Mesaj / önizleme metnindeki e-posta ve telefonları gizler.
+String scrubEmailsInText(String text) {
+  return text
+      .replaceAllMapped(_emailInTextRe, (_) => 'üye')
+      .replaceAllMapped(_phoneInTextRe, (_) => 'üye')
+      .replaceAllMapped(_socialContactRe, (_) => 'üye');
+}
+
+/// Sohbet / bildirimde gösterilecek ad — e-posta gizler, adı maskeler.
 String publicContactLabel(
   String raw, {
   String preferredName = '',
@@ -1227,13 +1342,13 @@ String publicContactLabel(
 }) {
   final preferred = preferredName.trim();
   if (preferred.isNotEmpty && !preferred.contains('@')) {
-    return preferred;
+    return maskPersonDisplayName(preferred);
   }
   var s = raw.trim();
   if (s.isEmpty) return fallback;
   if (s.contains('↔')) return fallback;
   if (s.contains('@')) return fallback;
-  return s;
+  return maskPersonDisplayName(s);
 }
 
 String contactAvatarLetter(String label) {
@@ -1242,16 +1357,16 @@ String contactAvatarLetter(String label) {
   return s[0].toUpperCase();
 }
 
-/// Avatar baş harfleri (maskeli isimden).
+/// Avatar baş harfleri (maskeli isimden: M**** Ç**** → MÇ).
 String posterAvatarInitials(String displayName) {
   final first = displayName
       .trim()
       .split(RegExp(r'\s+'))
-      .where((p) => p.isNotEmpty && p != '****')
+      .where((p) => p.isNotEmpty)
       .map((p) => p[0])
       .join()
       .toUpperCase();
-  if (first.isEmpty) return 'SZ';
+  if (first.isEmpty) return 'Ü';
   return first.substring(0, first.length.clamp(0, 2));
 }
 

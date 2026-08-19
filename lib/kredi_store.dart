@@ -2,20 +2,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_config.dart';
+import 'data/ilanlar_data.dart';
 
 const pendingGoogleRoleKey = 'pending_google_user_type';
 
-/// Yeni üye başlangıç kredisi (yalnız uzman / bakıcı).
-const int kWelcomeKredi = 25;
+/// Tüm üyeler (aile / uzman / bakıcı) başlangıç puanı.
+const int kMemberStartKredi = 5;
 
-/// Aile rolü başlangıç iyilik puanı (yükledikçe artar).
-const int kAileStartKredi = 1;
+/// Geriye dönük uyumluluk — UI metinleri bu sabiti kullanır.
+const int kWelcomeKredi = kMemberStartKredi;
+
+/// @deprecated Aile için ayrı başlangıç yok; [kMemberStartKredi] kullanın.
+const int kAileStartKredi = kMemberStartKredi;
 
 /// Admin başlangıç / hedef kredisi.
 const int kAdminKredi = 10000;
 
-/// Tek seferlik yükleme: admin 10000, uzman/bakıcı 25, aile 1.
-const int kKrediGrantVersion = 5;
+/// Tek seferlik yükleme sürümü — artırınca mevcut üyelere hedef puan uygulanır.
+const int kKrediGrantVersion = 6;
 
 String krediPrefsKeyFor(String email, {String fallback = 'anon'}) {
   final e = email.trim().toLowerCase();
@@ -30,11 +34,49 @@ bool isProfUserType(String? userType) {
   return t == 'uzman' || t == 'bakici';
 }
 
-/// Aile: 1 · Uzman/Bakıcı: 25 · Admin: 10000
+String normalizedUserType(String? userType) {
+  final t = (userType ?? '').trim().toLowerCase();
+  if (t == 'uzman' || t == 'bakici' || t == 'aile') return t;
+  return 'aile';
+}
+
+String currentAuthUserType() {
+  final meta = Supabase.instance.client.auth.currentUser?.userMetadata;
+  return normalizedUserType(meta?['user_type']?.toString());
+}
+
+bool isAileUserType(String? userType) =>
+    normalizedUserType(userType) == 'aile';
+
+bool canPostIlan({
+  String? userType,
+  String? email,
+  String listingCategory = kIlanCatUzmanAriyorum,
+}) {
+  if (isAppAdmin(email)) return true;
+  return isAileUserType(userType);
+}
+
+bool canOfferOnIlan({
+  required String kind,
+  String? userType,
+  String? email,
+  String listingCategory = kIlanCatUzmanAriyorum,
+}) {
+  if (isAppAdmin(email)) return true;
+  // 2. el: aile (ve diğer roller) ücretsiz iletişim kurabilir.
+  if (kind == 'ikinciel') return true;
+  // Uzman arıyorum / bakıcı arıyorum: yalnızca uzman veya bakıcı rolü.
+  return isProfUserType(userType);
+}
+
+/// Uzman/bakıcı ilanlarında teklif 1 puan harcar; 2. el ücretsiz.
+bool offerCostsKredi({required String kind}) => kind != 'ikinciel';
+
+/// Üye: 5 · Admin: 10000
 int startingKrediFor(String email, {String? userType}) {
   if (isAppAdmin(email)) return kAdminKredi;
-  if (isProfUserType(userType)) return kWelcomeKredi;
-  return kAileStartKredi;
+  return kMemberStartKredi;
 }
 
 class KrediSnapshot {
@@ -57,7 +99,6 @@ Future<KrediSnapshot> loadUserKredi({
   final giftKey = '${key}_welcome_gift';
   final grantKey = krediGrantPrefsKeyFor(email);
   final target = startingKrediFor(email, userType: userType);
-  final isProf = isProfUserType(userType) || isAppAdmin(email);
 
   Future<KrediSnapshot> finish(int balance, {bool gift = true}) async {
     await prefs.setInt(key, balance);
@@ -88,56 +129,21 @@ Future<KrediSnapshot> loadUserKredi({
       return finish(bal);
     }
 
-    // Aile: bir kez 1 iyilik puanı; yükleme/harcama sonrası bakiye korunur.
-    if (!isProf) {
-      if (!granted && bal < target) {
-        final saved = await saveUserKredi(
-          email: email,
-          balance: target,
-          welcomeGiftGiven: true,
-        );
-        if (saved) await prefs.setBool(grantKey, true);
-        await prefs.setInt(key, target);
-        return finish(target);
-      }
-      await prefs.setBool(grantKey, true);
-      return finish(bal, gift: true);
-    }
-
-    // Hoş geldin / grant işlendiyse ASLA otomatik doldurma (harcama korunur).
-    if (welcomeGift || granted) {
-      await prefs.setBool(grantKey, true);
-      if (welcomeGift) await prefs.setBool(giftKey, true);
-      return finish(bal, gift: true);
-    }
-
-    // Zaten hedefte veya üstünde
-    if (bal >= target) {
-      await prefs.setBool(grantKey, true);
-      await saveUserKredi(
+    // Üye: grant sürümü yenilendiyse herkesi hedef puana (5) çek.
+    if (!granted) {
+      final saved = await saveUserKredi(
         email: email,
-        balance: bal,
+        balance: target,
         welcomeGiftGiven: true,
       );
-      return finish(bal);
+      if (saved) await prefs.setBool(grantKey, true);
+      await prefs.setInt(key, target);
+      return finish(target);
     }
 
-    // Eski seed (0/3/10) veya boş → hedefe yükselt (bir kez)
-    final looksLikeOldSeed =
-        current == null || bal == 0 || bal == 3 || bal == 10;
-    if (!looksLikeOldSeed) {
-      await prefs.setBool(grantKey, true);
-      return finish(bal);
-    }
-
-    final saved = await saveUserKredi(
-      email: email,
-      balance: target,
-      welcomeGiftGiven: true,
-    );
-    if (saved) await prefs.setBool(grantKey, true);
-    await prefs.setInt(key, target);
-    return finish(target);
+    await prefs.setBool(grantKey, true);
+    if (welcomeGift) await prefs.setBool(giftKey, true);
+    return finish(bal, gift: true);
   }
 
   final client = Supabase.instance.client;
@@ -178,32 +184,14 @@ Future<KrediSnapshot> loadUserKredi({
     }
     return finish(local ?? target);
   }
-  if (!isProf) {
-    if (!granted && (local ?? 0) < target) {
-      await prefs.setInt(key, target);
-      await prefs.setBool(giftKey, true);
-      await prefs.setBool(grantKey, true);
-      return KrediSnapshot(balance: target, welcomeGiftGiven: true);
-    }
-    await prefs.setBool(grantKey, true);
-    return finish(local ?? target, gift: true);
-  }
-  if (giftLocal || granted) {
-    return finish(local ?? 0, gift: true);
-  }
-  if (local != null && local != 0 && local != 3 && local != 10) {
-    await prefs.setBool(grantKey, true);
-    return finish(local);
-  }
-  if ((local ?? 0) < target) {
+  if (!granted) {
     await prefs.setInt(key, target);
     await prefs.setBool(giftKey, true);
     await prefs.setBool(grantKey, true);
     return KrediSnapshot(balance: target, welcomeGiftGiven: true);
   }
   await prefs.setBool(grantKey, true);
-  await prefs.setBool(giftKey, true);
-  return finish(local ?? target);
+  return finish(local ?? target, gift: true);
 }
 
 Future<bool> saveUserKredi({
@@ -297,7 +285,7 @@ Future<int?> spendOneKredi({required String email}) async {
   return next;
 }
 
-/// Yeni üye başlangıç kredisi: herkese [kWelcomeKredi], admin [kAdminKredi].
+/// Yeni üye başlangıç kredisi: herkese [kMemberStartKredi], admin [kAdminKredi].
 Future<void> seedWelcomeCredits({
   required String email,
   required String? userType,

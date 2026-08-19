@@ -86,14 +86,17 @@ class FillPhoto extends StatelessWidget {
             placeholder ?? const SizedBox.shrink(),
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child;
-          return placeholder ??
-              const Center(
-                child: SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              );
+          return SizedBox(
+            width: width,
+            height: height,
+            child: const Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
         },
       );
     }

@@ -8,13 +8,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../admin_config.dart';
 import '../bildirim_store.dart';
+import '../catalog_category_store.dart';
 import '../data/ilanlar_data.dart';
 import '../data/location_models.dart';
 import '../ilan_store.dart';
+import '../content_moderation.dart';
+import '../content_view_store.dart';
+import '../kredi_store.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/locale_controller.dart';
 import '../meto_theme.dart';
 import '../presence_store.dart';
+import '../services/app_catalog_service.dart';
 import '../services/catalog_adapters.dart';
 import '../services/image_optimize_service.dart';
 import '../services/r2_storage_service.dart';
@@ -26,13 +31,18 @@ import '../widgets/photo_gallery_lightbox.dart';
 import '../widgets/user_avatar.dart';
 import '../widgets/user_safety_sheet.dart';
 import '../widgets/guest_gate.dart';
+import '../widgets/ugc_terms_gate.dart';
 import '../l10n/l10n_text.dart';
 import '../utils/price_format.dart';
 
 String ikincielAltDisplayLabel(String category) {
-  final alt = ikincielAltKategoriOf(category);
+  final alt = ikincielAltKategoriOf(
+    category,
+    extras: CatalogAdapters.ikincielCustomAlts(),
+  );
   if (alt == kIkincielAltMedikal) return S.t('ilan_alt_medikal');
-  return S.t('ilan_alt_diger');
+  if (alt == kIkincielAltDiger) return S.t('ilan_alt_diger');
+  return alt;
 }
 
 /// MetoCare `IlanlarTab` — Flutter portu.
@@ -138,6 +148,10 @@ class IlanlarPageState extends State<IlanlarPage> {
   );
   /// 2. el ürün durumu: Tümü | Sıfır | Az Kullanılmış | İyi | Kötü
   String _ikincielDurumFilter = 'Tümü';
+  /// Uzman sekmesi: Tümü | Uzman Arıyorum | İş Arıyorum
+  String _uzmanTipFilter = 'Tümü';
+  /// Uzman sekmesi uzmanlık filtresi
+  String _uzmanlikFilter = 'Tümü';
   /// 'Tümü' | Medikal Malzemeler | Diğer (canonical TR keys)
   String _ikincielAltFilter = 'Tümü';
   int _listPage = 0;
@@ -156,21 +170,67 @@ class IlanlarPageState extends State<IlanlarPage> {
     return 'aile';
   }
 
-  /// 2. el: her rol serbest. Uzman/bakıcı ilanları: sadece uzman veya bakıcı.
-  bool _canOfferOn(String kind) {
-    if (_isAdmin) return true;
-    switch (kind) {
-      case 'ikinciel':
-        return true;
-      case 'uzman':
-      case 'bakici':
-        return _normalizedRole == 'uzman' || _normalizedRole == 'bakici';
-      default:
-        return false;
-    }
+  /// Yalnızca aile (ve admin) ilan paylaşabilir.
+  bool get _canPostListing =>
+      !widget.isGuest && (_isAdmin || _normalizedRole == 'aile');
+
+  bool get _profNeedsRoleSwitchToPost =>
+      !widget.isGuest &&
+      !_isAdmin &&
+      (_normalizedRole == 'uzman' || _normalizedRole == 'bakici');
+
+  void _showRoleSwitchToPostWarning() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'İlan paylaşmak için hesap rolünüzü Aile olarak değiştirmeniz gerekir. '
+          'Menü → Hesap rolü bölümünden rolünüzü değiştirebilirsiniz.',
+        ),
+        duration: Duration(seconds: 5),
+      ),
+    );
   }
 
-  bool _canReviewOn(String kind) => !widget.isGuest && _canOfferOn(kind);
+  String _uzmanListingCategory(int? ilanId) {
+    if (ilanId == null) return kIlanCatUzmanAriyorum;
+    for (final u in runtimeUzmanIlanlar) {
+      if (u.id == ilanId) return u.category;
+    }
+    if (CatalogAdapters.showDemoIlanlar()) {
+      for (final u in uzmanIlanlar) {
+        if (u.id == ilanId) return u.category;
+      }
+    }
+    return kIlanCatUzmanAriyorum;
+  }
+
+  /// Aile: yalnızca 2. el · Uzman/bakıcı: uzman ve bakıcı ilanları (1 puan).
+  bool _canOfferOn(String kind, {int? ilanId}) {
+    if (_isAdmin) return true;
+    if (widget.isGuest) return false;
+    return canOfferOnIlan(
+      kind: kind,
+      userType: _normalizedRole,
+      email: widget.userEmail,
+      listingCategory: _uzmanListingCategory(ilanId),
+    );
+  }
+
+  String _offerBlockedMessage(String kind) {
+    if (kind == 'ikinciel') {
+      return '2. el ilanlarına teklif vermek için giriş yapın.';
+    }
+    if (_normalizedRole == 'aile') {
+      return 'Uzman ve bakıcı ilanlarına teklif vermek için Menü → Hesap rolü '
+          'bölümünden Uzman veya Bakıcı rolüne geçin. 2. el ilanlarına aile '
+          'rolüyle ücretsiz iletişim kurabilirsiniz.';
+    }
+    return 'Uzman ve bakıcı ilanlarına yalnızca Uzman veya Bakıcı rolü teklif '
+        'verebilir (1 puan).';
+  }
+
+  bool _canReviewOn(String kind, {int? ilanId}) =>
+      !widget.isGuest && _canOfferOn(kind, ilanId: ilanId);
 
   UzmanIlani? _selectedUzman;
   BakiciIlani? _selectedBakici;
@@ -197,6 +257,33 @@ class IlanlarPageState extends State<IlanlarPage> {
 
   bool _teklifVerildiMi(int? ilanId) =>
       ilanId != null && _teklifVerilenIlanlar.contains(ilanId);
+
+  int? _lastViewRecordedIlanId;
+
+  void _syncOpenedIlanView() {
+    final id = _selectedUzman?.id ?? _selectedBakici?.id ?? _selectedIkinciel?.id;
+    if (id == null) {
+      _lastViewRecordedIlanId = null;
+      return;
+    }
+    if (_lastViewRecordedIlanId == id) return;
+    _lastViewRecordedIlanId = id;
+    unawaited(() async {
+      final n = await recordIlanView(id);
+      if (!mounted || n < 0) return;
+      setState(() {
+        if (_selectedUzman?.id == id) {
+          _selectedUzman = _selectedUzman!.copyWith(views: n);
+        }
+        if (_selectedBakici?.id == id) {
+          _selectedBakici = _selectedBakici!.copyWith(views: n);
+        }
+        if (_selectedIkinciel?.id == id) {
+          _selectedIkinciel = _selectedIkinciel!.copyWith(views: n);
+        }
+      });
+    }());
+  }
 
   bool _teklifKilitliMi(int? ilanId) =>
       ilanId != null &&
@@ -306,15 +393,298 @@ class IlanlarPageState extends State<IlanlarPage> {
     }
   }
 
+  String _ilanKindLabel(String kind) => switch (kind) {
+        'uzman' => S.t('ilan_tab_uzman'),
+        'bakici' => S.t('ilan_tab_bakici'),
+        'ikinciel' => S.t('ilan_tab_ikinciel'),
+        _ => kind,
+      };
+
+  IlanKategori _kategoriOfKind(String kind) => switch (kind) {
+        'uzman' => IlanKategori.uzmanlar,
+        'bakici' => IlanKategori.bakici,
+        _ => IlanKategori.ikinciel,
+      };
+
+  Future<void> _changeIlanCategory({
+    required String kind,
+    required int id,
+    required String title,
+    String? ikincielCategory,
+    String? uzmanlik,
+  }) async {
+    if (!_isAdmin) return;
+
+    var selectedKind = kind;
+    var selectedAlt = ikincielAltKategoriOf(
+      ikincielCategory ?? kIkincielAltDiger,
+      extras: CatalogAdapters.ikincielCustomAlts(),
+    );
+    var selectedUzmanlik = (uzmanlik ?? '').trim();
+    final uzmanOpts = CatalogAdapters.uzmanlikSecenekleri();
+    if (selectedUzmanlik.isEmpty || !uzmanOpts.contains(selectedUzmanlik)) {
+      selectedUzmanlik = uzmanOpts.first;
+    }
+
+    final result = await showDialog<({String kind, String alt, String uzmanlik})>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return AlertDialog(
+              title: const L10nText('Kategori değiştir (Admin)'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '"$title"',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      kind == 'ikinciel'
+                          ? 'Şu an: ${_ilanKindLabel(kind)} · ${ikincielAltDisplayLabel(ikincielCategory ?? '')}'
+                          : 'Şu an: ${_ilanKindLabel(kind)}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: MetoColors.mutedFg,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const L10nText(
+                      'Yeni kategori',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final opt in [
+                          ('uzman', S.t('ilan_tab_uzman')),
+                          ('bakici', S.t('ilan_tab_bakici')),
+                          ('ikinciel', S.t('ilan_tab_ikinciel')),
+                        ])
+                          ChoiceChip(
+                            label: Text(opt.$2),
+                            selected: selectedKind == opt.$1,
+                            onSelected: (_) =>
+                                setLocal(() => selectedKind = opt.$1),
+                          ),
+                      ],
+                    ),
+                    if (selectedKind == 'ikinciel') ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: L10nText(
+                              'Alt kategori',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Yeni alt kategori ekle',
+                            onPressed: () async {
+                              final name = await promptAdminNewOption(
+                                context: ctx,
+                                title: 'Yeni 2. el alt kategori',
+                                hint: 'Örn. Ortez / protez',
+                              );
+                              if (name == null || !ctx.mounted) return;
+                              final result = await upsertCatalogOption(
+                                scope: 'ikinciel',
+                                label: name,
+                                icon: '📦',
+                              );
+                              if (!ctx.mounted) return;
+                              setLocal(() => selectedAlt = name);
+                              showCatalogUpsertSnackBar(
+                                ctx,
+                                result,
+                                successText: '"$name" alt kategorilere eklendi',
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.add_circle_outline,
+                              color: Color(0xFF7C3AED),
+                            ),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ],
+                      ),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final alt
+                              in CatalogAdapters.ikincielAltKategoriler())
+                            ChoiceChip(
+                              label: Text(ikincielAltDisplayLabel(alt)),
+                              selected: selectedAlt == alt,
+                              onSelected: (_) =>
+                                  setLocal(() => selectedAlt = alt),
+                            ),
+                        ],
+                      ),
+                    ],
+                    if (selectedKind == 'uzman') ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: L10nText(
+                              'Uzmanlık',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Yeni uzmanlık ekle',
+                            onPressed: () async {
+                              final name = await promptAdminNewOption(
+                                context: ctx,
+                                title: 'Yeni uzmanlık alanı',
+                                hint: 'Örn. Müzik terapisti',
+                              );
+                              if (name == null || !ctx.mounted) return;
+                              final result = await upsertCatalogOption(
+                                scope: 'uzmanlik',
+                                label: name,
+                                icon: '👤',
+                              );
+                              if (!ctx.mounted) return;
+                              setLocal(() => selectedUzmanlik = name);
+                              showCatalogUpsertSnackBar(
+                                ctx,
+                                result,
+                                successText: '"$name" uzmanlık alanlarına eklendi',
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.add_circle_outline,
+                              color: Color(0xFF7C3AED),
+                            ),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ],
+                      ),
+                      DropdownButtonFormField<String>(
+                        key: ValueKey(selectedUzmanlik),
+                        initialValue: () {
+                          final opts = CatalogAdapters.uzmanlikSecenekleri();
+                          return opts.contains(selectedUzmanlik)
+                              ? selectedUzmanlik
+                              : opts.first;
+                        }(),
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: MetoColors.card,
+                          isDense: true,
+                        ),
+                        items: [
+                          for (final u in CatalogAdapters.uzmanlikSecenekleri())
+                            DropdownMenuItem(value: u, child: Text(u)),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) {
+                            setLocal(() => selectedUzmanlik = v);
+                          }
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const L10nText('Vazgeç'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, (
+                    kind: selectedKind,
+                    alt: selectedAlt,
+                    uzmanlik: selectedUzmanlik,
+                  )),
+                  child: const L10nText('Taşı'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (result == null || !mounted) return;
+
+    final sameKind = result.kind == kind;
+    final sameAlt = result.kind != 'ikinciel' ||
+        ikincielAltKategoriOf(ikincielCategory ?? kIkincielAltDiger) ==
+            result.alt;
+    final sameUzman = result.kind != 'uzman' ||
+        (kind == 'uzman' && (uzmanlik ?? '').trim() == result.uzmanlik);
+    if (sameKind && sameAlt && sameUzman) return;
+
+    try {
+      await adminChangeIlanKind(
+        id: id,
+        toKind: result.kind,
+        ikincielCategory: result.alt,
+        uzmanlik: result.uzmanlik,
+      );
+      if (!mounted) return;
+      setState(() {
+        _selectedUzman = null;
+        _selectedBakici = null;
+        _selectedIkinciel = null;
+        _kategori = _kategoriOfKind(result.kind);
+        // Alt kategori filtresini taşıma sonrası değiştirme — diğer ilanlar kaybolmasın
+      });
+      await _refreshFeed();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'İlan "${_ilanKindLabel(result.kind)}" kategorisine taşındı',
+          ),
+        ),
+      );
+      _openListingByKindId(result.kind, id);
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e is StateError ? e.message : e.toString();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    }
+  }
+
   Widget _ilanEditDeleteActions({
     required int id,
     required String kind,
     required String title,
     required VoidCallback onEdit,
+    String? ikincielCategory,
+    String? uzmanlik,
   }) {
     final canEdit = _isIlanOwner(id);
     final canDelete = _canDeleteIlan(id);
-    if (!canEdit && !canDelete) return const SizedBox.shrink();
+    final canMove = _isAdmin;
+    if (!canEdit && !canDelete && !canMove) return const SizedBox.shrink();
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -339,6 +709,25 @@ class IlanlarPageState extends State<IlanlarPage> {
               Icons.edit_outlined,
               size: 18,
               color: MetoColors.primary,
+            ),
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
+        if (canMove)
+          IconButton(
+            tooltip: 'Admin: kategori değiştir',
+            onPressed: () => _changeIlanCategory(
+              kind: kind,
+              id: id,
+              title: title,
+              ikincielCategory: ikincielCategory,
+              uzmanlik: uzmanlik,
+            ),
+            icon: const Icon(
+              Icons.drive_file_move_outline,
+              size: 18,
+              color: Color(0xFF7C3AED),
             ),
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
@@ -426,6 +815,7 @@ class IlanlarPageState extends State<IlanlarPage> {
         note: ilan.note == '—' ? '' : ilan.note,
         budgetOrPrice: ilan.budget,
         uzmanlik: ilan.uzmanlik,
+        category: ilan.category,
         photos: List<IlanPhoto>.from(ilan.photos),
       );
       _showVerForm = true;
@@ -731,9 +1121,19 @@ class IlanlarPageState extends State<IlanlarPage> {
   List<UzmanIlani> get _filteredUzman {
     final demo = CatalogAdapters.showDemoIlanlar() ? uzmanIlanlar : const <UzmanIlani>[];
     return [...runtimeUzmanIlanlar, ...demo]
-        .where((u) =>
-            _matchesLoc(u.city, u.district, countryCode: u.countryCode) &&
-            (uzmanKm[u.id] ?? 50) <= _kmFilter)
+        .where((u) {
+          if (!_matchesLoc(u.city, u.district, countryCode: u.countryCode)) {
+            return false;
+          }
+          if ((uzmanKm[u.id] ?? 50) > _kmFilter) return false;
+          if (_uzmanlikFilter != 'Tümü' && u.uzmanlik != _uzmanlikFilter) {
+            return false;
+          }
+          if (_uzmanTipFilter != 'Tümü' && u.category != _uzmanTipFilter) {
+            return false;
+          }
+          return true;
+        })
         .toList();
   }
 
@@ -746,12 +1146,17 @@ class IlanlarPageState extends State<IlanlarPage> {
         .toList();
   }
 
-  List<IkincielIlani> get _allIkinciel {
+  List<IkincielIlani> get _baseIkinciel {
     final demo =
         CatalogAdapters.showDemoIlanlar() ? ikincielIlanlar : const <IkincielIlani>[];
     return [...runtimeIkincielIlanlar, ...demo]
+        .where((i) => _matchesLoc(i.city, i.district, countryCode: i.countryCode))
+        .toList();
+  }
+
+  List<IkincielIlani> get _allIkinciel {
+    return _baseIkinciel
         .where((i) =>
-            _matchesLoc(i.city, i.district, countryCode: i.countryCode) &&
             _matchesIkincielDurum(i.condition) &&
             _matchesIkincielAlt(i.category))
         .toList();
@@ -759,7 +1164,11 @@ class IlanlarPageState extends State<IlanlarPage> {
 
   bool _matchesIkincielAlt(String category) {
     if (_ikincielAltFilter == 'Tümü') return true;
-    return ikincielAltKategoriOf(category) == _ikincielAltFilter;
+    return ikincielAltKategoriOf(
+          category,
+          extras: CatalogAdapters.ikincielCustomAlts(),
+        ) ==
+        _ikincielAltFilter;
   }
 
   bool _matchesIkincielDurum(String condition) {
@@ -777,7 +1186,7 @@ class IlanlarPageState extends State<IlanlarPage> {
     return switch (_ikincielDurumFilter) {
       'Sıfır' => c.contains('sifir'),
       'Az Kullanılmış' => c.contains('az kullan'),
-      'İyi' => c == 'iyi' || c.startsWith('iyi '),
+      'İyi' => c == 'iyi' || c.startsWith('iyi ') || c.contains('cok iyi'),
       'Kötü' => c.contains('kotu'),
       _ => true,
     };
@@ -822,18 +1231,30 @@ class IlanlarPageState extends State<IlanlarPage> {
       _openSohbet(kisi);
       return;
     }
-    // 2. el: tüm roller serbest, ücretsiz
+    // 2. el: ücretsiz teklif / iletişim
     if (free || kind == 'ikinciel') {
-      _completeFreeTeklif(kisi);
+      if (!_canOfferOn(kind, ilanId: kisi.ilanId)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_offerBlockedMessage(kind)),
+            duration: const Duration(seconds: 5),
+          ),
+        );
+        return;
+      }
+      _completeFreeTeklif(
+        kisi,
+        kind: kind,
+        listingCategory: _uzmanListingCategory(kisi.ilanId),
+      );
       return;
     }
-    if (!_canOfferOn(kind)) {
-      final msg = (kind == 'uzman' || kind == 'bakici')
-          ? 'Uzman/bakıcı ilanlarına yalnızca Uzman veya Bakıcı rolü teklif verebilir. '
-              '2. el ilanlarda her rol serbestçe teklif verip konuşabilir.'
-          : 'Bu ilana teklif veremezsiniz.';
+    if (!_canOfferOn(kind, ilanId: kisi.ilanId)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), duration: const Duration(seconds: 4)),
+        SnackBar(
+          content: Text(_offerBlockedMessage(kind)),
+          duration: const Duration(seconds: 5),
+        ),
       );
       return;
     }
@@ -853,6 +1274,8 @@ class IlanlarPageState extends State<IlanlarPage> {
           actorName: widget.userName,
           ilanId: k.ilanId,
           ilanTitle: k.ilanTitle,
+          kind: kind,
+          listingCategory: _uzmanListingCategory(k.ilanId),
         );
         if (k.ilanId != null) {
           await markTeklifVerildi(
@@ -916,7 +1339,11 @@ class IlanlarPageState extends State<IlanlarPage> {
     );
   }
 
-  Future<void> _completeFreeTeklif(SohbetKisi k) async {
+  Future<void> _completeFreeTeklif(
+    SohbetKisi k, {
+    String kind = 'ikinciel',
+    String listingCategory = kIlanCatUzmanAriyorum,
+  }) async {
     if (_freeTeklifBusy || _teklifKilitliMi(k.ilanId)) {
       _openSohbet(k);
       return;
@@ -931,6 +1358,8 @@ class IlanlarPageState extends State<IlanlarPage> {
         actorName: widget.userName,
         ilanId: k.ilanId,
         ilanTitle: k.ilanTitle,
+        kind: kind,
+        listingCategory: listingCategory,
       );
       if (k.ilanId != null) {
         await markTeklifVerildi(email: widget.userEmail, ilanId: k.ilanId!);
@@ -1055,11 +1484,29 @@ class IlanlarPageState extends State<IlanlarPage> {
 
   @override
   Widget build(BuildContext context) {
+    _syncOpenedIlanView();
     if (_showVerForm) {
       final editing = _editDraft != null;
+      if (!editing && !_canPostListing) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _showVerForm = false);
+          if (_profNeedsRoleSwitchToPost) {
+            _showRoleSwitchToPostWarning();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('İlan paylaşmak için Aile rolü gerekir.'),
+              ),
+            );
+          }
+        });
+        return const SizedBox.shrink();
+      }
       return _YeniIlanForm(
         userName: widget.userName,
         userEmail: widget.userEmail,
+        userType: widget.userType,
         profilFoto: widget.profilFoto,
         editDraft: _editDraft,
         onBack: () => setState(() {
@@ -1101,6 +1548,10 @@ class IlanlarPageState extends State<IlanlarPage> {
                 _buildCreditBar(),
               _buildLocationFilter(),
               if (_kategori != IlanKategori.ikinciel) _buildKmFilter(),
+              if (_kategori == IlanKategori.uzmanlar) ...[
+                _buildUzmanTipFilter(),
+                _buildUzmanlikFilter(),
+              ],
               if (_kategori == IlanKategori.ikinciel) ...[
                 _buildIkincielAltFilter(),
                 _buildIkincielDurumFilter(),
@@ -1128,8 +1579,8 @@ class IlanlarPageState extends State<IlanlarPage> {
             ilan: _selectedBakici!,
             alreadyOffered: _teklifVerildiMi(_selectedBakici!.id),
             ctaLabel: _paidCtaLabel('bakici', _selectedBakici!.id),
-            allowOffer: _canOfferOn('bakici'),
-            canWriteReview: _canReviewOn('bakici'),
+            allowOffer: _canOfferOn('bakici', ilanId: _selectedBakici!.id),
+            canWriteReview: _canReviewOn('bakici', ilanId: _selectedBakici!.id),
             onClose: () => setState(() => _selectedBakici = null),
             onEdit: _isIlanOwner(_selectedBakici!.id)
                 ? () {
@@ -1140,6 +1591,13 @@ class IlanlarPageState extends State<IlanlarPage> {
                 : null,
             onDelete: _canDeleteIlan(_selectedBakici!.id)
                 ? () => _deleteIlan(
+                      kind: 'bakici',
+                      id: _selectedBakici!.id,
+                      title: _selectedBakici!.title,
+                    )
+                : null,
+            onChangeCategory: _isAdmin
+                ? () => _changeIlanCategory(
                       kind: 'bakici',
                       id: _selectedBakici!.id,
                       title: _selectedBakici!.title,
@@ -1188,6 +1646,14 @@ class IlanlarPageState extends State<IlanlarPage> {
                       title: _selectedIkinciel!.title,
                     )
                 : null,
+            onChangeCategory: _isAdmin
+                ? () => _changeIlanCategory(
+                      kind: 'ikinciel',
+                      id: _selectedIkinciel!.id,
+                      title: _selectedIkinciel!.title,
+                      ikincielCategory: _selectedIkinciel!.category,
+                    )
+                : null,
             onProfile: () {
               final ilan = _selectedIkinciel!;
               setState(() {
@@ -1220,8 +1686,8 @@ class IlanlarPageState extends State<IlanlarPage> {
             ilan: _selectedUzman!,
             alreadyOffered: _teklifVerildiMi(_selectedUzman!.id),
             ctaLabel: _paidCtaLabel('uzman', _selectedUzman!.id),
-            allowOffer: _canOfferOn('uzman'),
-            canWriteReview: _canReviewOn('uzman'),
+            allowOffer: _canOfferOn('uzman', ilanId: _selectedUzman!.id),
+            canWriteReview: _canReviewOn('uzman', ilanId: _selectedUzman!.id),
             onClose: () => setState(() => _selectedUzman = null),
             onEdit: _isIlanOwner(_selectedUzman!.id)
                 ? () {
@@ -1235,6 +1701,14 @@ class IlanlarPageState extends State<IlanlarPage> {
                       kind: 'uzman',
                       id: _selectedUzman!.id,
                       title: _selectedUzman!.title,
+                    )
+                : null,
+            onChangeCategory: _isAdmin
+                ? () => _changeIlanCategory(
+                      kind: 'uzman',
+                      id: _selectedUzman!.id,
+                      title: _selectedUzman!.title,
+                      uzmanlik: _selectedUzman!.uzmanlik,
                     )
                 : null,
             onProfile: () {
@@ -1269,8 +1743,14 @@ class IlanlarPageState extends State<IlanlarPage> {
                 ? 'Teklif Verildi — Mesaja Git'
                 : _selectedPoster!.ctaLabel,
             alreadyOffered: _teklifVerildiMi(_selectedPoster!.ilanId),
-            allowOffer: _canOfferOn(_selectedPoster!.kind),
-            canWriteReview: _canReviewOn(_selectedPoster!.kind),
+            allowOffer: _canOfferOn(
+              _selectedPoster!.kind,
+              ilanId: _selectedPoster!.ilanId,
+            ),
+            canWriteReview: _canReviewOn(
+              _selectedPoster!.kind,
+              ilanId: _selectedPoster!.ilanId,
+            ),
             onClose: () => setState(() => _selectedPoster = null),
             onKrediTap: () {
               final p = _selectedPoster!.poster;
@@ -1352,34 +1832,39 @@ class IlanlarPageState extends State<IlanlarPage> {
               ),
             ),
           ],
-          FilledButton.icon(
-            onPressed: () async {
-              if (widget.isGuest) {
-                await ensureMemberAccess(
-                  context,
-                  isGuest: true,
-                  onRequireLogin: widget.onRequireLogin ?? () {},
-                  message:
-                      'İlan vermek için giriş yapmanız veya üye olmanız gerekiyor.',
-                );
-                return;
-              }
-              setState(() => _showVerForm = true);
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: MetoColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          if (_canPostListing || _profNeedsRoleSwitchToPost)
+            FilledButton.icon(
+              onPressed: () async {
+                if (widget.isGuest) {
+                  await ensureMemberAccess(
+                    context,
+                    isGuest: true,
+                    onRequireLogin: widget.onRequireLogin ?? () {},
+                    message:
+                        'İlan vermek için giriş yapmanız veya üye olmanız gerekiyor.',
+                  );
+                  return;
+                }
+                if (_profNeedsRoleSwitchToPost) {
+                  _showRoleSwitchToPostWarning();
+                  return;
+                }
+                setState(() => _showVerForm = true);
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: MetoColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.add, size: 16),
+              label: const L10nText(
+                'İlan Ver',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
               ),
             ),
-            icon: const Icon(Icons.add, size: 16),
-            label: const L10nText(
-              'İlan Ver',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-            ),
-          ),
         ],
       ),
     );
@@ -1394,7 +1879,7 @@ class IlanlarPageState extends State<IlanlarPage> {
         '🤝',
         _filteredBakici.length,
       ),
-      (IlanKategori.ikinciel, S.t('ilan_tab_ikinciel'), '♻️', _allIkinciel.length),
+      (IlanKategori.ikinciel, S.t('ilan_tab_ikinciel'), '♻️', _baseIkinciel.length),
     ];
 
     return Padding(
@@ -1669,6 +2154,103 @@ class IlanlarPageState extends State<IlanlarPage> {
     );
   }
 
+  static const _uzmanTipFiltreleri = <String>[
+    'Tümü',
+    kIlanCatUzmanAriyorum,
+    kIlanCatIsAriyorum,
+  ];
+
+  Widget _buildChipFilterRow({
+    required String title,
+    required List<String> options,
+    required String active,
+    required ValueChanged<String> onSelected,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: MetoColors.mutedFg,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (var i = 0; i < options.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  Builder(
+                    builder: (context) {
+                      final label = options[i];
+                      final isActive = active == label;
+                      final shown = label == 'Tümü' ? S.t('ilan_alt_all') : label;
+                      return Material(
+                        color: isActive ? MetoColors.primary : MetoColors.muted,
+                        borderRadius: BorderRadius.circular(999),
+                        child: InkWell(
+                          onTap: () => setState(() {
+                            onSelected(label);
+                            _listPage = 0;
+                          }),
+                          borderRadius: BorderRadius.circular(999),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 7,
+                            ),
+                            child: Text(
+                              shown,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: isActive
+                                    ? Colors.white
+                                    : MetoColors.mutedFg,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUzmanTipFilter() {
+    return _buildChipFilterRow(
+      title: 'İlan türü',
+      options: _uzmanTipFiltreleri,
+      active: _uzmanTipFilter,
+      onSelected: (v) => _uzmanTipFilter = v,
+    );
+  }
+
+  Widget _buildUzmanlikFilter() {
+    final opts = <String>[
+      'Tümü',
+      ...CatalogAdapters.uzmanlikSecenekleri(),
+    ];
+    return _buildChipFilterRow(
+      title: 'Uzmanlık',
+      options: opts,
+      active: _uzmanlikFilter,
+      onSelected: (v) => _uzmanlikFilter = v,
+    );
+  }
+
   static const _ikincielDurumFiltreleri = <String>[
     'Tümü',
     'Sıfır',
@@ -1685,7 +2267,10 @@ class IlanlarPageState extends State<IlanlarPage> {
       };
 
   Widget _buildIkincielAltFilter() {
-    const keys = <String>['Tümü', kIkincielAltMedikal, kIkincielAltDiger];
+    final keys = <String>[
+      'Tümü',
+      ...CatalogAdapters.ikincielAltKategoriler(),
+    ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
       child: Column(
@@ -1816,17 +2401,23 @@ class IlanlarPageState extends State<IlanlarPage> {
 
   String _paidActionLabel(String kind, int? ilanId) {
     if (_teklifVerildiMi(ilanId)) return 'Teklif Verildi';
-    if (!_canOfferOn(kind)) return 'Rol gerekli';
+    if (!_canOfferOn(kind, ilanId: ilanId)) {
+      return kind == 'ikinciel' ? 'Giriş gerekli' : 'Rol gerekli';
+    }
+    if (kind == 'ikinciel') return 'İletişim';
     return 'Teklif Ver';
   }
 
   String _paidCtaLabel(String kind, int? ilanId) {
     if (_teklifVerildiMi(ilanId)) return 'Teklif Verildi — Mesaja Git';
-    if (!_canOfferOn(kind)) {
-      return kind == 'uzman' || kind == 'bakici'
-          ? 'Teklif için Uzman/Bakıcı rolü'
-          : 'Teklif verilemez';
+    if (!_canOfferOn(kind, ilanId: ilanId)) {
+      if (kind == 'ikinciel') return 'İletişim için giriş yapın';
+      if (_normalizedRole == 'aile') {
+        return 'Teklif için Uzman/Bakıcı rolü';
+      }
+      return 'Teklif için Uzman/Bakıcı rolü';
     }
+    if (kind == 'ikinciel') return 'Ücretsiz İletişim';
     return '1 Puan Harca — Teklif Ver';
   }
 
@@ -1878,29 +2469,48 @@ class IlanlarPageState extends State<IlanlarPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (ilan.urgent)
-                            const Padding(
-                              padding: EdgeInsets.only(top: 2, right: 4),
-                              child: Icon(Icons.auto_awesome,
-                                  size: 14, color: Colors.red),
-                            ),
-                          Expanded(
-                            child: L10nText(
-                              ilan.title,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: MetoColors.foreground,
+                          Row(
+                            children: [
+                              if (ilan.urgent)
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 2, right: 4),
+                                  child: Icon(Icons.auto_awesome,
+                                      size: 14, color: Colors.red),
+                                ),
+                              Expanded(
+                                child: L10nText(
+                                  ilan.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: MetoColors.foreground,
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
-                          _Badge(
-                            text: '${renk.emoji} ${ilan.uzmanlik}',
-                            bg: renk.bg,
-                            fg: renk.color,
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              _Badge(
+                                text: '${renk.emoji} ${ilan.uzmanlik}',
+                                bg: renk.bg,
+                                fg: renk.color,
+                              ),
+                              if (isIlanIsAriyorum(ilan.category))
+                                const _Badge(
+                                  text: '💼 İş Arıyorum',
+                                  bg: Color(0xFFE0F2FE),
+                                  fg: Color(0xFF0369A1),
+                                ),
+                            ],
                           ),
                         ],
                       ),
@@ -1923,6 +2533,8 @@ class IlanlarPageState extends State<IlanlarPage> {
                     Expanded(
                       child: L10nText(
                         ilan.poster.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
@@ -1962,7 +2574,7 @@ class IlanlarPageState extends State<IlanlarPage> {
           _MetaRow(items: [
             '📍 ${ilan.district}, ${ilan.city}',
             '📅 ${ilan.frequency}',
-            '👁 ${ilan.views}',
+            '👁 ${ilanViewLabel(ilan.views)}',
             if (km != null) '📍 $km km uzakta',
           ]),
           const SizedBox(height: 8),
@@ -1997,20 +2609,23 @@ class IlanlarPageState extends State<IlanlarPage> {
                   id: ilan.id,
                   kind: 'uzman',
                   title: ilan.title,
+                  uzmanlik: ilan.uzmanlik,
                   onEdit: () => _openEditUzman(ilan),
                 ),
               ],
             ),
             onProfile: openDetail,
-            onAction: _canOfferOn('uzman') || _teklifVerildiMi(ilan.id)
+            onAction: _canOfferOn('uzman', ilanId: ilan.id) ||
+                    _teklifVerildiMi(ilan.id)
                 ? () => _openTeklif(
                       _kisiFromPoster(poster: ilan.poster, ilanId: ilan.id, ilanTitle: ilan.title),
                       kind: 'uzman',
                     )
                 : null,
-            actionLabel: _canOfferOn('uzman') || _teklifVerildiMi(ilan.id)
+            actionLabel: _canOfferOn('uzman', ilanId: ilan.id) ||
+                    _teklifVerildiMi(ilan.id)
                 ? _paidActionLabel('uzman', ilan.id)
-                : null,
+                : 'Teklif için Uzman/Bakıcı rolü',
             alreadyOffered: _teklifVerildiMi(ilan.id),
             profileLabel: 'Detay',
           ),
@@ -2081,6 +2696,8 @@ class IlanlarPageState extends State<IlanlarPage> {
                               Expanded(
                                 child: L10nText(
                                   ilan.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w800,
@@ -2117,6 +2734,8 @@ class IlanlarPageState extends State<IlanlarPage> {
                     Expanded(
                       child: L10nText(
                         ilan.poster.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
@@ -2155,7 +2774,7 @@ class IlanlarPageState extends State<IlanlarPage> {
           const SizedBox(height: 8),
           _MetaRow(items: [
             '📍 ${ilan.district}, ${ilan.city}',
-            '👁 ${ilan.views}',
+            '👁 ${ilanViewLabel(ilan.views)}',
             if (km != null) '📍 $km km uzakta',
           ]),
           const SizedBox(height: 8),
@@ -2205,13 +2824,15 @@ class IlanlarPageState extends State<IlanlarPage> {
               ],
             ),
             onProfile: openDetail,
-            onAction: _canOfferOn('bakici') || _teklifVerildiMi(ilan.id)
+            onAction: _canOfferOn('bakici', ilanId: ilan.id) ||
+                    _teklifVerildiMi(ilan.id)
                 ? () => _openTeklif(
                       _kisiFromPoster(poster: ilan.poster, ilanId: ilan.id, ilanTitle: ilan.title),
                       kind: 'bakici',
                     )
                 : null,
-            actionLabel: _canOfferOn('bakici') || _teklifVerildiMi(ilan.id)
+            actionLabel: _canOfferOn('bakici', ilanId: ilan.id) ||
+                    _teklifVerildiMi(ilan.id)
                 ? _paidActionLabel('bakici', ilan.id)
                 : null,
             alreadyOffered: _teklifVerildiMi(ilan.id),
@@ -2263,6 +2884,8 @@ class IlanlarPageState extends State<IlanlarPage> {
                     children: [
                       L10nText(
                         ilan.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
@@ -2302,6 +2925,8 @@ class IlanlarPageState extends State<IlanlarPage> {
                     Expanded(
                       child: L10nText(
                         ilan.poster.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
@@ -2340,7 +2965,7 @@ class IlanlarPageState extends State<IlanlarPage> {
           const SizedBox(height: 8),
           _MetaRow(items: [
             '📍 ${ilan.district}, ${ilan.city}',
-            '👁 ${ilan.views}',
+            '👁 ${ilanViewLabel(ilan.views)}',
             ilan.posted,
           ]),
           const SizedBox(height: 8),
@@ -2375,6 +3000,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                   id: ilan.id,
                   kind: 'ikinciel',
                   title: ilan.title,
+                  ikincielCategory: ilan.category,
                   onEdit: () => _openEditIkinciel(ilan),
                 ),
               ],
@@ -2385,8 +3011,9 @@ class IlanlarPageState extends State<IlanlarPage> {
                   free: true,
                   kind: 'ikinciel',
                 ),
-            actionLabel:
-                _teklifVerildiMi(ilan.id) ? 'Teklif Verildi' : 'İletişim',
+            actionLabel: _teklifVerildiMi(ilan.id)
+                ? 'Teklif Verildi'
+                : 'İletişim',
             alreadyOffered: _teklifVerildiMi(ilan.id),
             profileLabel: 'Detay',
           ),
@@ -2609,6 +3236,43 @@ class _Chip extends StatelessWidget {
       child: Text(
         text,
         style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+      ),
+    );
+  }
+}
+
+class _OwnerViewsBanner extends StatelessWidget {
+  const _OwnerViewsBanner({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFECFDF5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFA7F3D0)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.visibility_outlined, size: 18, color: Color(0xFF047857)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              count <= 0
+                  ? 'İlanını henüz kimse görüntülemedi'
+                  : 'İlanını ${ilanViewLabel(count).toLowerCase()}',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF047857),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -3558,6 +4222,7 @@ class _UzmanDrawer extends StatefulWidget {
     this.ctaLabel = '1 Puan Harca — Teklif Ver',
     this.onEdit,
     this.onDelete,
+    this.onChangeCategory,
     this.allowOffer = true,
     this.canWriteReview = true,
   });
@@ -3569,6 +4234,7 @@ class _UzmanDrawer extends StatefulWidget {
   final String ctaLabel;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onChangeCategory;
   final bool allowOffer;
   final bool canWriteReview;
   @override
@@ -3716,6 +4382,20 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                     constraints:
                         const BoxConstraints(minWidth: 36, minHeight: 36),
                   ),
+                if (widget.onChangeCategory != null)
+                  IconButton(
+                    tooltip: 'Admin: kategori değiştir',
+                    onPressed: widget.onChangeCategory,
+                    icon: const Icon(
+                      Icons.drive_file_move_outline,
+                      size: 20,
+                      color: Color(0xFF7C3AED),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                  ),
                 if (widget.onDelete != null)
                   IconButton(
                     tooltip: S.auto('Sil'),
@@ -3751,9 +4431,13 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
             _MetaRow(items: [
               '📍 ${ilan.district}, ${ilan.city}',
               '📅 ${ilan.frequency}',
-              '👁 ${ilan.views}',
+              '👁 ${ilanViewLabel(ilan.views)}',
               ilan.posted,
             ]),
+            if (widget.onEdit != null) ...[
+              const SizedBox(height: 10),
+              _OwnerViewsBanner(count: ilan.views),
+            ],
             const SizedBox(height: 10),
             Wrap(
               spacing: 6,
@@ -3941,6 +4625,7 @@ class _BakiciDrawer extends StatefulWidget {
     this.ctaLabel = '1 Puan Harca — Teklif Ver & Sohbet Aç',
     this.onEdit,
     this.onDelete,
+    this.onChangeCategory,
     this.allowOffer = true,
     this.canWriteReview = true,
   });
@@ -3952,6 +4637,7 @@ class _BakiciDrawer extends StatefulWidget {
   final String ctaLabel;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onChangeCategory;
   final bool allowOffer;
   final bool canWriteReview;
   @override
@@ -4096,6 +4782,20 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                     constraints:
                         const BoxConstraints(minWidth: 36, minHeight: 36),
                   ),
+                if (widget.onChangeCategory != null)
+                  IconButton(
+                    tooltip: 'Admin: kategori değiştir',
+                    onPressed: widget.onChangeCategory,
+                    icon: const Icon(
+                      Icons.drive_file_move_outline,
+                      size: 20,
+                      color: Color(0xFF7C3AED),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                  ),
                 if (widget.onDelete != null)
                   IconButton(
                     tooltip: S.auto('Sil'),
@@ -4131,9 +4831,13 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
             _MetaRow(items: [
               '📍 ${ilan.district}, ${ilan.city}',
               '📅 ${ilan.hours}',
-              '👁 ${ilan.views}',
+              '👁 ${ilanViewLabel(ilan.views)}',
               ilan.posted,
             ]),
+            if (widget.onEdit != null) ...[
+              const SizedBox(height: 10),
+              _OwnerViewsBanner(count: ilan.views),
+            ],
             const SizedBox(height: 10),
             Wrap(
               spacing: 6,
@@ -4316,6 +5020,7 @@ class _IkincielDrawer extends StatefulWidget {
     this.alreadyOffered = false,
     this.onEdit,
     this.onDelete,
+    this.onChangeCategory,
   });
 
   final IkincielIlani ilan;
@@ -4325,6 +5030,7 @@ class _IkincielDrawer extends StatefulWidget {
   final bool alreadyOffered;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onChangeCategory;
 
   @override
   State<_IkincielDrawer> createState() => _IkincielDrawerState();
@@ -4452,6 +5158,20 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                     constraints:
                         const BoxConstraints(minWidth: 36, minHeight: 36),
                   ),
+                if (widget.onChangeCategory != null)
+                  IconButton(
+                    tooltip: 'Admin: kategori değiştir',
+                    onPressed: widget.onChangeCategory,
+                    icon: const Icon(
+                      Icons.drive_file_move_outline,
+                      size: 20,
+                      color: Color(0xFF7C3AED),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                  ),
                 if (widget.onDelete != null)
                   IconButton(
                     tooltip: S.auto('Sil'),
@@ -4499,9 +5219,13 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
             const SizedBox(height: 12),
             _MetaRow(items: [
               '📍 ${ilan.district}, ${ilan.city}',
-              '👁 ${ilan.views}',
+              '👁 ${ilanViewLabel(ilan.views)}',
               ilan.posted,
             ]),
+            if (widget.onEdit != null) ...[
+              const SizedBox(height: 10),
+              _OwnerViewsBanner(count: ilan.views),
+            ],
             const SizedBox(height: 14),
             Container(
               width: double.infinity,
@@ -5301,6 +6025,7 @@ class _YeniIlanForm extends StatefulWidget {
     required this.onPublished,
     this.userName = 'Siz',
     this.userEmail = '',
+    this.userType = 'aile',
     this.profilFoto,
     this.editDraft,
   });
@@ -5308,6 +6033,7 @@ class _YeniIlanForm extends StatefulWidget {
   final ValueChanged<IlanKategori> onPublished;
   final String userName;
   final String userEmail;
+  final String userType;
   final String? profilFoto;
   final _IlanEditDraft? editDraft;
   @override
@@ -5326,19 +6052,22 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
   final _formButce = TextEditingController();
   final _formAciklama = TextEditingController();
   String _aciklamaUyari = '';
+  String _baslikUyari = '';
   late LocationData _formLoc = LocationData(
     countryCode: countryCodeForLang(LocaleController.instance.lang),
   );
   bool _pickingPhoto = false;
 
+  bool get _isAdmin => isAppAdmin(widget.userEmail);
+  bool get _canPostListing =>
+      _isAdmin || normalizedUserType(widget.userType) == 'aile';
+  bool get _profNeedsRoleSwitch =>
+      !_isAdmin && isProfUserType(widget.userType);
   bool get _isEditing => widget.editDraft != null;
-  bool get _isIkinciel => _formKategori == '2. El Alet';
-  bool get _isUzmanArama =>
-      _formKategori == 'Uzman Arıyorum' || _formKategori == 'Uzman';
-  bool get _isBakiciArama =>
-      _formKategori == 'Bakıcı/Temizlik Görevlisi Arıyorum' ||
-      _formKategori == 'Bakıcı Arıyorum' ||
-      _formKategori == 'Bakıcı';
+  String get _formKind => CatalogAdapters.ilanKindForFormValue(_formKategori);
+  bool get _isIkinciel => _formKind == 'ikinciel';
+  bool get _isUzmanArama => _formKind == 'uzman';
+  bool get _isBakiciArama => _formKind == 'bakici';
   bool get _isUzmanOrBakici => _isUzmanArama || _isBakiciArama;
   /// Uzman / bakıcı: en fazla 2; 2. el: en fazla 4.
   int get _maxPhotos =>
@@ -5353,7 +6082,9 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
     _formKategori = switch (d.kind) {
       'bakici' => 'Bakıcı/Temizlik Görevlisi Arıyorum',
       'ikinciel' => '2. El Alet',
-      _ => 'Uzman Arıyorum',
+      _ => isIlanIsAriyorum(d.category)
+          ? kIlanCatIsAriyorum
+          : 'Uzman Arıyorum',
     };
     _formBaslik.text = d.title;
     _formButce.text = priceInputDigits(d.budgetOrPrice);
@@ -5384,7 +6115,10 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
         _formCondition = 'İyi';
       }
     }
-    _formAltKategori = ikincielAltKategoriOf(d.category);
+    _formAltKategori = ikincielAltKategoriOf(
+      d.category,
+      extras: CatalogAdapters.ikincielCustomAlts(),
+    );
     _formPhotos.addAll(d.photos);
     _formPhotoBytes.addAll(List<Uint8List?>.filled(d.photos.length, null));
   }
@@ -5419,9 +6153,9 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
       return;
     }
 
-    final baslik = _formBaslik.text.trim();
+    final baslik = scrubIlanListingText(_formBaslik.text.trim());
     final butce = formatPriceTl(_formButce.text.trim());
-    final aciklama = _formAciklama.text.trim();
+    final aciklama = scrubIlanListingText(_formAciklama.text.trim());
     final loc = _formLoc;
     final cityName = loc.legacyCity;
     final districtName = loc.legacyDistrict;
@@ -5451,12 +6185,35 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
     final email = widget.userEmail.trim();
     final edit = widget.editDraft;
 
+    if (edit == null && !_canPostListing) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _profNeedsRoleSwitch
+                ? 'İlan paylaşmak için hesap rolünüzü Aile olarak değiştirmeniz gerekir. '
+                    'Menü → Hesap rolü bölümünden rolünüzü değiştirebilirsiniz.'
+                : 'İlan paylaşmak için Aile rolü gerekir.',
+          ),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      return;
+    }
+
+    if (edit == null && !await ensureUgcTermsAccepted(context)) return;
+    if (!mounted) return;
+    if (containsBlockedContent('$baslik\n$note')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: L10nText(blockedContentMessage())),
+      );
+      return;
+    }
+
     setState(() => _publishing = true);
     try {
       late final IlanKategori kategori;
-      switch (_formKategori) {
-        case 'Uzman Arıyorum':
-        case 'Uzman':
+      switch (_formKind) {
+        case 'uzman':
           kategori = IlanKategori.uzmanlar;
           if (edit != null) {
             await updateIlanInCloud(
@@ -5469,6 +6226,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               note: note,
               budget: butce,
               uzmanlik: _formUzmanlik,
+              category: _formKategori,
               photos: List<IlanPhoto>.from(
                 _formPhotos.take(kUzmanBakiciMaxPhotos),
               ),
@@ -5484,6 +6242,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               note: note,
               budget: butce,
               uzmanlik: _formUzmanlik,
+              category: _formKategori,
               photos: List<IlanPhoto>.from(
                 _formPhotos.take(kUzmanBakiciMaxPhotos),
               ),
@@ -5493,9 +6252,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             );
           }
           break;
-        case 'Bakıcı/Temizlik Görevlisi Arıyorum':
-        case 'Bakıcı Arıyorum':
-        case 'Bakıcı':
+        case 'bakici':
           kategori = IlanKategori.bakici;
           if (edit != null) {
             await updateIlanInCloud(
@@ -5585,7 +6342,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             ),
           ),
         );
-      } else if (msg.contains('Ortak görünüm')) {
+      } else if (msg.contains('LOCAL_ILAN_SAVED:')) {
         // Yerel kayıt oldu; yine de yayınlandı say.
         widget.onPublished(
           _isUzmanArama
@@ -5594,13 +6351,24 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                   ? IlanKategori.bakici
                   : IlanKategori.ikinciel,
         );
+        final detail = msg.contains('LOCAL_ILAN_SAVED:')
+            ? msg.split('LOCAL_ILAN_SAVED:').last.replaceFirst('StateError: ', '')
+            : formatIlanCloudError(e);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: L10nText(
-              'İlan kaydedildi ama henüz diğer kullanıcılara açılmadı. '
-              'Supabase ilanlar tablosunu oluşturun.',
-            ),
-            duration: Duration(seconds: 5),
+          SnackBar(
+            content: Text(detail),
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      } else if (msg.contains('yetki hatası') ||
+          msg.contains('Aile rol') ||
+          msg.contains('ilanlar_ensure') ||
+          msg.contains('şeması güncel') ||
+          msg.contains('buluta kaydedilemedi')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(formatIlanCloudError(e)),
+            duration: const Duration(seconds: 6),
           ),
         );
       } else if (lower.contains('quota') ||
@@ -5626,20 +6394,29 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
     }
   }
 
+  void _scrubListingField(TextEditingController controller, void Function(String) setWarning) {
+    final val = controller.text;
+    final cleaned = scrubIlanListingText(val);
+    if (cleaned != val) {
+      setWarning(
+        'İletişim bilgileri (telefon/e-posta/link) ilanda görünmez — '
+        'iletişim yalnızca uygulama üzerinden kurulur.',
+      );
+      controller.value = TextEditingValue(
+        text: cleaned,
+        selection: TextSelection.collapsed(offset: cleaned.length),
+      );
+    } else {
+      setWarning('');
+    }
+  }
+
   void _handleAciklama(String val) {
-    final phoneRegex = RegExp(r'(\+?\d[\d\s\-().]{7,}\d)');
-    final emailRegex =
-        RegExp(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}');
-    var cleaned =
-        val.replaceAll(phoneRegex, '***').replaceAll(emailRegex, '***');
-    setState(() {
-      _aciklamaUyari = cleaned != val
-          ? 'İletişim bilgileri (telefon/e-posta) ilanda görünmez — puan sistemi bu bilgileri korur.'
-          : '';
-      _formAciklama.value = TextEditingValue(
-          text: cleaned,
-          selection: TextSelection.collapsed(offset: cleaned.length));
-    });
+    _scrubListingField(_formAciklama, (w) => setState(() => _aciklamaUyari = w));
+  }
+
+  void _handleBaslik(String val) {
+    _scrubListingField(_formBaslik, (w) => setState(() => _baslikUyari = w));
   }
 
   ImageProvider? _formPhotoProviderAt(int index) {
@@ -5774,6 +6551,236 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
     }
   }
 
+  Widget _adminAddBtn({
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    if (!_isAdmin) return const SizedBox.shrink();
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: const Icon(Icons.add_circle_outline, color: Color(0xFF7C3AED)),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  Widget _adminRemoveBtn({
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    if (!_isAdmin) return const SizedBox.shrink();
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFEF4444)),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  Widget _adminCatalogBtns({
+    required String addTooltip,
+    required VoidCallback onAdd,
+    required String removeTooltip,
+    required VoidCallback onRemove,
+  }) {
+    if (!_isAdmin) return const SizedBox.shrink();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _adminRemoveBtn(tooltip: removeTooltip, onPressed: onRemove),
+        _adminAddBtn(tooltip: addTooltip, onPressed: onAdd),
+      ],
+    );
+  }
+
+  Future<void> _removeCatalogOptionFlow({
+    required String scope,
+    required String title,
+    required String successPrefix,
+    void Function(String removed)? onRemoved,
+  }) async {
+    if (deletableCatalogOptions(scope).isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Silinecek özel seçenek yok.')),
+      );
+      return;
+    }
+    final picked = await promptAdminRemoveOption(
+      context: context,
+      scope: scope,
+      title: title,
+    );
+    if (picked == null || !mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Seçeneği kaldır'),
+        content: Text(
+          '"${picked.label}" listeden kaldırılsın mı?\n\n'
+          'Sabit seçenekler silinemez. Mevcut ilanlar etkilenmez.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+            ),
+            child: const Text('Kaldır'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      final result = await deleteCatalogOption(
+        scope: scope,
+        label: picked.label,
+        id: picked.id,
+      );
+      if (!mounted) return;
+      setState(() => onRemoved?.call(picked.label));
+      showCatalogDeleteSnackBar(
+        context,
+        result,
+        successText: '$successPrefix "${picked.label}" kaldırıldı',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e is StateError ? e.message : '$e')),
+      );
+    }
+  }
+
+  Future<void> _removeIlanKategoriOption() async {
+    await _removeCatalogOptionFlow(
+      scope: 'ilan',
+      title: 'Kaldırılacak ilan kategorisi',
+      successPrefix: 'İlan kategorisi',
+      onRemoved: (removed) {
+        if (_formKategori.trim().toLowerCase() != removed.toLowerCase()) {
+          return;
+        }
+        _formKategori = 'Uzman Arıyorum';
+        _formPhotos.clear();
+        _formPhotoBytes.clear();
+      },
+    );
+  }
+
+  Future<void> _removeUzmanlikOption() async {
+    final opts = CatalogAdapters.uzmanlikSecenekleri();
+    await _removeCatalogOptionFlow(
+      scope: 'uzmanlik',
+      title: 'Kaldırılacak uzmanlık alanı',
+      successPrefix: 'Uzmanlık alanı',
+      onRemoved: (removed) {
+        if (_formUzmanlik.trim().toLowerCase() != removed.toLowerCase()) {
+          return;
+        }
+        _formUzmanlik = opts.isNotEmpty ? opts.first : 'Fizyoterapist';
+      },
+    );
+  }
+
+  Future<void> _removeIkincielAltOption() async {
+    final opts = CatalogAdapters.ikincielAltKategoriler();
+    await _removeCatalogOptionFlow(
+      scope: 'ikinciel',
+      title: 'Kaldırılacak alt kategori',
+      successPrefix: 'Alt kategori',
+      onRemoved: (removed) {
+        if (_formAltKategori.trim().toLowerCase() != removed.toLowerCase()) {
+          return;
+        }
+        _formAltKategori = opts.isNotEmpty ? opts.first : kIkincielAltDiger;
+      },
+    );
+  }
+
+  Future<void> _addUzmanlikOption() async {
+    final name = await promptAdminNewOption(
+      context: context,
+      title: 'Yeni uzmanlık alanı',
+      hint: 'Örn. Müzik terapisti',
+    );
+    if (name == null || !mounted) return;
+    final result = await upsertCatalogOption(
+      scope: 'uzmanlik',
+      label: name,
+      icon: '👤',
+    );
+    if (!mounted) return;
+    setState(() => _formUzmanlik = name);
+    showCatalogUpsertSnackBar(
+      context,
+      result,
+      successText: '"$name" uzmanlık alanlarına eklendi',
+    );
+  }
+
+  Future<void> _addIlanKategoriOption() async {
+    final added = await promptAdminNewIlanKategori(context);
+    if (added == null || !mounted) return;
+    final result = await upsertCatalogOption(
+      scope: 'ilan',
+      label: added.label,
+      icon: added.kind == 'ikinciel'
+          ? '♻️'
+          : added.kind == 'bakici'
+              ? '🤝'
+              : '🏃',
+      meta: {'kind': added.kind},
+    );
+    if (added.kind == 'ikinciel') {
+      await upsertCatalogOption(
+        scope: 'ikinciel',
+        label: added.label,
+        icon: '📦',
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      _formKategori = added.label;
+      _formPhotos.clear();
+      _formPhotoBytes.clear();
+      if (added.kind == 'ikinciel') {
+        _formAltKategori = added.label;
+      }
+    });
+    showCatalogUpsertSnackBar(
+      context,
+      result,
+      successText: '"${added.label}" ilan kategorilerine eklendi',
+    );
+  }
+
+  Future<void> _addIkincielAltOption() async {
+    final name = await promptAdminNewOption(
+      context: context,
+      title: 'Yeni 2. el alt kategori',
+      hint: 'Örn. Ortez / protez',
+    );
+    if (name == null || !mounted) return;
+    final result = await upsertCatalogOption(
+      scope: 'ikinciel',
+      label: name,
+      icon: '📦',
+    );
+    if (!mounted) return;
+    setState(() => _formAltKategori = name);
+    showCatalogUpsertSnackBar(
+      context,
+      result,
+      successText: '"$name" alt kategorilere eklendi',
+    );
+  }
+
   Widget _formField(
     String label,
     String hint,
@@ -5781,6 +6788,8 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
     String? suffixText,
+    ValueChanged<String>? onChanged,
+    String? warning,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -5795,6 +6804,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
           const SizedBox(height: 8),
           TextField(
               controller: c,
+              onChanged: onChanged,
               keyboardType: keyboardType,
               inputFormatters: inputFormatters,
               decoration: InputDecoration(
@@ -5804,6 +6814,17 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                       borderRadius: BorderRadius.circular(12)),
                   filled: true,
                   fillColor: MetoColors.card)),
+          if (warning != null && warning.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              warning,
+              style: const TextStyle(
+                fontSize: 11,
+                color: Color(0xFFEA580C),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -5811,7 +6832,20 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
+    return ListenableBuilder(
+      listenable: AppCatalogService.instance,
+      builder: (context, _) {
+        final kategoriOpts = CatalogAdapters.ilanFormKategorileri();
+        final kategoriValues = {for (final o in kategoriOpts) o.value};
+        final kategoriValue = kategoriValues.contains(_formKategori)
+            ? _formKategori
+            : 'Uzman Arıyorum';
+        final uzmanOpts = CatalogAdapters.uzmanlikSecenekleri();
+        final uzmanValue = uzmanOpts.contains(_formUzmanlik)
+            ? _formUzmanlik
+            : uzmanOpts.first;
+        final ikincielAlts = CatalogAdapters.ikincielAltKategoriler();
+        return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -5827,32 +6861,52 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             ],
           ),
           const SizedBox(height: 16),
-          const L10nText('İLAN KATEGORİSİ',
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: MetoColors.mutedFg)),
+          Row(
+            children: [
+              const Expanded(
+                child: L10nText(
+                  'İLAN KATEGORİSİ',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: MetoColors.mutedFg,
+                  ),
+                ),
+              ),
+              _adminCatalogBtns(
+                addTooltip: 'Yeni kategori ekle',
+                onAdd: _addIlanKategoriOption,
+                removeTooltip: 'Kategori kaldır',
+                onRemove: _removeIlanKategoriOption,
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: _formKategori,
+            initialValue: kategoriValue,
+            isExpanded: true,
             decoration: InputDecoration(
                 border:
                     OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
                 fillColor: MetoColors.card),
             items: [
-              DropdownMenuItem(
-                value: 'Uzman Arıyorum',
-                child: Text(S.t('ilan_cat_uzman')),
-              ),
-              DropdownMenuItem(
-                value: 'Bakıcı/Temizlik Görevlisi Arıyorum',
-                child: Text(S.t('ilan_cat_bakici')),
-              ),
-              DropdownMenuItem(
-                value: '2. El Alet',
-                child: Text(S.t('ilan_cat_ikinciel')),
-              ),
+              for (final o in kategoriOpts)
+                DropdownMenuItem(
+                  value: o.value,
+                  child: Text(
+                    o.builtin
+                        ? switch (o.value) {
+                            kIlanCatIsAriyorum => 'İş Arıyorum',
+                            _ => switch (o.kind) {
+                                'uzman' => S.t('ilan_cat_uzman'),
+                                'bakici' => S.t('ilan_cat_bakici'),
+                                _ => S.t('ilan_cat_ikinciel'),
+                              },
+                          }
+                        : o.value,
+                  ),
+                ),
             ],
             onChanged: _isEditing
                 ? null
@@ -5873,10 +6927,10 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             ),
             child: Text(
               _isIkinciel
-                  ? '2. el ürün satışı için ilan oluşturursunuz. Hesap rolünüz değişmez.'
+                  ? '2. el ilanını aile hesabıyla paylaşırsınız. Diğer aileler ücretsiz iletişime geçebilir; uzman ve bakıcılar 1 puan harcayarak teklif verebilir.'
                   : _isBakiciArama
-                      ? 'Bu ilan “bakıcı/temizlik görevlisi arıyorum” ilanıdır. Aile hesabınız bu rolde olmaz; bakıcılar ve temizlik görevlileri size teklif verir.'
-                      : 'Bu ilan “uzman arıyorum” ilanıdır. Aile hesabınız uzman olmaz; uzmanlar size teklif verir.',
+                      ? 'Bu ilan “bakıcı/temizlik görevlisi arıyorum” ilanıdır. Aile rolü teklif veremez; bakıcılar ve uzmanlar 1 puan harcayarak teklif verir.'
+                      : 'Uzman arıyorum ilanınız Uzman Ara sekmesinde listelenir. Aile rolü teklif veremez; uzman ve bakıcılar 1 puan harcayarak teklif verir.',
               style: const TextStyle(
                 fontSize: 12,
                 color: Color(0xFF1D4ED8),
@@ -5886,19 +6940,29 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
           ),
           if (_isUzmanArama) ...[
             const SizedBox(height: 16),
-            const L10nText('UZMANLIK ALANI',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: MetoColors.mutedFg)),
+            Row(
+              children: [
+                const Expanded(
+                  child: L10nText(
+                    'UZMANLIK ALANI',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: MetoColors.mutedFg,
+                    ),
+                  ),
+                ),
+                _adminCatalogBtns(
+                  addTooltip: 'Yeni uzmanlık ekle',
+                  onAdd: _addUzmanlikOption,
+                  removeTooltip: 'Uzmanlık kaldır',
+                  onRemove: _removeUzmanlikOption,
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: () {
-                final opts = CatalogAdapters.uzmanlikSecenekleri();
-                return opts.contains(_formUzmanlik)
-                    ? _formUzmanlik
-                    : opts.first;
-              }(),
+              initialValue: uzmanValue,
               isExpanded: true,
               decoration: InputDecoration(
                 border: OutlineInputBorder(
@@ -5906,7 +6970,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                 filled: true,
                 fillColor: MetoColors.card,
               ),
-              items: CatalogAdapters.uzmanlikSecenekleri()
+              items: uzmanOpts
                   .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                   .toList(),
               onChanged: (v) => setState(() => _formUzmanlik = v!),
@@ -5914,7 +6978,12 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
           ],
           const SizedBox(height: 16),
           _formField(
-              'Başlık', 'İlanınıza kısa bir başlık', _formBaslik),
+            'Başlık',
+            'İlanınıza kısa bir başlık',
+            _formBaslik,
+            onChanged: _handleBaslik,
+            warning: _baslikUyari,
+          ),
           LocationCascadePicker(
             value: _formLoc,
             requireFullSelection: true,
@@ -5934,26 +7003,34 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             suffixText: 'TL',
           ),
           if (_isIkinciel) ...[
-            Text(
-              S.t('ilan_ikinciel_alt').toUpperCase(),
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: MetoColors.mutedFg,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    S.t('ilan_ikinciel_alt').toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: MetoColors.mutedFg,
+                    ),
+                  ),
+                ),
+                _adminCatalogBtns(
+                  addTooltip: 'Yeni alt kategori ekle',
+                  onAdd: _addIkincielAltOption,
+                  removeTooltip: 'Alt kategori kaldır',
+                  onRemove: _removeIkincielAltOption,
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final opt in kIkincielAltKategoriler)
+                for (final opt in ikincielAlts)
                   ChoiceChip(
-                    label: Text(
-                      opt == kIkincielAltMedikal
-                          ? S.t('ilan_alt_medikal')
-                          : S.t('ilan_alt_diger'),
-                    ),
+                    label: Text(ikincielAltDisplayLabel(opt)),
                     selected: _formAltKategori == opt,
                     onSelected: (_) =>
                         setState(() => _formAltKategori = opt),
@@ -6218,6 +7295,8 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
           ),
         ],
       ),
+    );
+      },
     );
   }
 }

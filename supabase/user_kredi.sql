@@ -1,6 +1,6 @@
 -- Engelsiz Club — kullanıcı kredisi (cihazlar arası senkron)
 -- Supabase Dashboard → SQL Editor → çalıştır
--- Admin: 10000 · Uzman/Bakıcı hediye: 25 · Aile başlangıç: 1 (uygulama tarafı)
+-- Admin: 10000 · Üye hediye: 5 (uygulama tarafı)
 
 alter table public.user_profiles
   add column if not exists kredi int not null default 0;

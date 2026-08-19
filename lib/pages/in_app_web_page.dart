@@ -6,23 +6,34 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import '../meto_theme.dart';
+import '../widgets/full_page_iframe.dart';
+import '../widgets/guest_timed_guard.dart';
 
-/// Mobilde uygulama içi WebView; web'de aynı sekmede / harici açılış.
+/// Mobilde uygulama içi WebView; web'de iframe (misafir süresi izlenebilsin).
 class InAppWebPage extends StatefulWidget {
   const InAppWebPage({
     super.key,
     required this.title,
     required this.url,
+    this.isGuest = false,
+    this.onRequireLogin,
+    this.guestTab = 'daha_fazlasi',
   });
 
   final String title;
   final String url;
+  final bool isGuest;
+  final VoidCallback? onRequireLogin;
+  final String guestTab;
 
-  /// Platforma uygun aç: mobil WebView, web launchUrl.
+  /// Platforma uygun aç: mobil WebView, web iframe — uygulama içinde kalır.
   static Future<void> open(
     BuildContext context, {
     required String title,
     required String url,
+    bool isGuest = false,
+    VoidCallback? onRequireLogin,
+    String guestTab = 'daha_fazlasi',
   }) async {
     final uri = _resolveUri(url);
     if (uri == null) {
@@ -34,20 +45,16 @@ class InAppWebPage extends StatefulWidget {
       return;
     }
 
-    if (kIsWeb) {
-      final ok = await launchUrl(uri, mode: LaunchMode.platformDefault);
-      if (!ok && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sayfa açılamadı.')),
-        );
-      }
-      return;
-    }
-
     if (!context.mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => InAppWebPage(title: title, url: uri.toString()),
+        builder: (_) => InAppWebPage(
+          title: title,
+          url: uri.toString(),
+          isGuest: isGuest,
+          onRequireLogin: onRequireLogin,
+          guestTab: guestTab,
+        ),
       ),
     );
   }
@@ -70,14 +77,15 @@ class InAppWebPage extends StatefulWidget {
 }
 
 class _InAppWebPageState extends State<InAppWebPage> {
-  late final WebViewController _controller;
+  WebViewController? _controller;
   var _loading = true;
   var _progress = 0;
 
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController(
+    if (kIsWeb) return;
+    final controller = WebViewController(
       onPermissionRequest: (request) => request.grant(),
     )
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -98,6 +106,7 @@ class _InAppWebPageState extends State<InAppWebPage> {
         ),
       )
       ..loadRequest(Uri.parse(widget.url));
+    _controller = controller;
     _enableNativeFilePicker();
   }
 
@@ -108,7 +117,7 @@ class _InAppWebPageState extends State<InAppWebPage> {
   /// Do not show a Flutter sheet over the WebView — hybrid composition puts the
   /// native view on top, so the sheet is invisible and the chooser appears stuck.
   Future<void> _enableNativeFilePicker() async {
-    final platform = _controller.platform;
+    final platform = _controller?.platform;
     if (platform is! AndroidWebViewController) return;
     await platform.setAllowFileAccess(true);
     await platform.setAllowContentAccess(true);
@@ -168,7 +177,7 @@ class _InAppWebPageState extends State<InAppWebPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final page = Scaffold(
       backgroundColor: MetoColors.background,
       appBar: AppBar(
         backgroundColor: MetoColors.card,
@@ -178,22 +187,27 @@ class _InAppWebPageState extends State<InAppWebPage> {
           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
         ),
         actions: [
-          IconButton(
-            tooltip: 'Tarayıcıda aç',
-            onPressed: _openExternal,
-            icon: const Icon(Icons.open_in_browser),
-          ),
-          IconButton(
-            tooltip: 'Yenile',
-            onPressed: () => _controller.reload(),
-            icon: const Icon(Icons.refresh),
-          ),
+          if (!widget.isGuest)
+            IconButton(
+              tooltip: 'Tarayıcıda aç',
+              onPressed: _openExternal,
+              icon: const Icon(Icons.open_in_browser),
+            ),
+          if (!kIsWeb)
+            IconButton(
+              tooltip: 'Yenile',
+              onPressed: () => _controller?.reload(),
+              icon: const Icon(Icons.refresh),
+            ),
         ],
       ),
       body: Stack(
         children: [
-          WebViewWidget(controller: _controller),
-          if (_loading)
+          if (kIsWeb)
+            FullPageIframe(url: widget.url)
+          else if (_controller != null)
+            WebViewWidget(controller: _controller!),
+          if (!kIsWeb && _loading)
             LinearProgressIndicator(
               value: _progress > 0 && _progress < 100 ? _progress / 100 : null,
               minHeight: 2,
@@ -202,6 +216,13 @@ class _InAppWebPageState extends State<InAppWebPage> {
             ),
         ],
       ),
+    );
+    if (!widget.isGuest) return page;
+    return GuestTimedGuard(
+      isGuest: true,
+      tab: widget.guestTab,
+      onRequireLogin: widget.onRequireLogin,
+      child: page,
     );
   }
 }
