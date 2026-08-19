@@ -74,6 +74,13 @@ workflows:
           PROF="$(xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings 2>/dev/null | awk -F' = ' '/PROVISIONING_PROFILE_SPECIFIER/ {print $2; exit}')"
           echo "DEVELOPMENT_TEAM=${TEAM:-<empty>}"
           echo "PROVISIONING_PROFILE_SPECIFIER=${PROF:-<empty>}"
+          if echo "$PROF" | grep -q 'EngelsizClub_AppStore\.$'; then
+            echo "ERROR: Eski provisioning profile kullanılıyor: EngelsizClub_AppStore."
+            echo "Apple Developer → Profiles → EngelsizClub_AppStore. → Remove"
+            echo "Codemagic → codemagic.io/teams → Code signing identities → aynı profili sil"
+            echo "Sonra Sign In with Apple içeren yeni Active profili fetch/upload et."
+            exit 1
+          fi
           if [ -z "${TEAM}" ] || [ -z "${PROF}" ]; then
             echo "ERROR: use-profiles did not apply DEVELOPMENT_TEAM / PROVISIONING_PROFILE_SPECIFIER."
             echo "Check Codemagic Code signing identities: Apple Distribution cert + App Store profile for com.sakircaykara.engelsizclub"
