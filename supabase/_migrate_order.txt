@@ -39,6 +39,7 @@ nadir_hastaliklar.sql
 gorusler.sql
 home_hero_slides.sql
 app_catalog.sql
+app_catalog_versions_rls_fix.sql
 app_catalog_store_settings.sql
 app_catalog_seed_rights.sql
 admin_moderation.sql

@@ -130,10 +130,15 @@ values
   ('diseases', 1)
 on conflict (name) do nothing;
 
--- Güncellemede version++ otomatik
+-- Güncellemede version++ otomatik.
+-- SECURITY DEFINER şart: tetikleyici, admin kullanıcının yetkisiyle çalışırsa
+-- app_catalog_versions RLS'i yazmayı 42501 ile reddeder ve ana tablo kaydı da
+-- geri alınır.
 create or replace function public.bump_catalog_version()
 returns trigger
 language plpgsql
+security definer
+set search_path = public, pg_temp
 as $$
 declare
   v_name text;
@@ -233,6 +238,15 @@ create policy "catalog_diseases_select"
 drop policy if exists "catalog_versions_select" on public.app_catalog_versions;
 create policy "catalog_versions_select"
   on public.app_catalog_versions for select to anon, authenticated using (true);
+
+drop policy if exists "catalog_versions_admin_write"
+  on public.app_catalog_versions;
+create policy "catalog_versions_admin_write"
+  on public.app_catalog_versions for all to authenticated
+  using (lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com')
+  with check (
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com'
+  );
 
 -- Admin yazma (sakir.caykara@gmail.com) — Dashboard Table Editor de service role kullanır
 drop policy if exists "catalog_settings_admin_write" on public.app_settings;
