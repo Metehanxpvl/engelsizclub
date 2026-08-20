@@ -131,9 +131,12 @@ values
 on conflict (name) do nothing;
 
 -- Güncellemede version++ otomatik
+-- SECURITY DEFINER: tetikleyici app_catalog_versions'a yazarken RLS'ye takılmaz
 create or replace function public.bump_catalog_version()
 returns trigger
 language plpgsql
+security definer
+set search_path = public
 as $$
 declare
   v_name text;
@@ -233,6 +236,12 @@ create policy "catalog_diseases_select"
 drop policy if exists "catalog_versions_select" on public.app_catalog_versions;
 create policy "catalog_versions_select"
   on public.app_catalog_versions for select to anon, authenticated using (true);
+
+drop policy if exists "catalog_versions_admin_write" on public.app_catalog_versions;
+create policy "catalog_versions_admin_write"
+  on public.app_catalog_versions for all to authenticated
+  using (lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com')
+  with check (lower(coalesce(auth.jwt() ->> 'email', '')) = 'sakir.caykara@gmail.com');
 
 -- Admin yazma (sakir.caykara@gmail.com) — Dashboard Table Editor de service role kullanır
 drop policy if exists "catalog_settings_admin_write" on public.app_settings;
