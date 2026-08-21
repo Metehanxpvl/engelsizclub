@@ -11,6 +11,7 @@ import 'data/location_models.dart';
 import 'kredi_store.dart';
 import 'meto_theme.dart';
 import 'services/broadcast_push_service.dart';
+import 'user_cloud_store.dart';
 import 'utils/price_format.dart';
 import 'widgets/user_avatar.dart';
 
@@ -444,6 +445,7 @@ Future<void> loadAllIlanlar({String? preferEmail}) async {
     await enrichRuntimeIlanAvatars(
       ownEmail: preferEmail,
     );
+    await enrichRuntimeIlanCvs();
     return;
   } catch (_) {
     // Tablo yok / ağ hatası → yerel önbellek veya eski kullanıcı kaydı
@@ -451,11 +453,13 @@ Future<void> loadAllIlanlar({String? preferEmail}) async {
 
   if (await _loadFromLocalCache()) {
     await enrichRuntimeIlanAvatars(ownEmail: preferEmail);
+    await enrichRuntimeIlanCvs();
     return;
   }
   if (preferEmail != null && preferEmail.isNotEmpty) {
     await _loadLegacyUserPrefs(preferEmail);
     await enrichRuntimeIlanAvatars(ownEmail: preferEmail);
+    await enrichRuntimeIlanCvs();
   }
 }
 
@@ -471,6 +475,94 @@ IlanPoster _posterWithAvatar(IlanPoster p, String avatar) => IlanPoster(
       reviews: p.reviews,
       cv: p.cv,
     );
+
+IlanPoster _posterWithCv(IlanPoster p, PosterCv? cv) => IlanPoster(
+      name: p.name,
+      fullName: p.fullName,
+      avatar: p.avatar,
+      avatarColor: p.avatarColor,
+      rating: p.rating,
+      reviewCount: p.reviewCount,
+      bio: p.bio,
+      tags: p.tags,
+      reviews: p.reviews,
+      cv: cv ?? p.cv,
+    );
+
+Future<Map<String, PosterCv>> _loadPosterCvsByEmail(Set<String> emails) async {
+  final out = <String, PosterCv>{};
+  for (final email in emails) {
+    final normalized = email.trim().toLowerCase();
+    if (normalized.isEmpty) continue;
+    try {
+      final cloud = await loadUserCloudProfile(normalized);
+      if (cloud.profil.isEmpty) continue;
+      final cv = posterCvFromProfil(cloud.profil);
+      if (cv.hasContent) out[normalized] = cv;
+    } catch (_) {}
+  }
+  return out;
+}
+
+Future<void> enrichRuntimeIlanCvs() async {
+  final emails = <String>{
+    for (final i in runtimeUzmanIlanlar) ilanOwnerById[i.id] ?? '',
+    for (final i in runtimeBakiciIlanlar) ilanOwnerById[i.id] ?? '',
+  }..removeWhere((e) => e.trim().isEmpty);
+
+  final cvs = await _loadPosterCvsByEmail(emails);
+
+  for (var i = 0; i < runtimeUzmanIlanlar.length; i++) {
+    final item = runtimeUzmanIlanlar[i];
+    final owner = (ilanOwnerById[item.id] ?? '').trim().toLowerCase();
+    final cv = cvs[owner];
+    if (cv == null) continue;
+    runtimeUzmanIlanlar[i] = UzmanIlani(
+      id: item.id,
+      title: item.title,
+      uzmanlik: item.uzmanlik,
+      tani: item.tani,
+      city: item.city,
+      district: item.district,
+      age: item.age,
+      frequency: item.frequency,
+      note: item.note,
+      budget: item.budget,
+      posted: item.posted,
+      views: item.views,
+      offers: item.offers,
+      urgent: item.urgent,
+      poster: _posterWithCv(item.poster, cv),
+      photos: item.photos,
+      countryCode: item.countryCode,
+      category: item.category,
+    );
+  }
+
+  for (var i = 0; i < runtimeBakiciIlanlar.length; i++) {
+    final item = runtimeBakiciIlanlar[i];
+    final owner = (ilanOwnerById[item.id] ?? '').trim().toLowerCase();
+    final cv = cvs[owner];
+    if (cv == null) continue;
+    runtimeBakiciIlanlar[i] = BakiciIlani(
+      id: item.id,
+      title: item.title,
+      city: item.city,
+      district: item.district,
+      countryCode: item.countryCode,
+      tani: item.tani,
+      age: item.age,
+      hours: item.hours,
+      note: item.note,
+      budget: item.budget,
+      posted: item.posted,
+      views: item.views,
+      urgent: item.urgent,
+      poster: _posterWithCv(item.poster, cv),
+      photos: item.photos,
+    );
+  }
+}
 
 /// Sahip e-postasından profil fotoğraflarını ilan avatarlarına uygular.
 Future<void> enrichRuntimeIlanAvatars({

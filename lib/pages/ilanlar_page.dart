@@ -4258,7 +4258,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
   @override
   Widget build(BuildContext context) {
     final renk = uzmanRenkFor(widget.ilan.uzmanlik);
-    final cv = uzmanCvFor(widget.ilan.uzmanlik);
+    final cv = posterCvFor(widget.ilan.poster);
     final avgR = avgRating(_reviews);
     final ilan = widget.ilan;
     final photos = ilan.photos;
@@ -4594,18 +4594,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
               },
               ),
             ] else ...[
-              _CvBlock(
-                  title: '📚 Eğitim',
-                  color: renk.color,
-                  body: '${cv.bolum}\n${cv.okul} · ${cv.mezunYil}'),
-              _CvBlock(
-                  title: '💼 Deneyim',
-                  color: renk.color,
-                  body: '${cv.deneyimYil} yıl deneyim\n${cv.deneyimAlani}'),
-              _CvBlock(
-                  title: '🛡 Sertifikalar',
-                  color: renk.color,
-                  body: cv.sertifikalar.map((s) => '✓ $s').join('\n')),
+              ..._cvSection(cv, color: renk.color),
             ],
             const SizedBox(height: 16),
           ],
@@ -4660,7 +4649,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
 
   @override
   Widget build(BuildContext context) {
-    final cv = bakiciCvFor(widget.ilan.poster);
+    final cv = posterCvFor(widget.ilan.poster);
     final avgR = avgRating(_reviews);
     final ilan = widget.ilan;
     final photos = ilan.photos;
@@ -4992,16 +4981,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
               },
               ),
             ] else ...[
-              _CvBlock(
-                  title: '📚 Eğitim',
-                  body: '${cv.bolum}\n${cv.okul} · ${cv.mezunYil}'),
-              _CvBlock(
-                  title: '💼 Deneyim',
-                  body: '${cv.deneyimYil} yıl deneyim\n${cv.deneyimAlani}'),
-              _CvBlock(
-                  title: '🛡 Sertifikalar',
-                  body: cv.sertifikalar.map((s) => '✓ $s').join('\n')),
-              _CvBlock(title: 'Hakkında', body: widget.ilan.poster.bio),
+              ..._cvSection(cv),
             ],
             const SizedBox(height: 16),
           ],
@@ -5363,6 +5343,54 @@ class _CvBlock extends StatelessWidget {
       ),
     );
   }
+}
+
+List<Widget> _cvSection(PosterCv cv, {Color? color}) {
+  if (!cv.hasContent) {
+    return const [
+      Padding(
+        padding: EdgeInsets.symmetric(vertical: 32),
+        child: Center(
+          child: Text(
+            'Özgeçmiş henüz doldurulmamış.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: MetoColors.mutedFg),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  final blocks = <Widget>[];
+  if (cv.egitimText.isNotEmpty) {
+    blocks.add(_CvBlock(
+      title: '📚 Eğitim',
+      body: cv.egitimText,
+      color: color,
+    ));
+  }
+  if (cv.deneyimText.isNotEmpty) {
+    blocks.add(_CvBlock(
+      title: '💼 Deneyim',
+      body: cv.deneyimText,
+      color: color,
+    ));
+  }
+  if (cv.sertifikalarText.isNotEmpty) {
+    blocks.add(_CvBlock(
+      title: '🛡 Sertifikalar',
+      body: cv.sertifikalarText,
+      color: color,
+    ));
+  }
+  if (cv.hakkimda.trim().isNotEmpty) {
+    blocks.add(_CvBlock(
+      title: 'Hakkında',
+      body: cv.hakkimda.trim(),
+      color: color,
+    ));
+  }
+  return blocks;
 }
 
 class SohbetPage extends StatefulWidget {

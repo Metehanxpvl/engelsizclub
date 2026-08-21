@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../kullanici_profil_store.dart';
 import '../meto_theme.dart';
 
 // ─── Supporting types ────────────────────────────────────────────────────────
@@ -24,16 +25,13 @@ class IlanReview {
 
 class PosterCv {
   const PosterCv({
-    this.bolum = 'Çocuk Gelişimi',
-    this.okul = 'Anadolu Üniversitesi',
-    this.mezunYil = '2018',
-    this.deneyimYil = '5',
-    this.deneyimAlani =
-        'Otizm, Down Sendromu, Serebral Palsi tanılı çocuklarla çalışma deneyimi',
-    this.sertifikalar = const [
-      'İlk Yardım Sertifikası',
-      'Özel Gereksinimli Çocuk Bakımı',
-    ],
+    this.bolum = '',
+    this.okul = '',
+    this.mezunYil = '',
+    this.deneyimYil = '',
+    this.deneyimAlani = '',
+    this.sertifikalar = const <String>[],
+    this.hakkimda = '',
   });
 
   final String bolum;
@@ -42,6 +40,41 @@ class PosterCv {
   final String deneyimYil;
   final String deneyimAlani;
   final List<String> sertifikalar;
+  final String hakkimda;
+
+  bool get hasContent =>
+      bolum.trim().isNotEmpty ||
+      okul.trim().isNotEmpty ||
+      mezunYil.trim().isNotEmpty ||
+      deneyimYil.trim().isNotEmpty ||
+      deneyimAlani.trim().isNotEmpty ||
+      hakkimda.trim().isNotEmpty ||
+      sertifikalar.any((s) => s.trim().isNotEmpty);
+
+  String get egitimText {
+    final parts = <String>[
+      if (bolum.trim().isNotEmpty) bolum.trim(),
+      if (okul.trim().isNotEmpty) okul.trim(),
+      if (mezunYil.trim().isNotEmpty) mezunYil.trim(),
+    ];
+    return parts.join('\n');
+  }
+
+  String get deneyimText {
+    final parts = <String>[];
+    final yil = deneyimYil.trim();
+    if (yil.isNotEmpty) {
+      parts.add(yil.toLowerCase().contains('yıl') ? yil : '$yil yıl deneyim');
+    }
+    if (deneyimAlani.trim().isNotEmpty) parts.add(deneyimAlani.trim());
+    return parts.join('\n');
+  }
+
+  String get sertifikalarText => sertifikalar
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty)
+      .map((s) => '✓ $s')
+      .join('\n');
 }
 
 class IlanPoster {
@@ -1400,11 +1433,19 @@ UzmanRenk uzmanRenkFor(String uzmanlik) {
       );
 }
 
-UzmanCvData uzmanCvFor(String uzmanlik) {
-  return uzmanCvMap[uzmanlik] ?? uzmanCvMap['Fizyoterapist']!;
+PosterCv posterCvFromProfil(KullaniciProfil profil) {
+  final certs = profil.sertifikalar
+      .split(RegExp(r'[\n,;]+'))
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty)
+      .toList();
+  return PosterCv(
+    okul: profil.egitim.trim(),
+    deneyimYil: profil.deneyimYili.trim(),
+    deneyimAlani: profil.uzmanliklar.trim(),
+    sertifikalar: certs,
+    hakkimda: profil.hakkimda.trim(),
+  );
 }
 
-PosterCv bakiciCvFor(IlanPoster poster) {
-  return poster.cv ??
-      const PosterCv();
-}
+PosterCv posterCvFor(IlanPoster poster) => poster.cv ?? const PosterCv();
