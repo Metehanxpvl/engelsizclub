@@ -10,10 +10,12 @@ Hepsi **Consumable (tüketilebilir)** olmalı. Kimlikler uygulamayla birebir ayn
 
 | Product ID | Önerilen fiyat | Puan | İndirim |
 |------------|----------------|------|---------|
-| `kredi_1`  | ₺69,90         | 1    | —       |
-| `kredi_5`  | ₺314,55        | 5    | %10     |
-| `kredi_10` | ₺559,20        | 10   | %20     |
-| `kredi_20` | ₺978,60        | 20   | %30     |
+| `point_1`  | ₺69,90         | 1    | —       |
+| `point_5`  | ₺314,55        | 5    | %10     |
+| `point_10` | ₺594,15        | 10   | %15     |
+| `point_30` | ₺1.677,60      | 30   | %20     |
+| `point_50` | ₺2.621,25      | 50   | %25     |
+| `point_100`| ₺4.893,00      | 100  | %30     |
 
 Birim fiyat: ₺69,90/puan. Paket fiyatı = adet × ₺69,90 × (1 − indirim).
 
@@ -43,7 +45,7 @@ flutter build appbundle --release
 
 1. Yeni uygulama oluştur → uygulama adı Engelsiz Club.
 2. **App signing:** AAB yüklerken Play App Signing’i aç.
-3. Ürünleri (`kredi_1` / `kredi_5` / `kredi_10`) oluştur, Active yap.
+3. Ürünleri (`point_1` … `point_100`) oluştur, Active yap.
 4. Test → Internal testing track’e AAB yükle, lisans test hesabı ekle.
 5. Cihazda o hesapla giriş yapıp gerçek satın alma akışını dene.
 6. Store listing: kısa/uzun açıklama, ikon 512, feature graphic 1024x500, ekran görüntüleri.

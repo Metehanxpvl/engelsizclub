@@ -4740,8 +4740,8 @@ class _MainShellState extends State<MainShell> {
           content: const L10nText(
             'Ödeme yalnızca Android (Google Play) veya iPhone/iPad (App Store) '
             'uygulamasında yapılır.\n\n'
-            'Play Console / App Store Connect’te kredi_1, kredi_5, kredi_10, '
-            'kredi_30, kredi_50, kredi_100 ürünlerini tanımlayın; '
+            'Play Console / App Store Connect’te point_1, point_5, point_10, '
+            'point_30, point_50, point_100 ürünlerini tanımlayın; '
             'mağaza, payınıza düşen tutarı hesabınıza yatırır.\n\n'
             'Web tarayıcıda mağaza ödemesi desteklenmez.',
           ),
@@ -4779,7 +4779,7 @@ class _MainShellState extends State<MainShell> {
       _hideCenteredLoading();
       if (!ok && mounted) {
         _showCenteredNotice(
-          'Ürün bulunamadı. ${store.storeName}’da kredi_1…kredi_100 ürünleri tanımlı mı kontrol edin.',
+          'Ürün bulunamadı. ${store.storeName}’da point_1…point_100 ürünleri tanımlı ve etkin mi kontrol edin.',
         );
       }
     } catch (e) {

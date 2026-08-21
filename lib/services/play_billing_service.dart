@@ -7,40 +7,40 @@ import 'google_play_availability.dart';
 
 /// Play Console + App Store Connect ürün kimlikleri (birebir aynı olmalı).
 abstract final class StoreProductIds {
-  static const kredi1 = 'kredi_1';
-  static const kredi5 = 'kredi_5';
-  static const kredi10 = 'kredi_10';
-  static const kredi30 = 'kredi_30';
-  static const kredi50 = 'kredi_50';
-  static const kredi100 = 'kredi_100';
+  static const point1 = 'point_1';
+  static const point5 = 'point_5';
+  static const point10 = 'point_10';
+  static const point30 = 'point_30';
+  static const point50 = 'point_50';
+  static const point100 = 'point_100';
 
   static const all = <String>{
-    kredi1,
-    kredi5,
-    kredi10,
-    kredi30,
-    kredi50,
-    kredi100,
+    point1,
+    point5,
+    point10,
+    point30,
+    point50,
+    point100,
   };
 
   static String? forAdet(int adet) => switch (adet) {
-        1 => kredi1,
-        5 => kredi5,
-        10 => kredi10,
-        30 => kredi30,
-        50 => kredi50,
-        100 => kredi100,
+        1 => point1,
+        5 => point5,
+        10 => point10,
+        30 => point30,
+        50 => point50,
+        100 => point100,
         _ => null,
       };
 
   static int? adetForProduct(String id) => switch (id) {
-        kredi1 => 1,
-        kredi5 => 5,
-        kredi10 => 10,
-        'kredi_20' => 20, // eski ürün (liste dışı) — bekleyen satın alma
-        kredi30 => 30,
-        kredi50 => 50,
-        kredi100 => 100,
+        point1 || 'kredi_1' => 1,
+        point5 || 'kredi_5' => 5,
+        point10 || 'kredi_10' => 10,
+        'kredi_20' => 20, // eski ürün — bekleyen satın alma
+        point30 || 'kredi_30' => 30,
+        point50 || 'kredi_50' => 50,
+        point100 || 'kredi_100' => 100,
         _ => null,
       };
 }
