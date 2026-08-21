@@ -8,7 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'app_catalog_service.dart';
 
 /// pubspec `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
-const kAppBuildNumber = 69;
+const kAppBuildNumber = 80;
 
 /// Mağazadaki zorunlu / yeni sürüm. Web'de kapalı.
 class ForceUpdateService extends ChangeNotifier {

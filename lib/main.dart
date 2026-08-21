@@ -169,22 +169,24 @@ Future<void> ensureFirebaseInitialized() async {
   }
 }
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // Google girişi Firebase Auth kullanır.
+Future<void> _bootstrapPlatformServices() async {
+  // Firebase/FCM Play Services kullanır; uygulama açıldıktan sonra başlat ki
+  // bazı cihazlarda görünen "Google Play is enabled" diyalogu ana ekranı kilitlemesin.
   try {
     await ensureFirebaseInitialized();
   } catch (e, st) {
     debugPrint('Firebase init failed: $e\n$st');
   }
 
-  // FCM: izin + token + ön/arka plan dinleyicileri (web hariç)
   try {
     await PushNotificationService.instance.init();
   } catch (e, st) {
     debugPrint('FCM init failed: $e\n$st');
   }
+}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
   try {
     await Supabase.initialize(
@@ -220,6 +222,7 @@ Future<void> main() async {
     ),
   );
   runApp(const ProviderScope(child: MetoCareApp()));
+  unawaited(_bootstrapPlatformServices());
 }
 
 class MetoCareApp extends StatefulWidget {

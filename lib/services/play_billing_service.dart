@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
+import 'google_play_availability.dart';
+
 /// Play Console + App Store Connect ürün kimlikleri (birebir aynı olmalı).
 abstract final class StoreProductIds {
   static const kredi1 = 'kredi_1';
@@ -42,6 +44,7 @@ abstract final class StoreProductIds {
         _ => null,
       };
 }
+
 /// Android: Google Play Billing · iOS: App Store In-App Purchase.
 class StoreBillingService {
   StoreBillingService._();
@@ -92,9 +95,19 @@ class StoreBillingService {
     if (!isSupported) return;
     if (_ready && _sub != null) return;
     try {
+      if (isAndroid) {
+        final playOk = await isGooglePlayAvailable();
+        if (!playOk) {
+          debugPrint('IAP: Google Play kullanılamıyor, atlanıyor.');
+          return;
+        }
+      }
+
       var available = false;
       try {
-        available = await _iap.isAvailable();
+        available = await _iap
+            .isAvailable()
+            .timeout(const Duration(seconds: 5), onTimeout: () => false);
       } catch (e) {
         debugPrint('IAP isAvailable: $e');
         return;
@@ -160,6 +173,10 @@ class StoreBillingService {
 
   Future<bool> buyKrediPaket(int adet) async {
     if (!isSupported) return false;
+    if (isAndroid) {
+      final playOk = await isGooglePlayAvailable();
+      if (!playOk) return false;
+    }
     try {
       final id = StoreProductIds.forAdet(adet);
       if (id == null) return false;

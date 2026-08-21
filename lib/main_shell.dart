@@ -51,6 +51,7 @@ import 'pages/merkezler_page.dart';
 import 'pages/tibbi_sorumluluk_reddi_page.dart';
 import 'presence_store.dart';
 import 'profil_foto_store.dart';
+import 'services/google_play_availability.dart';
 import 'services/play_billing_service.dart';
 import 'services/push_notification_service.dart';
 import 'services/image_optimize_service.dart';
@@ -4759,6 +4760,20 @@ class _MainShellState extends State<MainShell> {
       _showCenteredLoading('${store.storeName} açılıyor…'),
     );
     try {
+      if (store.isAndroid) {
+        final playOk = await isGooglePlayAvailable();
+        if (!playOk) {
+          _hideCenteredLoading();
+          if (mounted) {
+            _showCenteredNotice(
+              'Google Play şu an kullanılamıyor. Play Store ve Google Play '
+              'Hizmetleri’nin güncel ve açık olduğundan emin olun, ardından '
+              'uygulamayı yeniden başlatın.',
+            );
+          }
+          return;
+        }
+      }
       await _initStoreBilling();
       final ok = await store.buyKrediPaket(paket.adet);
       _hideCenteredLoading();
