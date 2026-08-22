@@ -18,6 +18,7 @@ import '../kredi_store.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/locale_controller.dart';
 import '../meto_theme.dart';
+import '../utils/async_timeout.dart';
 import '../presence_store.dart';
 import '../services/app_catalog_service.dart';
 import '../services/catalog_adapters.dart';
@@ -156,6 +157,7 @@ class IlanlarPageState extends State<IlanlarPage> {
   String _ikincielAltFilter = 'Tümü';
   int _listPage = 0;
   bool _loadingFeed = true;
+  String? _feedError;
   List<FavoriIlanRef> _favoriler = const [];
 
   /// Aile / profesyonel ayrımı yalnız role göre (admin aile seçince puan fiyatı görmesin).
@@ -1014,26 +1016,50 @@ class IlanlarPageState extends State<IlanlarPage> {
   }
 
   Future<void> _refreshFeed() async {
-    setState(() => _loadingFeed = true);
-    await loadAllIlanlar(preferEmail: widget.userEmail);
-    await enrichRuntimeIlanAvatars(
-      ownEmail: widget.userEmail,
-      ownPhoto: widget.profilFoto,
-    );
-    final cloud = widget.userEmail.trim().isEmpty
-        ? null
-        : await loadUserCloudProfile(widget.userEmail);
-    final teklifler = widget.userEmail.trim().isEmpty
-        ? <int>{}
-        : await loadTeklifVerilenIlanlar(widget.userEmail);
-    if (!mounted) return;
     setState(() {
-      _loadingFeed = false;
-      if (cloud != null) _favoriler = cloud.favorites;
-      _teklifVerilenIlanlar = teklifler;
+      _loadingFeed = true;
+      _feedError = null;
     });
-    widget.onIlanlarChanged?.call();
-    await _syncSohbetListesi();
+    try {
+      await withNetworkTimeout(
+        loadAllIlanlar(preferEmail: widget.userEmail),
+        message: 'İlanlar yüklenirken zaman aşımı.',
+      );
+      await withNetworkTimeout(
+        enrichRuntimeIlanAvatars(
+          ownEmail: widget.userEmail,
+          ownPhoto: widget.profilFoto,
+        ),
+        message: 'Profil fotoğrafları yüklenirken zaman aşımı.',
+      );
+      final cloud = widget.userEmail.trim().isEmpty
+          ? null
+          : await withNetworkTimeout(
+              loadUserCloudProfile(widget.userEmail),
+              message: 'Profil bilgisi yüklenirken zaman aşımı.',
+            );
+      final teklifler = widget.userEmail.trim().isEmpty
+          ? <int>{}
+          : await loadTeklifVerilenIlanlar(widget.userEmail);
+      if (!mounted) return;
+      setState(() {
+        if (cloud != null) _favoriler = cloud.favorites;
+        _teklifVerilenIlanlar = teklifler;
+      });
+      widget.onIlanlarChanged?.call();
+      await _syncSohbetListesi();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _feedError = e is NetworkTimeoutException
+            ? e.message
+            : 'İlanlar yüklenemedi. Lütfen tekrar deneyin.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _loadingFeed = false);
+      }
+    }
   }
 
   bool _isFav(String kind, int id) =>
@@ -1542,6 +1568,43 @@ class IlanlarPageState extends State<IlanlarPage> {
             children: [
               _buildHeader(),
               if (_loadingFeed) const LinearProgressIndicator(minHeight: 2),
+              if (_feedError != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Material(
+                    color: const Color(0xFFFFF3E0),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.cloud_off,
+                            size: 20,
+                            color: MetoColors.mutedFg,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _feedError!,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: MetoColors.foreground,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _refreshFeed,
+                            child: const L10nText('Tekrar dene'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               _buildCategoryTabs(),
               // Teklif puanı / ₺69 sadece uzman & bakıcı — aile rolünde asla.
               if (_normalizedRole == 'uzman' || _normalizedRole == 'bakici')

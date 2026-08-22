@@ -1562,7 +1562,6 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     // Masaüstünde telefon çerçevesi yok — arka plan tam sayfa; form ortalanır.
-    final pad = MediaQuery.paddingOf(context);
     return ShowCaseWidget(
       onFinish: () {
         unawaited(_finishAuthTour());

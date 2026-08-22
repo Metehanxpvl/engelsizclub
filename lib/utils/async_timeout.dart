@@ -29,11 +29,3 @@ Future<T> withNetworkTimeout<T>(
     ),
   );
 }
-
-extension FutureNetworkTimeout<T> on Future<T> {
-  Future<T> withNetworkTimeout({
-    Duration timeout = kNetworkTimeout,
-    String? message,
-  }) =>
-      withNetworkTimeout(this, timeout: timeout, message: message);
-}

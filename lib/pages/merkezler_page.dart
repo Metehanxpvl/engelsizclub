@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../data/centers_data.dart';
 import '../data/turkish_cities_data.dart';
 import '../meto_theme.dart';
+import '../utils/async_timeout.dart';
 import '../services/centers_google_geocode_service.dart';
 import '../services/centers_google_places_service.dart';
 import '../services/google_places_config.dart';
@@ -250,140 +251,165 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       _centersError = null;
     });
 
-    final cityInfo = _cityInfo;
-    var focusLat = cityInfo.lat;
-    var focusLng = cityInfo.lng;
+    try {
+      final cityInfo = _cityInfo;
+      var focusLat = cityInfo.lat;
+      var focusLng = cityInfo.lng;
 
-    // İlçe seçildiyse gerçek ilçe merkezini geocode et
-    if (_selectedIlce != kAllIlceler) {
-      final geo = await CentersGoogleGeocodeService.geocodePlace(
-        city: _selectedCity,
-        ilce: _selectedIlce,
-      );
-      if (geo != null) {
-        focusLat = geo.lat;
-        focusLng = geo.lng;
-      }
-    } else if (_userLat == null) {
-      final geo = await CentersGoogleGeocodeService.geocodePlace(city: _selectedCity);
-      if (geo != null) {
-        focusLat = geo.lat;
-        focusLng = geo.lng;
-      }
-    }
-
-    // GPS yalnız “Konumumu bul” sonrası kullanılır; yoksa seçilen il/ilçe.
-    final useGps =
-        _locStatus == _LocStatus.ok && _userLat != null && _userLng != null;
-    final searchLat = useGps ? _userLat! : focusLat;
-    final searchLng = useGps ? _userLng! : focusLng;
-
-    var live = <MetoCenter>[];
-    var sourceLabel = '';
-    String? placesError;
-
-    // Google Places API (New) — özel eğitim / fizik tedavi / medikal
-    if (!GooglePlacesConfig.isConfigured) {
-      placesError = 'Google Maps API anahtarı tanımlı değil.';
-    } else {
-      try {
-        live = await CentersGooglePlacesService.searchNearby(
-          latitude: searchLat,
-          longitude: searchLng,
-          city: _selectedCity,
-          radiusKm: useGps
-              ? 40
-              : (_selectedIlce == kAllIlceler ? 45 : 18),
+      // İlçe seçildiyse gerçek ilçe merkezini geocode et
+      if (_selectedIlce != kAllIlceler) {
+        final geo = await withNetworkTimeout(
+          CentersGoogleGeocodeService.geocodePlace(
+            city: _selectedCity,
+            ilce: _selectedIlce,
+          ),
+          message: 'Konum bilgisi alınamadı.',
         );
-        if (live.isNotEmpty) {
-          sourceLabel = 'Google Places';
-        } else {
-          final err = CentersGooglePlacesService.lastError;
-          placesError = err;
-          debugPrint('[Merkezler] Google boş: $err');
+        if (geo != null) {
+          focusLat = geo.lat;
+          focusLng = geo.lng;
         }
-      } catch (e) {
-        debugPrint('Google Places hata: $e');
-        placesError = '$e';
+      } else if (_userLat == null) {
+        final geo = await withNetworkTimeout(
+          CentersGoogleGeocodeService.geocodePlace(city: _selectedCity),
+          message: 'Konum bilgisi alınamadı.',
+        );
+        if (geo != null) {
+          focusLat = geo.lat;
+          focusLng = geo.lng;
+        }
       }
-    }
 
-    // Yanlış şehir / uzak sonuçları at (Ankara seçip İstanbul gelmesin)
-    final radiusLimit = useGps
-        ? 50.0
-        : (_selectedIlce == kAllIlceler ? 70.0 : 28.0);
-    live = live
-        .where((c) {
-          final near = geoDistanceKm(searchLat, searchLng, c.lat, c.lng) <=
-              radiusLimit + 5;
-          return near &&
-              _matchesSelectedCity(c, focusLat: searchLat, focusLng: searchLng);
-        })
-        .toList();
+      // GPS yalnız “Konumumu bul” sonrası kullanılır; yoksa seçilen il/ilçe.
+      final useGps =
+          _locStatus == _LocStatus.ok && _userLat != null && _userLng != null;
+      final searchLat = useGps ? _userLat! : focusLat;
+      final searchLng = useGps ? _userLng! : focusLng;
 
-    // Yerel katalogdaki seçili il merkezlerini de ekle (özel eğitim eksik kalmasın)
-    final localCity = kCenters
-        .where((c) => _normTr(c.city) == _normTr(_selectedCity))
-        .where((c) {
-          if (_selectedIlce == kAllIlceler) return true;
-          return _matchesIlce(c, _selectedIlce) ||
-              geoDistanceKm(searchLat, searchLng, c.lat, c.lng) <= radiusLimit;
+      var live = <MetoCenter>[];
+      var sourceLabel = '';
+      String? placesError;
+
+      // Google Places API (New) — özel eğitim / fizik tedavi / medikal
+      if (!GooglePlacesConfig.isConfigured) {
+        placesError = 'Google Maps API anahtarı tanımlı değil.';
+      } else {
+        try {
+          live = await withNetworkTimeout(
+            CentersGooglePlacesService.searchNearby(
+              latitude: searchLat,
+              longitude: searchLng,
+              city: _selectedCity,
+              radiusKm: useGps
+                  ? 40
+                  : (_selectedIlce == kAllIlceler ? 45 : 18),
+            ),
+            timeout: const Duration(seconds: 15),
+            message: 'Merkez araması zaman aşımına uğradı.',
+          );
+          if (live.isNotEmpty) {
+            sourceLabel = 'Google Places';
+          } else {
+            final err = CentersGooglePlacesService.lastError;
+            placesError = err;
+            debugPrint('[Merkezler] Google boş: $err');
+          }
+        } catch (e) {
+          debugPrint('Google Places hata: $e');
+          placesError = e is NetworkTimeoutException
+              ? e.message
+              : '$e';
+        }
+      }
+
+      // Yanlış şehir / uzak sonuçları at (Ankara seçip İstanbul gelmesin)
+      final radiusLimit = useGps
+          ? 50.0
+          : (_selectedIlce == kAllIlceler ? 70.0 : 28.0);
+      live = live
+          .where((c) {
+            final near = geoDistanceKm(searchLat, searchLng, c.lat, c.lng) <=
+                radiusLimit + 5;
+            return near &&
+                _matchesSelectedCity(c, focusLat: searchLat, focusLng: searchLng);
+          })
+          .toList();
+
+      // Yerel katalogdaki seçili il merkezlerini de ekle (özel eğitim eksik kalmasın)
+      final localCity = kCenters
+          .where((c) => _normTr(c.city) == _normTr(_selectedCity))
+          .where((c) {
+            if (_selectedIlce == kAllIlceler) return true;
+            return _matchesIlce(c, _selectedIlce) ||
+                geoDistanceKm(searchLat, searchLng, c.lat, c.lng) <= radiusLimit;
+          });
+      final merged = <String, MetoCenter>{};
+      for (final c in [...live, ...localCity]) {
+        final key =
+            '${_normTr(c.name)}|${c.lat.toStringAsFixed(4)}|${c.lng.toStringAsFixed(4)}';
+        merged.putIfAbsent(key, () => c);
+      }
+      live = merged.values.toList()
+        ..sort((a, b) {
+          final da = geoDistanceKm(searchLat, searchLng, a.lat, a.lng);
+          final db = geoDistanceKm(searchLat, searchLng, b.lat, b.lng);
+          return da.compareTo(db);
         });
-    final merged = <String, MetoCenter>{};
-    for (final c in [...live, ...localCity]) {
-      final key =
-          '${_normTr(c.name)}|${c.lat.toStringAsFixed(4)}|${c.lng.toStringAsFixed(4)}';
-      merged.putIfAbsent(key, () => c);
-    }
-    live = merged.values.toList()
-      ..sort((a, b) {
-        final da = geoDistanceKm(searchLat, searchLng, a.lat, a.lng);
-        final db = geoDistanceKm(searchLat, searchLng, b.lat, b.lng);
-        return da.compareTo(db);
-      });
-    if (live.isNotEmpty && sourceLabel.isEmpty) {
-      sourceLabel = 'Kayıtlı katalog';
-    } else if (localCity.isNotEmpty && sourceLabel.isNotEmpty) {
-      sourceLabel = '$sourceLabel + katalog';
-    }
+      if (live.isNotEmpty && sourceLabel.isEmpty) {
+        sourceLabel = 'Kayıtlı katalog';
+      } else if (localCity.isNotEmpty && sourceLabel.isNotEmpty) {
+        sourceLabel = '$sourceLabel + katalog';
+      }
 
-    if (!mounted) return;
-    setState(() {
-      if (useGps) {
-        _focusLat = _userLat;
-        _focusLng = _userLng;
-      } else {
-        _focusLat = focusLat;
-        _focusLng = focusLng;
-      }
-      _liveCenters = live;
-      _centersLoading = false;
-      if (live.isEmpty) {
-        _centersError = placesError ??
-            (useGps
-                ? 'Yakınınızda merkez bulunamadı. İl/ilçe seçerek tekrar deneyin.'
-                : '$_selectedCity${_selectedIlce == kAllIlceler ? '' : ' / $_selectedIlce'} için merkez bulunamadı. Başka ilçe deneyin.');
+      if (!mounted) return;
+      setState(() {
+        if (useGps) {
+          _focusLat = _userLat;
+          _focusLng = _userLng;
+        } else {
+          _focusLat = focusLat;
+          _focusLng = focusLng;
+        }
+        _liveCenters = live;
+        if (live.isEmpty) {
+          _centersError = placesError ??
+              (useGps
+                  ? 'Yakınınızda merkez bulunamadı. İl/ilçe seçerek tekrar deneyin.'
+                  : '$_selectedCity${_selectedIlce == kAllIlceler ? '' : ' / $_selectedIlce'} için merkez bulunamadı. Başka ilçe deneyin.');
+          _dataNote = null;
+        } else {
+          _centersError = null;
+          final region = useGps
+              ? 'Konumunuza göre'
+              : (_selectedIlce == kAllIlceler
+                  ? _selectedCity
+                  : '$_selectedCity / $_selectedIlce');
+          _dataNote =
+              '$sourceLabel · $region · ${live.length} merkez · mesafeye göre sıralı';
+        }
+      });
+      final mapLat = _focusLat ?? focusLat;
+      final mapLng = _focusLng ?? focusLng;
+      _moveMap(
+        mapLat,
+        mapLng,
+        zoom: useGps
+            ? 12.5
+            : (_selectedIlce == kAllIlceler ? 11 : 13),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _centersError = e is NetworkTimeoutException
+            ? e.message
+            : 'Merkezler yüklenemedi. Tekrar deneyin.';
         _dataNote = null;
-      } else {
-        _centersError = null;
-        final region = useGps
-            ? 'Konumunuza göre'
-            : (_selectedIlce == kAllIlceler
-                ? _selectedCity
-                : '$_selectedCity / $_selectedIlce');
-        _dataNote =
-            '$sourceLabel · $region · ${live.length} merkez · mesafeye göre sıralı';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _centersLoading = false);
       }
-    });
-    final mapLat = _focusLat ?? focusLat;
-    final mapLng = _focusLng ?? focusLng;
-    _moveMap(
-      mapLat,
-      mapLng,
-      zoom: useGps
-          ? 12.5
-          : (_selectedIlce == kAllIlceler ? 11 : 13),
-    );
+    }
   }
 
   Future<void> _detectLocation() async {
@@ -760,7 +786,31 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                           ],
                         ),
                       ),
-                    if (listing.items.isEmpty) const _EmptySearch(),
+                    if (listing.items.isEmpty && _centersError != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Column(
+                          children: [
+                            Text(
+                              _centersError!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: MetoColors.mutedFg,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            FilledButton.icon(
+                              onPressed: _refreshCenters,
+                              icon: const Icon(Icons.refresh),
+                              label: const L10nText('Tekrar dene'),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (listing.items.isEmpty)
+                      const _EmptySearch(),
                     ...listing.items.map(
                       (item) => Padding(
                         padding: const EdgeInsets.only(bottom: 12),
