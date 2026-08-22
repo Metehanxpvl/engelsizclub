@@ -5,44 +5,81 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 
 import 'google_play_availability.dart';
 
-/// Play Console + App Store Connect ürün kimlikleri (birebir aynı olmalı).
+/// Google Play: `point_*` · App Store Connect: `puan_*`
 abstract final class StoreProductIds {
-  static const point1 = 'point_1';
-  static const point5 = 'point_5';
-  static const point10 = 'point_10';
-  static const point30 = 'point_30';
-  static const point50 = 'point_50';
-  static const point100 = 'point_100';
+  static const androidPoint1 = 'point_1';
+  static const androidPoint5 = 'point_5';
+  static const androidPoint10 = 'point_10';
+  static const androidPoint30 = 'point_30';
+  static const androidPoint50 = 'point_50';
+  static const androidPoint100 = 'point_100';
 
-  static const all = <String>{
-    point1,
-    point5,
-    point10,
-    point30,
-    point50,
-    point100,
-  };
+  static const iosPuan1 = 'puan_1';
+  static const iosPuan5 = 'puan_5';
+  static const iosPuan10 = 'puan_10';
+  static const iosPuan30 = 'puan_30';
+  static const iosPuan50 = 'puan_50';
+  static const iosPuan100 = 'puan_100';
 
-  static String? forAdet(int adet) => switch (adet) {
-        1 => point1,
-        5 => point5,
-        10 => point10,
-        30 => point30,
-        50 => point50,
-        100 => point100,
+  static bool get _isIos =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
+  static Set<String> get all => _isIos
+      ? {
+          iosPuan1,
+          iosPuan5,
+          iosPuan10,
+          iosPuan30,
+          iosPuan50,
+          iosPuan100,
+        }
+      : {
+          androidPoint1,
+          androidPoint5,
+          androidPoint10,
+          androidPoint30,
+          androidPoint50,
+          androidPoint100,
+        };
+
+  static String? forAdet(int adet) {
+    if (_isIos) {
+      return switch (adet) {
+        1 => iosPuan1,
+        5 => iosPuan5,
+        10 => iosPuan10,
+        30 => iosPuan30,
+        50 => iosPuan50,
+        100 => iosPuan100,
         _ => null,
       };
+    }
+    return switch (adet) {
+      1 => androidPoint1,
+      5 => androidPoint5,
+      10 => androidPoint10,
+      30 => androidPoint30,
+      50 => androidPoint50,
+      100 => androidPoint100,
+      _ => null,
+    };
+  }
 
   static int? adetForProduct(String id) => switch (id) {
-        point1 || 'kredi_1' => 1,
-        point5 || 'kredi_5' => 5,
-        point10 || 'kredi_10' => 10,
+        androidPoint1 || iosPuan1 || 'kredi_1' => 1,
+        androidPoint5 || iosPuan5 || 'kredi_5' => 5,
+        androidPoint10 || iosPuan10 || 'kredi_10' => 10,
         'kredi_20' => 20, // eski ürün — bekleyen satın alma
-        point30 || 'kredi_30' => 30,
-        point50 || 'kredi_50' => 50,
-        point100 || 'kredi_100' => 100,
+        androidPoint30 || iosPuan30 || 'kredi_30' => 30,
+        androidPoint50 || iosPuan50 || 'kredi_50' => 50,
+        androidPoint100 || iosPuan100 || 'kredi_100' => 100,
         _ => null,
       };
+
+  /// Mağaza kurulumu hata mesajları için.
+  static String get configuredIdsHint => _isIos
+      ? 'puan_1, puan_5, puan_10, puan_30, puan_50, puan_100'
+      : 'point_1, point_5, point_10, point_30, point_50, point_100';
 }
 
 /// Android: Google Play Billing · iOS: App Store In-App Purchase.
