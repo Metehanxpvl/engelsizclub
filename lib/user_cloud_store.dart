@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'cocuk_profil_store.dart';
 import 'kullanici_profil_store.dart';
 import 'profil_foto_store.dart';
+import 'utils/async_timeout.dart';
 
 class BildirimAyarlari {
   const BildirimAyarlari({
@@ -125,11 +126,13 @@ Future<UserCloudProfile> loadUserCloudProfile(String email) async {
 
   if (user != null) {
     try {
-      final row = await client
-          .from('user_profiles')
-          .select()
-          .eq('owner_id', user.id)
-          .maybeSingle();
+      final row = await withNetworkTimeout(
+        client
+            .from('user_profiles')
+            .select()
+            .eq('owner_id', user.id)
+            .maybeSingle(),
+      );
       if (row != null) {
         var profile = _fromRow(Map<String, dynamic>.from(row));
 

@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_config.dart';
 import 'data/more_menu_data.dart';
+import 'utils/async_timeout.dart';
 
 List<MoreMenuItem>? _memoryCache;
 DateTime? _cacheAt;
@@ -47,7 +48,9 @@ Future<List<MoreMenuItem>> loadMoreMenu({
     if (!includeInactive) {
       q = q.eq('is_active', true);
     }
-    final rows = await q.order('sort_order').order('id');
+    final rows = await withNetworkTimeout(
+      q.order('sort_order').order('id'),
+    );
     final items = <MoreMenuItem>[
       for (final r in rows)
         if (r is Map<String, dynamic>) MoreMenuItem.fromJson(r),

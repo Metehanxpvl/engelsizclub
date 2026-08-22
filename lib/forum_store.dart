@@ -6,6 +6,7 @@ import 'bildirim_store.dart';
 import 'data/forum_data.dart';
 import 'forum_post_follow_store.dart';
 import 'meto_theme.dart';
+import 'utils/async_timeout.dart';
 
 String forumRelativeTime(DateTime createdAt) {
   final diff = DateTime.now().difference(createdAt.toLocal());
@@ -92,11 +93,13 @@ Future<List<ForumPost>> loadForumPosts() async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
   try {
-    final rows = await client
-        .from('forum_posts')
-        .select()
-        .order('created_at', ascending: false)
-        .limit(100);
+    final rows = await withNetworkTimeout(
+      client
+          .from('forum_posts')
+          .select()
+          .order('created_at', ascending: false)
+          .limit(100),
+    );
     final list = (rows as List)
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
@@ -105,10 +108,12 @@ Future<List<ForumPost>> loadForumPosts() async {
     Set<int> liked = {};
     if (user != null) {
       try {
-        final likeRows = await client
-            .from('forum_likes')
-            .select('post_id')
-            .eq('owner_id', user.id);
+        final likeRows = await withNetworkTimeout(
+          client
+              .from('forum_likes')
+              .select('post_id')
+              .eq('owner_id', user.id),
+        );
         liked = {
           for (final e in (likeRows as List).whereType<Map>())
             if ((e['post_id'] as num?) != null) (e['post_id'] as num).toInt(),

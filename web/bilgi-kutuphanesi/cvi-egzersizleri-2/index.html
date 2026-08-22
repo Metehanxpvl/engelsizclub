@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>CVI Egzersizleri-2 — Görsel Keşif | Engelsiz Club</title>
+  <meta name="description" content="CVI Görsel Keşif: yıldız ve ay, meyveler (çilek, muz, elma, karpuz), arabalar (araba, kamyon, kepçe), kıyafetler." />
+  <meta name="robots" content="index,follow" />
+  <link rel="canonical" href="https://www.engelsizclub.com/bilgi-kutuphanesi/cvi-egzersizleri-2" />
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; height: 100%; background: #000; color: #fff; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    body.disclaimer-locked { overflow: hidden; }
+    .screen { display: none; min-height: 100dvh; }
+    .screen.active { display: flex; flex-direction: column; }
+    #menu-screen { background: #000; padding: 20px 20px 32px; justify-content: center; gap: 14px; }
+    #menu-screen h1 { text-align: center; font-size: 1.55rem; margin: 8px 0 4px; font-weight: 900; }
+    #menu-screen p.lead { text-align: center; color: #aaa; margin: 0 0 12px; font-size: 0.95rem; }
+    .cat-btn {
+      width: 100%; min-height: 76px; border: 3px solid #fff; border-radius: 22px;
+      font-size: 1.35rem; font-weight: 900; letter-spacing: 0.06em; cursor: pointer;
+      box-shadow: 0 0 24px rgba(255,255,255,.15);
+    }
+    .cat-stars { background: #ffea00; color: #000; box-shadow: 0 0 28px rgba(255,234,0,.45); }
+    .cat-fruits { background: #ff1744; color: #fff; box-shadow: 0 0 28px rgba(255,23,68,.35); }
+    .cat-cars { background: #2979ff; color: #fff; box-shadow: 0 0 28px rgba(41,121,255,.35); }
+    .cat-clothes { background: #00e676; color: #000; box-shadow: 0 0 28px rgba(0,230,118,.35); }
+    #game-screen { position: relative; background: #000; touch-action: manipulation; }
+    #game-stage { position: relative; flex: 1; width: 100%; min-height: 100dvh; overflow: hidden; }
+    .target {
+      position: absolute; cursor: pointer; transition: transform .65s ease-out, opacity .65s ease-out;
+      filter: drop-shadow(0 0 18px rgba(255,255,255,.35));
+      touch-action: manipulation;
+    }
+    .target.pop { transform: scale(1.75); opacity: 0; pointer-events: none; }
+    .target img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+    #disclaimer-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.72); z-index: 100;
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    #disclaimer-overlay[hidden] { display: none; }
+    .disclaimer-card {
+      background: #fff; color: #1f2e28; border-radius: 18px; padding: 22px; max-width: 420px; width: 100%;
+    }
+    .disclaimer-card h2 { margin: 0 0 12px; font-size: 1.25rem; }
+    .disclaimer-card p { margin: 0 0 16px; line-height: 1.5; color: #5c7268; font-size: 0.95rem; }
+    .disclaimer-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    .disclaimer-actions button {
+      border: none; border-radius: 12px; padding: 12px 16px; font-weight: 700; cursor: pointer;
+    }
+    .disclaimer-actions .ok { background: #f9a825; color: #000; }
+    .disclaimer-actions #disclaimer-cancel { background: #eee; color: #444; }
+  </style>
+</head>
+<body class="disclaimer-locked">
+  <div id="menu-screen" class="screen active">
+    <h1>CVI Egzersizleri-2</h1>
+    <p class="lead">Görsel Keşif — bir kategori seçin</p>
+    <button type="button" class="cat-btn cat-stars" data-cat="stars">YILDIZ &amp; AY</button>
+    <button type="button" class="cat-btn cat-fruits" data-cat="fruits">MEYVELER</button>
+    <button type="button" class="cat-btn cat-cars" data-cat="cars">ARABALAR</button>
+    <button type="button" class="cat-btn cat-clothes" data-cat="clothes">KIYAFETLER</button>
+  </div>
+
+  <div id="game-screen" class="screen">
+    <div id="game-stage" aria-live="polite"></div>
+  </div>
+
+  <div id="disclaimer-overlay" role="dialog" aria-modal="true">
+    <div class="disclaimer-card">
+      <h2>Sorumluluk Reddi</h2>
+      <p>Bu araç yalnızca görsel egzersiz amaçlıdır; tıbbi tanı veya tedavi yerine geçmez. Sağlık endişeniz varsa uzmanınıza danışın.</p>
+      <div class="disclaimer-actions">
+        <button type="button" id="disclaimer-cancel">Vazgeç</button>
+        <button type="button" class="ok" id="disclaimer-ok">Kabul Et ve Başla</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var CATEGORIES = {
+        stars: {
+          items: [
+            { src: 'images/cvi_star_yellow.png', w: 0.42, h: 0.42 },
+            { src: 'images/cvi_moon_white.png', w: 0.42, h: 0.42 }
+          ]
+        },
+        fruits: {
+          items: [
+            { src: 'images/cvi_fruit_strawberry.png', w: 0.42, h: 0.42 },
+            { src: 'images/cvi_fruit_banana.png', w: 0.42, h: 0.42 },
+            { src: 'images/cvi_fruit_apple.png', w: 0.42, h: 0.42 },
+            { src: 'images/cvi_fruit_watermelon.png', w: 0.42, h: 0.42 }
+          ]
+        },
+        cars: {
+          items: [
+            { src: 'images/cvi_car_red.png', w: 0.72, h: 0.36 },
+            { src: 'images/cvi_car_blue.png', w: 0.72, h: 0.36 },
+            { src: 'images/cvi_car_truck.png', w: 0.72, h: 0.36 },
+            { src: 'images/cvi_car_excavator.png', w: 0.72, h: 0.36 }
+          ]
+        },
+        clothes: {
+          items: [
+            { src: 'images/cvi_cloth_tshirt.png', w: 0.42, h: 0.42 },
+            { src: 'images/cvi_cloth_pants.png', w: 0.42, h: 0.42 },
+            { src: 'images/cvi_cloth_hat.png', w: 0.38, h: 0.38 },
+            { src: 'images/cvi_cloth_socks.png', w: 0.38, h: 0.38 }
+          ]
+        }
+      };
+
+      var menu = document.getElementById('menu-screen');
+      var game = document.getElementById('game-screen');
+      var stage = document.getElementById('game-stage');
+      var overlay = document.getElementById('disclaimer-overlay');
+      var currentCat = null;
+      var busy = false;
+
+      function unlockDisclaimer() {
+        document.body.classList.remove('disclaimer-locked');
+        overlay.hidden = true;
+      }
+      document.getElementById('disclaimer-ok').addEventListener('click', unlockDisclaimer);
+      document.getElementById('disclaimer-cancel').addEventListener('click', function () {
+        if (history.length > 1) history.back();
+        else location.href = '/';
+      });
+
+      function showMenu() {
+        menu.classList.add('active');
+        game.classList.remove('active');
+        stage.innerHTML = '';
+        currentCat = null;
+        busy = false;
+      }
+
+      function showGame(catId) {
+        currentCat = catId;
+        menu.classList.remove('active');
+        game.classList.add('active');
+        spawnNext();
+      }
+
+      function spawnNext() {
+        if (!currentCat) return;
+        stage.innerHTML = '';
+        busy = false;
+        var cat = CATEGORIES[currentCat];
+        if (!cat || !cat.items.length) return;
+        var item = cat.items[Math.floor(Math.random() * cat.items.length)];
+        var el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'target';
+        el.setAttribute('aria-label', 'Keşfet');
+        var img = document.createElement('img');
+        img.src = item.src;
+        img.alt = '';
+        el.appendChild(img);
+
+        var pad = 48;
+        var rect = stage.getBoundingClientRect();
+        var w = rect.width * item.w;
+        var h = rect.height * item.h;
+        var maxX = Math.max(pad, rect.width - w - pad);
+        var maxY = Math.max(pad, rect.height - h - pad);
+        el.style.width = w + 'px';
+        el.style.height = h + 'px';
+        el.style.left = (pad + Math.random() * (maxX - pad)) + 'px';
+        el.style.top = (pad + Math.random() * (maxY - pad)) + 'px';
+
+        el.addEventListener('click', function () {
+          if (busy) return;
+          busy = true;
+          el.classList.add('pop');
+          try { navigator.vibrate && navigator.vibrate(30); } catch (_) {}
+          setTimeout(spawnNext, 680);
+        });
+        stage.appendChild(el);
+      }
+
+      document.querySelectorAll('.cat-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          showGame(btn.getAttribute('data-cat'));
+        });
+      });
+
+      window.addEventListener('resize', function () {
+        if (currentCat && !busy) spawnNext();
+      });
+    })();
+  </script>
+</body>
+</html>

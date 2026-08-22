@@ -8,6 +8,7 @@ import '../info_library/widgets/info_youtube_player.dart';
 import '../info_library/widgets/info_video_chrome.dart';
 import '../medical_disclaimer_store.dart';
 import '../meto_theme.dart';
+import '../utils/async_timeout.dart';
 import '../widgets/medical_info_card.dart';
 import '../widgets/guest_timed_guard.dart';
 
@@ -107,7 +108,9 @@ class _GelisimEtkinlikleriPageState extends State<GelisimEtkinlikleriPage> {
       _error = null;
     });
     try {
-      final list = await loadGelisimEtkinlikleri(includeInactive: _isAdmin);
+      final list = await withNetworkTimeout(
+        loadGelisimEtkinlikleri(includeInactive: _isAdmin),
+      );
       if (!mounted) return;
       setState(() {
         _all = list;
@@ -120,7 +123,9 @@ class _GelisimEtkinlikleriPageState extends State<GelisimEtkinlikleriPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = '$e';
+        _error = e is NetworkTimeoutException
+            ? e.message
+            : 'Etkinlikler yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.';
         _loading = false;
       });
     }
@@ -321,10 +326,23 @@ class _GelisimEtkinlikleriPageState extends State<GelisimEtkinlikleriPage> {
                     ? Center(
                         child: Padding(
                           padding: const EdgeInsets.all(24),
-                          child: Text(
-                            _error!,
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.nunito(color: MetoColors.mutedFg),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _error!,
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.nunito(
+                                  color: MetoColors.mutedFg,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              FilledButton.icon(
+                                onPressed: _reload,
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Tekrar dene'),
+                              ),
+                            ],
                           ),
                         ),
                       )

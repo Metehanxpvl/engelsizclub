@@ -14,6 +14,7 @@ import '../forum_post_follow_store.dart';
 import '../forum_store.dart';
 import '../content_view_store.dart';
 import '../meto_theme.dart';
+import '../utils/async_timeout.dart';
 import '../services/catalog_adapters.dart';
 import '../services/image_optimize_service.dart';
 import '../services/r2_storage_service.dart';
@@ -99,6 +100,7 @@ class ForumPageState extends State<ForumPage> {
   String _uzmanMeslek = uzmanMeslekler.first;
   bool _koseYazisi = false;
   bool _loading = true;
+  String? _loadError;
   bool _publishing = false;
   bool _commentSending = false;
   bool _commentAnon = false;
@@ -325,35 +327,50 @@ class ForumPageState extends State<ForumPage> {
   }
 
   Future<void> _loadPosts() async {
-    setState(() => _loading = true);
-    unawaited(loadBlockedEmails());
-    final posts = await loadForumPosts();
-    final photos = await loadUserPhotosByEmail(
-      posts.where((p) => !p.isAnonymous).map((p) => p.ownerEmail),
-    );
-    final enriched = [
-      for (final p in posts)
-        p.copyWith(
-          avatar: resolveAvatar(
-            storedAvatar: p.avatar,
-            ownerEmail: p.ownerEmail,
-            photosByEmail: photos,
-            ownPhoto: widget.profilFoto,
-            ownEmail: widget.userEmail,
-            anonymous: p.isAnonymous,
-          ),
-        ),
-    ];
-    if (!mounted) return;
     setState(() {
-      _cloudPosts = enriched;
-      _loading = false;
-      if (_selectedPost != null) {
-        final updated =
-            enriched.where((p) => p.id == _selectedPost!.id).firstOrNull;
-        if (updated != null) _selectedPost = updated;
-      }
+      _loading = true;
+      _loadError = null;
     });
+    try {
+      unawaited(loadBlockedEmails());
+      final posts = await withNetworkTimeout(loadForumPosts());
+      final photos = await withNetworkTimeout(
+        loadUserPhotosByEmail(
+          posts.where((p) => !p.isAnonymous).map((p) => p.ownerEmail),
+        ),
+      );
+      final enriched = [
+        for (final p in posts)
+          p.copyWith(
+            avatar: resolveAvatar(
+              storedAvatar: p.avatar,
+              ownerEmail: p.ownerEmail,
+              photosByEmail: photos,
+              ownPhoto: widget.profilFoto,
+              ownEmail: widget.userEmail,
+              anonymous: p.isAnonymous,
+            ),
+          ),
+      ];
+      if (!mounted) return;
+      setState(() {
+        _cloudPosts = enriched;
+        _loading = false;
+        if (_selectedPost != null) {
+          final updated =
+              enriched.where((p) => p.id == _selectedPost!.id).firstOrNull;
+          if (updated != null) _selectedPost = updated;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e is NetworkTimeoutException
+            ? e.message
+            : 'Forum gönderileri yüklenemedi.';
+        _loading = false;
+      });
+    }
   }
 
   Future<List<ForumComment>> _enrichComments(List<ForumComment> comments) async {
@@ -1510,6 +1527,28 @@ class ForumPageState extends State<ForumPage> {
                 padding: EdgeInsets.symmetric(vertical: 80),
                 child: Center(
                   child: CircularProgressIndicator(color: MetoColors.primary),
+                ),
+              )
+            else if (_loadError != null && filtered.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+                child: Column(
+                  children: [
+                    Text(
+                      _loadError!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: MetoColors.mutedFg,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: _loadPosts,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Tekrar dene'),
+                    ),
+                  ],
                 ),
               )
             else if (filtered.isEmpty)

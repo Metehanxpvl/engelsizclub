@@ -12,6 +12,7 @@ import 'kredi_store.dart';
 import 'meto_theme.dart';
 import 'services/broadcast_push_service.dart';
 import 'user_cloud_store.dart';
+import 'utils/async_timeout.dart';
 import 'utils/price_format.dart';
 import 'widgets/user_avatar.dart';
 
@@ -432,10 +433,12 @@ Future<bool> _loadFromLocalCache() async {
 /// Tüm kullanıcıların ilanlarını Supabase'den yükler (ortak feed).
 Future<void> loadAllIlanlar({String? preferEmail}) async {
   try {
-    final rows = await Supabase.instance.client
-        .from('ilanlar')
-        .select()
-        .order('created_at', ascending: false);
+    final rows = await withNetworkTimeout(
+      Supabase.instance.client
+          .from('ilanlar')
+          .select()
+          .order('created_at', ascending: false),
+    );
     final list = (rows as List)
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))

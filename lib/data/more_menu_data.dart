@@ -12,6 +12,17 @@ class MoreMenuItem {
     required this.isBuiltin,
   });
 
+  /// Uygulama içi route kimlikleri (`link_type: route`).
+  static const builtinRoutes = <String>{
+    'aile_kocu',
+    'haklar',
+    'kartlar',
+    'mchat',
+    'cvi',
+    'cvi2',
+    'gelisim',
+  };
+
   final int id;
   final String title;
   final String subtitle;
@@ -23,8 +34,13 @@ class MoreMenuItem {
   final bool isActive;
   final bool isBuiltin;
 
-  bool get isUrl => linkType == 'url';
-  bool get isRoute => linkType == 'route';
+  /// Normalize edilmiş route kimliği (url değilse).
+  String? get routeKey => normalizeMoreMenuRoute(link);
+
+  bool get isKnownRoute => routeKey != null;
+
+  bool get isUrl => !isKnownRoute && linkType == 'url';
+  bool get isRoute => isKnownRoute || linkType == 'route';
 
   MoreMenuItem copyWith({
     int? id,
@@ -51,12 +67,18 @@ class MoreMenuItem {
   }
 
   factory MoreMenuItem.fromJson(Map<String, dynamic> json) {
+    final rawLink = json['link']?.toString() ?? '';
+    final route = normalizeMoreMenuRoute(rawLink);
+    var linkType =
+        (json['link_type']?.toString() ?? 'url').trim().toLowerCase();
+    if (route != null) linkType = 'route';
+
     return MoreMenuItem(
       id: (json['id'] as num?)?.toInt() ?? 0,
       title: json['title']?.toString() ?? '',
       subtitle: json['subtitle']?.toString() ?? '',
-      linkType: (json['link_type']?.toString() ?? 'url').trim().toLowerCase(),
-      link: json['link']?.toString() ?? '',
+      linkType: linkType,
+      link: route ?? rawLink.trim(),
       icon: json['icon']?.toString() ?? 'link',
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
       isActive: json['is_active'] != false,
@@ -78,6 +100,16 @@ class MoreMenuItem {
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
   }
+}
+
+/// `cvi2`, `/cvi2`, `route:cvi2` → `cvi2` (bilinmeyen route ise null).
+String? normalizeMoreMenuRoute(String raw) {
+  var s = raw.trim().toLowerCase();
+  if (s.isEmpty) return null;
+  if (s.startsWith('route:')) s = s.substring(6).trim();
+  if (s.startsWith('/')) s = s.substring(1);
+  if (s.contains('://') || s.contains('.')) return null;
+  return MoreMenuItem.builtinRoutes.contains(s) ? s : null;
 }
 
 /// DB yoksa / hata olursa kullanılan varsayılan menü.
@@ -134,6 +166,17 @@ List<MoreMenuItem> defaultMoreMenuItems() => const [
         link: 'cvi',
         icon: 'eye',
         sortOrder: 50,
+        isActive: true,
+        isBuiltin: true,
+      ),
+      MoreMenuItem(
+        id: -7,
+        title: 'CVI Egzersizleri-2',
+        subtitle: 'Yıldızlar · Meyveler · Arabalar — Görsel Keşif',
+        linkType: 'url',
+        link: '/bilgi-kutuphanesi/cvi-egzersizleri-2',
+        icon: 'eye',
+        sortOrder: 55,
         isActive: true,
         isBuiltin: true,
       ),

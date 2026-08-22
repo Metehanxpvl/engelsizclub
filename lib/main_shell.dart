@@ -32,6 +32,7 @@ import 'l10n/app_strings.dart';
 import 'l10n/locale_controller.dart';
 import 'medical_disclaimer_store.dart';
 import 'meto_theme.dart';
+import 'cvi/cvi2_entry.dart';
 import 'cvi/cvi_entry.dart';
 import 'aile_kocu/aile_kocu_entry.dart';
 import 'mchat/mchat_entry.dart';
@@ -652,7 +653,7 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _moreMenuLeading(MoreMenuItem item) {
-    if (item.icon == 'eye' || item.link == 'cvi') {
+    if (item.icon == 'eye' || item.link == 'cvi' || item.link == 'cvi2') {
       return SvgPicture.asset(
         'assets/cvi/eye_icon.svg',
         width: 22,
@@ -699,13 +700,16 @@ class _MainShellState extends State<MainShell> {
   }
 
   Future<void> _openMoreMenuItem(MoreMenuItem item) async {
+    final route = item.routeKey;
+    final link = route ?? item.link.trim();
+
     final extraApp = item.isUrl ||
-        item.link == 'aile_kocu' ||
-        item.link == 'gelisim' ||
-        item.link.startsWith('http') ||
-        item.link.startsWith('/');
-    if (_isGuest && extraApp && item.link != 'haklar' && item.link != 'kartlar' &&
-        item.link != 'mchat' && item.link != 'cvi') {
+        link == 'aile_kocu' ||
+        link == 'gelisim' ||
+        link.startsWith('http') ||
+        link.startsWith('/');
+    if (_isGuest && extraApp && link != 'haklar' && link != 'kartlar' &&
+        link != 'mchat' && link != 'cvi' && link != 'cvi2') {
       final ok = await GuestLimitStore.allowTimedTab('daha_fazlasi');
       if (!ok) {
         if (mounted) {
@@ -746,7 +750,7 @@ class _MainShellState extends State<MainShell> {
       return;
     }
 
-    switch (item.link) {
+    switch (route ?? link) {
       case 'aile_kocu':
         await openAileKocu(
           context,
@@ -780,6 +784,15 @@ class _MainShellState extends State<MainShell> {
           ),
         );
         return;
+      case 'cvi2':
+        await openCvi2Flow(
+          context,
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(
+            'CVI Egzersizleri-2 için giriş yapmanız veya üye olmanız gerekiyor.',
+          ),
+        );
+        return;
       case 'gelisim':
         await GelisimEtkinlikleriPage.open(
           context,
@@ -791,6 +804,13 @@ class _MainShellState extends State<MainShell> {
         );
         return;
       default:
+        final recovered = normalizeMoreMenuRoute(item.link);
+        if (recovered != null && recovered != (route ?? link)) {
+          await _openMoreMenuItem(
+            item.copyWith(link: recovered, linkType: 'route'),
+          );
+          return;
+        }
         if (item.link.startsWith('http') || item.link.startsWith('/')) {
           await InAppWebPage.open(
             context,

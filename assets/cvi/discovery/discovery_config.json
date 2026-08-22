@@ -1,0 +1,98 @@
+{
+  "version": "1.1.0",
+  "title": "CVI Egzersizleri-2",
+  "categories": [
+    {
+      "id": "stars",
+      "label": "YILDIZ & AY",
+      "buttonColor": "#FFEA00",
+      "textColor": "#000000",
+      "sound": "pop",
+      "items": [
+        {
+          "asset": "assets/cvi/discovery/cvi_star_yellow.png",
+          "label": "Sarı Yıldız"
+        },
+        {
+          "asset": "assets/cvi/discovery/cvi_moon_white.png",
+          "label": "Ay"
+        }
+      ]
+    },
+    {
+      "id": "fruits",
+      "label": "MEYVELER",
+      "buttonColor": "#FF1744",
+      "textColor": "#FFFFFF",
+      "sound": "pop",
+      "items": [
+        {
+          "asset": "assets/cvi/discovery/cvi_fruit_strawberry.png",
+          "label": "Çilek"
+        },
+        {
+          "asset": "assets/cvi/discovery/cvi_fruit_banana.png",
+          "label": "Muz"
+        },
+        {
+          "asset": "assets/cvi/discovery/cvi_fruit_apple.png",
+          "label": "Elma"
+        },
+        {
+          "asset": "assets/cvi/discovery/cvi_fruit_watermelon.png",
+          "label": "Karpuz"
+        }
+      ]
+    },
+    {
+      "id": "cars",
+      "label": "ARABALAR",
+      "buttonColor": "#2979FF",
+      "textColor": "#FFFFFF",
+      "sound": "motor",
+      "items": [
+        {
+          "asset": "assets/cvi/discovery/cvi_car_red.png",
+          "label": "Kırmızı Araba"
+        },
+        {
+          "asset": "assets/cvi/discovery/cvi_car_blue.png",
+          "label": "Mavi Araba"
+        },
+        {
+          "asset": "assets/cvi/discovery/cvi_car_truck.png",
+          "label": "Kamyon"
+        },
+        {
+          "asset": "assets/cvi/discovery/cvi_car_excavator.png",
+          "label": "Kepçe"
+        }
+      ]
+    },
+    {
+      "id": "clothes",
+      "label": "KIYAFETLER",
+      "buttonColor": "#00E676",
+      "textColor": "#000000",
+      "sound": "pop",
+      "items": [
+        {
+          "asset": "assets/cvi/discovery/cvi_cloth_tshirt.png",
+          "label": "Tişört"
+        },
+        {
+          "asset": "assets/cvi/discovery/cvi_cloth_pants.png",
+          "label": "Pantolon"
+        },
+        {
+          "asset": "assets/cvi/discovery/cvi_cloth_hat.png",
+          "label": "Şapka"
+        },
+        {
+          "asset": "assets/cvi/discovery/cvi_cloth_socks.png",
+          "label": "Çorap"
+        }
+      ]
+    }
+  ]
+}

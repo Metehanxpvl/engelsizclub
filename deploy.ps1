@@ -11,6 +11,21 @@ Write-Host "==> flutter build web --release" -ForegroundColor Cyan
 flutter build web --release
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+# Statik bilgi kutuphanesi sayfalari (Flutter build bazen alt klasorleri atlayabilir)
+Write-Host "==> Sync bilgi-kutuphanesi static pages" -ForegroundColor Cyan
+$staticRoots = @(
+  "web\bilgi-kutuphanesi\cvi-egzersizleri-2",
+  "web\bilgi-kutuphanesi\0-2-yas-gelisim-rehberi",
+  "web\bilgi-kutuphanesi\cvi-gorsel-egzersizler"
+)
+foreach ($src in $staticRoots) {
+  if (Test-Path $src) {
+    $dest = Join-Path "build\web" ($src -replace '^web\\', '')
+    New-Item -ItemType Directory -Force -Path $dest | Out-Null
+    Copy-Item -Recurse -Force "$src\*" $dest
+  }
+}
+
 Write-Host "==> firebase deploy --only hosting" -ForegroundColor Cyan
 firebase deploy --only hosting
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_config.dart';
 import 'data/gelisim_etkinlik_data.dart';
+import 'utils/async_timeout.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -24,7 +25,9 @@ Future<List<GelisimEtkinlik>> loadGelisimEtkinlikleri({
     if (!includeInactive) {
       q = q.eq('is_active', true);
     }
-    final rows = await q.order('sort_order').order('id');
+    final rows = await withNetworkTimeout(
+      q.order('sort_order').order('id'),
+    );
     return [
       for (final r in rows) GelisimEtkinlik.fromJson(Map<String, dynamic>.from(r as Map)),
     ];

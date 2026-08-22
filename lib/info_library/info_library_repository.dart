@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../admin_config.dart';
+import '../utils/async_timeout.dart';
 import 'models/info_content.dart';
 
 /// Supabase `info_library_contents` okuma / admin yazma.
@@ -116,10 +117,12 @@ class InfoLibraryRepository {
       if (!includeInactive || !isAppAdmin(viewerEmail)) {
         q = q.eq('is_active', true);
       }
-      final rows = await q
-          .order('sort_order', ascending: true)
-          .order('created_at', ascending: false)
-          .limit(100);
+      final rows = await withNetworkTimeout(
+        q
+            .order('sort_order', ascending: true)
+            .order('created_at', ascending: false)
+            .limit(100),
+      );
 
       final list = [
         for (final e in (rows as List).whereType<Map>())

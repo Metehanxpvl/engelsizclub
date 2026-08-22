@@ -32,6 +32,9 @@ class GoogleAuthService {
   static Completer<AuthResponse?>? _mobileWait;
   static bool _listening = false;
 
+  /// Şifre sıfırlama deep link'i auth dinleyicisi hazır olmadan işlendiyse true.
+  static bool pendingPasswordRecovery = false;
+
   static firebase_auth.FirebaseAuth get _firebaseAuth {
     if (Firebase.apps.isEmpty) {
       throw StateError(
@@ -165,6 +168,36 @@ class GoogleAuthService {
     return out;
   }
 
+  static bool _isSupabaseAuthDeepLink(Map<String, String> params) {
+    if (params['type'] == 'recovery') return true;
+    if (params.containsKey('code')) return true;
+    if (params.containsKey('error') || params.containsKey('error_description')) {
+      return true;
+    }
+    // Google köprüsü id_token taşır; yalnızca Supabase oturum jetonu → magic link / recovery.
+    if (params.containsKey('access_token') && !params.containsKey('id_token')) {
+      return true;
+    }
+    return false;
+  }
+
+  static Future<void> _handleSupabaseAuthDeepLink(Uri uri) async {
+    try {
+      await closeInAppWebView();
+    } catch (_) {}
+    final params = _paramsFromUri(uri);
+    try {
+      await Supabase.instance.client.auth.getSessionFromUrl(uri);
+      if (params['type'] == 'recovery') {
+        pendingPasswordRecovery = true;
+      }
+    } on AuthException catch (e) {
+      debugPrint('Supabase auth deep link failed: ${e.message}');
+    } catch (e, st) {
+      debugPrint('Supabase auth deep link failed: $e\n$st');
+    }
+  }
+
   static Future<void> handleMobileAuthDeepLink(Uri uri) async {
     if (uri.scheme != 'io.supabase.engelsizclub') return;
     final host = uri.host;
@@ -175,6 +208,10 @@ class GoogleAuthService {
     }
 
     final params = _paramsFromUri(uri);
+    if (_isSupabaseAuthDeepLink(params)) {
+      await _handleSupabaseAuthDeepLink(uri);
+      return;
+    }
     if (params['cancelled'] == '1') {
       if (_mobileWait != null && !_mobileWait!.isCompleted) {
         _mobileWait!.complete(null);

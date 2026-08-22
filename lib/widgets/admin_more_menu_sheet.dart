@@ -621,7 +621,7 @@ class _MoreMenuEditSheetState extends State<_MoreMenuEditSheet> {
               decoration: InputDecoration(
                 labelText: _linkType == 'url'
                     ? 'Link (https://… veya /bilgi-kutuphanesi/…)'
-                    : 'Route (aile_kocu, haklar, kartlar, mchat, cvi, gelisim)',
+                    : 'Route (aile_kocu, haklar, kartlar, mchat, cvi, cvi2, gelisim)',
                 border: const OutlineInputBorder(),
               ),
             ),

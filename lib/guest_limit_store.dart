@@ -16,6 +16,7 @@ class GuestLimitStore {
   static const _mchatStartKey = 'guest_tab_start_mchat_v1';
   static const _dahaStartKey = 'guest_tab_start_daha_fazlasi_v2';
   static const _cviStartKey = 'guest_tab_start_cvi_v2';
+  static const _cvi2StartKey = 'guest_tab_start_cvi2_v1';
   static const _legacyKeys = <String>[
     'guest_tab_start_haklar_v1',
     'guest_tab_start_kartlar_v1',
@@ -27,6 +28,7 @@ class GuestLimitStore {
         'mchat' => _mchatStartKey,
         'daha_fazlasi' => _dahaStartKey,
         'cvi' => _cviStartKey,
+        'cvi2' => _cvi2StartKey,
         _ => 'guest_tab_start_${tab}_v2',
       };
 
@@ -88,6 +90,7 @@ class GuestLimitStore {
     await prefs.remove(_mchatStartKey);
     await prefs.remove(_dahaStartKey);
     await prefs.remove(_cviStartKey);
+    await prefs.remove(_cvi2StartKey);
     for (final k in _legacyKeys) {
       await prefs.remove(k);
     }
@@ -102,6 +105,7 @@ class GuestLimitStore {
     await prefs.remove(_mchatStartKey);
     await prefs.remove(_dahaStartKey);
     await prefs.remove(_cviStartKey);
+    await prefs.remove(_cvi2StartKey);
     for (final k in _legacyKeys) {
       await prefs.remove(k);
     }

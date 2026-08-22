@@ -24,6 +24,12 @@
     "aktif": 1
   },
   {
+    "id": 6,
+    "isim": "CVI Egzersizleri-2",
+    "link": "/bilgi-kutuphanesi/cvi-egzersizleri-2",
+    "aktif": 1
+  },
+  {
     "id": 5,
     "isim": "Fotoğraflı Puzzle",
     "link": "/fotografli-puzzle.html",

@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../utils/async_timeout.dart';
+
 /// Dinamik katalog paket adları (Supabase app_catalog_versions.name).
 abstract final class CatalogPack {
   static const settings = 'settings';
@@ -101,7 +103,9 @@ class AppCatalogService extends ChangeNotifier {
       // 1) Ucuz sürüm tablosu
       Map<String, int> remoteVersions = {};
       try {
-        final rows = await client.from('app_catalog_versions').select();
+        final rows = await withNetworkTimeout(
+          client.from('app_catalog_versions').select(),
+        );
         for (final raw in (rows as List)) {
           if (raw is! Map) continue;
           final name = raw['name']?.toString() ?? '';
@@ -151,7 +155,9 @@ class AppCatalogService extends ChangeNotifier {
     try {
       switch (pack) {
         case CatalogPack.settings:
-          final rows = await client.from('app_settings').select();
+          final rows = await withNetworkTimeout(
+            client.from('app_settings').select(),
+          );
           final entries = <MapEntry<String, Map<String, dynamic>>>[];
           for (final raw in (rows as List).whereType<Map>()) {
             final key = raw['key']?.toString() ?? '';
@@ -164,47 +170,57 @@ class AppCatalogService extends ChangeNotifier {
           return true;
 
         case CatalogPack.categories:
-          final rows = await client
-              .from('app_categories')
-              .select()
-              .eq('active', true)
-              .order('sort_order');
+          final rows = await withNetworkTimeout(
+            client
+                .from('app_categories')
+                .select()
+                .eq('active', true)
+                .order('sort_order'),
+          );
           _lists[pack] = _asMaps(rows);
           return true;
 
         case CatalogPack.content:
-          final rows = await client
-              .from('app_content')
-              .select()
-              .eq('active', true)
-              .order('sort_order');
+          final rows = await withNetworkTimeout(
+            client
+                .from('app_content')
+                .select()
+                .eq('active', true)
+                .order('sort_order'),
+          );
           _lists[pack] = _asMaps(rows);
           return true;
 
         case CatalogPack.rights:
-          final rows = await client
-              .from('app_rights')
-              .select()
-              .eq('active', true)
-              .order('sort_order');
+          final rows = await withNetworkTimeout(
+            client
+                .from('app_rights')
+                .select()
+                .eq('active', true)
+                .order('sort_order'),
+          );
           _lists[pack] = _asMaps(rows);
           return true;
 
         case CatalogPack.centers:
-          final rows = await client
-              .from('app_centers')
-              .select()
-              .eq('active', true)
-              .limit(2000);
+          final rows = await withNetworkTimeout(
+            client
+                .from('app_centers')
+                .select()
+                .eq('active', true)
+                .limit(2000),
+          );
           _lists[pack] = _asMaps(rows);
           return true;
 
         case CatalogPack.diseases:
-          final rows = await client
-              .from('app_diseases')
-              .select()
-              .eq('active', true)
-              .order('sort_order');
+          final rows = await withNetworkTimeout(
+            client
+                .from('app_diseases')
+                .select()
+                .eq('active', true)
+                .order('sort_order'),
+          );
           _lists[pack] = _asMaps(rows);
           return true;
       }

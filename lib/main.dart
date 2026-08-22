@@ -31,7 +31,9 @@ import 'pages/legal_document_page.dart';
 import 'services/app_catalog_service.dart';
 import 'services/force_update_service.dart';
 import 'services/push_notification_service.dart';
+import 'utils/async_timeout.dart';
 import 'widgets/force_update_gate.dart';
+import 'widgets/loading_error_view.dart';
 
 export 'meto_theme.dart';
 
@@ -122,16 +124,19 @@ Future<User?> _finalizePendingGoogleRoleImpl(User user) async {
   if (isNewRole || existingType == pending) {
     final name = meta['name'] ?? meta['full_name'];
     try {
-      await Supabase.instance.client.auth.updateUser(
-        UserAttributes(
-          data: {
-            ...meta,
-            if (name is String && name.trim().isNotEmpty) 'name': name.trim(),
-            'user_type': pending,
-            if (pending == 'bakici') 'uzmanlik': 'Bakıcı',
-            if (isNewRole) 'welcome_credits': kMemberStartKredi,
-          },
+      await withNetworkTimeout(
+        Supabase.instance.client.auth.updateUser(
+          UserAttributes(
+            data: {
+              ...meta,
+              if (name is String && name.trim().isNotEmpty) 'name': name.trim(),
+              'user_type': pending,
+              if (pending == 'bakici') 'uzmanlik': 'Bakıcı',
+              if (isNewRole) 'welcome_credits': kMemberStartKredi,
+            },
+          ),
         ),
+        message: 'Rol kaydı zaman aşımına uğradı.',
       );
     } catch (e, st) {
       debugPrint('Google rol metadata yazılamadı: $e\n$st');
@@ -189,14 +194,19 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    await Supabase.initialize(
-      url: 'https://qycrkqwqrysypvqaipqn.supabase.co',
-      anonKey: 'sb_publishable_N7UfnXDF97YsuDTsFTq9zQ_lhnNtMgF',
-      authOptions: FlutterAuthClientOptions(
-        authFlowType: AuthFlowType.pkce,
-        // Web: şifre sıfırlama linki URL oturumu. Mobil Google deep link çakışmasın.
-        detectSessionInUri: kIsWeb,
+    await withNetworkTimeout(
+      Supabase.initialize(
+        url: 'https://qycrkqwqrysypvqaipqn.supabase.co',
+        anonKey: 'sb_publishable_N7UfnXDF97YsuDTsFTq9zQ_lhnNtMgF',
+        authOptions: const FlutterAuthClientOptions(
+          authFlowType: AuthFlowType.pkce,
+          // Oturum URL’si _bootstrapAuth içinde dinleyici hazır olduktan sonra işlenir
+          // (şifre sıfırlama + mobil deep link; Google OAuth ayrı akış).
+          detectSessionInUri: false,
+        ),
       ),
+      timeout: kBootstrapTimeout,
+      message: 'Sunucu bağlantısı zaman aşımına uğradı.',
     );
   } catch (e, st) {
     debugPrint('Supabase init failed: $e\n$st');
@@ -210,9 +220,16 @@ Future<void> main() async {
 
   try {
     // Dinamik katalog: diskten yükle + arka planda Supabase sync (kota dostu)
-    await AppCatalogService.instance.bootstrap();
+    await withNetworkTimeout(
+      AppCatalogService.instance.bootstrap(),
+      timeout: kBootstrapTimeout,
+    );
   } catch (e, st) {
     debugPrint('Catalog bootstrap failed: $e\n$st');
+    // Diskten yüklemeyi yine de dene — ağ yavaşsa uygulama açılsın
+    try {
+      await AppCatalogService.instance.bootstrap();
+    } catch (_) {}
   }
 
   SystemChrome.setSystemUIOverlayStyle(
@@ -235,13 +252,30 @@ class MetoCareApp extends StatefulWidget {
 class _MetoCareAppState extends State<MetoCareApp> {
   AuthUser? _user;
   bool _booting = true;
+  bool _bootTimedOut = false;
   bool _needsPasswordReset = false;
   StreamSubscription<AuthState>? _authSub;
+  Timer? _bootWatchdog;
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+
+  void _finishBooting({bool timedOut = false}) {
+    if (!mounted || !_booting) return;
+    _bootWatchdog?.cancel();
+    setState(() {
+      _booting = false;
+      if (timedOut) _bootTimedOut = true;
+    });
+  }
 
   @override
   void initState() {
     super.initState();
+    _bootWatchdog = Timer(kBootstrapTimeout, () {
+      if (_booting) {
+        debugPrint('Auth bootstrap watchdog fired');
+        _finishBooting(timedOut: true);
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(bootstrapAileKocuReminders());
       unawaited(ForceUpdateService.instance.check());
@@ -253,13 +287,13 @@ class _MetoCareAppState extends State<MetoCareApp> {
       unawaited(LocaleController.instance.ensureLoaded());
       unawaited(ContentTranslator.instance.ensureLoaded());
       unawaited(AdminCatalogExtras.instance.ensureLoaded());
-      _restoreSession();
       _authSub =
           Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
         if (data.event == AuthChangeEvent.passwordRecovery) {
           if (!mounted) return;
           setState(() {
             _needsPasswordReset = true;
+            _user = null;
             _booting = false;
           });
           return;
@@ -282,7 +316,10 @@ class _MetoCareAppState extends State<MetoCareApp> {
         }
         try {
           final pendingRole = await readPendingGoogleRole();
-          final user = await finalizePendingGoogleRole(session.user);
+          final user = await withNetworkTimeout(
+            finalizePendingGoogleRole(session.user),
+            timeout: kBootstrapTimeout,
+          );
           if (!mounted) return;
           if (user == null) {
             // Oturum varsa giriş ekranına zorla düşürme
@@ -306,6 +343,7 @@ class _MetoCareAppState extends State<MetoCareApp> {
           setState(() {
             _user = safe;
             _booting = false;
+            _bootTimedOut = false;
           });
           if (notice != null && notice.isNotEmpty) {
             _messengerKey.currentState
@@ -317,12 +355,18 @@ class _MetoCareAppState extends State<MetoCareApp> {
           // (Google girişinden sonra "başa atma" bug'ı).
           final still = Supabase.instance.client.auth.currentSession;
           if (still == null) {
-            setState(() => _user = null);
+            setState(() {
+              _user = null;
+              _booting = false;
+            });
           } else if (_user == null) {
             setState(() {
               _user = authUserFromSupabase(still.user);
               _booting = false;
+              _bootTimedOut = false;
             });
+          } else {
+            _finishBooting();
           }
           final msg = e is StateError ? e.message : 'Google giriş başarısız.';
           _messengerKey.currentState
@@ -331,15 +375,87 @@ class _MetoCareAppState extends State<MetoCareApp> {
       });
     } catch (e, st) {
       debugPrint('Auth bootstrap failed: $e\n$st');
-      if (mounted) setState(() => _booting = false);
+      _finishBooting();
+    }
+    unawaited(_bootstrapAuth());
+  }
+
+  bool _urlIndicatesPasswordRecovery() {
+    return _supabaseAuthParams()['type'] == 'recovery';
+  }
+
+  Map<String, String> _supabaseAuthParams() {
+    final uri = kIsWeb ? Uri.base : Uri();
+    final params = <String, String>{...uri.queryParameters};
+    if (uri.fragment.isNotEmpty) {
+      params.addAll(Uri.splitQueryString(uri.fragment));
+    }
+    return params;
+  }
+
+  bool _urlHasSupabaseAuthCallback() {
+    if (!kIsWeb) return false;
+    final params = _supabaseAuthParams();
+    return params.containsKey('access_token') ||
+        params.containsKey('code') ||
+        params['type'] == 'recovery' ||
+        params.containsKey('error');
+  }
+
+  Future<void> _bootstrapAuth() async {
+    try {
+      await withNetworkTimeout(
+        _bootstrapAuthImpl(),
+        timeout: kBootstrapTimeout,
+        message: 'Oturum doğrulama zaman aşımına uğradı.',
+      );
+    } catch (e, st) {
+      debugPrint('Auth bootstrap timeout/error: $e\n$st');
+    } finally {
+      _finishBooting(timedOut: _booting);
     }
   }
 
+  Future<void> _bootstrapAuthImpl() async {
+    if (kIsWeb && _urlHasSupabaseAuthCallback()) {
+      try {
+        await withNetworkTimeout(
+          Supabase.instance.client.auth.getSessionFromUrl(Uri.base),
+        );
+        await Future<void>.delayed(Duration.zero);
+        if (_needsPasswordReset) return;
+      } on AuthException catch (e) {
+        debugPrint('Web auth URL failed: ${e.message}');
+      } catch (e, st) {
+        debugPrint('Web auth URL failed: $e\n$st');
+      }
+    }
+
+    if (GoogleAuthService.pendingPasswordRecovery ||
+        _urlIndicatesPasswordRecovery()) {
+      GoogleAuthService.pendingPasswordRecovery = false;
+      if (mounted) {
+        setState(() {
+          _needsPasswordReset = true;
+          _user = null;
+          _booting = false;
+          _bootTimedOut = false;
+        });
+      }
+      return;
+    }
+    await _restoreSession();
+  }
+
   Future<void> _restoreSession() async {
+    if (_needsPasswordReset) return;
     try {
       // Firebase redirect dönüşü (popup engellendiğinde)
       final pendingBefore = await readPendingGoogleRole();
-      final redirected = await GoogleAuthService.completeRedirectIfAny();
+      final redirected = await withNetworkTimeout(
+        GoogleAuthService.completeRedirectIfAny(),
+        timeout: kBootstrapTimeout,
+      );
       if (redirected?.user != null) {
         final user = await finalizePendingGoogleRole(redirected!.user!);
         if (mounted) {
@@ -360,6 +476,7 @@ class _MetoCareAppState extends State<MetoCareApp> {
           setState(() {
             _user = safe;
             _booting = false;
+            _bootTimedOut = false;
           });
           if (notice != null && notice.isNotEmpty) {
             _messengerKey.currentState
@@ -375,12 +492,20 @@ class _MetoCareAppState extends State<MetoCareApp> {
 
     final session = Supabase.instance.client.auth.currentSession;
     if (session == null) {
-      if (mounted) setState(() => _booting = false);
+      if (mounted) {
+        setState(() {
+          _booting = false;
+          _bootTimedOut = false;
+        });
+      }
       return;
     }
     try {
       final pendingRole = await readPendingGoogleRole();
-      final user = await finalizePendingGoogleRole(session.user);
+      final user = await withNetworkTimeout(
+        finalizePendingGoogleRole(session.user),
+        timeout: kBootstrapTimeout,
+      );
       if (mounted) {
         final notice = googleAuthNotice;
         googleAuthNotice = null;
@@ -396,6 +521,7 @@ class _MetoCareAppState extends State<MetoCareApp> {
         setState(() {
           _user = safe;
           _booting = false;
+          _bootTimedOut = false;
         });
         if (notice != null && notice.isNotEmpty) {
           _messengerKey.currentState
@@ -414,6 +540,7 @@ class _MetoCareAppState extends State<MetoCareApp> {
                   fallbackUserType: pendingRole,
                 );
           _booting = false;
+          _bootTimedOut = false;
         });
       }
     }
@@ -426,8 +553,21 @@ class _MetoCareAppState extends State<MetoCareApp> {
 
   @override
   void dispose() {
+    _bootWatchdog?.cancel();
     _authSub?.cancel();
     super.dispose();
+  }
+
+  void _retryBootstrap() {
+    setState(() {
+      _booting = true;
+      _bootTimedOut = false;
+    });
+    _bootWatchdog?.cancel();
+    _bootWatchdog = Timer(kBootstrapTimeout, () {
+      if (_booting) _finishBooting(timedOut: true);
+    });
+    unawaited(_bootstrapAuth());
   }
 
   @override
@@ -466,8 +606,11 @@ class _MetoCareAppState extends State<MetoCareApp> {
             );
           },
           home: _booting
-              ? const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
+              ? Scaffold(
+                  body: LoadingErrorView(
+                    loading: true,
+                    loadingMessage: 'Uygulama hazırlanıyor…',
+                  ),
                 )
               : _needsPasswordReset
                   ? _NewPasswordScreen(
@@ -490,6 +633,8 @@ class _MetoCareAppState extends State<MetoCareApp> {
                     )
                   : _user == null
                       ? AuthScreen(
+                          bootTimedOut: _bootTimedOut,
+                          onRetryBootstrap: _retryBootstrap,
                           onLogin: (u) async {
                             if (u.isGuest) {
                               await GuestLimitStore
@@ -498,7 +643,10 @@ class _MetoCareAppState extends State<MetoCareApp> {
                               await GuestLimitStore.clearAll();
                             }
                             if (!mounted) return;
-                            setState(() => _user = u);
+                            setState(() {
+                              _user = u;
+                              _bootTimedOut = false;
+                            });
                           },
                         )
                       : MainShell(
@@ -686,9 +834,16 @@ class _NewPasswordScreenState extends State<_NewPasswordScreen> {
 
 /// Birebir Flutter port of Figma Make `AuthScreen`.
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key, this.onLogin});
+  const AuthScreen({
+    super.key,
+    this.onLogin,
+    this.bootTimedOut = false,
+    this.onRetryBootstrap,
+  });
 
   final void Function(AuthUser user)? onLogin;
+  final bool bootTimedOut;
+  final VoidCallback? onRetryBootstrap;
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -849,9 +1004,11 @@ class _AuthScreenState extends State<AuthScreen> {
       _step = 'loading';
     });
     try {
-      final res = await Supabase.instance.client.auth.signInWithPassword(
-        email: email,
-        password: password,
+      final res = await withNetworkTimeout(
+        Supabase.instance.client.auth.signInWithPassword(
+          email: email,
+          password: password,
+        ),
       );
       final user = res.user;
       if (user == null) {
@@ -935,10 +1092,14 @@ class _AuthScreenState extends State<AuthScreen> {
       return;
     }
     try {
-      await Supabase.instance.client.auth.resetPasswordForEmail(
-        email,
-        // Web’de link oturumu yakalanır; mobil kullanıcı da siteye yönlenir.
-        redirectTo: 'https://engelsizclub.com',
+      await withNetworkTimeout(
+        Supabase.instance.client.auth.resetPasswordForEmail(
+          email,
+          // Web: oturum URL’den yakalanır. Mobil: uygulama deep link’ine döner.
+          redirectTo: kIsWeb
+              ? Uri.base.origin
+              : GoogleAuthService.mobileRedirect,
+        ),
       );
       _snack(
         'Sıfırlama bağlantısı gönderildi. E-postanızı kontrol edin '
@@ -977,7 +1138,9 @@ class _AuthScreenState extends State<AuthScreen> {
         return;
       }
 
-      final finalized = await finalizePendingGoogleRole(user);
+      final finalized = await withNetworkTimeout(
+        finalizePendingGoogleRole(user),
+      );
       if (finalized == null) {
         throw StateError('Google oturumu tamamlanamadı.');
       }
@@ -1064,7 +1227,9 @@ class _AuthScreenState extends State<AuthScreen> {
         return;
       }
 
-      final finalized = await finalizePendingGoogleRole(user);
+      final finalized = await withNetworkTimeout(
+        finalizePendingGoogleRole(user),
+      );
       if (finalized == null) {
         throw StateError('Apple oturumu tamamlanamadı.');
       }
@@ -1230,18 +1395,20 @@ class _AuthScreenState extends State<AuthScreen> {
       _step = 'loading';
     });
     try {
-      final res = await Supabase.instance.client.auth.signUp(
-        email: email,
-        password: _kayitSifre,
-        emailRedirectTo: kIsWeb ? Uri.base.origin : null,
-        data: {
-          'name': name,
-          'user_type': tip,
-          if (tip == 'uzman' && _kayitUzmanlik != null)
-            'uzmanlik': _kayitUzmanlik,
-          if (tip == 'bakici') 'uzmanlik': 'Bakıcı',
-          'welcome_credits': kMemberStartKredi,
-        },
+      final res = await withNetworkTimeout(
+        Supabase.instance.client.auth.signUp(
+          email: email,
+          password: _kayitSifre,
+          emailRedirectTo: kIsWeb ? Uri.base.origin : null,
+          data: {
+            'name': name,
+            'user_type': tip,
+            if (tip == 'uzman' && _kayitUzmanlik != null)
+              'uzmanlik': _kayitUzmanlik,
+            if (tip == 'bakici') 'uzmanlik': 'Bakıcı',
+            'welcome_credits': kMemberStartKredi,
+          },
+        ),
       );
       final user = res.user;
       if (user == null) {
@@ -1318,16 +1485,20 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       AuthResponse res;
       try {
-        res = await Supabase.instance.client.auth.verifyOTP(
-          type: OtpType.signup,
-          email: email,
-          token: token,
+        res = await withNetworkTimeout(
+          Supabase.instance.client.auth.verifyOTP(
+            type: OtpType.signup,
+            email: email,
+            token: token,
+          ),
         );
       } catch (_) {
-        res = await Supabase.instance.client.auth.verifyOTP(
-          type: OtpType.email,
-          email: email,
-          token: token,
+        res = await withNetworkTimeout(
+          Supabase.instance.client.auth.verifyOTP(
+            type: OtpType.email,
+            email: email,
+            token: token,
+          ),
         );
       }
       final user = res.user;
@@ -1410,65 +1581,124 @@ class _AuthScreenState extends State<AuthScreen> {
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 560),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: MediaQuery.sizeOf(context).height - pad.vertical,
-                  child: switch (_step) {
-                    'splash' => _SplashStep(
-                        onStart: _goToSignIn,
-                        onGuest: () => widget.onLogin?.call(AuthUser.guest),
+                child: Column(
+                  children: [
+                    if (widget.bootTimedOut)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: Material(
+                          color: MetoColors.muted,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const L10nText(
+                                  'Sunucuya bağlanırken gecikme yaşandı. '
+                                  'Misafir olarak devam edebilir veya tekrar deneyebilirsiniz.',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: MetoColors.foreground,
+                                    height: 1.35,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    if (widget.onRetryBootstrap != null)
+                                      TextButton(
+                                        onPressed: widget.onRetryBootstrap,
+                                        child: const L10nText('Tekrar dene'),
+                                      ),
+                                    const Spacer(),
+                                    FilledButton(
+                                      onPressed: () =>
+                                          widget.onLogin?.call(AuthUser.guest),
+                                      child: const L10nText('Misafir devam'),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
-                    'loading' => const _LoadingStep(),
-                    'verify_email' => _VerifyEmailStep(
-                        email: _verifyEmail,
-                        code: _verifyCode,
-                        loading: _verifyLoading,
-                        resendLoading: _resendLoading,
-                        onCode: (v) => setState(() => _verifyCode = v),
-                        onVerify: _verifyEmailCode,
-                        onResend: _resendVerifyCode,
-                        onBack: _backFromVerify,
-                      ),
-                    _ => _SignInStep(
-                        authTab: _authTab,
-                        onTab: (t) => setState(() => _authTab = t),
-                        girisHesapTip: _girisHesapTip,
-                        onGirisHesapTip: (v) =>
-                            setState(() => _girisHesapTip = v),
-                        girisEmail: _girisEmail,
-                        girisSifre: _girisSifre,
-                        girisLoading: _girisLoading,
-                        onGirisEmail: (v) => setState(() => _girisEmail = v),
-                        onGirisSifre: (v) => setState(() => _girisSifre = v),
-                        onSignIn: _signIn,
-                        onForgotPassword: _forgotPassword,
-                        onGoogleSignIn: _signInWithGoogle,
-                        onAppleSignIn: _signInWithApple,
-                        onGuest: () => widget.onLogin?.call(AuthUser.guest),
-                        roleTourKey: _roleTourKey,
-                        googleTourKey: _googleTourKey,
-                        showTourFinger: _authTourActive,
-                        onSkipTour: _skipAuthTour,
-                        kayitAd: _kayitAd,
-                        kayitEmail: _kayitEmail,
-                        kayitSifre: _kayitSifre,
-                        kayitSifre2: _kayitSifre2,
-                        kayitTip: _kayitTip,
-                        kayitUzmanlik: _kayitUzmanlik,
-                        kayitSozlesme: _kayitSozlesme,
-                        kayitLoading: _kayitLoading,
-                        onKayitAd: (v) => setState(() => _kayitAd = v),
-                        onKayitEmail: (v) => setState(() => _kayitEmail = v),
-                        onKayitSifre: (v) => setState(() => _kayitSifre = v),
-                        onKayitSifre2: (v) => setState(() => _kayitSifre2 = v),
-                        onKayitTip: (v) => setState(() => _kayitTip = v),
-                        onKayitUzmanlik: (v) =>
-                            setState(() => _kayitUzmanlik = v),
-                        onKayitSozlesme: () =>
-                            setState(() => _kayitSozlesme = !_kayitSozlesme),
-                        onCreateAccount: _createAccount,
-                      ),
-                  },
+                    Expanded(
+                      child: switch (_step) {
+                        'splash' => _SplashStep(
+                            onStart: _goToSignIn,
+                            onGuest: () =>
+                                widget.onLogin?.call(AuthUser.guest),
+                          ),
+                        'loading' => _LoadingStep(
+                            onCancel: () {
+                              setState(() {
+                                _step = 'signin';
+                                _girisLoading = false;
+                                _kayitLoading = false;
+                              });
+                            },
+                          ),
+                        'verify_email' => _VerifyEmailStep(
+                            email: _verifyEmail,
+                            code: _verifyCode,
+                            loading: _verifyLoading,
+                            resendLoading: _resendLoading,
+                            onCode: (v) => setState(() => _verifyCode = v),
+                            onVerify: _verifyEmailCode,
+                            onResend: _resendVerifyCode,
+                            onBack: _backFromVerify,
+                          ),
+                        _ => _SignInStep(
+                            authTab: _authTab,
+                            onTab: (t) => setState(() => _authTab = t),
+                            girisHesapTip: _girisHesapTip,
+                            onGirisHesapTip: (v) =>
+                                setState(() => _girisHesapTip = v),
+                            girisEmail: _girisEmail,
+                            girisSifre: _girisSifre,
+                            girisLoading: _girisLoading,
+                            onGirisEmail: (v) =>
+                                setState(() => _girisEmail = v),
+                            onGirisSifre: (v) =>
+                                setState(() => _girisSifre = v),
+                            onSignIn: _signIn,
+                            onForgotPassword: _forgotPassword,
+                            onGoogleSignIn: _signInWithGoogle,
+                            onAppleSignIn: _signInWithApple,
+                            onGuest: () =>
+                                widget.onLogin?.call(AuthUser.guest),
+                            roleTourKey: _roleTourKey,
+                            googleTourKey: _googleTourKey,
+                            showTourFinger: _authTourActive,
+                            onSkipTour: _skipAuthTour,
+                            kayitAd: _kayitAd,
+                            kayitEmail: _kayitEmail,
+                            kayitSifre: _kayitSifre,
+                            kayitSifre2: _kayitSifre2,
+                            kayitTip: _kayitTip,
+                            kayitUzmanlik: _kayitUzmanlik,
+                            kayitSozlesme: _kayitSozlesme,
+                            kayitLoading: _kayitLoading,
+                            onKayitAd: (v) => setState(() => _kayitAd = v),
+                            onKayitEmail: (v) =>
+                                setState(() => _kayitEmail = v),
+                            onKayitSifre: (v) =>
+                                setState(() => _kayitSifre = v),
+                            onKayitSifre2: (v) =>
+                                setState(() => _kayitSifre2 = v),
+                            onKayitTip: (v) => setState(() => _kayitTip = v),
+                            onKayitUzmanlik: (v) =>
+                                setState(() => _kayitUzmanlik = v),
+                            onKayitSozlesme: () => setState(
+                                () => _kayitSozlesme = !_kayitSozlesme),
+                            onCreateAccount: _createAccount,
+                          ),
+                      },
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -2604,7 +2834,9 @@ class _AppleSignInButton extends StatelessWidget {
 }
 
 class _LoadingStep extends StatefulWidget {
-  const _LoadingStep();
+  const _LoadingStep({this.onCancel});
+
+  final VoidCallback? onCancel;
 
   @override
   State<_LoadingStep> createState() => _LoadingStepState();
@@ -2613,6 +2845,8 @@ class _LoadingStep extends StatefulWidget {
 class _LoadingStepState extends State<_LoadingStep>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c;
+  Timer? _slowTimer;
+  bool _showCancel = false;
 
   @override
   void initState() {
@@ -2621,10 +2855,14 @@ class _LoadingStepState extends State<_LoadingStep>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     )..repeat();
+    _slowTimer = Timer(kNetworkTimeout, () {
+      if (mounted) setState(() => _showCancel = true);
+    });
   }
 
   @override
   void dispose() {
+    _slowTimer?.cancel();
     _c.dispose();
     super.dispose();
   }
@@ -2653,18 +2891,21 @@ class _LoadingStepState extends State<_LoadingStep>
             child: const _EngelsizLogo(),
           ),
           const SizedBox(height: 20),
-          const L10nText(
-            'Giriş yapılıyor…',
-            style: TextStyle(
+          L10nText(
+            _showCancel ? 'Bağlantı bekleniyor…' : 'Giriş yapılıyor…',
+            style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
               color: MetoColors.foreground,
             ),
           ),
           const SizedBox(height: 4),
-          const L10nText(
-            'Hesabınız doğrulanıyor',
-            style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
+          L10nText(
+            _showCancel
+                ? 'Sunucu yanıt vermiyor. Biraz daha bekleyin veya iptal edin.'
+                : 'Hesabınız doğrulanıyor',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 14, color: MetoColors.mutedFg),
           ),
           const SizedBox(height: 20),
           AnimatedBuilder(
@@ -2689,6 +2930,13 @@ class _LoadingStepState extends State<_LoadingStep>
               );
             },
           ),
+          if (_showCancel && widget.onCancel != null) ...[
+            const SizedBox(height: 20),
+            TextButton(
+              onPressed: widget.onCancel,
+              child: const L10nText('İptal et ve geri dön'),
+            ),
+          ],
         ],
       ),
     );

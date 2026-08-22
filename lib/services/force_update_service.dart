@@ -6,9 +6,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'app_catalog_service.dart';
+import '../utils/async_timeout.dart';
 
 /// pubspec `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
-const kAppBuildNumber = 82;
+const kAppBuildNumber = 84;
 
 /// Mağazadaki zorunlu / yeni sürüm. Web'de kapalı.
 class ForceUpdateService extends ChangeNotifier {
@@ -118,11 +119,13 @@ class ForceUpdateService extends ChangeNotifier {
 
   Future<Map<String, dynamic>?> _fetchConfig() async {
     try {
-      final row = await Supabase.instance.client
-          .from('app_settings')
-          .select('value')
-          .eq('key', 'force_update')
-          .maybeSingle();
+      final row = await withNetworkTimeout(
+        Supabase.instance.client
+            .from('app_settings')
+            .select('value')
+            .eq('key', 'force_update')
+            .maybeSingle(),
+      );
       final parsed = _asMap(row?['value']);
       if (parsed != null) return parsed;
     } catch (e) {

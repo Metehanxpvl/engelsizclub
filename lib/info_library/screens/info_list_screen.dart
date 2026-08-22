@@ -5,6 +5,7 @@ import '../../admin_config.dart';
 import '../../medical_disclaimer_store.dart';
 import '../../meto_theme.dart';
 import '../../widgets/medical_info_card.dart';
+import '../../utils/async_timeout.dart';
 import '../info_library_repository.dart';
 import '../models/info_content.dart';
 import '../widgets/info_youtube_player.dart';
@@ -48,10 +49,12 @@ class _InfoListScreenState extends State<InfoListScreen> {
       _error = null;
     });
     try {
-      final list = await InfoLibraryRepository.instance.fetchByCategory(
-        widget.category,
-        viewerEmail: widget.adminEmail,
-        includeInactive: _isAdmin,
+      final list = await withNetworkTimeout(
+        InfoLibraryRepository.instance.fetchByCategory(
+          widget.category,
+          viewerEmail: widget.adminEmail,
+          includeInactive: _isAdmin,
+        ),
       );
       if (!mounted) return;
       setState(() {
@@ -61,7 +64,9 @@ class _InfoListScreenState extends State<InfoListScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = e is NetworkTimeoutException
+            ? e.message
+            : 'İçerikler yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.';
         _loading = false;
       });
     }
