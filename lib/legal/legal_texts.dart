@@ -120,7 +120,7 @@ Engelsiz Club, bildirilen uygunsuz içerikleri makul sürede (hedef: 24 saat iç
 
 5. İlanlar, teklifler ve ödemeler
 
-İlan ve teklifler kullanıcılar arasındadır. Engelsiz Club, taraflar arasında aracı kurum veya işveren değildir. Uygulama içi puan / teklif paketleri dijital hizmet bedelidir; ilgili mağaza (Google Play / App Store) kuralları ve iade politikaları geçerlidir.
+İlan ve teklifler kullanıcılar arasındadır. Engelsiz Club, taraflar arasında aracı kurum veya işveren değildir. Uygulama içi puan / teklif paketleri dijital hizmet bedelidir; ilgili uygulama mağazasının kuralları ve iade politikaları geçerlidir.
 
 6. Fikri mülkiyet
 
@@ -156,7 +156,7 @@ Hizmeti sunmak için işleyebileceğimiz veriler:
 • Hesap: ad-soyad, e-posta, hesap türü (aile / uzman / bakıcı), profil bilgileri.
 • İçerik: ilanlar, forum gönderileri, mesajlar, yüklenen görseller.
 • Teknik: cihaz / oturum bilgileri, çökme günlükleri, push bildirim belirteçleri.
-• Ödeme (mobil): satın alma işlemi mağaza (Google Play / App Store) üzerinden yürür; kart bilgileriniz bizde saklanmaz.
+• Ödeme (mobil): satın alma işlemi uygulama mağazası üzerinden yürür; kart bilgileriniz bizde saklanmaz.
 
 3. İşleme amaçları
 

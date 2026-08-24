@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -72,9 +73,14 @@ class _HomeSocialFooterState extends State<HomeSocialFooter> {
   Widget build(BuildContext context) {
     if (_loading) return const SizedBox(height: 24);
 
+    final isIosApp =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
     final hasApp = _cfg.appStoreUrl.trim().isNotEmpty;
     final hasPlay = _cfg.playStoreUrl.trim().isNotEmpty;
-    final showStores = hasApp || hasPlay || _isAdmin;
+    // iOS incelemesi: Google Play rozeti Guideline 2.3.10 ihlali.
+    final showPlay = !isIosApp && (hasPlay || _isAdmin);
+    final showApp = !isIosApp && (hasApp || _isAdmin);
+    final showStores = showApp || showPlay;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -138,7 +144,7 @@ class _HomeSocialFooterState extends State<HomeSocialFooter> {
             const SizedBox(height: 10),
             Row(
               children: [
-                if (hasApp || _isAdmin)
+                if (showApp)
                   Expanded(
                     child: _StoreBadge(
                       assetPng: 'assets/images/badge_app_store.png',
@@ -146,9 +152,9 @@ class _HomeSocialFooterState extends State<HomeSocialFooter> {
                       onTap: () => _open(_cfg.appStoreUrl),
                     ),
                   ),
-                if ((hasApp || _isAdmin) && (hasPlay || _isAdmin))
+                if (showApp && showPlay)
                   const SizedBox(width: 10),
-                if (hasPlay || _isAdmin)
+                if (showPlay)
                   Expanded(
                     child: _StoreBadge(
                       assetPng: 'assets/images/badge_google_play.png',
@@ -369,15 +375,18 @@ class _SocialLinksEditSheetState extends State<_SocialLinksEditSheet> {
                 ),
               ),
               const SizedBox(height: 10),
-              TextField(
-                controller: _play,
-                decoration: const InputDecoration(
-                  labelText: 'Google Play URL',
-                  hintText: 'https://play.google.com/store/apps/...',
-                  border: OutlineInputBorder(),
+              if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) ...[
+                TextField(
+                  controller: _play,
+                  decoration: const InputDecoration(
+                    labelText: 'Google Play URL',
+                    hintText: 'https://play.google.com/store/apps/...',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
+              ] else
+                const SizedBox(height: 16),
               FilledButton(
                 onPressed: _saving ? null : _save,
                 style: FilledButton.styleFrom(

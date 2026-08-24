@@ -68,14 +68,15 @@ class ContentTranslator extends ChangeNotifier {
     if (t.isEmpty) return text;
     final to = targetCode;
 
-    // Hedef TR: Türkçe kaynak aynen; İngilizce görünen UGC → tr
+    // Hedef TR: Türkçe kaynak aynen; İngilizce kaynak / İngilizce görünen UGC → tr
     if (LocaleController.instance.lang == AppLang.tr) {
-      if (from == 'tr' && _looksEnglish(t) && !_looksTurkish(t)) {
-        final hit = _mem[_cacheKey(t, 'en', 'tr')];
-        if (hit != null) return hit;
-        prefetch(t, from: 'en');
-        return text;
-      }
+      final sourceLang = (from != 'tr')
+          ? from
+          : (_looksEnglish(t) && !_looksTurkish(t) ? 'en' : 'tr');
+      if (sourceLang == 'tr') return text;
+      final hit = _mem[_cacheKey(t, sourceLang, 'tr')];
+      if (hit != null) return hit;
+      prefetch(t, from: sourceLang);
       return text;
     }
 
@@ -100,7 +101,7 @@ class ContentTranslator extends ChangeNotifier {
 
   static bool _looksEnglish(String s) {
     return RegExp(
-      r'\b(the|and|for|with|from|looking|needed|caregiver|specialist|expert|second[\s-]?hand|listings?|sale|buy|sell|cleaning|equipment|medical|other|all)\b',
+      r'\b(the|and|for|with|from|of|in|looking|needed|caregiver|specialist|expert|second[\s-]?hand|listings?|sale|buy|sell|cleaning|equipment|medical|other|all|study|trial|review|children|child|autism|treatment|therapy|clinical|patients?|disorder|syndrome|effect|randomized|intervention|developmental|outcomes?|analysis|among|between)\b',
       caseSensitive: false,
     ).hasMatch(s);
   }
@@ -119,10 +120,12 @@ class ContentTranslator extends ChangeNotifier {
     _inflight++;
     try {
       final out = await _fetch(t, from: from, to: target);
-      _mem[key] = out;
-      unawaited(_persist());
-      notifyListeners();
-      return out;
+      if (out.isNotEmpty && out != t) {
+        _mem[key] = out;
+        unawaited(_persist());
+        notifyListeners();
+      }
+      return out.isNotEmpty ? out : text;
     } finally {
       _inflight--;
     }
@@ -201,7 +204,30 @@ class ContentTranslator extends ChangeNotifier {
       .trim();
 
   Future<String> _fetch(String t, {required String from, required String to}) async {
-    // 1) Google (anahtarsız gtx)
+    // 1) clients5 (gtx sık 429 verir; bu uç CORS açık)
+    try {
+      final r = await http.get(Uri.parse(
+        'https://clients5.google.com/translate_a/t'
+        '?client=dict-chrome-ex&sl=$from&tl=$to&q=${Uri.encodeComponent(t)}',
+      ));
+      if (r.statusCode == 200) {
+        final data = jsonDecode(r.body);
+        String? out;
+        if (data is String) {
+          out = data.trim();
+        } else if (data is List && data.isNotEmpty) {
+          final first = data[0];
+          if (first is String) {
+            out = first.trim();
+          } else if (first is List && first.isNotEmpty) {
+            out = first[0]?.toString().trim();
+          }
+        }
+        if (out != null && out.isNotEmpty) return out;
+      }
+    } catch (_) {}
+
+    // 2) Google gtx
     try {
       final r = await http.get(Uri.parse(
         'https://translate.googleapis.com/translate_a/single'
@@ -219,7 +245,7 @@ class ContentTranslator extends ChangeNotifier {
       }
     } catch (_) {}
 
-    // 2) MyMemory
+    // 3) MyMemory
     try {
       final q = t.length > 480 ? '${t.substring(0, 480)}…' : t;
       final r = await http.get(Uri.parse(

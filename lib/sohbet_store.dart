@@ -116,19 +116,22 @@ Future<SohbetMesaj> sendSohbetMesaj({
   final text = body.trim();
   if (text.isEmpty) throw StateError('Boş mesaj gönderilemez.');
 
-  final row = await client
-      .from('sohbet_mesajlari')
-      .insert({
-        'sohbet_key': sohbetKeyFor(myEmail, peer),
-        'sender_email': myEmail,
-        'sender_id': user.id,
-        'receiver_email': peer,
-        'body': text,
-        // read_at null → alıcı için okunmadı
-      })
-      .select()
-      .single();
-  return SohbetMesaj.fromJson(Map<String, dynamic>.from(row));
+  final now = DateTime.now();
+  await client.from('sohbet_mesajlari').insert({
+    'sohbet_key': sohbetKeyFor(myEmail, peer),
+    'sender_email': myEmail,
+    'sender_id': user.id,
+    'receiver_email': peer,
+    'body': text,
+  });
+  return SohbetMesaj(
+    id: 0,
+    sohbetKey: sohbetKeyFor(myEmail, peer),
+    senderEmail: myEmail,
+    receiverEmail: peer,
+    body: text,
+    createdAt: now,
+  );
 }
 
 /// Sohbetteki bana gelen okunmamış mesajları okundu işaretler.

@@ -581,11 +581,13 @@ class _DuyuruImage extends StatelessWidget {
     required this.source,
     this.width,
     this.height,
+    this.fit = BoxFit.cover,
   });
 
   final String source;
   final double? width;
   final double? height;
+  final BoxFit fit;
 
   @override
   Widget build(BuildContext context) {
@@ -608,28 +610,27 @@ class _DuyuruImage extends StatelessWidget {
     final cacheW = width != null ? (width! * dpr).round() : null;
     final cacheH = height != null ? (height! * dpr).round() : null;
 
+    Widget image;
     if (src.startsWith('data:image')) {
       final bytes = _cachedDataImageBytes(src);
       if (bytes == null) return fallback();
-      return Image.memory(
+      image = Image.memory(
         bytes,
         width: width,
         height: height,
-        fit: BoxFit.cover,
+        fit: fit,
         gaplessPlayback: true,
         filterQuality: FilterQuality.medium,
         cacheWidth: cacheW,
         cacheHeight: cacheH,
         errorBuilder: (_, __, ___) => fallback(),
       );
-    }
-
-    if (src.startsWith('http://') || src.startsWith('https://')) {
-      return Image.network(
+    } else if (src.startsWith('http://') || src.startsWith('https://')) {
+      image = Image.network(
         src,
         width: width,
         height: height,
-        fit: BoxFit.cover,
+        fit: fit,
         gaplessPlayback: true,
         filterQuality: FilterQuality.medium,
         cacheWidth: cacheW,
@@ -643,16 +644,21 @@ class _DuyuruImage extends StatelessWidget {
         },
         errorBuilder: (_, __, ___) => fallback(),
       );
+    } else {
+      image = Image.asset(
+        src,
+        width: width,
+        height: height,
+        fit: fit,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => fallback(),
+      );
     }
 
-    return Image.asset(
-      src,
-      width: width,
-      height: height,
-      fit: BoxFit.cover,
-      gaplessPlayback: true,
-      errorBuilder: (_, __, ___) => fallback(),
-    );
+    if (fit == BoxFit.contain) {
+      return ColoredBox(color: MetoColors.card, child: image);
+    }
+    return image;
   }
 }
 
@@ -998,10 +1004,9 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
   }
 
   Widget _storyCard(BuildContext context, DuyuruItem pageItem) {
-    final title = pageItem.title.trim();
     final body = pageItem.body.trim();
     final ig = pageItem.isInstagramEmbed;
-    final hasText = !ig && (title.isNotEmpty || body.isNotEmpty);
+    final hasBody = !ig && body.isNotEmpty;
     final screenH = MediaQuery.sizeOf(context).height;
 
     return ConstrainedBox(
@@ -1011,9 +1016,7 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
       ),
       child: Container(
         margin: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-        height: ig
-            ? screenH * 0.88
-            : (hasText ? screenH * 0.85 : screenH * 0.55),
+        height: screenH * 0.88,
         decoration: BoxDecoration(
           color: MetoColors.card,
           borderRadius: BorderRadius.circular(20),
@@ -1081,43 +1084,11 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
             : Column(
                 children: [
                   Expanded(
-                    flex: hasText ? 5 : 1,
-                    child: _fullscreenImageStack(pageItem.imageUrl),
-                  ),
-                  if (hasText)
-                    Expanded(
-                      flex: 5,
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (title.isNotEmpty)
-                              Text(
-                                title,
-                                style: GoogleFonts.nunito(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w800,
-                                  color: MetoColors.foreground,
-                                  height: 1.25,
-                                ),
-                              ),
-                            if (title.isNotEmpty && body.isNotEmpty)
-                              const SizedBox(height: 12),
-                            if (body.isNotEmpty)
-                              Text(
-                                body,
-                                style: GoogleFonts.nunito(
-                                  fontSize: 14,
-                                  height: 1.5,
-                                  color: MetoColors.mutedFg,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
+                    child: _fullscreenImageStack(
+                      pageItem.imageUrl,
+                      description: hasBody ? body : '',
                     ),
+                  ),
                   if (pageItem.hasSource)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -1144,23 +1115,25 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
                           ),
                         ),
                       ),
-                    )
-                  else if (hasText)
-                    const SizedBox(height: 8),
+                    ),
                 ],
               ),
       ),
     );
   }
 
-  Widget _fullscreenImageStack(String imageUrl) {
+  Widget _fullscreenImageStack(
+    String imageUrl, {
+    String description = '',
+  }) {
+    final caption = description.trim();
     return Stack(
       fit: StackFit.expand,
       children: [
         GestureDetector(
           onVerticalDragUpdate: _onVerticalDragUpdate,
           onVerticalDragEnd: _onVerticalDragEnd,
-          child: _DuyuruImage(source: imageUrl),
+          child: _DuyuruImage(source: imageUrl, fit: BoxFit.contain),
         ),
         Positioned(
           top: 8,
@@ -1209,6 +1182,41 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
             ],
           ),
         ),
+        if (caption.isNotEmpty)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.78),
+                  ],
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 40, 16, 40),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 180),
+                  child: SingleChildScrollView(
+                    child: Text(
+                      caption,
+                      style: GoogleFonts.nunito(
+                        fontSize: 15,
+                        height: 1.4,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         Positioned(
           left: 12,
           bottom: 10,
@@ -1272,9 +1280,8 @@ class _DuyuruPopupDialogState extends State<_DuyuruPopupDialog> {
   Widget build(BuildContext context) {
     final h = MediaQuery.sizeOf(context).height * 0.5;
     final item = widget.item;
-    final title = item.title.trim();
     final body = item.body.trim();
-    final hasText = title.isNotEmpty || body.isNotEmpty;
+    final hasBody = body.isNotEmpty;
 
     return Center(
       child: Material(
@@ -1298,60 +1305,43 @@ class _DuyuruPopupDialogState extends State<_DuyuruPopupDialog> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              if (!hasText)
-                Positioned.fill(
-                  child: _DuyuruImage(source: item.imageUrl),
-                )
-              else
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      flex: body.isEmpty && title.isNotEmpty ? 7 : 5,
-                      child: SizedBox.expand(
-                        child: _DuyuruImage(source: item.imageUrl),
+              Positioned.fill(
+                child: _DuyuruImage(
+                  source: item.imageUrl,
+                  fit: BoxFit.contain,
+                ),
+              ),
+              if (hasBody)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.78),
+                        ],
                       ),
                     ),
-                    if (hasText)
-                      Expanded(
-                        flex: 5,
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (title.isNotEmpty)
-                                Text(
-                                  title,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.nunito(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: MetoColors.foreground,
-                                  ),
-                                ),
-                              if (title.isNotEmpty && body.isNotEmpty)
-                                const SizedBox(height: 8),
-                              if (body.isNotEmpty)
-                                Expanded(
-                                  child: SingleChildScrollView(
-                                    child: Text(
-                                      body,
-                                      style: GoogleFonts.nunito(
-                                        fontSize: 13.5,
-                                        height: 1.45,
-                                        color: MetoColors.mutedFg,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
+                      child: Text(
+                        body,
+                        maxLines: 6,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.nunito(
+                          fontSize: 13.5,
+                          height: 1.4,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
                         ),
                       ),
-                  ],
+                    ),
+                  ),
                 ),
               Positioned(
                 top: 8,
@@ -1811,6 +1801,10 @@ class _AdminDuyuruSheetState extends State<_AdminDuyuruSheet> {
                 maxLength: 40,
                 decoration: InputDecoration(
                   labelText: S.auto('Kısa liste başlığı'),
+                  helperText: S.auto(
+                    'Dairesel listede görünür. Tam ekranda resim büyür.',
+                  ),
+                  helperMaxLines: 2,
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -1822,6 +1816,10 @@ class _AdminDuyuruSheetState extends State<_AdminDuyuruSheet> {
                 maxLines: 8,
                 decoration: InputDecoration(
                   labelText: S.auto('Tam ekran detay metni'),
+                  helperText: S.auto(
+                    'Yazarsanız resmin üzerinde açıklama olarak görünür.',
+                  ),
+                  helperMaxLines: 2,
                   alignLabelWithHint: true,
                   border: OutlineInputBorder(),
                 ),

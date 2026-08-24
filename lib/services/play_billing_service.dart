@@ -5,7 +5,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 
 import 'google_play_availability.dart';
 
-/// Google Play: `point_*` · App Store Connect: `puan_*`
+/// Google Play: `point_*` · App Store Connect: `puan_*` (eski: `point_*` / `kredi_*`)
 abstract final class StoreProductIds {
   static const androidPoint1 = 'point_1';
   static const androidPoint5 = 'point_5';
@@ -24,6 +24,7 @@ abstract final class StoreProductIds {
   static bool get _isIos =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
+  /// iOS incelemesinde ASC’de `point_*` veya `puan_*` hangisi varsa bulunsun.
   static Set<String> get all => _isIos
       ? {
           iosPuan1,
@@ -32,6 +33,18 @@ abstract final class StoreProductIds {
           iosPuan30,
           iosPuan50,
           iosPuan100,
+          androidPoint1,
+          androidPoint5,
+          androidPoint10,
+          androidPoint30,
+          androidPoint50,
+          androidPoint100,
+          'kredi_1',
+          'kredi_5',
+          'kredi_10',
+          'kredi_30',
+          'kredi_50',
+          'kredi_100',
         }
       : {
           androidPoint1,
@@ -42,19 +55,17 @@ abstract final class StoreProductIds {
           androidPoint100,
         };
 
-  static String? forAdet(int adet) {
-    if (_isIos) {
-      return switch (adet) {
-        1 => iosPuan1,
-        5 => iosPuan5,
-        10 => iosPuan10,
-        30 => iosPuan30,
-        50 => iosPuan50,
-        100 => iosPuan100,
-        _ => null,
-      };
-    }
-    return switch (adet) {
+  static List<String> candidatesForAdet(int adet) {
+    final puan = switch (adet) {
+      1 => iosPuan1,
+      5 => iosPuan5,
+      10 => iosPuan10,
+      30 => iosPuan30,
+      50 => iosPuan50,
+      100 => iosPuan100,
+      _ => null,
+    };
+    final point = switch (adet) {
       1 => androidPoint1,
       5 => androidPoint5,
       10 => androidPoint10,
@@ -63,6 +74,25 @@ abstract final class StoreProductIds {
       100 => androidPoint100,
       _ => null,
     };
+    if (_isIos) {
+      return [
+        if (puan != null) puan,
+        if (point != null) point,
+        if (adet == 1 ||
+            adet == 5 ||
+            adet == 10 ||
+            adet == 30 ||
+            adet == 50 ||
+            adet == 100)
+          'kredi_$adet',
+      ];
+    }
+    return [if (point != null) point];
+  }
+
+  static String? forAdet(int adet) {
+    final list = candidatesForAdet(adet);
+    return list.isEmpty ? null : list.first;
   }
 
   static int? adetForProduct(String id) => switch (id) {
@@ -78,7 +108,7 @@ abstract final class StoreProductIds {
 
   /// Mağaza kurulumu hata mesajları için.
   static String get configuredIdsHint => _isIos
-      ? 'puan_1, puan_5, puan_10, puan_30, puan_50, puan_100'
+      ? 'puan_1 veya point_1 … puan_100 / point_100'
       : 'point_1, point_5, point_10, point_30, point_50, point_100';
 }
 
@@ -120,8 +150,7 @@ class StoreBillingService {
       return 'Ödeme Google Play üzerinden alınır. Google, payınıza düşen tutarı '
           'Play Console’daki banka hesabınıza yatırır.';
     }
-    return 'Ödeme yalnızca Android (Google Play) veya iOS (App Store) '
-        'uygulamasında yapılır. Mağaza, payınıza düşen tutarı hesabınıza yatırır.';
+    return 'Ödeme uygulama mağazası üzerinden alınır. Mağaza, payınıza düşen tutarı hesabınıza yatırır.';
   }
 
   Future<void> init({
@@ -215,14 +244,24 @@ class StoreBillingService {
       if (!playOk) return false;
     }
     try {
-      final id = StoreProductIds.forAdet(adet);
-      if (id == null) return false;
-      var product = _products[id];
+      final candidates = StoreProductIds.candidatesForAdet(adet);
+      if (candidates.isEmpty) return false;
+      ProductDetails? product;
+      for (final id in candidates) {
+        product = _products[id];
+        if (product != null) break;
+      }
       if (product == null) {
-        final resp = await _iap.queryProductDetails({id});
+        final resp = await _iap.queryProductDetails(candidates.toSet());
         if (resp.productDetails.isEmpty) return false;
-        product = resp.productDetails.first;
-        _products[id] = product;
+        for (final p in resp.productDetails) {
+          _products[p.id] = p;
+        }
+        for (final id in candidates) {
+          product = _products[id];
+          if (product != null) break;
+        }
+        product ??= resp.productDetails.first;
       }
       final param = PurchaseParam(productDetails: product);
       return _iap.buyConsumable(
@@ -237,9 +276,11 @@ class StoreBillingService {
 
   /// Play / App Store’dan gelen güncel fiyat metni (yoksa null).
   String? storePriceForAdet(int adet) {
-    final id = StoreProductIds.forAdet(adet);
-    if (id == null) return null;
-    return _products[id]?.price;
+    for (final id in StoreProductIds.candidatesForAdet(adet)) {
+      final price = _products[id]?.price;
+      if (price != null && price.isNotEmpty) return price;
+    }
+    return null;
   }
 }
 

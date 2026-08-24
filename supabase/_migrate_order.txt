@@ -33,6 +33,7 @@ kredi_odemeleri.sql
 sohbet_mesajlari.sql
 sohbet_mesajlari_read.sql
 sohbet_mesajlari_delete.sql
+teklif_rls_fix.sql
 duyurular.sql
 duyurular_is_active.sql
 duyurular_is_popup.sql

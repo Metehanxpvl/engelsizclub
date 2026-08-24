@@ -104,6 +104,7 @@ Future<bool> notifyIlanSahibiTeklif({
   String? ilanTitle,
   String kind = 'uzman',
   String listingCategory = kIlanCatUzmanAriyorum,
+  String? userType,
 }) async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
@@ -117,7 +118,7 @@ Future<bool> notifyIlanSahibiTeklif({
   }
   if (!canOfferOnIlan(
     kind: kind,
-    userType: currentAuthUserType(),
+    userType: userType ?? currentAuthUserType(),
     email: user.email,
     listingCategory: listingCategory,
   )) {
@@ -160,7 +161,10 @@ Future<bool> notifyIlanSahibiTeklif({
   final chatBody =
       'Merhaba, $forIlan için teklif verdim. Görüşmek isterim.';
 
-  // Önce bildirim kaydı (unique index / çift tıklama koruması)
+  try {
+    await client.auth.refreshSession();
+  } catch (_) {}
+
   try {
     await client.from('bildirimler').insert({
       'owner_email': owner,
@@ -174,12 +178,10 @@ Future<bool> notifyIlanSahibiTeklif({
       'read': false,
     });
   } on PostgrestException catch (e) {
-    // unique_violation — paralel tıklamada ikinci insert
     if (e.code == '23505') return false;
-    rethrow;
-  }
+    // Bildirim RLS keserse sohbet yine açılsın.
+  } catch (_) {}
 
-  // Sohbete otomatik teklif mesajı (bildirim başarılıysa bir kez)
   await sendSohbetMesaj(
     peerEmail: owner,
     body: chatBody,

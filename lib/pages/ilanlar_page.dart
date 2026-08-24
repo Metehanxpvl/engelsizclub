@@ -1302,6 +1302,7 @@ class IlanlarPageState extends State<IlanlarPage> {
           ilanTitle: k.ilanTitle,
           kind: kind,
           listingCategory: _uzmanListingCategory(k.ilanId),
+          userType: _normalizedRole,
         );
         if (k.ilanId != null) {
           await markTeklifVerildi(
@@ -1386,6 +1387,7 @@ class IlanlarPageState extends State<IlanlarPage> {
         ilanTitle: k.ilanTitle,
         kind: kind,
         listingCategory: listingCategory,
+        userType: _normalizedRole,
       );
       if (k.ilanId != null) {
         await markTeklifVerildi(email: widget.userEmail, ilanId: k.ilanId!);
@@ -1422,11 +1424,14 @@ class IlanlarPageState extends State<IlanlarPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            e.toString().contains('bildirimler') ||
-                    e.toString().contains('sohbet_mesajlari') ||
-                    e.toString().contains('schema cache')
-                ? 'Teklif iletilemedi. Supabase SQL dosyalarını çalıştırın.'
-                : 'Teklif iletilemedi: $e',
+            e.toString().contains('42501') ||
+                    e.toString().toLowerCase().contains('row-level security')
+                ? 'Teklif iletilemedi. Çıkış yapıp tekrar giriş yapın ve yeniden deneyin.'
+                : e.toString().contains('bildirimler') ||
+                        e.toString().contains('sohbet_mesajlari') ||
+                        e.toString().contains('schema cache')
+                    ? 'Teklif iletilemedi. Çıkış yapıp tekrar giriş yapın ve yeniden deneyin.'
+                    : 'Teklif iletilemedi: $e',
           ),
         ),
       );
@@ -3750,11 +3755,14 @@ class _KrediSheetState extends State<_KrediSheet> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
-                            e.toString().contains('bildirimler') ||
-                                    e.toString().contains('sohbet_mesajlari') ||
-                                    e.toString().contains('schema cache')
-                                ? 'Teklif iletilemedi. Supabase SQL dosyalarını çalıştırın.'
-                                : 'Teklif iletilemedi: $e',
+                            e.toString().contains('42501') ||
+                                    e.toString().toLowerCase().contains('row-level security')
+                                ? 'Teklif iletilemedi. Çıkış yapıp tekrar giriş yapın ve yeniden deneyin.'
+                                : e.toString().contains('bildirimler') ||
+                                        e.toString().contains('sohbet_mesajlari') ||
+                                        e.toString().contains('schema cache')
+                                    ? 'Teklif iletilemedi. Çıkış yapıp tekrar giriş yapın ve yeniden deneyin.'
+                                    : 'Teklif iletilemedi: $e',
                           ),
                         ),
                       );

@@ -5,7 +5,7 @@ import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
 
-/// Flutter web: uygulama içi iframe (misafir süresi dolunca kapatılabilir).
+/// Flutter web: uygulama içi iframe.
 class FullPageIframe extends StatefulWidget {
   const FullPageIframe({super.key, required this.url});
 
@@ -29,15 +29,15 @@ class _FullPageIframeState extends State<FullPageIframe> {
         ..style.width = '100%'
         ..style.height = '100%'
         ..style.pointerEvents = 'auto'
-        ..style.setProperty('touch-action', 'none')
-        ..allowFullscreen = true
-        ..allow = 'camera; microphone; clipboard-read; clipboard-write'
-        ..setAttribute('title', 'Uygulama');
+        ..allowFullscreen = false
+        ..setAttribute('title', 'İçerik');
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return HtmlElementView(viewType: _viewType);
+    return ExcludeSemantics(
+      child: HtmlElementView(viewType: _viewType),
+    );
   }
 }

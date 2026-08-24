@@ -19,7 +19,8 @@ workflows:
           flutter pub get
       - name: Flutter build App Bundle
         script: |
-          flutter build appbundle --release
+          flutter build appbundle --release \
+            --split-debug-info=build/app/outputs/symbols
     artifacts:
       - build/app/outputs/**/*.aab
       - build/app/outputs/**/*.apk

@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
@@ -63,6 +62,11 @@ class InAppWebPage extends StatefulWidget {
     final t = raw.trim();
     if (t.isEmpty) return null;
     if (t.startsWith('/')) {
+      // Web'de mevcut origin: çapraz origin iframe iOS/Safari'de
+      // sağ üstte "yeni pencerede aç" ikonu çıkarıyor.
+      if (kIsWeb) {
+        return Uri.parse('${Uri.base.origin}$t');
+      }
       return Uri.parse('https://www.engelsizclub.com$t');
     }
     final u = Uri.tryParse(t);
@@ -169,12 +173,6 @@ class _InAppWebPageState extends State<InAppWebPage> {
     ];
   }
 
-  Future<void> _openExternal() async {
-    final uri = Uri.tryParse(widget.url);
-    if (uri == null) return;
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-
   @override
   Widget build(BuildContext context) {
     final page = Scaffold(
@@ -184,22 +182,10 @@ class _InAppWebPageState extends State<InAppWebPage> {
         foregroundColor: MetoColors.foreground,
         title: Text(
           widget.title,
+          maxLines: 2,
+          overflow: TextOverflow.visible,
           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
         ),
-        actions: [
-          if (!widget.isGuest)
-            IconButton(
-              tooltip: 'Tarayıcıda aç',
-              onPressed: _openExternal,
-              icon: const Icon(Icons.open_in_browser),
-            ),
-          if (!kIsWeb)
-            IconButton(
-              tooltip: 'Yenile',
-              onPressed: () => _controller?.reload(),
-              icon: const Icon(Icons.refresh),
-            ),
-        ],
       ),
       body: Stack(
         children: [

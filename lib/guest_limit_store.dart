@@ -22,6 +22,15 @@ class GuestLimitStore {
     'guest_tab_start_kartlar_v1',
   ];
 
+  static Future<SharedPreferences?> _prefs() async {
+    try {
+      return await SharedPreferences.getInstance()
+          .timeout(const Duration(seconds: 2));
+    } catch (_) {
+      return null;
+    }
+  }
+
   static String _tabKey(String tab) => switch (tab) {
         'haklar' => _haklarStartKey,
         'kartlar' => _kartlarStartKey,
@@ -37,7 +46,8 @@ class GuestLimitStore {
 
   /// Yapılan misafir arama sayısı.
   static Future<int> searchCount() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs();
+    if (prefs == null) return 0;
     return prefs.getInt(_searchCountKey) ?? 0;
   }
 
@@ -48,7 +58,8 @@ class GuestLimitStore {
 
   /// Aramayı kaydeder; yeni sayacı döner.
   static Future<int> recordSearch() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs();
+    if (prefs == null) return 0;
     final next = (prefs.getInt(_searchCountKey) ?? 0) + 1;
     await prefs.setInt(_searchCountKey, next);
     return next;
@@ -57,7 +68,8 @@ class GuestLimitStore {
   /// Haklar / Kartlar / M-CHAT: ilk girişte timestamp yazar.
   /// Süre dolmuşsa false.
   static Future<bool> allowTimedTab(String tab) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs();
+    if (prefs == null) return true;
     final key = _tabKey(tab);
     final max = limitFor(tab);
     final raw = prefs.getInt(key);
@@ -72,8 +84,9 @@ class GuestLimitStore {
 
   /// Kalan süre (saniye). Timestamp yoksa henüz başlamamış → tam limit.
   static Future<int> remainingTimedSeconds(String tab) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs();
     final max = limitFor(tab);
+    if (prefs == null) return max.inSeconds;
     final raw = prefs.getInt(_tabKey(tab));
     if (raw == null || raw <= 0) return max.inSeconds;
     final elapsed =
@@ -84,7 +97,8 @@ class GuestLimitStore {
 
   /// Yeni misafir oturumu: Haklar/Kartlar/M-CHAT süresini sıfırla.
   static Future<void> resetTimedTabsForGuestSession() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs();
+    if (prefs == null) return;
     await prefs.remove(_haklarStartKey);
     await prefs.remove(_kartlarStartKey);
     await prefs.remove(_mchatStartKey);
@@ -98,7 +112,8 @@ class GuestLimitStore {
 
   /// Üye girişi sonrası misafir sayaçlarını temizle.
   static Future<void> clearAll() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs();
+    if (prefs == null) return;
     await prefs.remove(_searchCountKey);
     await prefs.remove(_haklarStartKey);
     await prefs.remove(_kartlarStartKey);

@@ -1376,13 +1376,14 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
   List<_TrialItem> _trials = [];
   int _pubmedPage = 0;
   int _trialsPage = 0;
+  int _searchGen = 0;
   List<String> _suggestions = const [];
 
   /// Sayfa başına gösterilen kart sayısı.
   static const _pageSize = 6;
 
   /// API'den tek seferde çekilen maksimum sonuç (en güncelden eskiye).
-  static const _fetchMax = 100;
+  static const _fetchMax = 500;
 
   /// Çeviri önbelleği — aynı metni iki kez çevirmeyi önler.
   final Map<String, String> _trCache = {};
@@ -1542,6 +1543,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
     );
     if (!allowed) return;
     if (!mounted) return;
+    final gen = ++_searchGen;
     setState(() {
       _loading = true;
       _searched = true;
@@ -1552,17 +1554,20 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
     });
 
     final eng = await _queryToEnglish(raw);
+    if (!_still(gen)) return;
     _translatedQ = eng;
 
     try {
       await Future.wait([
-        _fetchPubmed(eng),
-        _fetchTrials(eng),
+        _fetchPubmed(eng, gen),
+        _fetchTrials(eng, gen),
       ]);
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (_still(gen)) setState(() => _loading = false);
     }
   }
+
+  bool _still(int gen) => mounted && gen == _searchGen;
 
   /// Türkçe sorguyu İngilizceye çevirir (Google → sözlük yedeği).
   Future<String> _queryToEnglish(String raw) async {
@@ -1572,44 +1577,48 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
     return _toEnglish(raw);
   }
 
-  /// Tek bir metni çevirir. Önce keysiz Google uç noktası (kaliteli, yüksek
-  /// kota), başarısız olursa MyMemory yedeği. Sonuç önbelleğe alınır.
+  /// Tek bir metni çevirir. Başarısız yanıtlar önbelleğe yazılmaz.
   Future<String> _translate(String text,
       {required String from, required String to}) async {
-    // Satır sonları toplu çeviride kayıt ayıracıdır; sadece yatay boşluk sadeleşir.
-    final t = text
-        .replaceAll(RegExp(r'[^\S\n]+'), ' ')
-        .replaceAll(RegExp(r' *\n *'), '\n')
-        .trim();
+    final t = text.replaceAll(RegExp(r'\s+'), ' ').trim();
     if (t.isEmpty) return t;
     final cacheKey = '$from|$to|$t';
     final cached = _trCache[cacheKey];
     if (cached != null) return cached;
 
-    // 1) Google (resmi olmayan, anahtarsız) uç noktası.
+    final out = await _translateUncached(t, from: from, to: to);
+    if (out != null && out.isNotEmpty) {
+      _trCache[cacheKey] = out;
+      return out;
+    }
+    return t;
+  }
+
+  Future<String?> _translateUncached(String t,
+      {required String from, required String to}) async {
     try {
       final r = await http.get(Uri.parse(
-        'https://translate.googleapis.com/translate_a/single'
-        '?client=gtx&sl=$from&tl=$to&dt=t&q=${Uri.encodeComponent(t)}',
+        'https://clients5.google.com/translate_a/t'
+        '?client=dict-chrome-ex&sl=$from&tl=$to&q=${Uri.encodeComponent(t)}',
       ));
       if (r.statusCode == 200) {
-        final data = jsonDecode(r.body) as List;
-        final segs = (data.isNotEmpty ? data[0] as List? : null) ?? const [];
-        final buf = StringBuffer();
-        for (final s in segs) {
-          if (s is List && s.isNotEmpty) buf.write(s[0]?.toString() ?? '');
-        }
-        final out = buf.toString().trim();
-        if (out.isNotEmpty) {
-          _trCache[cacheKey] = out;
-          return out;
-        }
+        final parsed = _parseClients5(r.body);
+        if (parsed != null && parsed.isNotEmpty) return parsed;
       }
     } catch (_) {}
 
-    // 2) MyMemory yedeği (kısa metin sınırı).
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final gtx = await _gtxTranslate(t, from: from, to: to);
+      if (gtx == 429) {
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+        continue;
+      }
+      if (gtx is String && gtx.isNotEmpty) return gtx;
+      break;
+    }
+
     try {
-      final q = t.length > 480 ? '${t.substring(0, 480)}…' : t;
+      final q = t.length > 480 ? t.substring(0, 480) : t;
       final r = await http.get(Uri.parse(
         'https://api.mymemory.translated.net/get'
         '?q=${Uri.encodeComponent(q)}&langpair=$from|$to',
@@ -1620,63 +1629,114 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
             (data['responseData'] as Map?)?['translatedText']?.toString() ?? '';
         if (translated.isNotEmpty &&
             !translated.toUpperCase().contains('MYMEMORY')) {
-          _trCache[cacheKey] = translated;
-          return translated;
+          return translated.trim();
         }
       }
     } catch (_) {}
 
-    _trCache[cacheKey] = t;
-    return t;
+    return null;
   }
 
-  /// Çok sayıda metni verimli çevirir: satırları birleştirip tek istekte
-  /// çevirir (Google satır sınırlarını korur), böylece 100 başlık ~birkaç
-  /// istekte çevrilir.
+  /// Google gtx: 200+metin, 429, veya null.
+  Future<Object?> _gtxTranslate(String t,
+      {required String from, required String to}) async {
+    try {
+      final r = await http.get(Uri.parse(
+        'https://translate.googleapis.com/translate_a/single'
+        '?client=gtx&sl=$from&tl=$to&dt=t&q=${Uri.encodeComponent(t)}',
+      ));
+      if (r.statusCode == 429) return 429;
+      if (r.statusCode == 200) {
+        final parsed = _parseGtx(r.body);
+        if (parsed != null) return parsed;
+      }
+    } catch (_) {}
+
+    try {
+      final r = await http.post(
+        Uri.parse(
+          'https://translate.googleapis.com/translate_a/single'
+          '?client=gtx&sl=$from&tl=$to&dt=t',
+        ),
+        headers: const {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'q=${Uri.encodeQueryComponent(t)}',
+      );
+      if (r.statusCode == 429) return 429;
+      if (r.statusCode == 200) return _parseGtx(r.body);
+    } catch (_) {}
+    return null;
+  }
+
+  String? _parseGtx(String body) {
+    try {
+      final data = jsonDecode(body);
+      if (data is! List || data.isEmpty) return null;
+      final segs = data[0];
+      if (segs is! List) return null;
+      final buf = StringBuffer();
+      for (final s in segs) {
+        if (s is List && s.isNotEmpty) buf.write(s[0]?.toString() ?? '');
+      }
+      final out = buf.toString().trim();
+      return out.isEmpty ? null : out;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _parseClients5(String body) {
+    try {
+      final data = jsonDecode(body);
+      if (data is String) {
+        final t = data.trim();
+        return t.isEmpty ? null : t;
+      }
+      if (data is List && data.isNotEmpty) {
+        final first = data[0];
+        if (first is String) {
+          final t = first.trim();
+          return t.isEmpty ? null : t;
+        }
+        if (first is List && first.isNotEmpty) {
+          final t = first[0]?.toString().trim() ?? '';
+          return t.isEmpty ? null : t;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Başlıkları tek tek, sınırlı eşzamanlılıkla çevirir (kota kırılmaz).
   Future<List<String>> _translateMany(List<String> texts,
       {String from = 'en', String to = 'tr'}) async {
-    final out = List<String>.filled(texts.length, '', growable: false);
-    if (texts.isEmpty) return out;
-
-    // ~1000 karakterlik gruplara böl (URL uzunluğu için güvenli).
-    final chunks = <List<int>>[];
-    var cur = <int>[];
-    var curLen = 0;
-    for (var i = 0; i < texts.length; i++) {
-      final clean = texts[i].replaceAll(RegExp(r'\s+'), ' ').trim();
-      final len = clean.length + 1;
-      if (cur.isNotEmpty && curLen + len > 1000) {
-        chunks.add(cur);
-        cur = <int>[];
-        curLen = 0;
-      }
-      cur.add(i);
-      curLen += len;
-    }
-    if (cur.isNotEmpty) chunks.add(cur);
-
-    await Future.wait(chunks.map((idxs) async {
-      final joined = idxs
-          .map((i) => texts[i].replaceAll(RegExp(r'\s+'), ' ').trim())
-          .join('\n');
-      final res = await _translate(joined, from: from, to: to);
-      final parts = res.split('\n');
-      if (parts.length == idxs.length) {
-        for (var k = 0; k < idxs.length; k++) {
-          final p = parts[k].trim();
-          out[idxs[k]] = p.isEmpty ? texts[idxs[k]] : p;
+    if (texts.isEmpty) return const [];
+    final out = List<String>.from(texts);
+    const conc = 2;
+    var next = 0;
+    Future<void> worker() async {
+      while (true) {
+        final i = next;
+        next += 1;
+        if (i >= texts.length) return;
+        final src = texts[i].replaceAll(RegExp(r'\s+'), ' ').trim();
+        if (src.isEmpty) {
+          out[i] = texts[i];
+          continue;
         }
-        return;
+        out[i] = await _translate(src, from: from, to: to);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
       }
-      // Satır hizası bozulduysa güvenli yol: her kaydı ayrı çevir.
-      await Future.wait(idxs.map((i) async {
-        out[i] = await _translate(texts[i], from: from, to: to);
-      }));
-    }));
+    }
+
+    await Future.wait([
+      for (var w = 0; w < conc && w < texts.length; w++) worker(),
+    ]);
     return out;
   }
 
-  Future<void> _fetchPubmed(String eng) async {
+  Future<void> _fetchPubmed(String eng, int gen) async {
     try {
       final sr = await http.get(Uri.parse(
         'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi'
@@ -1687,12 +1747,12 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
           ((jsonDecode(sr.body) as Map)['esearchresult']?['idlist'] as List?)
                   ?.cast<String>() ??
               [];
-      if (ids.isEmpty) return;
+      if (ids.isEmpty || !_still(gen)) return;
 
-      // esummary tek seferde ~20 id ile daha güvenilir; batch'lere böl.
       final items = <_PubMedItem>[];
-      for (var i = 0; i < ids.length; i += 20) {
-        final batch = ids.sublist(i, (i + 20).clamp(0, ids.length));
+
+      Future<void> fetchBatch(int start) async {
+        final batch = ids.sublist(start, (start + 20).clamp(0, ids.length));
         final sumR = await http.get(Uri.parse(
           'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi'
           '?db=pubmed&id=${batch.join(',')}&retmode=json',
@@ -1705,9 +1765,11 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
               .map((a) => (a as Map)['name']?.toString() ?? '')
               .where((n) => n.isNotEmpty)
               .join(', ');
+          final title = d['title']?.toString() ?? '—';
           items.add(_PubMedItem(
             pmid: id,
-            title: d['title']?.toString() ?? '—',
+            title: title,
+            titleEn: title,
             authors: authors,
             journal: d['fulljournalname']?.toString() ??
                 d['source']?.toString() ??
@@ -1720,25 +1782,90 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
         }
       }
 
-      // Başlıkları toplu Türkçe'ye çevir (İngilizce başlığı da sakla).
-      final titlesTr =
-          await _translateMany(items.map((e) => e.title).toList());
-      final translated = <_PubMedItem>[];
-      for (var i = 0; i < items.length; i++) {
-        translated.add(_PubMedItem(
-          pmid: items[i].pmid,
-          title: titlesTr[i],
-          titleEn: items[i].title,
-          authors: items[i].authors,
-          journal: items[i].journal,
-          year: items[i].year,
-        ));
-      }
-      if (mounted) setState(() => _pubmed = translated);
+      await fetchBatch(0);
+      if (items.isEmpty || !_still(gen)) return;
+      await _translatePubmedRange(items, gen, 0, _pageSize);
+      if (!_still(gen)) return;
+      setState(() => _pubmed = items);
+
+      unawaited(() async {
+        var translatedUpTo = _pageSize;
+        for (var i = 20; i < ids.length; i += 20) {
+          if (!_still(gen)) return;
+          await fetchBatch(i);
+          if (!_still(gen)) return;
+          if (items.length > translatedUpTo) {
+            await _translatePubmedRange(
+              items,
+              gen,
+              translatedUpTo,
+              items.length,
+              notify: true,
+            );
+            translatedUpTo = items.length;
+          } else {
+            setState(() {});
+          }
+        }
+      }());
     } catch (_) {}
   }
 
-  Future<void> _fetchTrials(String eng) async {
+  Future<void> _translatePubmedRange(
+    List<_PubMedItem> items,
+    int gen,
+    int start,
+    int end, {
+    bool notify = false,
+  }) async {
+    final last = end.clamp(0, items.length);
+    for (var i = start; i < last; i += _pageSize) {
+      if (!_still(gen)) return;
+      final sliceEnd = (i + _pageSize).clamp(0, last);
+      final idxs = <int>[];
+      final texts = <String>[];
+      for (var j = i; j < sliceEnd; j++) {
+        if (j >= items.length) break;
+        final src = items[j].titleEn.isNotEmpty ? items[j].titleEn : items[j].title;
+        if (items[j].title == src) {
+          idxs.add(j);
+          texts.add(src);
+        }
+      }
+      if (texts.isNotEmpty) {
+        final tr = await _translateMany(texts);
+        if (!_still(gen)) return;
+        for (var k = 0; k < idxs.length; k++) {
+          final j = idxs[k];
+          final src = items[j];
+          final titleTr = tr[k].trim().isEmpty ? src.title : tr[k].trim();
+          items[j] = _PubMedItem(
+            pmid: src.pmid,
+            title: titleTr,
+            titleEn: src.titleEn.isEmpty ? src.title : src.titleEn,
+            authors: src.authors,
+            journal: src.journal,
+            year: src.year,
+          );
+        }
+      }
+      if (notify && _still(gen)) setState(() {});
+    }
+  }
+
+  Future<void> _ensurePubmedPageTranslated(int page) async {
+    final gen = _searchGen;
+    final start = page * _pageSize;
+    await _translatePubmedRange(
+      _pubmed,
+      gen,
+      start,
+      start + _pageSize,
+      notify: true,
+    );
+  }
+
+  Future<void> _fetchTrials(String eng, int gen) async {
     try {
       final r = await http.get(Uri.parse(
         'https://clinicaltrials.gov/api/v2/studies'
@@ -1756,37 +1883,121 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
         final phases = ((des['phases'] as List?) ?? []).join(', ');
         final conditions =
             ((cond['conditions'] as List?) ?? []).take(2).join(', ');
+        final title = id['briefTitle']?.toString() ?? '—';
         return _TrialItem(
           nctId: id['nctId']?.toString() ?? '',
-          title: id['briefTitle']?.toString() ?? '—',
+          title: title,
+          titleEn: title,
           status: st['overallStatus']?.toString() ?? '',
           phase: phases.isEmpty ? '—' : phases,
           conditions: conditions,
           sponsor: (sp['leadSponsor'] as Map?)?['name']?.toString() ?? '',
         );
       }).toList();
+      if (items.isEmpty || !_still(gen)) return;
 
-      // Başlık ve koşulları toplu Türkçe'ye çevir.
-      final titlesTr = await _translateMany(items.map((e) => e.title).toList());
-      final condsTr =
-          await _translateMany(items.map((e) => e.conditions).toList());
-      final translated = <_TrialItem>[];
-      for (var i = 0; i < items.length; i++) {
-        translated.add(_TrialItem(
-          nctId: items[i].nctId,
-          title: titlesTr[i],
-          titleEn: items[i].title,
-          status: items[i].status,
-          phase: items[i].phase,
-          conditions: condsTr[i],
-          sponsor: items[i].sponsor,
+      await _translateTrialsRange(items, gen, 0, _pageSize);
+      if (!_still(gen)) return;
+      setState(() => _trials = items);
+
+      if (items.length > _pageSize) {
+        unawaited(_translateTrialsRange(
+          items,
+          gen,
+          _pageSize,
+          items.length,
+          notify: true,
         ));
       }
-      if (mounted) setState(() => _trials = translated);
     } catch (_) {}
   }
 
+  Future<void> _translateTrialsRange(
+    List<_TrialItem> items,
+    int gen,
+    int start,
+    int end, {
+    bool notify = false,
+  }) async {
+    final last = end.clamp(0, items.length);
+    for (var i = start; i < last; i += _pageSize) {
+      if (!_still(gen)) return;
+      final sliceEnd = (i + _pageSize).clamp(0, last);
+      final idxs = <int>[];
+      final titles = <String>[];
+      final condIdxs = <int>[];
+      final conds = <String>[];
+      for (var j = i; j < sliceEnd; j++) {
+        if (j >= items.length) break;
+        final src = items[j].titleEn.isNotEmpty ? items[j].titleEn : items[j].title;
+        if (items[j].title == src) {
+          idxs.add(j);
+          titles.add(src);
+        }
+        final c = items[j].conditions.trim();
+        if (c.isNotEmpty && !_looksMostlyTurkish(c)) {
+          condIdxs.add(j);
+          conds.add(c);
+        }
+      }
+      List<String> titlesTr = const [];
+      List<String> condsTr = const [];
+      if (titles.isNotEmpty) titlesTr = await _translateMany(titles);
+      if (conds.isNotEmpty) condsTr = await _translateMany(conds);
+      if (!_still(gen)) return;
+
+      final condMap = <int, String>{};
+      for (var k = 0; k < condIdxs.length; k++) {
+        condMap[condIdxs[k]] = condsTr[k];
+      }
+      for (var k = 0; k < idxs.length; k++) {
+        final j = idxs[k];
+        final src = items[j];
+        final titleTr = titlesTr[k].trim().isEmpty ? src.title : titlesTr[k].trim();
+        items[j] = _TrialItem(
+          nctId: src.nctId,
+          title: titleTr,
+          titleEn: src.titleEn.isEmpty ? src.title : src.titleEn,
+          status: src.status,
+          phase: src.phase,
+          conditions: condMap[j] ?? src.conditions,
+          sponsor: src.sponsor,
+        );
+      }
+      for (final j in condIdxs) {
+        if (idxs.contains(j)) continue;
+        final src = items[j];
+        items[j] = _TrialItem(
+          nctId: src.nctId,
+          title: src.title,
+          titleEn: src.titleEn,
+          status: src.status,
+          phase: src.phase,
+          conditions: condMap[j] ?? src.conditions,
+          sponsor: src.sponsor,
+        );
+      }
+      if (notify && _still(gen)) setState(() {});
+    }
+  }
+
+  Future<void> _ensureTrialsPageTranslated(int page) async {
+    final gen = _searchGen;
+    final start = page * _pageSize;
+    await _translateTrialsRange(
+      _trials,
+      gen,
+      start,
+      start + _pageSize,
+      notify: true,
+    );
+  }
+
+  static bool _looksMostlyTurkish(String s) =>
+      RegExp(r'[çğıöşüÇĞİÖŞÜ]').hasMatch(s);
+
   void _clear() {
+    _searchGen++;
     _controller.clear();
     setState(() {
       _pubmed = [];
@@ -2055,9 +2266,10 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                       page: _pubmedPage,
                       pageCount: _pageCount(_pubmed.length),
                       total: _pubmed.length,
-                      onChanged: (p) => setState(() {
-                        _pubmedPage = p;
-                      }),
+                      onChanged: (p) {
+                        setState(() => _pubmedPage = p);
+                        unawaited(_ensurePubmedPageTranslated(p));
+                      },
                     ),
                   ])
           else
@@ -2079,9 +2291,10 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                       page: _trialsPage,
                       pageCount: _pageCount(_trials.length),
                       total: _trials.length,
-                      onChanged: (p) => setState(() {
-                        _trialsPage = p;
-                      }),
+                      onChanged: (p) {
+                        setState(() => _trialsPage = p);
+                        unawaited(_ensureTrialsPageTranslated(p));
+                      },
                     ),
                   ]),
         ],
@@ -2258,6 +2471,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
             onTap: () => launchUrl(url, mode: LaunchMode.externalApplication),
             child: L10nText(
               r.title,
+              from: r.titleEn.isNotEmpty && r.title == r.titleEn ? 'en' : 'tr',
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
@@ -2337,6 +2551,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                 : () => launchUrl(url, mode: LaunchMode.externalApplication),
             child: L10nText(
               t.title,
+              from: t.titleEn.isNotEmpty && t.title == t.titleEn ? 'en' : 'tr',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,

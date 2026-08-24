@@ -3761,9 +3761,17 @@ class _MainShellState extends State<MainShell> {
                           ],
                         ),
                       ),
-                      if (!_isAileRole)
+                      if (_isAileRole)
                         L10nText(
-                          '1 teklif = 1 puan = ₺69,90 · Uzman & bakıcı ortak bakiye',
+                          '1 iyilik puanı = ₺69,90 · paket fiyatları uzman/bakıcı puanı ile aynı',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white.withValues(alpha: 0.6),
+                          ),
+                        )
+                      else
+                        L10nText(
+                          '1 teklif = 1 puan = ₺69,90 · paket fiyatları iyilik puanı ile aynı',
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.white.withValues(alpha: 0.6),
@@ -4758,11 +4766,7 @@ class _MainShellState extends State<MainShell> {
         builder: (ctx) => AlertDialog(
           title: const L10nText('Mağaza ödemesi'),
           content: L10nText(
-            'Ödeme yalnızca Android (Google Play) veya iPhone/iPad (App Store) '
-            'uygulamasında yapılır.\n\n'
-            'Play Console / App Store Connect’te ${StoreProductIds.configuredIdsHint} '
-            'ürünlerini tanımlayın; '
-            'mağaza, payınıza düşen tutarı hesabınıza yatırır.\n\n'
+            'Ödeme yalnızca iPhone/iPad uygulamasında App Store üzerinden yapılır.\n\n'
             'Web tarayıcıda mağaza ödemesi desteklenmez.',
           ),
           actions: [
@@ -4797,11 +4801,13 @@ class _MainShellState extends State<MainShell> {
       await _initStoreBilling();
       final ok = await store.buyKrediPaket(paket.adet);
       _hideCenteredLoading();
-      if (!ok && mounted) {
-        _showCenteredNotice(
-          'Ürün bulunamadı. ${store.storeName}’da ${StoreProductIds.configuredIdsHint} ürünleri tanımlı ve etkin mi kontrol edin.',
-        );
-      }
+        if (!ok && mounted) {
+          _showCenteredNotice(
+            store.isIos
+                ? 'Satın alma ürünü App Store’da bulunamadı. App Store Connect’te iyilik puanı (Consumable) ürünlerini oluşturup bu sürümle birlikte incelemeye gönderin; Paid Apps Agreement kabul edilmiş olmalı.'
+                : 'Ürün bulunamadı. ${store.storeName}’da ${StoreProductIds.configuredIdsHint} ürünleri tanımlı ve etkin mi kontrol edin.',
+          );
+        }
     } catch (e) {
       _hideCenteredLoading();
       if (mounted) {

@@ -37,6 +37,13 @@ import 'widgets/loading_error_view.dart';
 
 export 'meto_theme.dart';
 
+/// iPhone Safari alt araç çubuğu buton dokunuşunu yutmasın diye ekstra boşluk.
+double _webBottomTapInset(BuildContext context) {
+  final pad = MediaQuery.viewPaddingOf(context).bottom;
+  if (!kIsWeb) return pad;
+  return pad > 20 ? pad : 48;
+}
+
 String _initialsFromName(String name) {
   final parts = name.trim().split(RegExp(r'\s+'));
   final letters = parts
@@ -636,17 +643,22 @@ class _MetoCareAppState extends State<MetoCareApp> {
                           bootTimedOut: _bootTimedOut,
                           onRetryBootstrap: _retryBootstrap,
                           onLogin: (u) async {
-                            if (u.isGuest) {
-                              await GuestLimitStore
-                                  .resetTimedTabsForGuestSession();
-                            } else {
-                              await GuestLimitStore.clearAll();
-                            }
                             if (!mounted) return;
+                            // Safari'de SharedPreferences takılırsa giriş hiç olmasın diye
+                            // önce misafir/üye ekranına geç, limitleri arka planda yaz.
                             setState(() {
                               _user = u;
                               _bootTimedOut = false;
                             });
+                            try {
+                              if (u.isGuest) {
+                                await GuestLimitStore.resetTimedTabsForGuestSession()
+                                    .timeout(const Duration(seconds: 2));
+                              } else {
+                                await GuestLimitStore.clearAll()
+                                    .timeout(const Duration(seconds: 2));
+                              }
+                            } catch (_) {}
                           },
                         )
                       : MainShell(
@@ -1888,6 +1900,7 @@ class _SplashStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bottomGap = _webBottomTapInset(context);
     return Column(
       children: [
         const _BrandHeader(
@@ -1898,7 +1911,7 @@ class _SplashStep extends StatelessWidget {
         ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+            padding: EdgeInsets.fromLTRB(24, 32, 24, 16 + bottomGap),
             children: [
               for (final f in _features) ...[
                 Row(
@@ -1941,13 +1954,7 @@ class _SplashStep extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
               ],
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-          child: Column(
-            children: [
+              const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -1972,12 +1979,14 @@ class _SplashStep extends StatelessWidget {
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
-                height: 48,
+                height: 52,
                 child: OutlinedButton(
                   onPressed: onGuest,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: MetoColors.primary,
-                    side: const BorderSide(color: MetoColors.primary),
+                    backgroundColor: MetoColors.card,
+                    side: const BorderSide(color: MetoColors.primary, width: 1.5),
+                    tapTargetSize: MaterialTapTargetSize.padded,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
@@ -1989,7 +1998,6 @@ class _SplashStep extends StatelessWidget {
                   child: const L10nText('Üye olmadan keşfet'),
                 ),
               ),
-              const SizedBox(height: 12),
             ],
           ),
         ),
@@ -2122,7 +2130,12 @@ class _SignInStep extends StatelessWidget {
         ),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            padding: EdgeInsets.fromLTRB(
+              20,
+              0,
+              20,
+              24 + _webBottomTapInset(context),
+            ),
             child: authTab == 'giris' ? _buildGiris(context) : _buildKayit(context),
           ),
         ),
@@ -2339,13 +2352,26 @@ class _SignInStep extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
-          TextButton(
-            onPressed: onGuest,
-            child: const L10nText(
-              'Üye olmadan keşfet',
-              style: TextStyle(
-                color: MetoColors.primary,
-                fontWeight: FontWeight.w800,
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton(
+              onPressed: onGuest,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: MetoColors.primary,
+                backgroundColor: MetoColors.card,
+                side: const BorderSide(color: MetoColors.primary),
+                tapTargetSize: MaterialTapTargetSize.padded,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const L10nText(
+                'Üye olmadan keşfet',
+                style: TextStyle(
+                  color: MetoColors.primary,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ),
