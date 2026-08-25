@@ -426,7 +426,6 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
 
 class _ConditionCard extends StatelessWidget {
   const _ConditionCard({
-    super.key,
     required this.disease,
     required this.onTap,
     this.onEdit,
