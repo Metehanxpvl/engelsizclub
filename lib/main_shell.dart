@@ -2172,10 +2172,9 @@ class _MainShellState extends State<MainShell> {
     // konum/merkez araması tetiklenmesin. Sağa/sola kaydırarak sekmeler arası geçiş.
     return PageView(
       controller: _tabPageController,
-      // Sekmeler arası kaydırma açık; mesaj silme yalnız sola kaydırma (endToStart).
-      physics: const BouncingScrollPhysics(
-        parent: AlwaysScrollableScrollPhysics(),
-      ),
+      // Yatay sekme kaydırma açık; AlwaysScrollable + Bouncing dikey Ana/Keşfet
+      // kaydırmasını PageView'a kaptırıyordu (özellikle Android).
+      physics: const _TabSwipePhysics(parent: ClampingScrollPhysics()),
       onPageChanged: _onTabPageChanged,
       children: [
         _KeepAliveTab(
@@ -6022,6 +6021,24 @@ class _BrandBar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Sekme PageView: yalnızca belirgin yatay sürüklemede kayar; dikey jestleri
+/// çocuk ListView'lara bırakır (Keşfet/Ana yukarı-aşağı kaydırma).
+class _TabSwipePhysics extends PageScrollPhysics {
+  const _TabSwipePhysics({super.parent});
+
+  @override
+  _TabSwipePhysics applyTo(ScrollPhysics? ancestor) {
+    return _TabSwipePhysics(parent: buildParent(ancestor));
+  }
+
+  @override
+  SpringDescription get spring => const SpringDescription(
+        mass: 0.9,
+        stiffness: 100,
+        damping: 0.8,
+      );
 }
 
 class _KeepAliveTab extends StatefulWidget {

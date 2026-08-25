@@ -169,7 +169,7 @@ class _StoryMarqueeState extends State<StoryMarquee>
           key: ValueKey('marquee_${widget.contentVersion}'),
           controller: _controller,
           scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
+          physics: const ClampingScrollPhysics(),
           padding: widget.padding,
           itemCount: total,
           itemExtent: widget.itemWidth,

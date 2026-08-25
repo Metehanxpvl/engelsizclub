@@ -243,7 +243,12 @@ class _HomePageState extends State<HomePage> {
       color: MetoColors.background,
       child: ListView(
         key: const ValueKey('home_feed'),
+        // PrimaryScrollController'a bağlanma — sekme değişiminde offset kaymasın.
         primary: false,
+        // Android'de PageView altında dikey kaydırma her zaman alınsın.
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: ClampingScrollPhysics(),
+        ),
         padding: EdgeInsets.zero,
         children: [
           // Hero photo slider

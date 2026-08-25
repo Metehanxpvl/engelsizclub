@@ -831,96 +831,96 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen> {
         ),
         // Platform view (Instagram iframe) clip ile bozulmasın.
         clipBehavior: ig ? Clip.hardEdge : Clip.antiAlias,
-        child: ig
-            ? Column(
-                children: [
-                  // X + sürükleme: iframe DIŞINDA (web'de iframe üstündeki Flutter butonları tıklanmaz).
-                  _closeChrome(dark: true),
-                  Expanded(
-                    child: InstagramEmbedView(
-                      pageUrl:
-                          item.instagramUrl ?? item.sourceUrl?.trim() ?? '',
-                      embedUrl: instagramEmbedUrl(
-                        item.instagramUrl ?? item.sourceUrl,
+            child: ig
+                ? Column(
+                    children: [
+                      // X + sürükleme: iframe DIŞINDA (web'de iframe üstündeki Flutter butonları tıklanmaz).
+                      _closeChrome(dark: true),
+                      Expanded(
+                        child: InstagramEmbedView(
+                          pageUrl:
+                              item.instagramUrl ?? item.sourceUrl?.trim() ?? '',
+                          embedUrl: instagramEmbedUrl(
+                            item.instagramUrl ?? item.sourceUrl,
+                          ),
+                          initialVideoUrl: item.playableVideoUrl,
+                        ),
                       ),
-                      initialVideoUrl: item.playableVideoUrl,
-                    ),
-                  ),
-                ],
-              )
-            : Column(
-                children: [
-                  Expanded(
-                    flex: hasText ? 5 : 1,
-                    child: _fullscreenImageStack(context),
-                  ),
-                  if (hasText)
-                    Expanded(
-                      flex: 5,
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (title.isNotEmpty)
-                              Text(
-                                title,
+                    ],
+                  )
+                : Column(
+                    children: [
+                      Expanded(
+                        flex: hasText ? 5 : 1,
+                        child: _fullscreenImageStack(context),
+                      ),
+                      if (hasText)
+                        Expanded(
+                          flex: 5,
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (title.isNotEmpty)
+                                  Text(
+                                    title,
+                                    style: GoogleFonts.nunito(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w800,
+                                      color: MetoColors.foreground,
+                                      height: 1.25,
+                                    ),
+                                  ),
+                                if (title.isNotEmpty && body.isNotEmpty)
+                                  const SizedBox(height: 12),
+                                if (body.isNotEmpty)
+                                  Text(
+                                    body,
+                                    style: GoogleFonts.nunito(
+                                      fontSize: 14,
+                                      height: 1.5,
+                                      color: MetoColors.mutedFg,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      if (item.hasSource)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: () => _openSource(context),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: MetoColors.primary,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              icon: const Icon(Icons.open_in_new, size: 18),
+                              label: L10nText(
+                                'Haberin Kaynağına Git / Detaylı Bilgi',
                                 style: GoogleFonts.nunito(
-                                  fontSize: 20,
                                   fontWeight: FontWeight.w800,
-                                  color: MetoColors.foreground,
-                                  height: 1.25,
+                                  fontSize: 13,
                                 ),
                               ),
-                            if (title.isNotEmpty && body.isNotEmpty)
-                              const SizedBox(height: 12),
-                            if (body.isNotEmpty)
-                              Text(
-                                body,
-                                style: GoogleFonts.nunito(
-                                  fontSize: 14,
-                                  height: 1.5,
-                                  color: MetoColors.mutedFg,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  if (item.hasSource)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: () => _openSource(context),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: MetoColors.primary,
-                            foregroundColor: Colors.white,
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
                             ),
                           ),
-                          icon: const Icon(Icons.open_in_new, size: 18),
-                          label: L10nText(
-                            'Haberin Kaynağına Git / Detaylı Bilgi',
-                            style: GoogleFonts.nunito(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      ),
-                    )
-                  else if (hasText)
-                    const SizedBox(height: 8),
-                ],
-              ),
-      ),
-    );
+                        )
+                      else if (hasText)
+                        const SizedBox(height: 8),
+                    ],
+                  ),
+          ),
+        );
 
     return Material(
       color: Colors.transparent,
@@ -929,19 +929,13 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen> {
           opacity: dragOpacity,
           child: Transform.translate(
             offset: Offset(0, _dragY),
-            child: ig
-                ? GestureDetector(
-                    onVerticalDragUpdate: _onVerticalDragUpdate,
-                    onVerticalDragEnd: _onVerticalDragEnd,
-                    behavior: HitTestBehavior.deferToChild,
-                    child: Center(child: card),
-                  )
-                : Dismissible(
-                    key: ValueKey('duyuru_fs_${item.id}'),
-                    direction: DismissDirection.down,
-                    onDismissed: (_) => onClose(),
-                    child: Center(child: card),
-                  ),
+            // Dismissible + GestureDetector çakışması kaydırmayı bozuyordu.
+            child: GestureDetector(
+              onVerticalDragUpdate: _onVerticalDragUpdate,
+              onVerticalDragEnd: _onVerticalDragEnd,
+              behavior: HitTestBehavior.deferToChild,
+              child: Center(child: card),
+            ),
           ),
         ),
       ),

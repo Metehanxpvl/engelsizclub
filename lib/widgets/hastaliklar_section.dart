@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:reorderable_grid_view/reorderable_grid_view.dart';
 
 import '../admin_config.dart';
 import '../condition_store.dart';
@@ -39,7 +38,6 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
   List<ConditionItem> _remote = const [];
   bool _loading = true;
   bool _tableReady = true;
-  bool _savingOrder = false;
 
   bool get _isAdmin => isAppAdmin(widget.userEmail);
 
@@ -77,21 +75,6 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
       for (final d in catalog)
         if (!covered(d)) d,
     ];
-  }
-
-  bool get _catalogFullyInConditions {
-    final catalog = CatalogAdapters.diseases();
-    if (catalog.isEmpty) return true;
-    final active = _remote.where((c) => c.isActive).toList();
-    for (final d in catalog) {
-      final ok = active.any((c) {
-        final cid = c.catalogId.trim().toLowerCase();
-        if (cid.isNotEmpty && cid == d.id.toLowerCase()) return true;
-        return c.title.trim().toLowerCase() == d.name.trim().toLowerCase();
-      });
-      if (!ok) return false;
-    }
-    return true;
   }
 
   DiseaseInfo? _matchCatalog(ConditionItem c, List<DiseaseInfo> catalog) {
@@ -145,14 +128,8 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: L10nText('Kart kaydedildi.')),
     );
-    setState(() {});
+    setState(() {}    );
   }
-
-  bool get _canReorder =>
-      _isAdmin &&
-      _activeSorted.isNotEmpty &&
-      _catalogFullyInConditions &&
-      !_savingOrder;
 
   @override
   void initState() {
@@ -330,50 +307,7 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
     await _reload(silent: true);
   }
 
-  Future<void> _onGridReorder(int oldIndex, int newIndex) async {
-    if (!_canReorder || oldIndex == newIndex) return;
-    final active = List<ConditionItem>.from(_activeSorted);
-    if (oldIndex < 0 ||
-        oldIndex >= active.length ||
-        newIndex < 0 ||
-        newIndex >= active.length) {
-      return;
-    }
-    final item = active.removeAt(oldIndex);
-    active.insert(newIndex, item);
-    final reordered = [
-      for (var i = 0; i < active.length; i++)
-        active[i].copyWith(sortOrder: i),
-    ];
-
-    setState(() {
-      _savingOrder = true;
-      final byId = {for (final c in reordered) c.id: c};
-      _remote = [
-        for (final c in _remote) byId[c.id] ?? c,
-      ];
-    });
-
-    try {
-      await reorderConditions(reordered);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: L10nText('Sıra kaydedildi.'),
-          duration: Duration(seconds: 1),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: L10nText('Sıra kaydedilemedi: $e')),
-      );
-      await _reload(silent: true);
-    } finally {
-      if (mounted) setState(() => _savingOrder = false);
-    }
-  }
-
+  /// Ana sayfa grid'i kaydırılabilir kalır; sıra değiştirme Yönet sayfasında.
   Widget _buildStaticGrid(List<DiseaseInfo> diseases) {
     return GridView.builder(
       shrinkWrap: true,
@@ -393,32 +327,6 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
           onEdit: _isAdmin ? () => _editDiseaseCard(d) : null,
         );
       },
-    );
-  }
-
-  Widget _buildAdminReorderGrid(List<ConditionItem> active) {
-    final catalog = CatalogAdapters.diseases();
-    return ReorderableGridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 0.92,
-      dragStartDelay: const Duration(milliseconds: 280),
-      onReorder: _onGridReorder,
-      children: [
-        for (final c in active)
-          _ConditionCard(
-            key: ValueKey('cond_${c.id}'),
-            disease: c.toDiseaseInfo(enrichFrom: _matchCatalog(c, catalog)),
-            showDragHint: true,
-            onTap: () => widget.onOpenDisease(
-              c.toDiseaseInfo(enrichFrom: _matchCatalog(c, catalog)),
-            ),
-            onEdit: () => _openForm(edit: c),
-          ),
-      ],
     );
   }
 
@@ -444,15 +352,6 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
                   ),
                 ),
               ),
-              if (_savingOrder)
-                const Padding(
-                  padding: EdgeInsets.only(right: 8),
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
               if (_isAdmin) ...[
                 IconButton(
                   tooltip: S.auto('Yönet'),
@@ -483,22 +382,11 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
             icon: Icons.menu_book_outlined,
             dismissKey: kDismissLibraryInfo,
           ),
-          if (_isAdmin && active.isNotEmpty && _catalogFullyInConditions)
+          if (_isAdmin && active.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: L10nText(
-                'Basılı tutup sürükleyerek sırayı değiştirin',
-                style: GoogleFonts.nunito(
-                  fontSize: 11,
-                  color: MetoColors.mutedFg,
-                ),
-              ),
-            ),
-          if (_isAdmin && active.isNotEmpty && !_catalogFullyInConditions)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: L10nText(
-                'Katalog kutuları eşitleniyor… sonra sürükleyerek sıralayabilirsiniz.',
+                'Sırayı değiştirmek için Yönet’e dokunun',
                 style: GoogleFonts.nunito(
                   fontSize: 11,
                   color: MetoColors.mutedFg,
@@ -528,8 +416,6 @@ class _HastaliklarSectionState extends State<HastaliklarSection> {
                 ),
               ),
             )
-          else if (_canReorder)
-            _buildAdminReorderGrid(active)
           else
             _buildStaticGrid(diseases),
         ],
@@ -544,13 +430,11 @@ class _ConditionCard extends StatelessWidget {
     required this.disease,
     required this.onTap,
     this.onEdit,
-    this.showDragHint = false,
   });
 
   final DiseaseInfo disease;
   final VoidCallback onTap;
   final VoidCallback? onEdit;
-  final bool showDragHint;
 
   @override
   Widget build(BuildContext context) {
@@ -609,23 +493,6 @@ class _ConditionCard extends StatelessWidget {
                       child: Text(
                         disease.icon,
                         style: const TextStyle(fontSize: 20),
-                      ),
-                    ),
-                  if (showDragHint)
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.45),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Icon(
-                          Icons.drag_indicator,
-                          size: 14,
-                          color: Colors.white,
-                        ),
                       ),
                     ),
                   if (onEdit != null)
