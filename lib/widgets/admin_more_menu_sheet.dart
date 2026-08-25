@@ -223,6 +223,8 @@ class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
         icon = Icons.search;
       case 'eye':
         icon = Icons.visibility_outlined;
+      case 'place':
+        icon = Icons.place_outlined;
       case 'extension':
         icon = Icons.extension_outlined;
       default:

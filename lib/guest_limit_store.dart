@@ -8,8 +8,11 @@ class GuestLimitStore {
   static const timedAccess = Duration(minutes: 2);
   /// Otizm tarama (M-CHAT) misafir süresi.
   static const mchatTimedAccess = Duration(minutes: 1);
+  /// Keşfet: yalnızca sekmede geçirilen gerçek süre (duvar saati değil).
+  static const kesfetTimedAccess = Duration(minutes: 5);
 
   static const _searchCountKey = 'guest_search_count_v1';
+  static const _kesfetUsedMsKey = 'guest_kesfet_used_ms_v1';
   // v2: eski (süresi dolmuş) deneme kayıtlarını sıfırlamak için
   static const _haklarStartKey = 'guest_tab_start_haklar_v2';
   static const _kartlarStartKey = 'guest_tab_start_kartlar_v2';
@@ -95,7 +98,37 @@ class GuestLimitStore {
     return left.isNegative ? 0 : left.inSeconds;
   }
 
+  /// Keşfet’te birikmiş kullanım (ms). Yenileme sonrası korunur.
+  static Future<int> kesfetUsedMs() async {
+    final prefs = await _prefs();
+    if (prefs == null) return 0;
+    return prefs.getInt(_kesfetUsedMsKey) ?? 0;
+  }
+
+  /// Keşfet kalan süre (ms). Kotası dolmuşsa 0.
+  static Future<int> kesfetRemainingMs() async {
+    final used = await kesfetUsedMs();
+    final left = kesfetTimedAccess.inMilliseconds - used;
+    return left < 0 ? 0 : left;
+  }
+
+  static Future<bool> kesfetAllowed() async {
+    return (await kesfetRemainingMs()) > 0;
+  }
+
+  /// Keşfet’te gerçekten geçirilen süreyi ekler; yeni toplam ms döner.
+  static Future<int> addKesfetUsedMs(int ms) async {
+    if (ms <= 0) return kesfetUsedMs();
+    final prefs = await _prefs();
+    if (prefs == null) return 0;
+    final cap = kesfetTimedAccess.inMilliseconds;
+    final next = ((prefs.getInt(_kesfetUsedMsKey) ?? 0) + ms).clamp(0, cap).toInt();
+    await prefs.setInt(_kesfetUsedMsKey, next);
+    return next;
+  }
+
   /// Yeni misafir oturumu: Haklar/Kartlar/M-CHAT süresini sıfırla.
+  /// Keşfet kotası sıfırlanmaz (yenileme / tekrar misafir girişinde korunur).
   static Future<void> resetTimedTabsForGuestSession() async {
     final prefs = await _prefs();
     if (prefs == null) return;
@@ -115,6 +148,7 @@ class GuestLimitStore {
     final prefs = await _prefs();
     if (prefs == null) return;
     await prefs.remove(_searchCountKey);
+    await prefs.remove(_kesfetUsedMsKey);
     await prefs.remove(_haklarStartKey);
     await prefs.remove(_kartlarStartKey);
     await prefs.remove(_mchatStartKey);

@@ -49,9 +49,16 @@ app_catalog_store_settings.sql
 app_catalog_seed_rights.sql
 admin_moderation.sql
 admin_top_iyilik_puani.sql
+admin_users_dashboard.sql
 guest_public_read.sql
 google_places_proxy.sql
 cross_platform_sync.sql
 play_ready.sql
 cvi_sessions.sql
 view_counts.sql
+daha_fazlasi_menu_harita.sql
+kesfet_schema.sql
+kesfet_scoring.sql
+kesfet_seed.sql
+kesfet_admin.sql
+kesfet_seed_videos.sql

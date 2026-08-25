@@ -26,6 +26,7 @@ import 'data/ilanlar_data.dart'
 import 'data/location_models.dart';
 import 'ilan_store.dart';
 import 'content_view_store.dart';
+import 'kesfet/kesfet_page.dart';
 import 'kredi_store.dart';
 import 'kullanici_profil_store.dart';
 import 'l10n/app_strings.dart';
@@ -63,11 +64,13 @@ import 'user_safety_store.dart';
 import 'utils/price_format.dart';
 import 'widgets/user_avatar.dart';
 import 'widgets/user_safety_sheet.dart';
+import 'widgets/admin_kesfet_panel.dart';
 import 'widgets/admin_iyilik_liderleri_panel.dart';
+import 'widgets/admin_users_panel.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'l10n/l10n_text.dart';
 
-enum MetoTab { home, merkezler, ilanlar, forum, haklar, kartlar }
+enum MetoTab { home, merkezler, ilanlar, forum, kesfet, haklar, kartlar }
 
 enum _KrediStep { paket, odeme }
 
@@ -116,6 +119,8 @@ class _MainShellState extends State<MainShell> {
   bool _showHakkinda = false;
   bool _showEngellenenler = false;
   bool _showIyilikLiderleri = false;
+  bool _showAdminUsers = false;
+  bool _showKesfetAdmin = false;
   bool _showDilSecimi = false;
   /// Android geri: ana sayfadayken ikinci basışta çıkış için zaman damgası.
   DateTime? _lastExitBackAt;
@@ -384,6 +389,7 @@ class _MainShellState extends State<MainShell> {
       _navTourKeys[MetoTab.home]!,
       _navTourKeys[MetoTab.merkezler]!,
       _navTourKeys[MetoTab.ilanlar]!,
+      _navTourKeys[MetoTab.kesfet]!,
       _navTourKeys[MetoTab.forum]!,
       _moreNavTourKey,
       _messagesTourKey,
@@ -527,6 +533,8 @@ class _MainShellState extends State<MainShell> {
       _showHakkinda = false;
       _showEngellenenler = false;
       _showIyilikLiderleri = false;
+      _showAdminUsers = false;
+      _showKesfetAdmin = false;
       _showDilSecimi = false;
       _profilDragY = 0;
     });
@@ -675,6 +683,9 @@ class _MainShellState extends State<MainShell> {
       case 'search':
         icon = Icons.search;
         color = MetoColors.primary;
+      case 'place':
+        icon = Icons.place_outlined;
+        color = MetoColors.primary;
       case 'extension':
         icon = Icons.extension_outlined;
         color = MetoColors.primary;
@@ -759,6 +770,10 @@ class _MainShellState extends State<MainShell> {
             'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
           ),
         );
+        return;
+      case 'harita':
+      case 'merkezler':
+        _goToTab(MetoTab.merkezler);
         return;
       case 'haklar':
         _goToTab(MetoTab.haklar);
@@ -2249,10 +2264,12 @@ class _MainShellState extends State<MainShell> {
     // konum/merkez araması tetiklenmesin. Sağa/sola kaydırarak sekmeler arası geçiş.
     return PageView(
       controller: _tabPageController,
-      // Sekmeler arası kaydırma açık; mesaj silme yalnız sola kaydırma (endToStart).
-      physics: const BouncingScrollPhysics(
-        parent: AlwaysScrollableScrollPhysics(),
-      ),
+      // Keşfet dikey kaydırmayı yemesin; diğer sekmelerde yatay geçiş açık.
+      physics: _activeTab == MetoTab.kesfet && !_showMesajlar
+          ? const NeverScrollableScrollPhysics()
+          : const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
       onPageChanged: _onTabPageChanged,
       children: [
         _KeepAliveTab(
@@ -2303,6 +2320,18 @@ class _MainShellState extends State<MainShell> {
           openCommentId: _openForumCommentId,
           openPostToken: _openForumToken,
         ),
+        KesfetPage(
+          userEmail: widget.user.email,
+          userName: _publicDisplayName,
+          isGuest: _isGuest,
+          isTabActive: _activeTab == MetoTab.kesfet && !_showMesajlar,
+          onRequireLogin: () => _requireLogin(
+            'Misafir olarak Keşfet 5 dakika ile sınırlıdır. Devam etmek için giriş yapın veya üye olun.',
+          ),
+          onOpenAdmin: isAppAdmin(widget.user.email)
+              ? _openKesfetAdmin
+              : null,
+        ),
         HaklarPage(adminEmail: widget.user.email),
         const KartlarPage(),
       ],
@@ -2326,6 +2355,8 @@ class _MainShellState extends State<MainShell> {
       _showHakkinda = false;
       _showEngellenenler = false;
       _showIyilikLiderleri = false;
+      _showAdminUsers = false;
+      _showKesfetAdmin = false;
       _showDilSecimi = false;
       _profilDragY = 0;
       _resetKredi();
@@ -2352,6 +2383,27 @@ class _MainShellState extends State<MainShell> {
     });
   }
 
+  void _openKesfetAdmin() {
+    if (!isAppAdmin(widget.user.email)) return;
+    setState(() {
+      _profilDragY = 0;
+      _resetKredi();
+      _showMesajlar = false;
+      _showCocukProfil = false;
+      _showIlanlarim = false;
+      _showKullaniciProfil = false;
+      _showKaydedilenler = false;
+      _showBildirimler = false;
+      _showHakkinda = false;
+      _showEngellenenler = false;
+      _showIyilikLiderleri = false;
+      _showAdminUsers = false;
+      _showDilSecimi = false;
+      _showKesfetAdmin = true;
+      _showProfilPanel = true;
+    });
+  }
+
   Future<void> _openExternalUrl(String url) async {
     final uri = Uri.parse(url);
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -2373,6 +2425,8 @@ class _MainShellState extends State<MainShell> {
       _showHakkinda = false;
       _showEngellenenler = false;
       _showIyilikLiderleri = false;
+      _showAdminUsers = false;
+      _showKesfetAdmin = false;
       _showDilSecimi = false;
       _profilDragY = 0;
       _resetKredi();
@@ -2585,7 +2639,28 @@ class _MainShellState extends State<MainShell> {
                         ),
                       ),
                       Flexible(
-                        child: NotificationListener<ScrollNotification>(
+                        child: (_showIyilikLiderleri ||
+                                _showAdminUsers ||
+                                _showKesfetAdmin)
+                            ? Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                    12, 0, 12, 16),
+                                child: _showIyilikLiderleri
+                                    ? AdminIyilikLiderleriPanel(
+                                        onBack: () => setState(() =>
+                                            _showIyilikLiderleri = false),
+                                      )
+                                    : _showAdminUsers
+                                        ? AdminUsersPanel(
+                                            onBack: () => setState(
+                                                () => _showAdminUsers = false),
+                                          )
+                                        : AdminKesfetPanel(
+                                            onBack: () => setState(
+                                                () => _showKesfetAdmin = false),
+                                          ),
+                              )
+                            : NotificationListener<ScrollNotification>(
                           onNotification: (n) {
                             if (n is OverscrollNotification &&
                                 n.overscroll < 0 &&
@@ -2676,14 +2751,7 @@ class _MainShellState extends State<MainShell> {
                                                         ? _buildEngellenenler()
                                                         : _showHakkinda
                                                             ? _buildHakkinda()
-                                                            : _showIyilikLiderleri
-                                                                ? AdminIyilikLiderleriPanel(
-                                                                    onBack: () =>
-                                                                        setState(() =>
-                                                                            _showIyilikLiderleri =
-                                                                                false),
-                                                                  )
-                                                                : _buildProfilMenu(),
+                                                            : _buildProfilMenu(),
                           ),
                         ),
                       ),
@@ -3634,11 +3702,31 @@ class _MainShellState extends State<MainShell> {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: _menuTile(
+              emoji: '📡',
+              label: 'Canlı kullanıcılar',
+              sub: 'Anlık aktif · üye listesi',
+              highlight: true,
+              onTap: () => setState(() => _showAdminUsers = true),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
               emoji: '💚',
               label: 'İyilik Puanı Liderleri',
               sub: 'En yüksek 10 · ekran görüntüsü için',
               highlight: true,
               onTap: () => setState(() => _showIyilikLiderleri = true),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '▶',
+              label: 'Keşfet İçerikleri',
+              sub: 'Bekleyen / onayla / YouTube ekle',
+              highlight: true,
+              onTap: () => setState(() => _showKesfetAdmin = true),
             ),
           ),
         ],
@@ -3978,7 +4066,9 @@ class _MainShellState extends State<MainShell> {
               _showHakkinda = false;
               _showEngellenenler = false;
               _showIyilikLiderleri = false;
-      _showDilSecimi = false;
+              _showAdminUsers = false;
+              _showKesfetAdmin = false;
+              _showDilSecimi = false;
             });
             clearRuntimeIlanlar();
             widget.onLogout();
@@ -6178,45 +6268,83 @@ class _BottomNav extends StatelessWidget {
   final int forumNewCount;
   final VoidCallback? onSkipTour;
 
-  static List<(MetoTab, String, IconData, IconData, String)> get _primaryItems => [
-    (
-      MetoTab.home,
-      S.t('nav_home'),
-      Icons.home_outlined,
-      Icons.home,
-      S.t('tour_home'),
-    ),
-    (
-      MetoTab.merkezler,
-      S.t('nav_map'),
-      Icons.place_outlined,
-      Icons.place,
-      S.t('tour_map'),
-    ),
-    (
-      MetoTab.ilanlar,
-      S.t('nav_listings'),
-      Icons.work_outline,
-      Icons.work,
-      S.t('tour_listings'),
-    ),
-    (
-      MetoTab.forum,
-      S.t('nav_forum'),
-      Icons.forum_outlined,
-      Icons.forum,
-      S.t('tour_forum'),
-    ),
+  /// Görünen sıra: Ana · Harita · İlan · Keşfet · Forum.
+  /// MetoTab enum / PageView indeksleri değişmez.
+  static List<(MetoTab, String, String)> get _primaryItems => [
+    (MetoTab.home, S.t('nav_home'), S.t('tour_home')),
+    (MetoTab.merkezler, S.t('nav_map'), S.t('tour_map')),
+    (MetoTab.ilanlar, S.t('nav_listings'), S.t('tour_listings')),
+    (MetoTab.kesfet, S.t('nav_kesfet'), S.t('tour_kesfet')),
+    (MetoTab.forum, S.t('nav_forum'), S.t('tour_forum')),
   ];
+
+  /// Live IconData constants so the web icon-font tree-shaker keeps these
+  /// glyphs. Also build with `--no-tree-shake-icons`.
+  @pragma('vm:entry-point')
+  static const keptIcons = <IconData>[
+    Icons.home_outlined,
+    Icons.home,
+    Icons.map_outlined,
+    Icons.map,
+    Icons.work_outline,
+    Icons.work,
+    Icons.explore_outlined,
+    Icons.explore,
+    Icons.forum_outlined,
+    Icons.forum,
+    Icons.more_horiz,
+  ];
+
+  static IconData _outlinedIcon(MetoTab tab) {
+    switch (tab) {
+      case MetoTab.home:
+        return Icons.home_outlined;
+      case MetoTab.merkezler:
+        return Icons.map_outlined;
+      case MetoTab.ilanlar:
+        return Icons.work_outline;
+      case MetoTab.kesfet:
+        return Icons.explore_outlined;
+      case MetoTab.forum:
+        return Icons.forum_outlined;
+      case MetoTab.haklar:
+      case MetoTab.kartlar:
+        return Icons.more_horiz;
+    }
+  }
+
+  static IconData _filledIcon(MetoTab tab) {
+    switch (tab) {
+      case MetoTab.home:
+        return Icons.home;
+      case MetoTab.merkezler:
+        return Icons.map;
+      case MetoTab.ilanlar:
+        return Icons.work;
+      case MetoTab.kesfet:
+        return Icons.explore;
+      case MetoTab.forum:
+        return Icons.forum;
+      case MetoTab.haklar:
+      case MetoTab.kartlar:
+        return Icons.more_horiz;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Touch keptIcons on a live path so Dart DCE cannot drop the const list
+    // before Flutter subsets the Material icon font.
+    if (keptIcons.length < 2) {
+      return const SizedBox.shrink();
+    }
     final primaryItems = _primaryItems;
     final primaryActive =
         active == MetoTab.home ||
         active == MetoTab.merkezler ||
         active == MetoTab.ilanlar ||
-        active == MetoTab.forum;
+        active == MetoTab.forum ||
+        active == MetoTab.kesfet;
 
     return Container(
       decoration: const BoxDecoration(
@@ -6243,7 +6371,7 @@ class _BottomNav extends StatelessWidget {
               child: Showcase(
                 key: tourKeys[item.$1]!,
                 title: item.$2,
-                description: item.$5,
+                description: item.$3,
                 tooltipActions: [
                   TooltipActionButton(
                     type: TooltipDefaultActionType.skip,
@@ -6254,8 +6382,8 @@ class _BottomNav extends StatelessWidget {
                 child: _NavItem(
                   label: item.$2,
                   icon: (primaryActive && active == item.$1)
-                      ? item.$4
-                      : item.$3,
+                      ? _filledIcon(item.$1)
+                      : _outlinedIcon(item.$1),
                   active: primaryActive && active == item.$1,
                   badge: item.$1 == MetoTab.ilanlar
                       ? ilanlarNewCount
@@ -6312,7 +6440,12 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resolvedSize = iconSize ?? (active ? 27.0 : 26.0);
+    final resolvedSize = iconSize ?? (active ? 24.0 : 23.0);
+    final graphic = Icon(
+      icon,
+      size: resolvedSize,
+      color: active ? Colors.white : MetoColors.mutedFg,
+    );
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -6326,8 +6459,8 @@ class _NavItem extends StatelessWidget {
               children: [
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  width: 52,
-                  height: 40,
+                  width: 44,
+                  height: 36,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: active ? MetoColors.primary : Colors.transparent,
@@ -6342,11 +6475,7 @@ class _NavItem extends StatelessWidget {
                           ]
                         : null,
                   ),
-                  child: Icon(
-                    icon,
-                    size: resolvedSize,
-                    color: active ? Colors.white : MetoColors.mutedFg,
-                  ),
+                  child: graphic,
                 ),
                 if (badge > 0 && !active)
                   Positioned(

@@ -21,3 +21,8 @@
 
 # In-app billing
 -keep class com.android.vending.billing.** { *; }
+
+# Flutter Play Store deferred components (not used; R8 needs these)
+-dontwarn com.google.android.play.core.splitcompat.SplitCompatApplication
+-dontwarn com.google.android.play.core.splitinstall.**
+-dontwarn com.google.android.play.core.tasks.**

@@ -33,6 +33,7 @@ const _tables = <AppLang, Map<String, String>>{
     'nav_map': 'Harita',
     'nav_listings': 'İlan',
     'nav_forum': 'Forum',
+    'nav_kesfet': 'Keşfet',
     'nav_more': 'Daha Fazlası',
     'nav_skip': 'Geç',
     'tour_home':
@@ -43,6 +44,8 @@ const _tables = <AppLang, Map<String, String>>{
         'Bakıcı arayanlar veya hizmet vermek isteyenler için ilanları incele ya da kendi ilanını oluştur.',
     'tour_forum':
         'Diğer aileler ve uzmanlarla deneyimlerini paylaş, sorularına topluluktan destek bul.',
+    'tour_kesfet':
+        'Onaylı kısa videolar: engellilik, sağlık, haklar ve aile. Eğlence veya alakasız içerik yok.',
     'tour_more':
         'Haklar rehberi ve kartlara buradan ulaş. Alt menüyü daha ferah tutmak için ek sayfalar bu menüde.',
     'more_rights': 'Hak Sorgulama Sihirbazı',
@@ -119,8 +122,8 @@ const _tables = <AppLang, Map<String, String>>{
   AppLang.en: {
     'nav_home': 'Home',
     'nav_map': 'Map',
-    'nav_listings': 'Listings',
     'nav_forum': 'Forum',
+    'nav_kesfet': 'Discover',
     'nav_more': 'More',
     'nav_skip': 'Skip',
     'tour_home':
@@ -131,6 +134,8 @@ const _tables = <AppLang, Map<String, String>>{
         'Browse caregiver/jobs listings or post your own.',
     'tour_forum':
         'Share experiences with families and specialists, get community support.',
+    'tour_kesfet':
+        'Approved short videos on disability, health, rights and family. No unrelated entertainment.',
     'tour_more':
         'Reach rights guide, cards and extra tools from this menu.',
     'more_rights': 'Benefits Wizard',
@@ -207,8 +212,8 @@ const _tables = <AppLang, Map<String, String>>{
   AppLang.de: {
     'nav_home': 'Start',
     'nav_map': 'Karte',
-    'nav_listings': 'Anzeigen',
     'nav_forum': 'Forum',
+    'nav_kesfet': 'Entdecken',
     'nav_more': 'Mehr',
     'nav_skip': 'Überspringen',
     'tour_home':
@@ -219,6 +224,8 @@ const _tables = <AppLang, Map<String, String>>{
         'Anzeigen ansehen oder eigene Anzeige erstellen.',
     'tour_forum':
         'Erfahrungen teilen und Unterstützung in der Community finden.',
+    'tour_kesfet':
+        'Freigegebene Kurzvideos zu Behinderung, Gesundheit, Rechten und Familie.',
     'tour_more':
         'Rechte-Guide, Karten und Extra-Tools findest du hier.',
     'more_rights': 'Rechte-Assistent',
@@ -295,8 +302,8 @@ const _tables = <AppLang, Map<String, String>>{
   AppLang.ar: {
     'nav_home': 'الرئيسية',
     'nav_map': 'الخريطة',
-    'nav_listings': 'الإعلانات',
     'nav_forum': 'المنتدى',
+    'nav_kesfet': 'اكتشف',
     'nav_more': 'المزيد',
     'nav_skip': 'تخطّي',
     'tour_home':
@@ -307,6 +314,8 @@ const _tables = <AppLang, Map<String, String>>{
         'تصفح إعلانات الرعاية/الخدمات أو أنشئ إعلانك.',
     'tour_forum':
         'شارك التجارب مع العائلات والمتخصصين واحصل على دعم المجتمع.',
+    'tour_kesfet':
+        'فيديوهات قصيرة معتمدة عن الإعاقة والصحة والحقوق والأسرة. لا محتوى ترفيهي غير ذي صلة.',
     'tour_more':
         'دليل الحقوق والبطاقات والأدوات الإضافية من هذه القائمة.',
     'more_rights': 'معالج الحقوق',
@@ -383,8 +392,8 @@ const _tables = <AppLang, Map<String, String>>{
   AppLang.fr: {
     'nav_home': 'Accueil',
     'nav_map': 'Carte',
-    'nav_listings': 'Annonces',
     'nav_forum': 'Forum',
+    'nav_kesfet': 'Découvrir',
     'nav_more': 'Plus',
     'nav_skip': 'Passer',
     'tour_home':
@@ -395,6 +404,8 @@ const _tables = <AppLang, Map<String, String>>{
         'Parcourez les annonces ou publiez la vôtre.',
     'tour_forum':
         'Partagez vos expériences et trouvez du soutien dans la communauté.',
+    'tour_kesfet':
+        'Courtes vidéos validées sur le handicap, la santé, les droits et la famille.',
     'tour_more':
         'Guide des droits, cartes et outils supplémentaires depuis ce menu.',
     'more_rights': 'Assistant des droits',

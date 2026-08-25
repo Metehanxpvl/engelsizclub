@@ -1127,7 +1127,7 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
     String description = '',
   }) {
     final caption = description.trim();
-    return Stack(
+    final imageStack = Stack(
       fit: StackFit.expand,
       children: [
         GestureDetector(
@@ -1182,41 +1182,6 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
             ],
           ),
         ),
-        if (caption.isNotEmpty)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.78),
-                  ],
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 40, 16, 40),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 180),
-                  child: SingleChildScrollView(
-                    child: Text(
-                      caption,
-                      style: GoogleFonts.nunito(
-                        fontSize: 15,
-                        height: 1.4,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
         Positioned(
           left: 12,
           bottom: 10,
@@ -1235,6 +1200,41 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+
+    if (caption.isEmpty) return imageStack;
+
+    final maxCaptionH = MediaQuery.sizeOf(context).height * 0.28;
+    return Column(
+      children: [
+        Expanded(child: imageStack),
+        ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxCaptionH),
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              color: MetoColors.background,
+              border: Border(
+                top: BorderSide(color: MetoColors.border),
+              ),
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                child: Text(
+                  caption,
+                  style: GoogleFonts.nunito(
+                    fontSize: 15,
+                    height: 1.45,
+                    fontWeight: FontWeight.w600,
+                    color: MetoColors.mutedFg,
+                  ),
+                ),
               ),
             ),
           ),
@@ -1302,64 +1302,69 @@ class _DuyuruPopupDialogState extends State<_DuyuruPopupDialog> {
             ],
           ),
           clipBehavior: Clip.antiAlias,
-          child: Stack(
-            fit: StackFit.expand,
+          child: Column(
             children: [
-              Positioned.fill(
-                child: _DuyuruImage(
-                  source: item.imageUrl,
-                  fit: BoxFit.contain,
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Positioned.fill(
+                      child: _DuyuruImage(
+                        source: item.imageUrl,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Material(
+                        color: Colors.black54,
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          tooltip: S.auto('Kapat'),
+                          onPressed: _close,
+                          icon: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 40,
+                            minHeight: 40,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               if (hasBody)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: h * 0.42),
                   child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.78),
-                        ],
+                    decoration: const BoxDecoration(
+                      color: MetoColors.background,
+                      border: Border(
+                        top: BorderSide(color: MetoColors.border),
                       ),
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
-                      child: Text(
-                        body,
-                        maxLines: 6,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.nunito(
-                          fontSize: 13.5,
-                          height: 1.4,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                        child: Text(
+                          body,
+                          style: GoogleFonts.nunito(
+                            fontSize: 13.5,
+                            height: 1.45,
+                            fontWeight: FontWeight.w600,
+                            color: MetoColors.mutedFg,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              Positioned(
-                top: 8,
-                left: 8,
-                child: Material(
-                  color: Colors.black54,
-                  shape: const CircleBorder(),
-                  child: IconButton(
-                    tooltip: S.auto('Kapat'),
-                    onPressed: _close,
-                    icon: const Icon(Icons.close, color: Colors.white, size: 20),
-                    constraints: const BoxConstraints(
-                      minWidth: 40,
-                      minHeight: 40,
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -1817,7 +1822,7 @@ class _AdminDuyuruSheetState extends State<_AdminDuyuruSheet> {
                 decoration: InputDecoration(
                   labelText: S.auto('Tam ekran detay metni'),
                   helperText: S.auto(
-                    'Yazarsanız resmin üzerinde açıklama olarak görünür.',
+                    'Yazarsanız resmin altında ayrı bölümde görünür; boşsa resim alanı kaplar.',
                   ),
                   helperMaxLines: 2,
                   alignLabelWithHint: true,

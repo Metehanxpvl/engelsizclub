@@ -7,8 +7,8 @@ $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";"
 
 Set-Location $PSScriptRoot
 
-Write-Host "==> flutter build web --release" -ForegroundColor Cyan
-flutter build web --release
+Write-Host "==> flutter build web --release --no-web-resources-cdn --no-wasm-dry-run --no-tree-shake-icons" -ForegroundColor Cyan
+flutter build web --release --no-web-resources-cdn --no-wasm-dry-run --no-tree-shake-icons
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # Statik bilgi kutuphanesi sayfalari (Flutter build bazen alt klasorleri atlayabilir)
@@ -26,8 +26,8 @@ foreach ($src in $staticRoots) {
   }
 }
 
-Write-Host "==> firebase deploy --only hosting" -ForegroundColor Cyan
-firebase deploy --only hosting
+Write-Host "==> firebase deploy --only hosting --project engelsizclub-e5842" -ForegroundColor Cyan
+firebase deploy --only hosting --project engelsizclub-e5842
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host ""

@@ -56,14 +56,15 @@ Future<List<MoreMenuItem>> loadMoreMenu({
         if (r is Map<String, dynamic>) MoreMenuItem.fromJson(r),
     ];
     if (items.isEmpty) {
-      final fallback = defaultMoreMenuItems();
+      final fallback = withoutMainNavMapItems(defaultMoreMenuItems());
       if (!includeInactive) _setCache(fallback);
       return fallback;
     }
-    if (!includeInactive) _setCache(items);
-    return items;
+    final withoutMap = withoutMainNavMapItems(items);
+    if (!includeInactive) _setCache(withoutMap);
+    return withoutMap;
   } catch (_) {
-    final fallback = defaultMoreMenuItems()
+    final fallback = withoutMainNavMapItems(defaultMoreMenuItems())
         .where((e) => includeInactive || e.isActive)
         .toList();
     if (!includeInactive) _setCache(fallback);

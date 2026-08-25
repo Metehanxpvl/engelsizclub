@@ -112,6 +112,19 @@ String? normalizeMoreMenuRoute(String raw) {
   return MoreMenuItem.builtinRoutes.contains(s) ? s : null;
 }
 
+/// Harita ana sekmede; Daha Fazlası’ndaki kopyayı gösterme (eski DB satırı olsa bile).
+List<MoreMenuItem> withoutMainNavMapItems(List<MoreMenuItem> items) {
+  return [
+    for (final e in items)
+      if (!_isMainNavMapItem(e)) e,
+  ];
+}
+
+bool _isMainNavMapItem(MoreMenuItem e) {
+  final k = (e.routeKey ?? e.link.trim().toLowerCase());
+  return k == 'harita' || k == 'merkezler';
+}
+
 /// DB yoksa / hata olursa kullanılan varsayılan menü.
 List<MoreMenuItem> defaultMoreMenuItems() => const [
       MoreMenuItem(
