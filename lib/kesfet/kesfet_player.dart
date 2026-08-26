@@ -1,4 +1,9 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 /// Aktif slayttaki YouTube denetleyicisi; dokununca oynat/duraklat.
@@ -108,10 +113,26 @@ class _KesfetYoutubePlayerState extends State<KesfetYoutubePlayer> {
         ),
       );
       _bind();
+      // YoutubePlayer widget on Android/iOS lifts the WebView into OverlayPortal,
+      // which sits above the Keşfet swipe layer and eats vertical drags.
+      if (!kIsWeb) {
+        unawaited(_initNativeSurface());
+      }
     } catch (_) {
       _controller = null;
       _unbind();
     }
+  }
+
+  Future<void> _initNativeSurface() async {
+    final c = _controller;
+    if (c == null) return;
+    try {
+      await c.webViewController.setBackgroundColor(Colors.black);
+      await c.initWithParams(params: c.params);
+    } catch (_) {}
+    if (!mounted || _controller != c) return;
+    setState(() {});
   }
 
   @override
@@ -127,14 +148,24 @@ class _KesfetYoutubePlayerState extends State<KesfetYoutubePlayer> {
     if (!widget.isActive || c == null) {
       return const ColoredBox(color: Colors.black);
     }
+    if (kIsWeb) {
+      return ColoredBox(
+        color: Colors.black,
+        child: IgnorePointer(
+          child: YoutubePlayer(
+            controller: c,
+            aspectRatio: 9 / 16,
+            enableFullScreenOnVerticalDrag: false,
+          ),
+        ),
+      );
+    }
+    // Keep the WebView in the PageView tree so vertical swipes reach Flutter.
     return ColoredBox(
       color: Colors.black,
-      child: IgnorePointer(
-        child: YoutubePlayer(
-          controller: c,
-          aspectRatio: 9 / 16,
-          enableFullScreenOnVerticalDrag: false,
-        ),
+      child: WebViewWidget(
+        controller: c.webViewController,
+        gestureRecognizers: const <Factory<OneSequenceGestureRecognizer>>{},
       ),
     );
   }

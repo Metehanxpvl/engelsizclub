@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -360,6 +361,58 @@ class _KesfetPageState extends State<KesfetPage> with WidgetsBindingObserver {
       );
     }
 
+    Widget pages = PageView.builder(
+      controller: _pageCtrl,
+      scrollDirection: Axis.vertical,
+      // Web: iframe overlay owns the swipe. Android/iOS: native PageView.
+      physics: kIsWeb
+          ? const NeverScrollableScrollPhysics()
+          : const PageScrollPhysics(parent: ClampingScrollPhysics()),
+      itemCount: _videos.length,
+      onPageChanged: (i) {
+        setState(() => _index = i);
+        unawaited(_maybeRecordView(i));
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _syncWebPointers();
+        });
+      },
+      itemBuilder: (context, i) {
+        final v = _videos[i];
+        final active = widget.isTabActive &&
+            i == _index &&
+            !_quotaExhausted &&
+            (_guestQuotaReady || !_guestLimited);
+        return _KesfetSlide(
+          video: v,
+          isActive: active,
+          reduceMotion: reduce,
+          pageController: _pageCtrl,
+          itemCount: _videos.length,
+          playback: _playback,
+          onWheel: _onWheel,
+          onWrapForward: _wrapWithNewShuffle,
+          onRelated: v.hasRelatedArticle
+              ? () => openKesfetRelated(
+                    context,
+                    video: v,
+                    isGuest: widget.isGuest,
+                    onRequireLogin: widget.onRequireLogin,
+                  )
+              : null,
+        );
+      },
+    );
+    if (!kIsWeb) {
+      pages = NotificationListener<OverscrollNotification>(
+        onNotification: (n) {
+          if (n.overscroll > 20 && _index >= _videos.length - 1) {
+            _wrapWithNewShuffle();
+          }
+          return false;
+        },
+        child: pages,
+      );
+    }
     final feed = CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.arrowDown): () => _goPage(1),
@@ -369,44 +422,7 @@ class _KesfetPageState extends State<KesfetPage> with WidgetsBindingObserver {
       child: Focus(
         focusNode: _focus,
         autofocus: widget.isTabActive,
-        child: PageView.builder(
-          controller: _pageCtrl,
-          scrollDirection: Axis.vertical,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _videos.length,
-          onPageChanged: (i) {
-            setState(() => _index = i);
-            unawaited(_maybeRecordView(i));
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) _syncWebPointers();
-            });
-          },
-          itemBuilder: (context, i) {
-            final v = _videos[i];
-            final active = widget.isTabActive &&
-                i == _index &&
-                !_quotaExhausted &&
-                (_guestQuotaReady || !_guestLimited);
-            return _KesfetSlide(
-              video: v,
-              isActive: active,
-              reduceMotion: reduce,
-              pageController: _pageCtrl,
-              itemCount: _videos.length,
-              playback: _playback,
-              onWheel: _onWheel,
-              onWrapForward: _wrapWithNewShuffle,
-              onRelated: v.hasRelatedArticle
-                  ? () => openKesfetRelated(
-                        context,
-                        video: v,
-                        isGuest: widget.isGuest,
-                        onRequireLogin: widget.onRequireLogin,
-                      )
-                  : null,
-            );
-          },
-        ),
+        child: pages,
       ),
     );
     if (adminOpen == null) return feed;
@@ -635,6 +651,7 @@ class _KesfetSlide extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         IgnorePointer(
+          ignoring: kIsWeb,
           child: KesfetStage(
             videoId: video.youtubeVideoId,
             thumbnailUrl: video.resolvedThumb,
@@ -739,8 +756,9 @@ class _KesfetSlide extends StatelessWidget {
   }
 }
 
-/// Full-screen transparent layer: vertical swipe changes video; tap plays/pauses.
-/// Stays above the iframe so Flutter (not YouTube) owns the gesture.
+/// Full-screen transparent layer: tap plays/pauses.
+/// On web, vertical drag also changes video (iframe cannot host PageView).
+/// On Android/iOS, PageView owns the swipe so YouTube's overlay cannot eat it.
 class _KesfetSwipeLayer extends StatelessWidget {
   const _KesfetSwipeLayer({
     required this.controller,
@@ -803,8 +821,8 @@ class _KesfetSwipeLayer extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTogglePlay,
-        onVerticalDragUpdate: _onDragUpdate,
-        onVerticalDragEnd: _onDragEnd,
+        onVerticalDragUpdate: kIsWeb ? _onDragUpdate : null,
+        onVerticalDragEnd: kIsWeb ? _onDragEnd : null,
         child: const ColoredBox(color: Color(0x00000000)),
       ),
     );

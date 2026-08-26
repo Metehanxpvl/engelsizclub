@@ -70,7 +70,7 @@ import 'widgets/admin_users_panel.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'l10n/l10n_text.dart';
 
-enum MetoTab { home, merkezler, ilanlar, forum, kesfet, haklar, kartlar }
+enum MetoTab { home, merkezler, ilanlar, kesfet, forum, haklar, kartlar }
 
 enum _KrediStep { paket, odeme }
 
@@ -2264,12 +2264,10 @@ class _MainShellState extends State<MainShell> {
     // konum/merkez araması tetiklenmesin. Sağa/sola kaydırarak sekmeler arası geçiş.
     return PageView(
       controller: _tabPageController,
-      // Keşfet dikey kaydırmayı yemesin; diğer sekmelerde yatay geçiş açık.
-      physics: _activeTab == MetoTab.kesfet && !_showMesajlar
-          ? const NeverScrollableScrollPhysics()
-          : const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
-            ),
+      // Yatay: Ana · Harita · İlan · Keşfet · Forum. Dikey kaydırma Keşfet’in kendi PageView’inde.
+      physics: const BouncingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      ),
       onPageChanged: _onTabPageChanged,
       children: [
         _KeepAliveTab(
@@ -2308,18 +2306,6 @@ class _MainShellState extends State<MainShell> {
           openEditIlanId: _openEditIlanId,
           openEditIlanToken: _openEditIlanToken,
         ),
-        ForumPage(
-          key: _forumPageKey,
-          userName: widget.user.name,
-          userEmail: widget.user.email,
-          userType: _role,
-          profilFoto: _profilFoto,
-          isGuest: _isGuest,
-          onRequireLogin: () => _requireLogin(),
-          openPostId: _openForumPostId,
-          openCommentId: _openForumCommentId,
-          openPostToken: _openForumToken,
-        ),
         KesfetPage(
           userEmail: widget.user.email,
           userName: _publicDisplayName,
@@ -2331,6 +2317,18 @@ class _MainShellState extends State<MainShell> {
           onOpenAdmin: isAppAdmin(widget.user.email)
               ? _openKesfetAdmin
               : null,
+        ),
+        ForumPage(
+          key: _forumPageKey,
+          userName: widget.user.name,
+          userEmail: widget.user.email,
+          userType: _role,
+          profilFoto: _profilFoto,
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(),
+          openPostId: _openForumPostId,
+          openCommentId: _openForumCommentId,
+          openPostToken: _openForumToken,
         ),
         HaklarPage(adminEmail: widget.user.email),
         const KartlarPage(),
@@ -6268,8 +6266,7 @@ class _BottomNav extends StatelessWidget {
   final int forumNewCount;
   final VoidCallback? onSkipTour;
 
-  /// Görünen sıra: Ana · Harita · İlan · Keşfet · Forum.
-  /// MetoTab enum / PageView indeksleri değişmez.
+  /// Görünen sıra = kaydırma sırası: Ana · Harita · İlan · Keşfet · Forum.
   static List<(MetoTab, String, String)> get _primaryItems => [
     (MetoTab.home, S.t('nav_home'), S.t('tour_home')),
     (MetoTab.merkezler, S.t('nav_map'), S.t('tour_map')),
