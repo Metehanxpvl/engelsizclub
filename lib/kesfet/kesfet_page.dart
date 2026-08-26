@@ -647,64 +647,62 @@ class _KesfetSlide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Kaynak sits in a band below the player so the YouTube platform view
-    // cannot steal the tap (same outcome as live web pointer-events: none).
+    final channel = video.channelName.trim().isEmpty
+        ? 'Kanal'
+        : video.channelName.trim();
+    // Live chrome sits on the video (not a band below). Player is always
+    // IgnorePointer so the native WebView cannot steal Kaynak taps.
     return ColoredBox(
       color: Colors.black,
-      child: Column(
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          Expanded(
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                IgnorePointer(
-                  child: KesfetStage(
-                    videoId: video.youtubeVideoId,
-                    thumbnailUrl: video.resolvedThumb,
-                    isActive: isActive,
-                    reduceMotion: reduceMotion,
-                    title: video.title,
-                    playback: playback,
-                  ),
-                ),
-                IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withValues(alpha: 0.15),
-                          Colors.transparent,
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.55),
-                        ],
-                        stops: const [0, 0.25, 0.55, 1],
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned.fill(
-                  child: _KesfetSwipeLayer(
-                    controller: pageController,
-                    itemCount: itemCount,
-                    reduceMotion: reduceMotion,
-                    onTogglePlay: playback.toggle,
-                    onWheel: onWheel,
-                    onWrapForward: onWrapForward,
-                  ),
-                ),
-              ],
+          IgnorePointer(
+            child: KesfetStage(
+              videoId: video.youtubeVideoId,
+              thumbnailUrl: video.resolvedThumb,
+              isActive: isActive,
+              reduceMotion: reduceMotion,
+              title: video.title,
+              playback: playback,
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.15),
+                    Colors.transparent,
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.72),
+                  ],
+                  stops: const [0, 0.25, 0.45, 1],
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: _KesfetSwipeLayer(
+              controller: pageController,
+              itemCount: itemCount,
+              reduceMotion: reduceMotion,
+              onTogglePlay: playback.toggle,
+              onWheel: onWheel,
+              onWrapForward: onWrapForward,
+            ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                GestureDetector(
-                  onTap: playback.toggle,
-                  behavior: HitTestBehavior.opaque,
+                IgnorePointer(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -736,14 +734,14 @@ class _KesfetSlide extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Wrap(
                   spacing: 8,
                   runSpacing: 6,
                   children: [
-                    _MetaPill(video.categoryTitle),
+                    IgnorePointer(child: _MetaPill(video.categoryTitle)),
                     _MetaPill(
-                      'Kaynak: YouTube · ${video.channelName.trim().isEmpty ? 'Kanal' : video.channelName}',
+                      'Kaynak: YouTube · $channel',
                       onTap: () =>
                           unawaited(_openKesfetYoutube(context, video)),
                       semanticLabel:
@@ -915,13 +913,7 @@ class _MetaPill extends StatelessWidget {
           child: InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(8),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 44),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: pill,
-              ),
-            ),
+            child: pill,
           ),
         ),
       ),
