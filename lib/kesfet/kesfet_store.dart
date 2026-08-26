@@ -22,7 +22,9 @@ List<T> shuffleKesfetVideos<T>(List<T> input, [Random? random]) {
   return list;
 }
 
-bool _isMissingRelation(Object e) {
+/// True when Supabase reports a missing `kesfet_*` relation, i.e. the SQL
+/// files under `supabase/` were never run on the project.
+bool isKesfetMissingRelation(Object e) {
   final s = e.toString().toLowerCase();
   return s.contains('kesfet_') &&
       (s.contains('does not exist') ||
@@ -52,7 +54,7 @@ class KesfetStore {
       _keywordCache = list.isEmpty ? kKesfetFallbackKeywords : list;
       return _keywordCache!;
     } catch (e) {
-      if (_isMissingRelation(e)) return kKesfetFallbackKeywords;
+      if (isKesfetMissingRelation(e)) return kKesfetFallbackKeywords;
       return _keywordCache ?? kKesfetFallbackKeywords;
     }
   }
@@ -115,49 +117,44 @@ class KesfetStore {
     String category = 'sana-ozel',
     bool savedOnly = false,
   }) async {
-    try {
-      if (savedOnly) {
-        final user = _c.auth.currentUser;
-        if (user == null) return const [];
-        final rows = await withNetworkTimeout(
-          _c
-              .from('kesfet_saves')
-              .select('video_id, kesfet_videos(*)')
-              .eq('owner_id', user.id)
-              .order('created_at', ascending: false)
-              .limit(80),
-        );
-        final videos = <KesfetVideo>[];
-        for (final e in (rows as List).whereType<Map>()) {
-          final v = e['kesfet_videos'];
-          if (v is Map) {
-            final video = KesfetVideo.fromRow(
-              Map<String, dynamic>.from(v),
-              savedByMe: true,
-            );
-            if (video.status == 'approved') videos.add(video);
-          }
-        }
-        return _withMine(videos);
-      }
-
-      var q = _c.from('kesfet_videos').select().eq('status', 'approved');
-      if (category.isNotEmpty && category != 'sana-ozel') {
-        q = q.eq('category', category);
-      }
+    if (savedOnly) {
+      final user = _c.auth.currentUser;
+      if (user == null) return const [];
       final rows = await withNetworkTimeout(
-        q.order('published_at', ascending: false).limit(80),
+        _c
+            .from('kesfet_saves')
+            .select('video_id, kesfet_videos(*)')
+            .eq('owner_id', user.id)
+            .order('created_at', ascending: false)
+            .limit(80),
       );
-      final list = [
-        for (final e in (rows as List).whereType<Map>())
-          KesfetVideo.fromRow(Map<String, dynamic>.from(e)),
-      ].where((v) => v.youtubeVideoId.isNotEmpty).toList();
-      final withMine = await _withMine(list);
-      return shuffleKesfetVideos(withMine);
-    } catch (e) {
-      if (_isMissingRelation(e)) return const [];
-      rethrow;
+      final videos = <KesfetVideo>[];
+      for (final e in (rows as List).whereType<Map>()) {
+        final v = e['kesfet_videos'];
+        if (v is Map) {
+          final video = KesfetVideo.fromRow(
+            Map<String, dynamic>.from(v),
+            savedByMe: true,
+          );
+          if (video.status == 'approved') videos.add(video);
+        }
+      }
+      return _withMine(videos);
     }
+
+    var q = _c.from('kesfet_videos').select().eq('status', 'approved');
+    if (category.isNotEmpty && category != 'sana-ozel') {
+      q = q.eq('category', category);
+    }
+    final rows = await withNetworkTimeout(
+      q.order('published_at', ascending: false).limit(80),
+    );
+    final list = [
+      for (final e in (rows as List).whereType<Map>())
+        KesfetVideo.fromRow(Map<String, dynamic>.from(e)),
+    ].where((v) => v.youtubeVideoId.isNotEmpty).toList();
+    final withMine = await _withMine(list);
+    return shuffleKesfetVideos(withMine);
   }
 
   Future<List<KesfetVideo>> _withMine(List<KesfetVideo> list) async {

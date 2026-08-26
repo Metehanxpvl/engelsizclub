@@ -15,6 +15,7 @@ import 'kesfet_models.dart';
 import 'kesfet_player.dart';
 import 'kesfet_related.dart';
 import 'kesfet_store.dart';
+import 'kesfet_swipe_layer.dart';
 import 'kesfet_web_pointers.dart';
 
 class KesfetPage extends StatefulWidget {
@@ -336,15 +337,13 @@ class _KesfetPageState extends State<KesfetPage> with WidgetsBindingObserver {
     }
     final adminOpen = isAppAdmin(widget.userEmail) ? widget.onOpenAdmin : null;
     if (_error != null && _videos.isEmpty) {
-      final missing = _error!.toLowerCase().contains('kesfet_') ||
-          _error!.toLowerCase().contains('does not exist') ||
-          _error!.toLowerCase().contains('schema cache');
+      final missing = isKesfetMissingRelation(_error!);
       return _EmptyKesfet(
         title: missing
             ? 'Keşfet henüz kurulmadı'
             : 'Videolar yüklenemedi',
         body: missing
-            ? 'Yöneticinin Supabase SQL Editor’de kesfet_schema.sql, kesfet_scoring.sql, kesfet_seed.sql ve kesfet_admin.sql dosyalarını çalıştırması gerekir. Sahte video gösterilmez.'
+            ? 'Yöneticinin Supabase SQL Editor’de kesfet_schema.sql, kesfet_scoring.sql, kesfet_seed.sql ve kesfet_admin.sql dosyalarını çalıştırması gerekir. Videolar için kesfet_seed_videos.sql ve kesfet_seed_videos_batch2.sql da gerekir. Sahte video gösterilmez.'
             : _error!,
         onRetry: _reload,
         onOpenAdmin: adminOpen,
@@ -354,7 +353,7 @@ class _KesfetPageState extends State<KesfetPage> with WidgetsBindingObserver {
       return _EmptyKesfet(
         title: 'Henüz onaylanmış video yok',
         body:
-            'Engelsiz Club Keşfet’te yalnızca engellilik, sağlık, haklar ve aileyle ilgili, editör onaylı kısa videolar yer alır.\n\nEğlence veya alakasız içerik yayınlanmaz. Onaylanan videolar burada görünecek.',
+            'Engelsiz Club Keşfet’te yalnızca engellilik, sağlık, haklar ve aileyle ilgili, editör onaylı kısa videolar yer alır.\n\nEğlence veya alakasız içerik yayınlanmaz. Yönetici Supabase SQL Editor’de kesfet_seed_videos.sql ile kesfet_seed_videos_batch2.sql dosyalarını çalıştırdığında akış dolar; onaylı video sayısını kesfet_feed_repair.sql gösterir.',
         onRetry: _reload,
         onOpenAdmin: adminOpen,
       );
@@ -409,34 +408,94 @@ class _KesfetPageState extends State<KesfetPage> with WidgetsBindingObserver {
         ),
       ),
     );
-    if (adminOpen == null) return feed;
+    // A one-clip feed has no second page, so swiping cannot move: say so
+    // instead of leaving it looking like broken scrolling.
+    final singleVideo = _videos.length < 2;
+    if (adminOpen == null && !singleVideo) return feed;
     return Stack(
       children: [
         feed,
-        Positioned(
-          top: 10,
-          right: 10,
-          child: Material(
-            color: const Color(0xCC111827),
-            borderRadius: BorderRadius.circular(99),
-            child: InkWell(
+        if (singleVideo)
+          SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                12,
+                10,
+                adminOpen == null ? 12 : 140,
+                0,
+              ),
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: _SingleVideoNotice(isAdmin: adminOpen != null),
+              ),
+            ),
+          ),
+        if (adminOpen != null)
+          Positioned(
+            top: 10,
+            right: 10,
+            child: Material(
+              color: const Color(0xCC111827),
               borderRadius: BorderRadius.circular(99),
-              onTap: adminOpen,
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: L10nText(
-                  'Keşfet İçerikleri',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(99),
+                onTap: adminOpen,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: L10nText(
+                    'Keşfet İçerikleri',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
       ],
+    );
+  }
+}
+
+/// Single-clip feed: no second page exists, so no swipe can land anywhere.
+class _SingleVideoNotice extends StatelessWidget {
+  const _SingleVideoNotice({required this.isAdmin});
+
+  final bool isAdmin;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = isAdmin
+        ? 'Akışta tek onaylı video var; kaydırılacak ikinci sayfa yok. '
+            'Keşfet İçerikleri’nden video onaylayın.'
+        : 'Akışta şu an tek video var; kaydırılacak ikinci sayfa yok. '
+            'Yeni videolar onaylandıkça akış dolar.';
+    return Semantics(
+      liveRegion: true,
+      label: text,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.62),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: L10nText(
+              text,
+              style: GoogleFonts.nunito(
+                color: Colors.white,
+                fontSize: 12,
+                height: 1.35,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -662,7 +721,7 @@ class _KesfetSlide extends StatelessWidget {
           ),
         ),
         Positioned.fill(
-          child: _KesfetSwipeLayer(
+          child: KesfetSwipeLayer(
             controller: pageController,
             itemCount: itemCount,
             reduceMotion: reduceMotion,
@@ -735,78 +794,6 @@ class _KesfetSlide extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Full-screen transparent layer: vertical swipe changes video; tap plays/pauses.
-/// Stays above the iframe so Flutter (not YouTube) owns the gesture.
-class _KesfetSwipeLayer extends StatelessWidget {
-  const _KesfetSwipeLayer({
-    required this.controller,
-    required this.itemCount,
-    required this.reduceMotion,
-    required this.onTogglePlay,
-    required this.onWheel,
-    this.onWrapForward,
-  });
-
-  final PageController controller;
-  final int itemCount;
-  final bool reduceMotion;
-  final VoidCallback onTogglePlay;
-  final void Function(PointerScrollEvent e) onWheel;
-  final VoidCallback? onWrapForward;
-
-  void _onDragUpdate(DragUpdateDetails d) {
-    if (!controller.hasClients) return;
-    final pos = controller.position;
-    final next = (pos.pixels - d.delta.dy).clamp(0.0, pos.maxScrollExtent);
-    controller.jumpTo(next);
-  }
-
-  void _onDragEnd(DragEndDetails d) {
-    if (!controller.hasClients || itemCount <= 0) return;
-    final page = controller.page ?? 0;
-    final v = d.primaryVelocity ?? 0;
-    if (itemCount > 1 && page >= itemCount - 1.05 && v < -280) {
-      onWrapForward?.call();
-      return;
-    }
-    int target;
-    if (v < -280) {
-      target = page.ceil();
-    } else if (v > 280) {
-      target = page.floor();
-    } else {
-      target = page.round();
-    }
-    target = target.clamp(0, itemCount - 1);
-    if (reduceMotion) {
-      controller.jumpToPage(target);
-    } else {
-      controller.animateToPage(
-        target,
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOutCubic,
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Listener(
-      behavior: HitTestBehavior.opaque,
-      onPointerSignal: (e) {
-        if (e is PointerScrollEvent) onWheel(e);
-      },
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTogglePlay,
-        onVerticalDragUpdate: _onDragUpdate,
-        onVerticalDragEnd: _onDragEnd,
-        child: const ColoredBox(color: Color(0x00000000)),
-      ),
     );
   }
 }
