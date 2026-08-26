@@ -108,6 +108,7 @@
             <data android:mimeType="text/plain"/>
         </intent>
         <!-- Google OAuth tarayıcı / Custom Tabs -->
+        <package android:name="com.google.android.youtube" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />

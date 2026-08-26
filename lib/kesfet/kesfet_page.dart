@@ -647,111 +647,122 @@ class _KesfetSlide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        IgnorePointer(
-          ignoring: kIsWeb,
-          child: KesfetStage(
-            videoId: video.youtubeVideoId,
-            thumbnailUrl: video.resolvedThumb,
-            isActive: isActive,
-            reduceMotion: reduceMotion,
-            title: video.title,
-            playback: playback,
-          ),
-        ),
-        IgnorePointer(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.15),
-                  Colors.transparent,
-                  Colors.transparent,
-                  Colors.black.withValues(alpha: 0.72),
-                ],
-                stops: const [0, 0.25, 0.45, 1],
-              ),
-            ),
-          ),
-        ),
-        Positioned.fill(
-          child: _KesfetSwipeLayer(
-            controller: pageController,
-            itemCount: itemCount,
-            reduceMotion: reduceMotion,
-            onTogglePlay: playback.toggle,
-            onWheel: onWheel,
-            onWrapForward: onWrapForward,
-          ),
-        ),
-        Positioned(
-          left: 16,
-          right: 16,
-          bottom: 16,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              IgnorePointer(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      video.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.nunito(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        height: 1.25,
+    // Kaynak sits in a band below the player so the YouTube platform view
+    // cannot steal the tap (same outcome as live web pointer-events: none).
+    return ColoredBox(
+      color: Colors.black,
+      child: Column(
+        children: [
+          Expanded(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                IgnorePointer(
+                  child: KesfetStage(
+                    videoId: video.youtubeVideoId,
+                    thumbnailUrl: video.resolvedThumb,
+                    isActive: isActive,
+                    reduceMotion: reduceMotion,
+                    title: video.title,
+                    playback: playback,
+                  ),
+                ),
+                IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.15),
+                          Colors.transparent,
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.55),
+                        ],
+                        stops: const [0, 0.25, 0.55, 1],
                       ),
                     ),
-                    if (video.description.trim().isNotEmpty) ...[
-                      const SizedBox(height: 4),
+                  ),
+                ),
+                Positioned.fill(
+                  child: _KesfetSwipeLayer(
+                    controller: pageController,
+                    itemCount: itemCount,
+                    reduceMotion: reduceMotion,
+                    onTogglePlay: playback.toggle,
+                    onWheel: onWheel,
+                    onWrapForward: onWrapForward,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  onTap: playback.toggle,
+                  behavior: HitTestBehavior.opaque,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        video.description.trim(),
+                        video.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.nunito(
-                          color: Colors.white.withValues(alpha: 0.88),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          height: 1.3,
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          height: 1.25,
                         ),
                       ),
+                      if (video.description.trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          video.description.trim(),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.nunito(
+                            color: Colors.white.withValues(alpha: 0.88),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
                     ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    _MetaPill(video.categoryTitle),
+                    _MetaPill(
+                      'Kaynak: YouTube · ${video.channelName.trim().isEmpty ? 'Kanal' : video.channelName}',
+                      onTap: () =>
+                          unawaited(_openKesfetYoutube(context, video)),
+                      semanticLabel:
+                          'Kaynak: YouTube, orijinal videoyu tarayıcıda aç',
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  IgnorePointer(child: _MetaPill(video.categoryTitle)),
-                  _MetaPill(
-                    'Kaynak: YouTube · ${video.channelName.trim().isEmpty ? 'Kanal' : video.channelName}',
-                    onTap: () => unawaited(_openKesfetYoutube(context, video)),
-                    semanticLabel:
-                        'Kaynak: YouTube, orijinal videoyu tarayıcıda aç',
+                if (onRelated != null) ...[
+                  const SizedBox(height: 8),
+                  _TextLink(
+                    label: 'Detayları Engelsiz Club’da Gör',
+                    onTap: onRelated!,
                   ),
                 ],
-              ),
-              if (onRelated != null) ...[
-                const SizedBox(height: 8),
-                _TextLink(
-                  label: 'Detayları Engelsiz Club’da Gör',
-                  onTap: onRelated!,
-                ),
               ],
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -832,22 +843,36 @@ class _KesfetSwipeLayer extends StatelessWidget {
 Future<void> _openKesfetYoutube(BuildContext context, KesfetVideo video) async {
   final uri = Uri.tryParse(video.externalYoutubeUrl);
   if (uri == null) return;
-  try {
-    final ok = await launchUrl(
+  Future<bool> open(LaunchMode mode) async {
+    return launchUrl(
       uri,
-      mode: LaunchMode.externalApplication,
+      mode: mode,
       webOnlyWindowName: '_blank',
     );
+  }
+
+  try {
+    var ok = await open(LaunchMode.externalApplication);
+    if (!ok) ok = await open(LaunchMode.platformDefault);
     if (!ok && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('YouTube açılamadı')),
       );
     }
   } catch (_) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('YouTube açılamadı')),
-      );
+    try {
+      final ok = await open(LaunchMode.platformDefault);
+      if (!ok && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('YouTube açılamadı')),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('YouTube açılamadı')),
+        );
+      }
     }
   }
 }
@@ -890,7 +915,13 @@ class _MetaPill extends StatelessWidget {
           child: InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(8),
-            child: pill,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 44),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: pill,
+              ),
+            ),
           ),
         ),
       ),

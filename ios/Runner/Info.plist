@@ -45,6 +45,13 @@
 	</array>
 	<key>GIDClientID</key>
 	<string>59695056324-pr0kp9qs7fh1pk760262447edk61f0bp.apps.googleusercontent.com</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>https</string>
+		<string>http</string>
+		<string>youtube</string>
+		<string>youtube-unlisted</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
