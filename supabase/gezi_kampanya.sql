@@ -2,6 +2,7 @@
 -- Supabase Dashboard → SQL Editor → çalıştırın
 -- Misafir (anon) aktif kayıtları okur; yazma yalnız admin.
 -- Ana sayfa kutucuk kapakları: gezi_kampanya_tiles.sql
+-- Kampanya il / tüm ülke (mevcut tablo): kampanyalar_city.sql
 
 create table if not exists public.gezi_rehberi (
   id bigint generated always as identity primary key,
@@ -30,6 +31,7 @@ create table if not exists public.kampanyalar (
   title text not null default '',
   image_url text not null,
   description text not null default '',
+  city text,
   sort_order int not null default 0,
   is_active boolean not null default true,
   created_by text not null default '',
@@ -38,6 +40,11 @@ create table if not exists public.kampanyalar (
 
 create index if not exists kampanyalar_sort_idx
   on public.kampanyalar (is_active, sort_order, created_at desc);
+
+create index if not exists kampanyalar_city_idx
+  on public.kampanyalar (city, is_active, sort_order, created_at desc);
+
+-- Mevcut kurulum: il / tüm ülke için kampanyalar_city.sql
 
 alter table public.gezi_rehberi enable row level security;
 alter table public.kampanyalar enable row level security;
