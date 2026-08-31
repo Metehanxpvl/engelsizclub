@@ -14,7 +14,8 @@ import 'photo_gallery_lightbox.dart';
 
 enum GeziKampanyaKind { gezi, kampanya }
 
-/// Admin: görsel (galeri / URL) + başlık / açıklama; gezi için il seçimi.
+/// Admin: görsel (galeri / URL) + başlık / açıklama.
+/// Gezi: il zorunlu. Kampanya: Tüm ülke veya il.
 class GeziKampanyaAdminSheet extends StatefulWidget {
   const GeziKampanyaAdminSheet({
     super.key,
@@ -22,12 +23,14 @@ class GeziKampanyaAdminSheet extends StatefulWidget {
     required this.kind,
     this.presetCity,
     this.editGezi,
+    this.editKampanya,
   });
 
   final String adminEmail;
   final GeziKampanyaKind kind;
   final String? presetCity;
   final GeziItem? editGezi;
+  final KampanyaItem? editKampanya;
 
   @override
   State<GeziKampanyaAdminSheet> createState() => _GeziKampanyaAdminSheetState();
@@ -40,11 +43,17 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
   late final TextEditingController _citySearch;
   Uint8List? _pickedBytes;
   String? _city;
+  bool _nationwide = true;
   bool _saving = false;
 
   bool get _isGezi => widget.kind == GeziKampanyaKind.gezi;
-  bool get _isEdit => widget.editGezi != null;
+  bool get _isKampanya => widget.kind == GeziKampanyaKind.kampanya;
+  bool get _isEdit => widget.editGezi != null || widget.editKampanya != null;
+  bool get _showCityPicker => _isGezi || (_isKampanya && !_nationwide);
+  String get _existingImage =>
+      (widget.editGezi?.imageUrl ?? widget.editKampanya?.imageUrl ?? '').trim();
   bool get _lockCity {
+    if (_isKampanya) return false;
     if (_isEdit) return true;
     final preset = widget.presetCity?.trim() ?? '';
     return preset.isNotEmpty && _city != null;
@@ -54,18 +63,39 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
   void initState() {
     super.initState();
     final edit = widget.editGezi;
-    _title = TextEditingController(text: edit?.title ?? '');
-    _body = TextEditingController(text: edit?.description ?? '');
+    final editKampanya = widget.editKampanya;
+    _title = TextEditingController(
+      text: edit?.title ?? editKampanya?.title ?? '',
+    );
+    _body = TextEditingController(
+      text: edit?.description ?? editKampanya?.description ?? '',
+    );
     _imageUrl = TextEditingController();
     _citySearch = TextEditingController();
-    final preset = (edit?.cityName ?? widget.presetCity)?.trim();
-    if (preset != null &&
-        preset.isNotEmpty &&
-        kCityNames.any((c) => foldTurkish(c) == foldTurkish(preset))) {
-      _city = kCityNames.firstWhere(
-        (c) => foldTurkish(c) == foldTurkish(preset),
-      );
-      _citySearch.text = _city!;
+    final preset = (edit?.cityName ??
+            (isKampanyaNationwide(editKampanya?.city)
+                ? null
+                : editKampanya?.city) ??
+            widget.presetCity)
+        ?.trim();
+    final matchedCity = (preset != null &&
+            preset.isNotEmpty &&
+            !isKampanyaNationwide(preset) &&
+            kCityNames.any((c) => foldTurkish(c) == foldTurkish(preset)))
+        ? kCityNames.firstWhere(
+            (c) => foldTurkish(c) == foldTurkish(preset),
+          )
+        : null;
+    if (matchedCity != null) {
+      _city = matchedCity;
+      _citySearch.text = matchedCity;
+    }
+    if (_isKampanya) {
+      if (editKampanya != null) {
+        _nationwide = editKampanya.isNationwide;
+      } else {
+        _nationwide = matchedCity == null;
+      }
     }
   }
 
@@ -116,7 +146,7 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
   }
 
   Future<void> _save() async {
-    if (_isGezi && (_city == null || _city!.trim().isEmpty)) {
+    if (_showCityPicker && (_city == null || _city!.trim().isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: L10nText('İl seçin (ör. Ankara).')),
       );
@@ -160,12 +190,26 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
           );
         }
       } else {
-        await addKampanyaItem(
-          title: _title.text,
-          imageUrl: image,
-          description: _body.text,
-          adminEmail: widget.adminEmail,
-        );
+        final scopeCity = _nationwide ? null : _city;
+        final editKampanya = widget.editKampanya;
+        if (editKampanya != null) {
+          await updateKampanyaItem(
+            id: editKampanya.id,
+            title: _title.text,
+            description: _body.text,
+            imageUrl: image.isEmpty ? null : image,
+            city: scopeCity,
+            adminEmail: widget.adminEmail,
+          );
+        } else {
+          await addKampanyaItem(
+            title: _title.text,
+            imageUrl: image,
+            description: _body.text,
+            city: scopeCity,
+            adminEmail: widget.adminEmail,
+          );
+        }
       }
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -173,14 +217,16 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
       if (!mounted) return;
       setState(() => _saving = false);
       final raw = e.toString();
-      final hint = raw.contains('gezi_rehberi_title.sql')
-          ? 'Başlık kolonu yok. Supabase’de gezi_rehberi_title.sql çalıştırın.'
-          : raw.contains('gezi_rehberi') ||
-                  raw.contains('kampanyalar') ||
-                  raw.contains('PGRST') ||
-                  raw.contains('schema')
-              ? 'Tablo yok. Supabase’de gezi_kampanya.sql çalıştırın.'
-              : 'Kaydedilemedi: $e';
+      final hint = raw.contains('kampanyalar_city.sql')
+          ? 'İl kolonu yok. Supabase’de kampanyalar_city.sql çalıştırın.'
+          : raw.contains('gezi_rehberi_title.sql')
+              ? 'Başlık kolonu yok. Supabase’de gezi_rehberi_title.sql çalıştırın.'
+              : raw.contains('gezi_rehberi') ||
+                      raw.contains('kampanyalar') ||
+                      raw.contains('PGRST') ||
+                      raw.contains('schema')
+                  ? 'Tablo yok. Supabase’de gezi_kampanya.sql çalıştırın.'
+                  : 'Kaydedilemedi: $e';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(hint)));
     }
   }
@@ -244,7 +290,7 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
               L10nText(
                 _isGezi
                     ? (_isEdit ? 'Yeri düzenle' : 'Yer ekle')
-                    : 'Kampanya ekle',
+                    : (_isEdit ? 'Kampanyayı düzenle' : 'Kampanya ekle'),
                 style: GoogleFonts.nunito(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -252,7 +298,38 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
                 ),
               ),
               const SizedBox(height: 14),
-              if (_isGezi) ...[
+              if (_isKampanya) ...[
+                _fieldLabel('Kapsam'),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ChoiceChip(
+                      label: const L10nText('Tüm ülke'),
+                      selected: _nationwide,
+                      selectedColor: MetoColors.primary.withValues(alpha: 0.18),
+                      onSelected: _saving
+                          ? null
+                          : (_) => setState(() {
+                                _nationwide = true;
+                                _city = null;
+                                _citySearch.clear();
+                              }),
+                    ),
+                    ChoiceChip(
+                      label: const L10nText('İl'),
+                      selected: !_nationwide,
+                      selectedColor: MetoColors.primary.withValues(alpha: 0.18),
+                      onSelected: _saving
+                          ? null
+                          : (_) => setState(() => _nationwide = false),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (_showCityPicker) ...[
                 _fieldLabel('İl'),
                 const SizedBox(height: 6),
                 if (_lockCity)
@@ -321,7 +398,8 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
                     ),
                 ],
                 const SizedBox(height: 6),
-              ] else ...[
+              ],
+              if (_isKampanya) ...[
                 TextField(
                   controller: _title,
                   style: GoogleFonts.nunito(),
@@ -340,7 +418,7 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
                   ),
                 )
               else if (_isEdit &&
-                  (widget.editGezi?.imageUrl.trim().isNotEmpty ?? false) &&
+                  _existingImage.trim().isNotEmpty &&
                   _imageUrl.text.trim().isEmpty)
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -348,7 +426,7 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
                     height: 140,
                     width: double.infinity,
                     child: FillPhoto(
-                      source: widget.editGezi!.imageUrl,
+                      source: _existingImage,
                       fit: BoxFit.cover,
                     ),
                   ),

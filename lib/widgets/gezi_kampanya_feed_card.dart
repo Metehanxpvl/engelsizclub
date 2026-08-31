@@ -19,6 +19,7 @@ class GeziKampanyaFeedCard extends StatelessWidget {
     this.onEdit,
     this.onMoveUp,
     this.onMoveDown,
+    this.locationLabel = '',
   });
 
   final String imageUrl;
@@ -29,6 +30,7 @@ class GeziKampanyaFeedCard extends StatelessWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onMoveUp;
   final VoidCallback? onMoveDown;
+  final String locationLabel;
 
   bool get _hasCaption => description.trim().isNotEmpty;
   bool get _hasTitle => title.trim().isNotEmpty;
@@ -134,6 +136,31 @@ class GeziKampanyaFeedCard extends StatelessWidget {
                               color: const Color(0xCCDC2626),
                             ),
                         ],
+                      ),
+                    ),
+                  if (locationLabel.trim().isNotEmpty)
+                    Positioned(
+                      left: 8,
+                      bottom: 8,
+                      child: IgnorePointer(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xCC111827),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: L10nText(
+                            locationLabel.trim(),
+                            style: GoogleFonts.nunito(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   if (showReorder)

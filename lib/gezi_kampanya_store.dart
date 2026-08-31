@@ -112,12 +112,30 @@ class GeziItem {
   }
 }
 
+/// Kampanya kapsamı: boş / 'Türkiye' / 'genel' = tüm ülkede geçerli.
+bool isKampanyaNationwide(String? city) {
+  final t = (city ?? '').trim();
+  if (t.isEmpty) return true;
+  final f = foldTurkish(t).replaceAll(RegExp(r'\s+'), ' ');
+  return f == 'turkiye' ||
+      f == 'genel' ||
+      f == 'tum ulke' ||
+      f == 'tumulkede gecerli' ||
+      f == 'tum ulkede gecerli';
+}
+
+String kampanyaLocationLabel(String? city) {
+  if (isKampanyaNationwide(city)) return 'Tüm ülke';
+  return city!.trim();
+}
+
 class KampanyaItem {
   const KampanyaItem({
     required this.id,
     this.title = '',
     required this.imageUrl,
     this.description = '',
+    this.city = '',
     this.sortOrder = 0,
     this.isActive = true,
     this.createdBy = '',
@@ -128,12 +146,18 @@ class KampanyaItem {
   final String title;
   final String imageUrl;
   final String description;
+  /// Boş veya sentinel → tüm ülkede; aksi halde il adı (ör. Ankara).
+  final String city;
   final int sortOrder;
   final bool isActive;
   final String createdBy;
   final DateTime createdAt;
 
   bool get hasDescription => description.trim().isNotEmpty;
+
+  bool get isNationwide => isKampanyaNationwide(city);
+
+  String get locationLabel => kampanyaLocationLabel(city);
 
   factory KampanyaItem.fromJson(Map<String, dynamic> json) {
     final created =
@@ -143,6 +167,7 @@ class KampanyaItem {
       title: json['title']?.toString() ?? '',
       imageUrl: json['image_url']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
+      city: json['city']?.toString() ?? '',
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
       isActive: json['is_active'] != false,
       createdBy: json['created_by']?.toString() ?? '',
@@ -512,25 +537,82 @@ Future<void> deleteGeziItem(int id) async {
   invalidateGeziCache();
 }
 
+String _kampanyaCityDbValue(String? city) {
+  if (isKampanyaNationwide(city)) return '';
+  return city?.trim() ?? '';
+}
+
+StateError? _kampanyaCitySchemaError(Object e) {
+  final raw = e.toString();
+  if (raw.contains('city') ||
+      raw.contains('PGRST204') ||
+      raw.contains('schema cache')) {
+    return StateError(
+      'İl kolonu yok. Supabase’de kampanyalar_city.sql çalıştırın.',
+    );
+  }
+  return null;
+}
+
 Future<KampanyaItem> addKampanyaItem({
   String title = '',
   required String imageUrl,
   String description = '',
+  String? city,
   required String adminEmail,
 }) async {
   _requireAdmin(adminEmail);
   final url = imageUrl.trim();
   if (url.isEmpty) throw StateError('Görsel gerekli.');
-  final row = await Supabase.instance.client.from('kampanyalar').insert({
+  try {
+    final row = await Supabase.instance.client.from('kampanyalar').insert({
+      'title': title.trim(),
+      'image_url': url,
+      'description': description.trim(),
+      'city': _kampanyaCityDbValue(city),
+      'sort_order': await _nextSort('kampanyalar'),
+      'is_active': true,
+      'created_by': adminEmail.trim().toLowerCase(),
+    }).select().single();
+    invalidateKampanyaCache();
+    return KampanyaItem.fromJson(Map<String, dynamic>.from(row));
+  } catch (e) {
+    final mapped = _kampanyaCitySchemaError(e);
+    if (mapped != null) throw mapped;
+    rethrow;
+  }
+}
+
+Future<KampanyaItem> updateKampanyaItem({
+  required int id,
+  String title = '',
+  String description = '',
+  String? imageUrl,
+  String? city,
+  required String adminEmail,
+}) async {
+  _requireAdmin(adminEmail);
+  final patch = <String, dynamic>{
     'title': title.trim(),
-    'image_url': url,
     'description': description.trim(),
-    'sort_order': await _nextSort('kampanyalar'),
-    'is_active': true,
-    'created_by': adminEmail.trim().toLowerCase(),
-  }).select().single();
-  invalidateKampanyaCache();
-  return KampanyaItem.fromJson(Map<String, dynamic>.from(row));
+    'city': _kampanyaCityDbValue(city),
+  };
+  final url = imageUrl?.trim() ?? '';
+  if (url.isNotEmpty) patch['image_url'] = url;
+  try {
+    final row = await Supabase.instance.client
+        .from('kampanyalar')
+        .update(patch)
+        .eq('id', id)
+        .select()
+        .single();
+    invalidateKampanyaCache();
+    return KampanyaItem.fromJson(Map<String, dynamic>.from(row));
+  } catch (e) {
+    final mapped = _kampanyaCitySchemaError(e);
+    if (mapped != null) throw mapped;
+    rethrow;
+  }
 }
 
 Future<void> deleteKampanyaItem(int id) async {
