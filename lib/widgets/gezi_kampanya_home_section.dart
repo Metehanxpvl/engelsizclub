@@ -106,26 +106,45 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
                 final w = constraints.maxWidth;
                 final threeW = (w - 2 * gap) / 3;
                 final useThree = threeW >= minCard;
-                final cardW = (useThree ? threeW : (w - gap) / 2)
-                    .floorToDouble();
+                final cardW =
+                    (useThree ? threeW : (w - gap) / 2).floorToDouble();
                 Widget tile({
-                  required IconData icon,
                   required String title,
-                  required String subtitle,
                   required String tileKey,
                   required VoidCallback onTap,
                 }) {
                   return SizedBox(
                     width: cardW,
-                    height: tileH,
-                    child: _Box(
-                      icon: icon,
-                      title: title,
-                      subtitle: subtitle,
-                      coverUrl: _covers[tileKey] ?? '',
-                      isAdmin: _canEditTile(tileKey),
-                      onTap: onTap,
-                      onEditCover: () => _editCover(tileKey, title),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: cardW,
+                          height: tileH,
+                          child: _Box(
+                            coverUrl: _covers[tileKey] ?? '',
+                            isAdmin: _canEditTile(tileKey),
+                            onTap: onTap,
+                            onEditCover: () => _editCover(tileKey, title),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: cardW,
+                          child: L10nText(
+                            title,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.nunito(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              height: 1.2,
+                              color: MetoColors.foreground,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 }
@@ -135,9 +154,7 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
                   runSpacing: gap,
                   children: [
                     tile(
-                      icon: Icons.map_outlined,
                       title: 'Gezi Rehberi',
-                      subtitle: '81 il · gezilecek yerler',
                       tileKey: kGeziTileKey,
                       onTap: () => GeziRehberiPage.open(
                         context,
@@ -145,9 +162,7 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
                       ),
                     ),
                     tile(
-                      icon: Icons.local_offer_outlined,
                       title: 'Kampanyalar',
-                      subtitle: 'Fırsat ve duyurular',
                       tileKey: kKampanyaTileKey,
                       onTap: () => KampanyalarPage.open(
                         context,
@@ -155,9 +170,7 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
                       ),
                     ),
                     tile(
-                      icon: Icons.event_outlined,
                       title: 'Etkinlikler',
-                      subtitle: 'İl ve ülke etkinlikleri',
                       tileKey: kEtkinlikTileKey,
                       onTap: () => EtkinliklerPage.open(
                         context,
@@ -177,18 +190,12 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
 
 class _Box extends StatelessWidget {
   const _Box({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
     required this.coverUrl,
     required this.isAdmin,
     required this.onTap,
     required this.onEditCover,
   });
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
   final String coverUrl;
   final bool isAdmin;
   final VoidCallback onTap;
@@ -198,10 +205,6 @@ class _Box extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final titleColor = _hasCover ? Colors.white : MetoColors.foreground;
-    final subColor = _hasCover
-        ? Colors.white.withValues(alpha: 0.88)
-        : MetoColors.mutedFg;
     return Material(
       color: MetoColors.card,
       borderRadius: BorderRadius.circular(16),
@@ -236,69 +239,6 @@ class _Box extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (_hasCover)
-                const Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Color(0x14000000),
-                          Color(0x9E000000),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              Positioned(
-                left: 14,
-                right: 14,
-                top: 12,
-                bottom: 12,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (!_hasCover)
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: MetoColors.primary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        alignment: Alignment.center,
-                        child: Icon(
-                          icon,
-                          size: 22,
-                          color: MetoColors.primary,
-                        ),
-                      ),
-                    const Spacer(),
-                    L10nText(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.nunito(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: titleColor,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    L10nText(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.nunito(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: subColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
               if (isAdmin)
                 Positioned(
                   top: 6,
@@ -394,7 +334,8 @@ class _TileCoverSheetState extends State<_TileCoverSheet> {
 
   Future<String> _resolveImage() async {
     if (_pickedBytes != null && _pickedBytes!.isNotEmpty) {
-      final optimized = await ImageOptimizeService.forCatalogCard(_pickedBytes!);
+      final optimized =
+          await ImageOptimizeService.forCatalogCard(_pickedBytes!);
       return R2StorageService.uploadBytes(
         bytes: optimized.bytes,
         fileName:
