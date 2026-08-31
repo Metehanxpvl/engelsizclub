@@ -41,6 +41,8 @@ import 'data/more_menu_data.dart';
 import 'more_menu_store.dart';
 import 'pages/in_app_web_page.dart';
 import 'pages/gelisim_etkinlikleri_page.dart';
+import 'pages/gezi_rehberi_page.dart';
+import 'pages/kampanyalar_page.dart';
 import 'widgets/admin_more_menu_sheet.dart';
 import 'pages/forum_page.dart';
 import 'pages/haklar_page.dart';
@@ -927,9 +929,9 @@ class _MainShellState extends State<MainShell> {
       }
     }
     if (t == MetoTab.ilanlar && !_isGuest) {
-      loadAllIlanlar(preferEmail: widget.user.email).then((_) {
+      unawaited(loadAllIlanlar(preferEmail: widget.user.email).then((_) {
         if (mounted) setState(() {});
-      });
+      }).catchError((_) {}));
     }
     if (t == MetoTab.forum && !_isGuest) {
       // forum kendi yükler
@@ -986,9 +988,9 @@ class _MainShellState extends State<MainShell> {
     if (t == MetoTab.ilanlar) {
       unawaited(FeedSeenStore.markIlanlarSeen());
       if (!_isGuest) {
-        loadAllIlanlar(preferEmail: widget.user.email).then((_) {
+        unawaited(loadAllIlanlar(preferEmail: widget.user.email).then((_) {
           if (mounted) setState(() {});
-        });
+        }).catchError((_) {}));
       }
     }
     if (t == MetoTab.forum) {
@@ -1992,14 +1994,18 @@ class _MainShellState extends State<MainShell> {
   }
 
   Future<void> _loadIlanlarVeFoto() async {
-    await loadAllIlanlar(preferEmail: widget.user.email);
+    try {
+      await loadAllIlanlar(preferEmail: widget.user.email);
+    } catch (_) {}
     // Foto _loadUserCloud ile gelir; burada sadece ilanları yenile.
     if (!mounted) return;
     setState(() {});
   }
 
   Future<void> _persistIlanlar() async {
-    await loadAllIlanlar(preferEmail: widget.user.email);
+    try {
+      await loadAllIlanlar(preferEmail: widget.user.email);
+    } catch (_) {}
     if (mounted) setState(() {});
   }
 
@@ -3725,6 +3731,32 @@ class _MainShellState extends State<MainShell> {
               sub: 'Bekleyen / onayla / YouTube ekle',
               highlight: true,
               onTap: () => setState(() => _showKesfetAdmin = true),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '🗺',
+              label: 'Gezi Rehberi',
+              sub: '81 il görselleri · ekle / sil',
+              highlight: true,
+              onTap: () => GeziRehberiPage.open(
+                context,
+                userEmail: widget.user.email,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '🏷',
+              label: 'Kampanyalar',
+              sub: 'Kampanya ekle / sil',
+              highlight: true,
+              onTap: () => KampanyalarPage.open(
+                context,
+                userEmail: widget.user.email,
+              ),
             ),
           ),
         ],

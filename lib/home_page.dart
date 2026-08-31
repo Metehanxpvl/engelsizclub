@@ -18,6 +18,7 @@ import 'services/app_catalog_service.dart';
 import 'services/catalog_adapters.dart';
 import 'widgets/catalog_media.dart';
 import 'widgets/duyurular_section.dart';
+import 'widgets/gezi_kampanya_home_section.dart';
 import 'widgets/hastaliklar_section.dart';
 import 'widgets/home_social_footer.dart';
 import 'pages/premature_gelisim_rehberi_page.dart';
@@ -384,6 +385,8 @@ class _HomePageState extends State<HomePage> {
             key: ValueKey('duyurular_${widget.userEmail}'),
             userEmail: widget.userEmail,
           ),
+
+          GeziKampanyaHomeSection(userEmail: widget.userEmail),
 
           HastaliklarSection(
             userEmail: widget.userEmail,
