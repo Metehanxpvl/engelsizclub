@@ -131,16 +131,23 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
                         const SizedBox(height: 8),
                         SizedBox(
                           width: cardW,
-                          child: L10nText(
-                            title,
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.nunito(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              height: 1.2,
-                              color: MetoColors.foreground,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.topCenter,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(maxWidth: cardW),
+                              child: L10nText(
+                                title,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.nunito(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.2,
+                                  color: MetoColors.foreground,
+                                ),
+                              ),
                             ),
                           ),
                         ),
