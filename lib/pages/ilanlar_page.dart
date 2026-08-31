@@ -32,6 +32,7 @@ import '../widgets/photo_gallery_lightbox.dart';
 import '../widgets/user_avatar.dart';
 import '../widgets/user_safety_sheet.dart';
 import '../widgets/guest_gate.dart';
+import '../widgets/loading_error_view.dart';
 import '../widgets/ugc_terms_gate.dart';
 import '../l10n/l10n_text.dart';
 import '../utils/price_format.dart';
@@ -156,8 +157,16 @@ class IlanlarPageState extends State<IlanlarPage> {
   /// 'Tümü' | Medikal Malzemeler | Diğer (canonical TR keys)
   String _ikincielAltFilter = 'Tümü';
   int _listPage = 0;
-  bool _loadingFeed = true;
+  bool _loadingFeed = !hasRuntimeIlanlar;
+  bool _loadingMore = false;
+  bool _feedRetrying = false;
   String? _feedError;
+
+  bool get _feedHasRuntimeIlanlar =>
+      runtimeUzmanIlanlar.isNotEmpty ||
+      runtimeBakiciIlanlar.isNotEmpty ||
+      runtimeIkincielIlanlar.isNotEmpty;
+
   List<FavoriIlanRef> _favoriler = const [];
 
   /// Aile / profesyonel ayrımı yalnız role göre (admin aile seçince puan fiyatı görmesin).
@@ -805,65 +814,133 @@ class IlanlarPageState extends State<IlanlarPage> {
     }
   }
 
-  void _openEditUzman(UzmanIlani ilan) {
+  Future<bool> _ensureIlanPhotos(int id) async {
+    final ok = await hydrateIlanDetail(id);
+    if (ok || !mounted) return ok;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: L10nText('İlan detayı yüklenemedi. Tekrar deneyin.'),
+      ),
+    );
+    return false;
+  }
+
+  Future<void> _hydrateSelectedDetail(int id) async {
+    final ok = await hydrateIlanDetail(id);
+    if (!ok || !mounted) return;
+    setState(() {
+      if (_selectedUzman?.id == id) {
+        for (final i in runtimeUzmanIlanlar) {
+          if (i.id == id) {
+            _selectedUzman = i;
+            break;
+          }
+        }
+      }
+      if (_selectedBakici?.id == id) {
+        for (final i in runtimeBakiciIlanlar) {
+          if (i.id == id) {
+            _selectedBakici = i;
+            break;
+          }
+        }
+      }
+      if (_selectedIkinciel?.id == id) {
+        for (final i in runtimeIkincielIlanlar) {
+          if (i.id == id) {
+            _selectedIkinciel = i;
+            break;
+          }
+        }
+      }
+    });
+  }
+
+  Future<void> _openEditUzman(UzmanIlani ilan) async {
+    if (!await _ensureIlanPhotos(ilan.id) || !mounted) return;
+    var fresh = ilan;
+    for (final i in runtimeUzmanIlanlar) {
+      if (i.id == ilan.id) {
+        fresh = i;
+        break;
+      }
+    }
     setState(() {
       _editDraft = _IlanEditDraft(
-        id: ilan.id,
+        id: fresh.id,
         kind: 'uzman',
-        title: ilan.title,
-        city: ilan.city,
-        district: ilan.district,
-        countryCode: ilan.countryCode,
-        note: ilan.note == '—' ? '' : ilan.note,
-        budgetOrPrice: ilan.budget,
-        uzmanlik: ilan.uzmanlik,
-        category: ilan.category,
-        photos: List<IlanPhoto>.from(ilan.photos),
+        title: fresh.title,
+        city: fresh.city,
+        district: fresh.district,
+        countryCode: fresh.countryCode,
+        note: fresh.note == '—' ? '' : fresh.note,
+        budgetOrPrice: fresh.budget,
+        uzmanlik: fresh.uzmanlik,
+        category: fresh.category,
+        photos: List<IlanPhoto>.from(fresh.photos),
       );
       _showVerForm = true;
     });
   }
 
-  void _openEditBakici(BakiciIlani ilan) {
+  Future<void> _openEditBakici(BakiciIlani ilan) async {
+    if (!await _ensureIlanPhotos(ilan.id) || !mounted) return;
+    var fresh = ilan;
+    for (final i in runtimeBakiciIlanlar) {
+      if (i.id == ilan.id) {
+        fresh = i;
+        break;
+      }
+    }
     setState(() {
       _editDraft = _IlanEditDraft(
-        id: ilan.id,
+        id: fresh.id,
         kind: 'bakici',
-        title: ilan.title,
-        city: ilan.city,
-        district: ilan.district,
-        countryCode: ilan.countryCode,
-        note: ilan.note == '—' ? '' : ilan.note,
-        budgetOrPrice: ilan.budget,
-        photos: List<IlanPhoto>.from(ilan.photos),
+        title: fresh.title,
+        city: fresh.city,
+        district: fresh.district,
+        countryCode: fresh.countryCode,
+        note: fresh.note == '—' ? '' : fresh.note,
+        budgetOrPrice: fresh.budget,
+        photos: List<IlanPhoto>.from(fresh.photos),
       );
       _showVerForm = true;
     });
   }
 
-  void _openEditIkinciel(IkincielIlani ilan) {
+  Future<void> _openEditIkinciel(IkincielIlani ilan) async {
+    if (!await _ensureIlanPhotos(ilan.id) || !mounted) return;
+    var fresh = ilan;
+    for (final i in runtimeIkincielIlanlar) {
+      if (i.id == ilan.id) {
+        fresh = i;
+        break;
+      }
+    }
     setState(() {
       _editDraft = _IlanEditDraft(
-        id: ilan.id,
+        id: fresh.id,
         kind: 'ikinciel',
-        title: ilan.title,
-        city: ilan.city,
-        district: ilan.district,
-        countryCode: ilan.countryCode,
-        note: ilan.note == '—' ? '' : ilan.note,
-        budgetOrPrice: ilan.price,
-        condition: ilan.condition,
-        category: ikincielAltKategoriOf(ilan.category),
-        photos: List<IlanPhoto>.from(ilan.photos),
+        title: fresh.title,
+        city: fresh.city,
+        district: fresh.district,
+        countryCode: fresh.countryCode,
+        note: fresh.note == '—' ? '' : fresh.note,
+        budgetOrPrice: fresh.price,
+        condition: fresh.condition,
+        category: ikincielAltKategoriOf(fresh.category),
+        photos: List<IlanPhoto>.from(fresh.photos),
       );
       _showVerForm = true;
     });
   }
 
-  void _tryOpenEditIlan() {
+  Future<void> _tryOpenEditIlan() async {
     final kind = widget.openEditIlanKind?.trim().toLowerCase();
     final id = widget.openEditIlanId;
     if (kind == null || kind.isEmpty || id == null || id <= 0) return;
+    await ensureIlanLoaded(id);
+    if (!mounted) return;
     switch (kind) {
       case 'uzman':
         for (final i in runtimeUzmanIlanlar) {
@@ -934,28 +1011,47 @@ class IlanlarPageState extends State<IlanlarPage> {
   @override
   void initState() {
     super.initState();
-    _refreshFeed().then((_) {
+    ilanlarFeedRevision.addListener(_onIlanlarFeedRevision);
+    _refreshFeed().then((_) async {
       if (!mounted) return;
-      _tryOpenPendingIlan();
-      _tryOpenEditIlan();
+      await _tryOpenPendingIlan();
+      if (!mounted) return;
+      await _tryOpenEditIlan();
     });
+  }
+
+  void _onIlanlarFeedRevision() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    ilanlarFeedRevision.removeListener(_onIlanlarFeedRevision);
+    super.dispose();
   }
 
   @override
   void didUpdateWidget(covariant IlanlarPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.openIlanToken != oldWidget.openIlanToken) {
-      _tryOpenPendingIlan();
+      unawaited(_tryOpenPendingIlan());
     }
     if (widget.openEditIlanToken != oldWidget.openEditIlanToken) {
-      _tryOpenEditIlan();
+      unawaited(_tryOpenEditIlan());
     }
   }
 
-  void _tryOpenPendingIlan() {
+  Future<void> _tryOpenPendingIlan() async {
     final kind = widget.openIlanKind?.trim().toLowerCase();
     final id = widget.openIlanId;
     if (kind == null || kind.isEmpty || id == null || id <= 0) return;
+    if (!ilanExistsInRuntime(id)) {
+      await ensureIlanLoaded(id);
+      if (!mounted) return;
+    } else {
+      await hydrateIlanDetail(id);
+      if (!mounted) return;
+    }
     _openListingByKindId(kind, id);
   }
 
@@ -1016,49 +1112,86 @@ class IlanlarPageState extends State<IlanlarPage> {
   }
 
   Future<void> _refreshFeed() async {
+    if (!_feedHasRuntimeIlanlar) {
+      await warmIlanlarFromCache(widget.userEmail);
+    }
+    if (!mounted) return;
     setState(() {
       _loadingFeed = true;
+      _feedRetrying = false;
       _feedError = null;
     });
     try {
-      await withNetworkTimeout(
-        loadAllIlanlar(preferEmail: widget.userEmail),
-        message: 'İlanlar yüklenirken zaman aşımı.',
-      );
-      await withNetworkTimeout(
-        enrichRuntimeIlanAvatars(
+      final ok = await loadAllIlanlar(preferEmail: widget.userEmail);
+      if (!mounted) return;
+      if (!ok) {
+        setState(() {
+          _feedError = kIlanListSlowMessage;
+          _loadingFeed = false;
+          _feedRetrying = false;
+        });
+      } else {
+        setState(() {
+          _loadingFeed = false;
+          _feedRetrying = false;
+          _feedError = null;
+        });
+      }
+      try {
+        await enrichRuntimeIlanAvatars(
           ownEmail: widget.userEmail,
           ownPhoto: widget.profilFoto,
-        ),
-        message: 'Profil fotoğrafları yüklenirken zaman aşımı.',
-      );
-      final cloud = widget.userEmail.trim().isEmpty
-          ? null
-          : await withNetworkTimeout(
-              loadUserCloudProfile(widget.userEmail),
-              message: 'Profil bilgisi yüklenirken zaman aşımı.',
-            );
-      final teklifler = widget.userEmail.trim().isEmpty
-          ? <int>{}
-          : await loadTeklifVerilenIlanlar(widget.userEmail);
+        );
+      } catch (_) {}
+      if (widget.userEmail.trim().isNotEmpty) {
+        try {
+          final cloud = await loadUserCloudProfile(widget.userEmail);
+          if (mounted) setState(() => _favoriler = cloud.favorites);
+        } catch (_) {}
+        try {
+          final teklifler = await loadTeklifVerilenIlanlar(widget.userEmail);
+          if (mounted) setState(() => _teklifVerilenIlanlar = teklifler);
+        } catch (_) {}
+      }
+      if (!mounted) return;
+      try {
+        await _syncSohbetListesi();
+      } catch (_) {}
+    } catch (_) {
       if (!mounted) return;
       setState(() {
-        if (cloud != null) _favoriler = cloud.favorites;
-        _teklifVerilenIlanlar = teklifler;
-      });
-      widget.onIlanlarChanged?.call();
-      await _syncSohbetListesi();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _feedError = e is NetworkTimeoutException
-            ? e.message
-            : 'İlanlar yüklenemedi. Lütfen tekrar deneyin.';
+        _feedError = kIlanListSlowMessage;
       });
     } finally {
       if (mounted) {
-        setState(() => _loadingFeed = false);
+        setState(() {
+          _loadingFeed = false;
+          _feedRetrying = false;
+        });
       }
+    }
+  }
+
+  Future<void> _loadMoreFeed() async {
+    if (_loadingMore || _loadingFeed || !ilanlarHasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final ok = await loadMoreIlanlar(preferEmail: widget.userEmail);
+      if (!mounted) return;
+      if (!ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(kIlanListSlowMessage)),
+        );
+      } else {
+        setState(() {});
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(kIlanListSlowMessage)),
+      );
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
     }
   }
 
@@ -1573,7 +1706,20 @@ class IlanlarPageState extends State<IlanlarPage> {
             children: [
               _buildHeader(),
               if (_loadingFeed) const LinearProgressIndicator(minHeight: 2),
-              if (_feedError != null)
+              if (_loadingFeed && _feedRetrying)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: L10nText(
+                    'Yeniden deneniyor…',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: MetoColors.mutedFg,
+                    ),
+                  ),
+                ),
+              if (_feedError != null && _feedHasRuntimeIlanlar)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   child: Material(
@@ -1602,7 +1748,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                             ),
                           ),
                           TextButton(
-                            onPressed: _refreshFeed,
+                            onPressed: _loadingFeed ? null : _refreshFeed,
                             child: const L10nText('Tekrar dene'),
                           ),
                         ],
@@ -1628,14 +1774,47 @@ class IlanlarPageState extends State<IlanlarPage> {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                 child: Column(
                   children: [
-                    if (_kategori == IlanKategori.uzmanlar)
-                      ..._pageSlice(_filteredUzman).map(_buildUzmanCard),
-                    if (_kategori == IlanKategori.bakici)
-                      ..._pageSlice(_filteredBakici).map(_buildBakiciCard),
-                    if (_kategori == IlanKategori.ikinciel)
-                      ..._pageSlice(_allIkinciel).map(_buildIkincielCard),
-                    const SizedBox(height: 8),
-                    _buildListPager(_currentListLength),
+                    if (_loadingFeed && !_feedHasRuntimeIlanlar)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 48),
+                        child: LoadingErrorView(
+                          loading: true,
+                          loadingMessage: _feedRetrying
+                              ? 'Yeniden deneniyor…'
+                              : 'İlanlar yükleniyor…',
+                        ),
+                      )
+                    else if (_feedError != null && !_feedHasRuntimeIlanlar)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: LoadingErrorView(
+                          error: _feedError,
+                          onRetry: _refreshFeed,
+                        ),
+                      )
+                    else ...[
+                      if (_kategori == IlanKategori.uzmanlar)
+                        ..._pageSlice(_filteredUzman).map(_buildUzmanCard),
+                      if (_kategori == IlanKategori.bakici)
+                        ..._pageSlice(_filteredBakici).map(_buildBakiciCard),
+                      if (_kategori == IlanKategori.ikinciel)
+                        ..._pageSlice(_allIkinciel).map(_buildIkincielCard),
+                      const SizedBox(height: 8),
+                      _buildListPager(_currentListLength),
+                      if (ilanlarHasMore)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: (_loadingFeed || _loadingMore)
+                              ? const L10nText(
+                                  'Kalan ilanlar yükleniyor…',
+                                  textAlign: TextAlign.center,
+                                )
+                              : TextButton(
+                                  onPressed: _loadMoreFeed,
+                                  child: const L10nText('Daha fazla ilan'),
+                                ),
+                        ),
+                    ],
                   ],
                 ),
               ),
@@ -2493,10 +2672,13 @@ class IlanlarPageState extends State<IlanlarPage> {
     final renk = uzmanRenkFor(ilan.uzmanlik);
     final avgR = avgRating(ilan.poster.reviews);
     final km = uzmanKm[ilan.id];
-    void openDetail() => setState(() {
-          _selectedPoster = null;
-          _selectedUzman = ilan;
-        });
+    void openDetail() {
+      setState(() {
+        _selectedPoster = null;
+        _selectedUzman = ilan;
+      });
+      unawaited(_hydrateSelectedDetail(ilan.id));
+    }
     void openPoster() => setState(() {
           _selectedUzman = null;
           _selectedBakici = null;
@@ -2705,10 +2887,13 @@ class IlanlarPageState extends State<IlanlarPage> {
   Widget _buildBakiciCard(BakiciIlani ilan) {
     final avgR = avgRating(ilan.poster.reviews);
     final km = bakiciKm[ilan.id];
-    void openDetail() => setState(() {
-          _selectedPoster = null;
-          _selectedBakici = ilan;
-        });
+    void openDetail() {
+      setState(() {
+        _selectedPoster = null;
+        _selectedBakici = ilan;
+      });
+      unawaited(_hydrateSelectedDetail(ilan.id));
+    }
     void openPoster() => setState(() {
           _selectedUzman = null;
           _selectedBakici = null;
@@ -2913,7 +3098,10 @@ class IlanlarPageState extends State<IlanlarPage> {
 
   Widget _buildIkincielCard(IkincielIlani ilan) {
     final avgR = avgRating(ilan.poster.reviews);
-    void openDetail() => setState(() => _selectedIkinciel = ilan);
+    void openDetail() {
+      setState(() => _selectedIkinciel = ilan);
+      unawaited(_hydrateSelectedDetail(ilan.id));
+    }
     void openPoster() {
       setState(() {
         _selectedIkinciel = null;

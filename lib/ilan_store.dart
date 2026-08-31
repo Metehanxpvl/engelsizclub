@@ -72,11 +72,9 @@ String formatIlanCloudError(Object error) {
     return 'Supabase ilanlar tablosu bulunamadı. '
         'Dashboard → SQL Editor → supabase/ilanlar_ensure.sql dosyasını çalıştırın.';
   }
-  if (lower.contains('country_code') ||
-      lower.contains('location_data') ||
-      (lower.contains('column') && lower.contains('status'))) {
+  if (lower.contains('country_code') || lower.contains('location_data')) {
     return 'Supabase ilanlar şeması güncel değil. '
-        'supabase/ilanlar_ensure.sql dosyasını SQL Editor\'da çalıştırın.';
+        'supabase/locations.sql dosyasını SQL Editor\'da çalıştırın.';
   }
   if (lower.contains('aile rol')) {
     return msg.replaceFirst('Bad state: ', '').replaceFirst('StateError: ', '');
@@ -355,21 +353,115 @@ Map<String, dynamic> _rowToLocalJson(Map<String, dynamic> row) {
   };
 }
 
-void _applyRows(List<Map<String, dynamic>> rows) {
-  runtimeUzmanIlanlar.clear();
-  runtimeBakiciIlanlar.clear();
-  runtimeIkincielIlanlar.clear();
-  ilanOwnerById.clear();
+Map<int, List<IlanPhoto>> _snapshotRuntimePhotos() {
+  final kept = <int, List<IlanPhoto>>{};
+  void take(int id, List<IlanPhoto> photos) {
+    if (photos.any((p) => p.hasImage)) kept[id] = photos;
+  }
+
+  for (final i in runtimeUzmanIlanlar) {
+    take(i.id, i.photos);
+  }
+  for (final i in runtimeBakiciIlanlar) {
+    take(i.id, i.photos);
+  }
+  for (final i in runtimeIkincielIlanlar) {
+    take(i.id, i.photos);
+  }
+  return kept;
+}
+
+void _restoreKeptPhotos(Map<int, List<IlanPhoto>> kept) {
+  if (kept.isEmpty) return;
+  for (var i = 0; i < runtimeUzmanIlanlar.length; i++) {
+    final item = runtimeUzmanIlanlar[i];
+    final k = kept[item.id];
+    if (k == null || item.photos.any((p) => p.hasImage)) continue;
+    runtimeUzmanIlanlar[i] = UzmanIlani(
+      id: item.id,
+      title: item.title,
+      uzmanlik: item.uzmanlik,
+      tani: item.tani,
+      city: item.city,
+      district: item.district,
+      age: item.age,
+      frequency: item.frequency,
+      note: item.note,
+      budget: item.budget,
+      posted: item.posted,
+      views: item.views,
+      offers: item.offers,
+      urgent: item.urgent,
+      poster: item.poster,
+      photos: k,
+      countryCode: item.countryCode,
+      category: item.category,
+    );
+  }
+  for (var i = 0; i < runtimeBakiciIlanlar.length; i++) {
+    final item = runtimeBakiciIlanlar[i];
+    final k = kept[item.id];
+    if (k == null || item.photos.any((p) => p.hasImage)) continue;
+    runtimeBakiciIlanlar[i] = BakiciIlani(
+      id: item.id,
+      title: item.title,
+      city: item.city,
+      district: item.district,
+      countryCode: item.countryCode,
+      tani: item.tani,
+      age: item.age,
+      hours: item.hours,
+      note: item.note,
+      budget: item.budget,
+      posted: item.posted,
+      views: item.views,
+      urgent: item.urgent,
+      poster: item.poster,
+      photos: k,
+    );
+  }
+  for (var i = 0; i < runtimeIkincielIlanlar.length; i++) {
+    final item = runtimeIkincielIlanlar[i];
+    final k = kept[item.id];
+    if (k == null || item.photos.any((p) => p.hasImage)) continue;
+    runtimeIkincielIlanlar[i] = IkincielIlani(
+      id: item.id,
+      title: item.title,
+      category: item.category,
+      city: item.city,
+      district: item.district,
+      countryCode: item.countryCode,
+      condition: item.condition,
+      brand: item.brand,
+      note: item.note,
+      price: item.price,
+      originalPrice: item.originalPrice,
+      posted: item.posted,
+      views: item.views,
+      emoji: item.emoji,
+      photos: k,
+      poster: item.poster,
+    );
+  }
+}
+
+void _applyRows(List<Map<String, dynamic>> rows, {bool replace = true}) {
+  final kept = _snapshotRuntimePhotos();
+  if (replace) {
+    runtimeUzmanIlanlar.clear();
+    runtimeBakiciIlanlar.clear();
+    runtimeIkincielIlanlar.clear();
+    ilanOwnerById.clear();
+  }
 
   var maxId = 1000;
   for (final row in rows) {
-    final status = (row['status']?.toString() ?? 'active').toLowerCase();
-    if (status == 'sold') continue;
-
     final j = _rowToLocalJson(row);
-    final kind = j['kind']?.toString();
+    final kind = _normalizedIlanKind(j['kind']?.toString() ?? '');
     final id = (j['id'] as num?)?.toInt() ?? 0;
+    if (id <= 0) continue;
     if (id > maxId) maxId = id;
+    if (!replace && ilanExistsInRuntime(id)) continue;
     final owner = (j['ownerEmail'] ?? j['owner_email'])?.toString() ?? '';
     if (owner.isNotEmpty) ilanOwnerById[id] = owner.toLowerCase();
 
@@ -384,6 +476,10 @@ void _applyRows(List<Map<String, dynamic>> rows) {
         runtimeIkincielIlanlar.add(_ikincielFromJson(j));
         break;
     }
+  }
+  _restoreKeptPhotos(kept);
+  if (replace) {
+    _detailHydratedIds.removeWhere((id) => !ilanExistsInRuntime(id));
   }
   syncIlanIdSeq(maxId);
 }
@@ -430,39 +526,322 @@ Future<bool> _loadFromLocalCache() async {
   }
 }
 
-/// Tüm kullanıcıların ilanlarını Supabase'den yükler (ortak feed).
-Future<void> loadAllIlanlar({String? preferEmail}) async {
-  try {
-    final rows = await withNetworkTimeout(
-      Supabase.instance.client
-          .from('ilanlar')
-          .select()
-          .order('created_at', ascending: false),
-    );
-    final list = (rows as List)
-        .whereType<Map>()
-        .map((e) => Map<String, dynamic>.from(e))
-        .toList();
-    _applyRows(list);
-    await _cacheAllLocally();
-    await enrichRuntimeIlanAvatars(
-      ownEmail: preferEmail,
-    );
-    await enrichRuntimeIlanCvs();
-    return;
-  } catch (_) {
-    // Tablo yok / ağ hatası → yerel önbellek veya eski kullanıcı kaydı
-  }
+/// Production `ilanlar` list columns (`supabase/ilanlar.sql` CREATE).
+/// Never select blobs or columns that may be missing on older DBs:
+/// `photos`, `poster_avatar`, `note`, `location_data`, `country_code`,
+/// `original_price`, `status`. Sold = deleted, not a status flag.
+const _kIlanListSelect =
+    'id, kind, title, city, district, budget, price, '
+    'emoji, urgent, poster_name, owner_email, created_at, uzmanlik, '
+    'tani, category, condition, brand, age, frequency, hours, views, offers';
 
-  if (await _loadFromLocalCache()) {
-    await enrichRuntimeIlanAvatars(ownEmail: preferEmail);
-    await enrichRuntimeIlanCvs();
-    return;
+/// Last-resort list if an older table is missing optional metadata columns.
+const _kIlanListSelectCore =
+    'id, kind, title, city, district, budget, price, '
+    'emoji, urgent, poster_name, owner_email, created_at';
+
+/// Single-row (detail / edit / deep-link). Photos OK — one listing only.
+const _kIlanDetailSelect =
+    'id, kind, title, city, district, country_code, location_data, '
+    'note, budget, price, original_price, uzmanlik, tani, age, '
+    'frequency, hours, category, condition, brand, emoji, photos, '
+    'urgent, views, offers, poster_name, poster_avatar, owner_email, '
+    'created_at';
+
+const _kIlanDetailSelectLegacy =
+    'id, kind, title, city, district, '
+    'note, budget, price, uzmanlik, tani, age, '
+    'frequency, hours, category, condition, brand, emoji, photos, '
+    'urgent, views, offers, poster_name, poster_avatar, owner_email, '
+    'created_at';
+
+const kIlanListPageSize = 50;
+const _kIlanListMaxPages = 200;
+const _kIlanListMaxAttempts = 3;
+
+/// Increments after each applied list page so the UI can paint immediately.
+final ValueNotifier<int> ilanlarFeedRevision = ValueNotifier<int>(0);
+
+void _touchIlanlarFeed() {
+  ilanlarFeedRevision.value++;
+}
+
+String _activeIlanListSelect = _kIlanListSelect;
+
+/// True when the last list page was full — more rows may exist on the server.
+bool ilanlarHasMore = false;
+
+int _ilanListOffset = 0;
+Future<void>? _inFlightListLoad;
+final Set<int> _detailHydratedIds = <int>{};
+
+List<Map<String, dynamic>> _asIlanMaps(dynamic rows) {
+  if (rows is! List) return const [];
+  return rows
+      .whereType<Map>()
+      .map((e) => Map<String, dynamic>.from(e))
+      .toList();
+}
+
+bool _isIlanSchemaMismatch(PostgrestException e) {
+  final code = (e.code ?? '').toLowerCase();
+  final msg = e.message.toLowerCase();
+  return code == '42703' ||
+      code == 'pgrst204' ||
+      msg.contains('does not exist') ||
+      msg.contains('could not find') ||
+      msg.contains('column');
+}
+
+bool get hasRuntimeIlanlar =>
+    runtimeUzmanIlanlar.isNotEmpty ||
+    runtimeBakiciIlanlar.isNotEmpty ||
+    runtimeIkincielIlanlar.isNotEmpty;
+
+bool ilanExistsInRuntime(int id) =>
+    runtimeUzmanIlanlar.any((i) => i.id == id) ||
+    runtimeBakiciIlanlar.any((i) => i.id == id) ||
+    runtimeIkincielIlanlar.any((i) => i.id == id);
+
+Future<List<Map<String, dynamic>>> _queryIlanlarPage({
+  required String select,
+  required int offset,
+  required int limit,
+}) async {
+  try {
+    final rows = await Supabase.instance.client
+        .from('ilanlar')
+        .select(select)
+        .order('created_at', ascending: false)
+        .range(offset, offset + limit - 1);
+    return _asIlanMaps(rows);
+  } on PostgrestException catch (e) {
+    if (!_isIlanSchemaMismatch(e) || select == _kIlanListSelectCore) {
+      rethrow;
+    }
+    _activeIlanListSelect = _kIlanListSelectCore;
+    return _queryIlanlarPage(
+      select: _kIlanListSelectCore,
+      offset: offset,
+      limit: limit,
+    );
   }
+}
+
+/// Metadata-only page. Never `select()` (that pulls photo blobs).
+Future<List<Map<String, dynamic>>> _queryIlanlarRows({int offset = 0}) async {
+  return _queryIlanlarPage(
+    select: _activeIlanListSelect,
+    offset: offset,
+    limit: kIlanListPageSize,
+  );
+}
+
+Future<Map<String, dynamic>?> _queryIlanDetailRow(int id) async {
+  final client = Supabase.instance.client;
+  try {
+    final row = await client
+        .from('ilanlar')
+        .select(_kIlanDetailSelect)
+        .eq('id', id)
+        .maybeSingle();
+    if (row == null) return null;
+    return Map<String, dynamic>.from(row);
+  } on PostgrestException catch (e) {
+    if (!_isIlanSchemaMismatch(e)) rethrow;
+    final row = await client
+        .from('ilanlar')
+        .select(_kIlanDetailSelectLegacy)
+        .eq('id', id)
+        .maybeSingle();
+    if (row == null) return null;
+    return Map<String, dynamic>.from(row);
+  }
+}
+
+Future<bool> _recoverIlanlarLocally(String? preferEmail) async {
+  if (await _loadFromLocalCache()) return true;
   if (preferEmail != null && preferEmail.isNotEmpty) {
     await _loadLegacyUserPrefs(preferEmail);
-    await enrichRuntimeIlanAvatars(ownEmail: preferEmail);
-    await enrichRuntimeIlanCvs();
+  }
+  return hasRuntimeIlanlar;
+}
+
+/// Paint the last cached feed immediately (no network).
+Future<bool> warmIlanlarFromCache(String? preferEmail) =>
+    _recoverIlanlarLocally(preferEmail);
+
+/// Fetch one listing WITH photos (detail / edit / deep-link).
+Future<bool> hydrateIlanDetail(int id) async {
+  if (id <= 0) return false;
+  if (_detailHydratedIds.contains(id) && ilanExistsInRuntime(id)) {
+    return true;
+  }
+  try {
+    final row = await withNetworkTimeout(
+      _queryIlanDetailRow(id),
+      timeout: kIlanlarTimeout,
+    );
+    if (row == null) return false;
+    _applySingleIlanRow(row);
+    _detailHydratedIds.add(id);
+    return ilanExistsInRuntime(id);
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Deep-link / edit: ensure the row is in memory, with photos if possible.
+Future<bool> ensureIlanLoaded(int id) async {
+  if (id <= 0) return false;
+  if (ilanExistsInRuntime(id) && _detailHydratedIds.contains(id)) {
+    return true;
+  }
+  final ok = await hydrateIlanDetail(id);
+  return ok || ilanExistsInRuntime(id);
+}
+
+/// True if the HTTP page was applied. False = timeout/error; cache kept.
+Future<bool> _loadIlanlarPage({
+  required bool replace,
+  required int offset,
+}) async {
+  for (var attempt = 0; attempt < _kIlanListMaxAttempts; attempt++) {
+    try {
+      final list = await _queryIlanlarRows(offset: offset)
+          .timeout(kIlanListHangGuard);
+      _applyRows(list, replace: replace);
+      _ilanListOffset = replace ? list.length : _ilanListOffset + list.length;
+      ilanlarHasMore = list.length >= kIlanListPageSize;
+      await _cacheAllLocally();
+      _touchIlanlarFeed();
+      return true;
+    } catch (_) {
+      if (attempt >= _kIlanListMaxAttempts - 1) return false;
+      await Future<void>.delayed(
+        Duration(milliseconds: 400 * (attempt + 1)),
+      );
+    }
+  }
+  return false;
+}
+
+/// After the first page is on screen, keep fetching until the server
+/// returns a short page. Later-page failures do not undo the first page.
+Future<void> _loadRemainingIlanlarPages({String? preferEmail}) async {
+  var pages = 1;
+  var failStreak = 0;
+  while (ilanlarHasMore &&
+      pages < _kIlanListMaxPages &&
+      failStreak < _kIlanListMaxAttempts) {
+    final ok = await _loadIlanlarPage(
+      replace: false,
+      offset: _ilanListOffset,
+    );
+    pages++;
+    if (ok) {
+      failStreak = 0;
+      try {
+        await enrichRuntimeIlanAvatars(ownEmail: preferEmail);
+      } catch (_) {}
+    } else {
+      failStreak++;
+    }
+  }
+}
+
+/// Tüm kullanıcıların ilanlarını Supabase'den yükler (ortak feed).
+///
+/// Cache-first: never blocks the first paint. Metadata-only pages of 50.
+/// First page replaces a stale/short cache; remaining pages append in
+/// the same request so old listings appear without tapping "Daha fazla".
+/// Never throws on timeout — callers show cache or empty+retry.
+/// Concurrent callers share one in-flight request.
+///
+/// Returns true if the first network page was applied.
+Future<bool> loadAllIlanlar({
+  String? preferEmail,
+}) async {
+  final existing = _inFlightListLoad;
+  if (existing != null) {
+    try {
+      await existing;
+    } catch (_) {}
+    return hasRuntimeIlanlar;
+  }
+
+  final done = Completer<void>();
+  _inFlightListLoad = done.future;
+  var applied = false;
+  try {
+    if (!hasRuntimeIlanlar) {
+      await _recoverIlanlarLocally(preferEmail);
+      if (hasRuntimeIlanlar) _touchIlanlarFeed();
+    }
+    try {
+      applied = await _loadIlanlarPage(
+        replace: true,
+        offset: 0,
+      );
+    } catch (_) {
+      applied = false;
+    }
+    if (applied) {
+      try {
+        await enrichRuntimeIlanAvatars(ownEmail: preferEmail);
+      } catch (_) {}
+      await _loadRemainingIlanlarPages(preferEmail: preferEmail);
+    } else if (!hasRuntimeIlanlar) {
+      await _recoverIlanlarLocally(preferEmail);
+      if (hasRuntimeIlanlar) _touchIlanlarFeed();
+    }
+
+    done.complete();
+    return applied;
+  } catch (_) {
+    if (!done.isCompleted) done.complete();
+    return applied || hasRuntimeIlanlar;
+  } finally {
+    if (identical(_inFlightListLoad, done.future)) {
+      _inFlightListLoad = null;
+    }
+  }
+}
+
+/// Next metadata page (no photo blobs). Appends to the in-memory feed.
+/// Returns false on timeout/error — existing rows stay on screen.
+Future<bool> loadMoreIlanlar({
+  String? preferEmail,
+}) async {
+  if (!ilanlarHasMore) return true;
+  final existing = _inFlightListLoad;
+  if (existing != null) {
+    try {
+      await existing;
+    } catch (_) {}
+    if (!ilanlarHasMore) return true;
+  }
+
+  final done = Completer<void>();
+  _inFlightListLoad = done.future;
+  var applied = false;
+  try {
+    applied = await _loadIlanlarPage(
+      replace: false,
+      offset: _ilanListOffset,
+    );
+    try {
+      await enrichRuntimeIlanAvatars(ownEmail: preferEmail);
+    } catch (_) {}
+    done.complete();
+    return applied;
+  } catch (_) {
+    if (!done.isCompleted) done.complete();
+    return false;
+  } finally {
+    if (identical(_inFlightListLoad, done.future)) {
+      _inFlightListLoad = null;
+    }
   }
 }
 
@@ -1042,7 +1421,6 @@ String _normalizedIlanKind(String kind) {
 }
 
 void _applySingleIlanRow(Map<String, dynamic> row) {
-  final status = (row['status']?.toString() ?? 'active').toLowerCase();
   final id = (row['id'] as num?)?.toInt() ?? 0;
   if (id <= 0) return;
 
@@ -1050,13 +1428,11 @@ void _applySingleIlanRow(Map<String, dynamic> row) {
   runtimeBakiciIlanlar.removeWhere((i) => i.id == id);
   runtimeIkincielIlanlar.removeWhere((i) => i.id == id);
 
-  if (status == 'sold') return;
-
   final j = _rowToLocalJson(row);
   final owner = (j['ownerEmail'] ?? j['owner_email'])?.toString() ?? '';
   if (owner.isNotEmpty) ilanOwnerById[id] = owner.toLowerCase();
 
-  switch (j['kind']?.toString()) {
+  switch (_normalizedIlanKind(j['kind']?.toString() ?? '')) {
     case 'uzman':
       runtimeUzmanIlanlar.insert(0, _uzmanFromJson(j));
       break;
@@ -1067,12 +1443,12 @@ void _applySingleIlanRow(Map<String, dynamic> row) {
       runtimeIkincielIlanlar.insert(0, _ikincielFromJson(j));
       break;
   }
+  _detailHydratedIds.add(id);
 }
 
 Future<void> _reloadIlanAfterKindChange(int id, String preferEmail) async {
-  final client = Supabase.instance.client;
   try {
-    final row = await client.from('ilanlar').select().eq('id', id).maybeSingle();
+    final row = await _queryIlanDetailRow(id);
     if (row != null) {
       _applySingleIlanRow(Map<String, dynamic>.from(row));
     }
@@ -1276,52 +1652,14 @@ Future<void> deleteUserIlan({
   } catch (_) {}
 }
 
-/// Satıldı → yayından kaldır (status=sold; kolon yoksa siler).
+/// Satıldı → yayından kaldır.
+/// Production `ilanlar` has no `status` / `satildi` column; sold = DELETE.
 Future<void> markIlanSold({
   required String email,
   required String kind,
   required int id,
 }) async {
-  final normalized = email.trim().toLowerCase();
-  final me = (Supabase.instance.client.auth.currentUser?.email ?? '')
-      .trim()
-      .toLowerCase();
-  final admin = isAppAdmin(me);
-  var marked = false;
-  try {
-    var q = Supabase.instance.client
-        .from('ilanlar')
-        .update({'status': 'sold'}).eq('id', id);
-    if (!admin) {
-      q = q.eq('owner_email', normalized);
-    }
-    await q;
-    marked = true;
-  } catch (_) {
-    marked = false;
-  }
-  if (!marked) {
-    await deleteUserIlan(email: email, kind: kind, id: id);
-    return;
-  }
-  switch (kind) {
-    case 'uzman':
-      runtimeUzmanIlanlar.removeWhere((i) => i.id == id);
-      break;
-    case 'bakici':
-      runtimeBakiciIlanlar.removeWhere((i) => i.id == id);
-      break;
-    case 'ikinciel':
-      runtimeIkincielIlanlar.removeWhere((i) => i.id == id);
-      break;
-  }
-  ilanOwnerById.remove(id);
-  if (!admin || normalized == me) {
-    await persistUserIlanlar(email);
-  }
-  try {
-    await loadAllIlanlar(preferEmail: email);
-  } catch (_) {}
+  await deleteUserIlan(email: email, kind: kind, id: id);
 }
 
 List<UzmanIlani> myUzmanIlanlar(String email) {
@@ -1400,4 +1738,7 @@ void clearRuntimeIlanlar() {
   runtimeBakiciIlanlar.clear();
   runtimeIkincielIlanlar.clear();
   ilanOwnerById.clear();
+  _detailHydratedIds.clear();
+  _ilanListOffset = 0;
+  ilanlarHasMore = false;
 }

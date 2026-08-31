@@ -116,6 +116,75 @@ class FillPhoto extends StatelessWidget {
 }
 
 
+/// Tek görsel: web CORS + HtmlElementView dokunma sorununu aşar.
+Future<void> openFillPhotoOverlay(
+  BuildContext context, {
+  required String source,
+}) {
+  final src = (resolveIlanPhotoUrl(source) ?? '').trim();
+  if (src.isEmpty) return Future.value();
+  return Navigator.of(context).push(
+    PageRouteBuilder<void>(
+      opaque: false,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.92),
+      transitionDuration: const Duration(milliseconds: 200),
+      reverseTransitionDuration: const Duration(milliseconds: 160),
+      pageBuilder: (ctx, anim, secondary) {
+        return FadeTransition(
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+          child: _FillPhotoOverlay(source: src),
+        );
+      },
+    ),
+  );
+}
+
+class _FillPhotoOverlay extends StatelessWidget {
+  const _FillPhotoOverlay({required this.source});
+
+  final String source;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black,
+      child: SafeArea(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Center(
+              child: InteractiveViewer(
+                minScale: 0.8,
+                maxScale: 4,
+                child: FillPhoto(
+                  source: source,
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  height: double.infinity,
+                ),
+              ),
+            ),
+            Positioned(
+              top: 8,
+              left: 8,
+              child: Material(
+                color: Colors.black54,
+                shape: const CircleBorder(),
+                child: IconButton(
+                  tooltip: 'Kapat',
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: const Icon(Icons.close, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Tam ekran galeri / lightbox (pinch-zoom, swipe, oklar, X, aşağı kaydırarak kapat).
 Future<void> openPhotoGallery(
   BuildContext context, {
