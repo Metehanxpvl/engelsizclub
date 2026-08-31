@@ -1,20 +1,26 @@
--- Ana sayfa kutucuk kapakları: Gezi Rehberi | Kampanyalar
+-- Ana sayfa kutucuk kapakları: Gezi Rehberi | Kampanyalar | Etkinlikler
 -- Dashboard: https://supabase.com/dashboard/project/qycrkqwqrysypvqaipqn/sql/new
 -- Tümünü yapıştırıp Run (additive; IF NOT EXISTS; mevcut gezi/kampanya tablolarına dokunmaz)
--- Dart: gezi_kampanya_tiles / tile_key = gezi | kampanya
+-- Dart: gezi_kampanya_tiles / tile_key = gezi | kampanya | etkinlik
+-- Mevcut kurulumda etkinlik tablosu + kapak: etkinlikler.sql
 -- Herkes okur; yazma yalnız admin.
 
 create table if not exists public.gezi_kampanya_tiles (
   tile_key text primary key,
   image_url text not null default '',
   updated_by text not null default '',
-  updated_at timestamptz not null default now(),
-  constraint gezi_kampanya_tiles_key_chk
-    check (tile_key in ('gezi', 'kampanya'))
+  updated_at timestamptz not null default now()
 );
 
+alter table public.gezi_kampanya_tiles
+  drop constraint if exists gezi_kampanya_tiles_key_chk;
+
+alter table public.gezi_kampanya_tiles
+  add constraint gezi_kampanya_tiles_key_chk
+    check (tile_key in ('gezi', 'kampanya', 'etkinlik'));
+
 insert into public.gezi_kampanya_tiles (tile_key, image_url)
-values ('gezi', ''), ('kampanya', '')
+values ('gezi', ''), ('kampanya', ''), ('etkinlik', '')
 on conflict (tile_key) do nothing;
 
 alter table public.gezi_kampanya_tiles enable row level security;

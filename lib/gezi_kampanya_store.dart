@@ -1,6 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'admin_config.dart';
+import 'section_editors.dart';
 import 'utils/async_timeout.dart';
 
 /// Türkçe il adını URL/slug için ASCII'ye çevirir (Ankara → ankara, İstanbul → istanbul).
@@ -129,6 +129,23 @@ String kampanyaLocationLabel(String? city) {
   return city!.trim();
 }
 
+enum GeziKampanyaKind { gezi, kampanya, etkinlik }
+
+bool isCityFeedKind(GeziKampanyaKind kind) =>
+    kind == GeziKampanyaKind.kampanya || kind == GeziKampanyaKind.etkinlik;
+
+String cityFeedTable(GeziKampanyaKind kind) {
+  switch (kind) {
+    case GeziKampanyaKind.kampanya:
+      return 'kampanyalar';
+    case GeziKampanyaKind.etkinlik:
+      return 'etkinlikler';
+    case GeziKampanyaKind.gezi:
+      throw StateError('Gezi ayrı tablo (gezi_rehberi).');
+  }
+}
+
+/// Kampanya / etkinlik satırı (aynı kolonlar; etkinlikler.sort_index → sortOrder).
 class KampanyaItem {
   const KampanyaItem({
     required this.id,
@@ -162,13 +179,15 @@ class KampanyaItem {
   factory KampanyaItem.fromJson(Map<String, dynamic> json) {
     final created =
         DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now();
+    final sortOrder = (json['sort_order'] as num?)?.toInt() ?? 0;
+    final sortIndex = (json['sort_index'] as num?)?.toInt() ?? 0;
     return KampanyaItem(
       id: (json['id'] as num?)?.toInt() ?? 0,
       title: json['title']?.toString() ?? '',
       imageUrl: json['image_url']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       city: json['city']?.toString() ?? '',
-      sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
+      sortOrder: sortOrder > 0 ? sortOrder : sortIndex,
       isActive: json['is_active'] != false,
       createdBy: json['created_by']?.toString() ?? '',
       createdAt: created,
@@ -178,11 +197,24 @@ class KampanyaItem {
 
 const kGeziTileKey = 'gezi';
 const kKampanyaTileKey = 'kampanya';
+const kEtkinlikTileKey = 'etkinlik';
+const kKampanyaTable = 'kampanyalar';
+const kEtkinlikTable = 'etkinlikler';
+
+const _kTileKeys = <String>{kGeziTileKey, kKampanyaTileKey, kEtkinlikTileKey};
+
+Map<String, String> get _emptyTileCovers => {
+      kGeziTileKey: '',
+      kKampanyaTileKey: '',
+      kEtkinlikTileKey: '',
+    };
 
 List<GeziItem>? _geziCache;
 DateTime? _geziCacheAt;
 List<KampanyaItem>? _kampanyaCache;
 DateTime? _kampanyaCacheAt;
+List<KampanyaItem>? _etkinlikCache;
+DateTime? _etkinlikCacheAt;
 Map<String, String>? _tileCoverCache;
 DateTime? _tileCoverCacheAt;
 const _ttl = Duration(minutes: 10);
@@ -195,6 +227,11 @@ void invalidateGeziCache() {
 void invalidateKampanyaCache() {
   _kampanyaCache = null;
   _kampanyaCacheAt = null;
+}
+
+void invalidateEtkinlikCache() {
+  _etkinlikCache = null;
+  _etkinlikCacheAt = null;
 }
 
 void invalidateTileCoverCache() {
@@ -216,9 +253,18 @@ bool get hasFreshKampanyaCache {
   return DateTime.now().difference(at) < _ttl;
 }
 
+bool get hasFreshEtkinlikCache {
+  final at = _etkinlikCacheAt;
+  final list = _etkinlikCache;
+  if (at == null || list == null) return false;
+  return DateTime.now().difference(at) < _ttl;
+}
+
 List<GeziItem>? get cachedGeziItems => _geziCache;
 
 List<KampanyaItem>? get cachedKampanyaItems => _kampanyaCache;
+
+List<KampanyaItem>? get cachedEtkinlikItems => _etkinlikCache;
 
 bool get hasFreshTileCoverCache {
   final at = _tileCoverCacheAt;
@@ -231,7 +277,7 @@ Map<String, String>? get cachedTileCovers => _tileCoverCache;
 
 String _normalizeTileKey(String key) {
   final k = key.trim().toLowerCase();
-  if (k != kGeziTileKey && k != kKampanyaTileKey) {
+  if (!_kTileKeys.contains(k)) {
     throw StateError('Geçersiz kutucuk: $key');
   }
   return k;
@@ -247,13 +293,10 @@ Future<Map<String, String>> loadTileCovers({
     final rows = await withNetworkTimeout(
       Supabase.instance.client.from('gezi_kampanya_tiles').select(),
     );
-    final map = <String, String>{
-      kGeziTileKey: '',
-      kKampanyaTileKey: '',
-    };
+    final map = _emptyTileCovers;
     for (final e in (rows as List).whereType<Map>()) {
       final key = e['tile_key']?.toString().trim().toLowerCase() ?? '';
-      if (key == kGeziTileKey || key == kKampanyaTileKey) {
+      if (_kTileKeys.contains(key)) {
         map[key] = e['image_url']?.toString().trim() ?? '';
       }
     }
@@ -264,10 +307,7 @@ Future<Map<String, String>> loadTileCovers({
     if (_tileCoverCache != null) {
       return Map<String, String>.from(_tileCoverCache!);
     }
-    return {
-      kGeziTileKey: '',
-      kKampanyaTileKey: '',
-    };
+    return _emptyTileCovers;
   }
 }
 
@@ -276,8 +316,12 @@ Future<void> upsertTileCover({
   required String imageUrl,
   required String adminEmail,
 }) async {
-  _requireAdmin(adminEmail);
   final key = _normalizeTileKey(tileKey);
+  final section = sectionKeyForTile(key);
+  if (section == null) {
+    throw StateError('Geçersiz kutucuk.');
+  }
+  await _requireSection(adminEmail, section);
   await Supabase.instance.client.from('gezi_kampanya_tiles').upsert({
     'tile_key': key,
     'image_url': imageUrl.trim(),
@@ -287,9 +331,10 @@ Future<void> upsertTileCover({
   invalidateTileCoverCache();
 }
 
-void _requireAdmin(String? email) {
-  if (!isAppAdmin(email)) {
-    throw StateError('Yalnızca admin ekleyebilir / silebilir.');
+Future<void> _requireSection(String? email, SectionKey key) async {
+  await ensureSectionEditorsLoaded(email);
+  if (!canEditSection(email, key)) {
+    throw StateError('Bu bölümü yönetme yetkiniz yok.');
   }
 }
 
@@ -299,6 +344,7 @@ Future<List<GeziItem>> loadGeziItems({
   bool forceRefresh = false,
   String? viewerEmail,
 }) async {
+  await ensureSectionEditorsLoaded(viewerEmail);
   List<GeziItem> all;
   if (!forceRefresh && hasFreshGeziCache) {
     all = List<GeziItem>.from(_geziCache!);
@@ -326,7 +372,7 @@ Future<List<GeziItem>> loadGeziItems({
     }
   }
 
-  final admin = isAppAdmin(viewerEmail);
+  final admin = canEditSection(viewerEmail, SectionKey.gezi);
   var list = admin ? all : all.where((g) => g.isActive).toList();
   final name = cityName?.trim();
   final slug = (citySlug ?? (name != null ? turkishCitySlug(name) : '')).trim();
@@ -348,32 +394,93 @@ Future<List<GeziItem>> loadGeziItems({
 Future<List<KampanyaItem>> loadKampanyaItems({
   bool forceRefresh = false,
   String? viewerEmail,
+}) {
+  return _loadScopedFeedItems(
+    table: kKampanyaTable,
+    forceRefresh: forceRefresh,
+    viewerEmail: viewerEmail,
+  );
+}
+
+Future<List<KampanyaItem>> loadEtkinlikItems({
+  bool forceRefresh = false,
+  String? viewerEmail,
+}) {
+  return _loadScopedFeedItems(
+    table: kEtkinlikTable,
+    forceRefresh: forceRefresh,
+    viewerEmail: viewerEmail,
+  );
+}
+
+bool _hasFreshScopedCache(String table) {
+  return table == kEtkinlikTable ? hasFreshEtkinlikCache : hasFreshKampanyaCache;
+}
+
+List<KampanyaItem>? _scopedCacheList(String table) {
+  return table == kEtkinlikTable ? _etkinlikCache : _kampanyaCache;
+}
+
+void _setScopedCache(String table, List<KampanyaItem> list) {
+  final frozen = List<KampanyaItem>.unmodifiable(list);
+  final now = DateTime.now();
+  if (table == kEtkinlikTable) {
+    _etkinlikCache = frozen;
+    _etkinlikCacheAt = now;
+  } else {
+    _kampanyaCache = frozen;
+    _kampanyaCacheAt = now;
+  }
+}
+
+void _invalidateScopedCache(String table) {
+  if (table == kEtkinlikTable) {
+    invalidateEtkinlikCache();
+  } else {
+    invalidateKampanyaCache();
+  }
+}
+
+List<KampanyaItem> _parseScopedRows(dynamic rows) {
+  return [
+    for (final e in (rows as List).whereType<Map>())
+      KampanyaItem.fromJson(Map<String, dynamic>.from(e)),
+  ].where((k) => k.id > 0 && k.imageUrl.trim().isNotEmpty).toList();
+}
+
+Future<List<KampanyaItem>> _loadScopedFeedItems({
+  required String table,
+  bool forceRefresh = false,
+  String? viewerEmail,
 }) async {
-  if (!forceRefresh && hasFreshKampanyaCache) {
-    final cached = List<KampanyaItem>.from(_kampanyaCache!);
-    if (isAppAdmin(viewerEmail)) return cached;
+  await ensureSectionEditorsLoaded(viewerEmail);
+  final admin = canEditSection(
+    viewerEmail,
+    table == kEtkinlikTable ? SectionKey.etkinlik : SectionKey.kampanya,
+  );
+  if (!forceRefresh && _hasFreshScopedCache(table)) {
+    final cached = List<KampanyaItem>.from(_scopedCacheList(table)!);
+    if (admin) return cached;
     return cached.where((k) => k.isActive).toList();
   }
   try {
+    final sortCol = table == kEtkinlikTable ? 'sort_index' : 'sort_order';
     final rows = await withNetworkTimeout(
       Supabase.instance.client
-          .from('kampanyalar')
+          .from(table)
           .select()
-          .order('sort_order')
+          .order(sortCol)
           .order('created_at', ascending: false),
     );
-    final list = [
-      for (final e in (rows as List).whereType<Map>())
-        KampanyaItem.fromJson(Map<String, dynamic>.from(e)),
-    ].where((k) => k.id > 0 && k.imageUrl.trim().isNotEmpty).toList();
-    _kampanyaCache = List.unmodifiable(list);
-    _kampanyaCacheAt = DateTime.now();
-    if (isAppAdmin(viewerEmail)) return list;
+    final list = _parseScopedRows(rows);
+    _setScopedCache(table, list);
+    if (admin) return list;
     return list.where((k) => k.isActive).toList();
   } catch (_) {
-    if (_kampanyaCache != null) {
-      final cached = List<KampanyaItem>.from(_kampanyaCache!);
-      if (isAppAdmin(viewerEmail)) return cached;
+    final cachedRaw = _scopedCacheList(table);
+    if (cachedRaw != null) {
+      final cached = List<KampanyaItem>.from(cachedRaw);
+      if (admin) return cached;
       return cached.where((k) => k.isActive).toList();
     }
     return const [];
@@ -381,14 +488,15 @@ Future<List<KampanyaItem>> loadKampanyaItems({
 }
 
 Future<int> _nextSort(String table) async {
+  final col = table == kEtkinlikTable ? 'sort_index' : 'sort_order';
   try {
     final rows = await Supabase.instance.client
         .from(table)
-        .select('sort_order')
-        .order('sort_order', ascending: false)
+        .select(col)
+        .order(col, ascending: false)
         .limit(1);
     if (rows.isEmpty) return 1;
-    return ((rows.first['sort_order'] as num?)?.toInt() ?? 0) + 1;
+    return ((rows.first[col] as num?)?.toInt() ?? 0) + 1;
   } catch (_) {
     return 1;
   }
@@ -429,7 +537,7 @@ Future<GeziItem> addGeziItem({
   String description = '',
   required String adminEmail,
 }) async {
-  _requireAdmin(adminEmail);
+  await _requireSection(adminEmail, SectionKey.gezi);
   final name = cityName.trim();
   if (name.isEmpty) throw StateError('İl seçin.');
   final heading = title.trim();
@@ -473,7 +581,7 @@ Future<GeziItem> updateGeziItem({
   String? imageUrl,
   required String adminEmail,
 }) async {
-  _requireAdmin(adminEmail);
+  await _requireSection(adminEmail, SectionKey.gezi);
   final heading = title.trim();
   if (heading.isEmpty) throw StateError('Başlık girin.');
   final patch = <String, dynamic>{
@@ -507,7 +615,7 @@ Future<GeziItem> updateGeziItem({
 /// İl listesindeki sırayı 1, 2, 3… olarak yazar.
 Future<void> persistGeziCityOrder(List<GeziItem> ordered) async {
   final email = Supabase.instance.client.auth.currentUser?.email;
-  _requireAdmin(email);
+  await _requireSection(email, SectionKey.gezi);
   try {
     for (var i = 0; i < ordered.length; i++) {
       final n = i + 1;
@@ -532,21 +640,27 @@ Future<void> persistGeziCityOrder(List<GeziItem> ordered) async {
 
 Future<void> deleteGeziItem(int id) async {
   final email = Supabase.instance.client.auth.currentUser?.email;
-  _requireAdmin(email);
+  await _requireSection(email, SectionKey.gezi);
   await Supabase.instance.client.from('gezi_rehberi').delete().eq('id', id);
   invalidateGeziCache();
 }
 
-String _kampanyaCityDbValue(String? city) {
+String _scopedCityDbValue(String? city) {
   if (isKampanyaNationwide(city)) return '';
   return city?.trim() ?? '';
 }
 
-StateError? _kampanyaCitySchemaError(Object e) {
+StateError? _scopedCitySchemaError(Object e, {required String table}) {
   final raw = e.toString();
   if (raw.contains('city') ||
+      raw.contains('sort_index') ||
       raw.contains('PGRST204') ||
       raw.contains('schema cache')) {
+    if (table == kEtkinlikTable) {
+      return StateError(
+        'Etkinlikler tablosu yok. Supabase’de etkinlikler.sql çalıştırın.',
+      );
+    }
     return StateError(
       'İl kolonu yok. Supabase’de kampanyalar_city.sql çalıştırın.',
     );
@@ -560,24 +674,68 @@ Future<KampanyaItem> addKampanyaItem({
   String description = '',
   String? city,
   required String adminEmail,
+}) {
+  return _addScopedFeedItem(
+    table: kKampanyaTable,
+    title: title,
+    imageUrl: imageUrl,
+    description: description,
+    city: city,
+    adminEmail: adminEmail,
+  );
+}
+
+Future<KampanyaItem> addEtkinlikItem({
+  String title = '',
+  required String imageUrl,
+  String description = '',
+  String? city,
+  required String adminEmail,
+}) {
+  return _addScopedFeedItem(
+    table: kEtkinlikTable,
+    title: title,
+    imageUrl: imageUrl,
+    description: description,
+    city: city,
+    adminEmail: adminEmail,
+  );
+}
+
+Future<KampanyaItem> _addScopedFeedItem({
+  required String table,
+  String title = '',
+  required String imageUrl,
+  String description = '',
+  String? city,
+  required String adminEmail,
 }) async {
-  _requireAdmin(adminEmail);
+  await _requireSection(
+    adminEmail,
+    table == kEtkinlikTable ? SectionKey.etkinlik : SectionKey.kampanya,
+  );
   final url = imageUrl.trim();
   if (url.isEmpty) throw StateError('Görsel gerekli.');
+  final next = await _nextSort(table);
   try {
-    final row = await Supabase.instance.client.from('kampanyalar').insert({
+    final payload = <String, dynamic>{
       'title': title.trim(),
       'image_url': url,
       'description': description.trim(),
-      'city': _kampanyaCityDbValue(city),
-      'sort_order': await _nextSort('kampanyalar'),
+      'city': _scopedCityDbValue(city),
+      'sort_order': next,
       'is_active': true,
       'created_by': adminEmail.trim().toLowerCase(),
-    }).select().single();
-    invalidateKampanyaCache();
+    };
+    if (table == kEtkinlikTable) {
+      payload['sort_index'] = next;
+    }
+    final row =
+        await Supabase.instance.client.from(table).insert(payload).select().single();
+    _invalidateScopedCache(table);
     return KampanyaItem.fromJson(Map<String, dynamic>.from(row));
   } catch (e) {
-    final mapped = _kampanyaCitySchemaError(e);
+    final mapped = _scopedCitySchemaError(e, table: table);
     if (mapped != null) throw mapped;
     rethrow;
   }
@@ -590,34 +748,115 @@ Future<KampanyaItem> updateKampanyaItem({
   String? imageUrl,
   String? city,
   required String adminEmail,
+}) {
+  return _updateScopedFeedItem(
+    table: kKampanyaTable,
+    id: id,
+    title: title,
+    description: description,
+    imageUrl: imageUrl,
+    city: city,
+    adminEmail: adminEmail,
+  );
+}
+
+Future<KampanyaItem> updateEtkinlikItem({
+  required int id,
+  String title = '',
+  String description = '',
+  String? imageUrl,
+  String? city,
+  required String adminEmail,
+}) {
+  return _updateScopedFeedItem(
+    table: kEtkinlikTable,
+    id: id,
+    title: title,
+    description: description,
+    imageUrl: imageUrl,
+    city: city,
+    adminEmail: adminEmail,
+  );
+}
+
+Future<KampanyaItem> _updateScopedFeedItem({
+  required String table,
+  required int id,
+  String title = '',
+  String description = '',
+  String? imageUrl,
+  String? city,
+  required String adminEmail,
 }) async {
-  _requireAdmin(adminEmail);
+  await _requireSection(
+    adminEmail,
+    table == kEtkinlikTable ? SectionKey.etkinlik : SectionKey.kampanya,
+  );
   final patch = <String, dynamic>{
     'title': title.trim(),
     'description': description.trim(),
-    'city': _kampanyaCityDbValue(city),
+    'city': _scopedCityDbValue(city),
   };
   final url = imageUrl?.trim() ?? '';
   if (url.isNotEmpty) patch['image_url'] = url;
   try {
     final row = await Supabase.instance.client
-        .from('kampanyalar')
+        .from(table)
         .update(patch)
         .eq('id', id)
         .select()
         .single();
-    invalidateKampanyaCache();
+    _invalidateScopedCache(table);
     return KampanyaItem.fromJson(Map<String, dynamic>.from(row));
   } catch (e) {
-    final mapped = _kampanyaCitySchemaError(e);
+    final mapped = _scopedCitySchemaError(e, table: table);
     if (mapped != null) throw mapped;
     rethrow;
   }
 }
 
-Future<void> deleteKampanyaItem(int id) async {
+Future<void> deleteKampanyaItem(int id) =>
+    _deleteScopedFeedItem(table: kKampanyaTable, id: id);
+
+Future<void> deleteEtkinlikItem(int id) =>
+    _deleteScopedFeedItem(table: kEtkinlikTable, id: id);
+
+Future<void> _deleteScopedFeedItem({
+  required String table,
+  required int id,
+}) async {
   final email = Supabase.instance.client.auth.currentUser?.email;
-  _requireAdmin(email);
-  await Supabase.instance.client.from('kampanyalar').delete().eq('id', id);
-  invalidateKampanyaCache();
+  await _requireSection(
+    email,
+    table == kEtkinlikTable ? SectionKey.etkinlik : SectionKey.kampanya,
+  );
+  await Supabase.instance.client.from(table).delete().eq('id', id);
+  _invalidateScopedCache(table);
+}
+
+/// Admin sıra (1, 2, 3…). Etkinlikler: sort_index. Kampanyalar: sort_order.
+Future<void> persistCityFeedOrder({
+  required GeziKampanyaKind kind,
+  required List<KampanyaItem> ordered,
+}) async {
+  if (!isCityFeedKind(kind)) {
+    throw StateError('Yalnız kampanya / etkinlik sırası.');
+  }
+  final email = Supabase.instance.client.auth.currentUser?.email;
+  await _requireSection(
+    email,
+    kind == GeziKampanyaKind.etkinlik
+        ? SectionKey.etkinlik
+        : SectionKey.kampanya,
+  );
+  final table = cityFeedTable(kind);
+  for (var i = 0; i < ordered.length; i++) {
+    final n = i + 1;
+    final patch = <String, dynamic>{'sort_order': n};
+    if (table == kEtkinlikTable) {
+      patch['sort_index'] = n;
+    }
+    await Supabase.instance.client.from(table).update(patch).eq('id', ordered[i].id);
+  }
+  _invalidateScopedCache(table);
 }

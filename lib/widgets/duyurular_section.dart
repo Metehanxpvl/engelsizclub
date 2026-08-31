@@ -7,9 +7,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../admin_config.dart';
 import '../data/duyuru_data.dart';
 import '../duyuru_store.dart';
+import '../section_editors.dart';
 import '../meto_theme.dart';
 import '../services/image_optimize_service.dart';
 import '../services/r2_storage_service.dart';
@@ -39,7 +39,8 @@ class _DuyurularSectionState extends State<DuyurularSection> {
   List<DuyuruItem> _stripItems = const [];
   String _stripVersion = '';
 
-  bool get _isAdmin => isAppAdmin(widget.userEmail);
+  bool get _isAdmin =>
+      canEditSection(widget.userEmail, SectionKey.duyurular);
 
   List<DuyuruItem> get _sorted => sortDuyurular(_items, _seen);
 

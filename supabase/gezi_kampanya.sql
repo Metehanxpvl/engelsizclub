@@ -3,6 +3,7 @@
 -- Misafir (anon) aktif kayıtları okur; yazma yalnız admin.
 -- Ana sayfa kutucuk kapakları: gezi_kampanya_tiles.sql
 -- Kampanya il / tüm ülke (mevcut tablo): kampanyalar_city.sql
+-- Etkinlikler (additive, bu dosyaya dokunmaz): etkinlikler.sql + etkinlik_tile.sql
 
 create table if not exists public.gezi_rehberi (
   id bigint generated always as identity primary key,

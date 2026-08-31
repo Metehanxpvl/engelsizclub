@@ -12,10 +12,8 @@ import '../services/image_optimize_service.dart';
 import '../services/r2_storage_service.dart';
 import 'photo_gallery_lightbox.dart';
 
-enum GeziKampanyaKind { gezi, kampanya }
-
 /// Admin: görsel (galeri / URL) + başlık / açıklama.
-/// Gezi: il zorunlu. Kampanya: Tüm ülke veya il.
+/// Gezi: il zorunlu. Kampanya / Etkinlik: Tüm ülke veya il.
 class GeziKampanyaAdminSheet extends StatefulWidget {
   const GeziKampanyaAdminSheet({
     super.key,
@@ -48,12 +46,14 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
 
   bool get _isGezi => widget.kind == GeziKampanyaKind.gezi;
   bool get _isKampanya => widget.kind == GeziKampanyaKind.kampanya;
+  bool get _isEtkinlik => widget.kind == GeziKampanyaKind.etkinlik;
+  bool get _isCityScoped => _isKampanya || _isEtkinlik;
   bool get _isEdit => widget.editGezi != null || widget.editKampanya != null;
-  bool get _showCityPicker => _isGezi || (_isKampanya && !_nationwide);
+  bool get _showCityPicker => _isGezi || (_isCityScoped && !_nationwide);
   String get _existingImage =>
       (widget.editGezi?.imageUrl ?? widget.editKampanya?.imageUrl ?? '').trim();
   bool get _lockCity {
-    if (_isKampanya) return false;
+    if (_isCityScoped) return false;
     if (_isEdit) return true;
     final preset = widget.presetCity?.trim() ?? '';
     return preset.isNotEmpty && _city != null;
@@ -90,7 +90,7 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
       _city = matchedCity;
       _citySearch.text = matchedCity;
     }
-    if (_isKampanya) {
+    if (_isCityScoped) {
       if (editKampanya != null) {
         _nationwide = editKampanya.isNationwide;
       } else {
@@ -135,7 +135,11 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
   Future<String> _resolveImage() async {
     if (_pickedBytes != null && _pickedBytes!.isNotEmpty) {
       final optimized = await ImageOptimizeService.forCatalogCard(_pickedBytes!);
-      final prefix = _isGezi ? 'gezi' : 'kampanya';
+      final prefix = switch (widget.kind) {
+        GeziKampanyaKind.gezi => 'gezi',
+        GeziKampanyaKind.kampanya => 'kampanya',
+        GeziKampanyaKind.etkinlik => 'etkinlik',
+      };
       return R2StorageService.uploadBytes(
         bytes: optimized.bytes,
         fileName: '${prefix}_${DateTime.now().millisecondsSinceEpoch}.jpg',
@@ -192,7 +196,26 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
       } else {
         final scopeCity = _nationwide ? null : _city;
         final editKampanya = widget.editKampanya;
-        if (editKampanya != null) {
+        if (_isEtkinlik) {
+          if (editKampanya != null) {
+            await updateEtkinlikItem(
+              id: editKampanya.id,
+              title: _title.text,
+              description: _body.text,
+              imageUrl: image.isEmpty ? null : image,
+              city: scopeCity,
+              adminEmail: widget.adminEmail,
+            );
+          } else {
+            await addEtkinlikItem(
+              title: _title.text,
+              imageUrl: image,
+              description: _body.text,
+              city: scopeCity,
+              adminEmail: widget.adminEmail,
+            );
+          }
+        } else if (editKampanya != null) {
           await updateKampanyaItem(
             id: editKampanya.id,
             title: _title.text,
@@ -219,14 +242,19 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
       final raw = e.toString();
       final hint = raw.contains('kampanyalar_city.sql')
           ? 'İl kolonu yok. Supabase’de kampanyalar_city.sql çalıştırın.'
-          : raw.contains('gezi_rehberi_title.sql')
-              ? 'Başlık kolonu yok. Supabase’de gezi_rehberi_title.sql çalıştırın.'
-              : raw.contains('gezi_rehberi') ||
-                      raw.contains('kampanyalar') ||
-                      raw.contains('PGRST') ||
-                      raw.contains('schema')
-                  ? 'Tablo yok. Supabase’de gezi_kampanya.sql çalıştırın.'
-                  : 'Kaydedilemedi: $e';
+          : raw.contains('etkinlikler.sql')
+              ? 'Tablo yok. Supabase’de etkinlikler.sql çalıştırın.'
+              : raw.contains('gezi_rehberi_title.sql')
+                  ? 'Başlık kolonu yok. Supabase’de gezi_rehberi_title.sql çalıştırın.'
+                  : raw.contains('gezi_rehberi') ||
+                          raw.contains('kampanyalar') ||
+                          raw.contains('etkinlikler') ||
+                          raw.contains('PGRST') ||
+                          raw.contains('schema')
+                      ? _isEtkinlik
+                          ? 'Tablo yok. Supabase’de etkinlikler.sql çalıştırın.'
+                          : 'Tablo yok. Supabase’de gezi_kampanya.sql çalıştırın.'
+                      : 'Kaydedilemedi: $e';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(hint)));
     }
   }
@@ -288,9 +316,14 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
               ),
               const SizedBox(height: 14),
               L10nText(
-                _isGezi
-                    ? (_isEdit ? 'Yeri düzenle' : 'Yer ekle')
-                    : (_isEdit ? 'Kampanyayı düzenle' : 'Kampanya ekle'),
+                switch (widget.kind) {
+                  GeziKampanyaKind.gezi =>
+                    _isEdit ? 'Yeri düzenle' : 'Yer ekle',
+                  GeziKampanyaKind.kampanya =>
+                    _isEdit ? 'Kampanyayı düzenle' : 'Kampanya ekle',
+                  GeziKampanyaKind.etkinlik =>
+                    _isEdit ? 'Etkinliği düzenle' : 'Etkinlik ekle',
+                },
                 style: GoogleFonts.nunito(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -298,7 +331,7 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
                 ),
               ),
               const SizedBox(height: 14),
-              if (_isKampanya) ...[
+              if (_isCityScoped) ...[
                 _fieldLabel('Kapsam'),
                 const SizedBox(height: 8),
                 Wrap(
@@ -399,7 +432,7 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
                 ],
                 const SizedBox(height: 6),
               ],
-              if (_isKampanya) ...[
+              if (_isCityScoped) ...[
                 TextField(
                   controller: _title,
                   style: GoogleFonts.nunito(),

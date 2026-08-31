@@ -4,18 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../admin_config.dart';
 import '../gezi_kampanya_store.dart';
+import '../section_editors.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
+import '../pages/etkinlikler_page.dart';
 import '../pages/gezi_rehberi_page.dart';
 import '../pages/kampanyalar_page.dart';
 import '../services/image_optimize_service.dart';
 import '../services/r2_storage_service.dart';
 import 'catalog_media.dart';
 
-/// Ana sayfa: Bilgi Kütüphanesi üstü — Gezi Rehberi | Kampanyalar.
+/// Ana sayfa: Bilgi Kütüphanesi üstü — Gezi Rehberi | Kampanyalar | Etkinlikler.
 class GeziKampanyaHomeSection extends StatefulWidget {
   const GeziKampanyaHomeSection({
     super.key,
@@ -33,9 +34,14 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
   Map<String, String> _covers = const {
     kGeziTileKey: '',
     kKampanyaTileKey: '',
+    kEtkinlikTileKey: '',
   };
 
-  bool get _isAdmin => isAppAdmin(widget.userEmail);
+  bool _canEditTile(String tileKey) {
+    final key = sectionKeyForTile(tileKey);
+    if (key == null) return false;
+    return canEditSection(widget.userEmail, key);
+  }
 
   @override
   void initState() {
@@ -48,13 +54,14 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
   }
 
   Future<void> _loadCovers({bool force = false}) async {
+    await ensureSectionEditorsLoaded(widget.userEmail);
     final map = await loadTileCovers(forceRefresh: force);
     if (!mounted) return;
     setState(() => _covers = map);
   }
 
   Future<void> _editCover(String tileKey, String title) async {
-    if (!_isAdmin) return;
+    if (!_canEditTile(tileKey)) return;
     final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -81,7 +88,7 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: L10nText(
-              'Gezi Rehberi & Kampanyalar',
+              'Gezi Rehberi & Kampanyalar & Etkinlikler',
               style: GoogleFonts.nunito(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
@@ -91,44 +98,75 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _Box(
-                    icon: Icons.map_outlined,
-                    title: 'Gezi Rehberi',
-                    subtitle: '81 il · gezilecek yerler',
-                    coverUrl: _covers[kGeziTileKey] ?? '',
-                    isAdmin: _isAdmin,
-                    onTap: () => GeziRehberiPage.open(
-                      context,
-                      userEmail: widget.userEmail,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                const gap = 12.0;
+                const minCard = 96.0;
+                const tileH = 120.0;
+                final w = constraints.maxWidth;
+                final threeW = (w - 2 * gap) / 3;
+                final useThree = threeW >= minCard;
+                final cardW = (useThree ? threeW : (w - gap) / 2)
+                    .floorToDouble();
+                Widget tile({
+                  required IconData icon,
+                  required String title,
+                  required String subtitle,
+                  required String tileKey,
+                  required VoidCallback onTap,
+                }) {
+                  return SizedBox(
+                    width: cardW,
+                    height: tileH,
+                    child: _Box(
+                      icon: icon,
+                      title: title,
+                      subtitle: subtitle,
+                      coverUrl: _covers[tileKey] ?? '',
+                      isAdmin: _canEditTile(tileKey),
+                      onTap: onTap,
+                      onEditCover: () => _editCover(tileKey, title),
                     ),
-                    onEditCover: () => _editCover(
-                      kGeziTileKey,
-                      'Gezi Rehberi',
+                  );
+                }
+
+                return Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    tile(
+                      icon: Icons.map_outlined,
+                      title: 'Gezi Rehberi',
+                      subtitle: '81 il · gezilecek yerler',
+                      tileKey: kGeziTileKey,
+                      onTap: () => GeziRehberiPage.open(
+                        context,
+                        userEmail: widget.userEmail,
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _Box(
-                    icon: Icons.local_offer_outlined,
-                    title: 'Kampanyalar',
-                    subtitle: 'Fırsat ve duyurular',
-                    coverUrl: _covers[kKampanyaTileKey] ?? '',
-                    isAdmin: _isAdmin,
-                    onTap: () => KampanyalarPage.open(
-                      context,
-                      userEmail: widget.userEmail,
+                    tile(
+                      icon: Icons.local_offer_outlined,
+                      title: 'Kampanyalar',
+                      subtitle: 'Fırsat ve duyurular',
+                      tileKey: kKampanyaTileKey,
+                      onTap: () => KampanyalarPage.open(
+                        context,
+                        userEmail: widget.userEmail,
+                      ),
                     ),
-                    onEditCover: () => _editCover(
-                      kKampanyaTileKey,
-                      'Kampanyalar',
+                    tile(
+                      icon: Icons.event_outlined,
+                      title: 'Etkinlikler',
+                      subtitle: 'İl ve ülke etkinlikleri',
+                      tileKey: kEtkinlikTileKey,
+                      onTap: () => EtkinliklerPage.open(
+                        context,
+                        userEmail: widget.userEmail,
+                      ),
                     ),
-                  ),
-                ),
-              ],
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -160,6 +198,10 @@ class _Box extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final titleColor = _hasCover ? Colors.white : MetoColors.foreground;
+    final subColor = _hasCover
+        ? Colors.white.withValues(alpha: 0.88)
+        : MetoColors.mutedFg;
     return Material(
       color: MetoColors.card,
       borderRadius: BorderRadius.circular(16),
@@ -167,11 +209,10 @@ class _Box extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 108),
+        child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: MetoColors.border),
+            border: Border.all(color: MetoColors.primary, width: 1.5),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),
@@ -181,95 +222,82 @@ class _Box extends StatelessWidget {
             ],
           ),
           child: Stack(
+            fit: StackFit.expand,
             children: [
               if (_hasCover)
                 Positioned.fill(
                   child: CatalogImage(
                     source: coverUrl,
                     fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
                     errorBuilder: (_, __, ___) => const ColoredBox(
                       color: MetoColors.card,
                     ),
                   ),
                 ),
               if (_hasCover)
-                Positioned.fill(
+                const Positioned.fill(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Colors.black.withValues(alpha: 0.08),
-                          Colors.black.withValues(alpha: 0.62),
+                          Color(0x14000000),
+                          Color(0x9E000000),
                         ],
                       ),
                     ),
                   ),
                 ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-                child: _hasCover
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 40),
-                          L10nText(
-                            title,
-                            style: GoogleFonts.nunito(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          L10nText(
-                            subtitle,
-                            style: GoogleFonts.nunito(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white.withValues(alpha: 0.88),
-                            ),
-                          ),
-                        ],
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: MetoColors.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            alignment: Alignment.center,
-                            child: Icon(
-                              icon,
-                              size: 22,
-                              color: MetoColors.primary,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          L10nText(
-                            title,
-                            style: GoogleFonts.nunito(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: MetoColors.foreground,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          L10nText(
-                            subtitle,
-                            style: GoogleFonts.nunito(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: MetoColors.mutedFg,
-                            ),
-                          ),
-                        ],
+              Positioned(
+                left: 14,
+                right: 14,
+                top: 12,
+                bottom: 12,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (!_hasCover)
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: MetoColors.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          icon,
+                          size: 22,
+                          color: MetoColors.primary,
+                        ),
                       ),
+                    const Spacer(),
+                    L10nText(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.nunito(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: titleColor,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    L10nText(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.nunito(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: subColor,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               if (isAdmin)
                 Positioned(
@@ -296,6 +324,16 @@ class _Box extends StatelessWidget {
                     ),
                   ),
                 ),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: MetoColors.primary, width: 1.5),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -391,9 +429,10 @@ class _TileCoverSheetState extends State<_TileCoverSheet> {
       setState(() => _saving = false);
       final raw = e.toString();
       final hint = raw.contains('gezi_kampanya_tiles') ||
+              raw.contains('tile_key') ||
               raw.contains('PGRST') ||
               raw.contains('schema')
-          ? 'Tablo yok. Supabase’de gezi_kampanya_tiles.sql çalıştırın.'
+          ? 'Tablo yok. Supabase’de gezi_kampanya_tiles.sql, ardından etkinlikler.sql çalıştırın.'
           : 'Kaydedilemedi: $e';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(hint)));
     }

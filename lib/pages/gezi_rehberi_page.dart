@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../admin_config.dart';
 import '../data/turkish_cities_data.dart';
 import '../gezi_kampanya_store.dart';
+import '../section_editors.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
@@ -40,7 +40,7 @@ class _GeziRehberiPageState extends State<GeziRehberiPage> {
   bool _loading = true;
   String? _city;
 
-  bool get _isAdmin => isAppAdmin(widget.userEmail);
+  bool get _isAdmin => canEditSection(widget.userEmail, SectionKey.gezi);
 
   @override
   void initState() {

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../admin_config.dart';
 import '../data/turkish_cities_data.dart';
 import '../gezi_kampanya_store.dart';
+import '../section_editors.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
@@ -12,23 +12,28 @@ import '../widgets/gezi_kampanya_feed_card.dart';
 
 enum _KampanyaFilter { all, nationwide, city }
 
-/// Kampanyalar — story benzeri dikey liste (görsel + açıklama).
+enum CityFeedKind { kampanya, etkinlik }
+
+/// Kampanyalar / Etkinlikler — story benzeri dikey liste (görsel + açıklama).
 /// Filtre: Tümü | Tüm ülkede geçerli | il ara (Gezi ile aynı 81 il).
 class KampanyalarPage extends StatefulWidget {
   const KampanyalarPage({
     super.key,
     required this.userEmail,
+    this.kind = CityFeedKind.kampanya,
   });
 
   final String userEmail;
+  final CityFeedKind kind;
 
   static Future<void> open(
     BuildContext context, {
     required String userEmail,
+    CityFeedKind kind = CityFeedKind.kampanya,
   }) {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => KampanyalarPage(userEmail: userEmail),
+        builder: (_) => KampanyalarPage(userEmail: userEmail, kind: kind),
       ),
     );
   }
@@ -44,12 +49,23 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
   _KampanyaFilter _filter = _KampanyaFilter.all;
   String? _city;
 
-  bool get _isAdmin => isAppAdmin(widget.userEmail);
+  bool get _isAdmin => canEditSection(
+        widget.userEmail,
+        _isEtkinlik ? SectionKey.etkinlik : SectionKey.kampanya,
+      );
+  bool get _isEtkinlik => widget.kind == CityFeedKind.etkinlik;
+  GeziKampanyaKind get _adminKind => _isEtkinlik
+      ? GeziKampanyaKind.etkinlik
+      : GeziKampanyaKind.kampanya;
+
+  String get _pageTitle => _isEtkinlik ? 'Etkinlikler' : 'Kampanyalar';
+  String get _addLabel => _isEtkinlik ? 'Etkinlik ekle' : 'Kampanya ekle';
 
   @override
   void initState() {
     super.initState();
-    final cached = cachedKampanyaItems;
+    final cached =
+        _isEtkinlik ? cachedEtkinlikItems : cachedKampanyaItems;
     if (cached != null) {
       _items = List<KampanyaItem>.from(cached);
       _loading = false;
@@ -65,10 +81,15 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
 
   Future<void> _reload({bool silent = false}) async {
     if (!silent && mounted) setState(() => _loading = true);
-    final list = await loadKampanyaItems(
-      forceRefresh: !hasFreshKampanyaCache,
-      viewerEmail: widget.userEmail,
-    );
+    final list = _isEtkinlik
+        ? await loadEtkinlikItems(
+            forceRefresh: !hasFreshEtkinlikCache,
+            viewerEmail: widget.userEmail,
+          )
+        : await loadKampanyaItems(
+            forceRefresh: !hasFreshKampanyaCache,
+            viewerEmail: widget.userEmail,
+          );
     if (!mounted) return;
     setState(() {
       _items = list;
@@ -168,7 +189,7 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => GeziKampanyaAdminSheet(
         adminEmail: widget.userEmail,
-        kind: GeziKampanyaKind.kampanya,
+        kind: _adminKind,
         presetCity: preset,
       ),
     );
@@ -182,7 +203,7 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => GeziKampanyaAdminSheet(
         adminEmail: widget.userEmail,
-        kind: GeziKampanyaKind.kampanya,
+        kind: _adminKind,
         presetCity: item.isNationwide ? null : item.city,
         editKampanya: item,
       ),
@@ -190,12 +211,37 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
     if (ok == true && mounted) await _reload();
   }
 
+  Future<void> _move(KampanyaItem item, int delta) async {
+    if (_filter != _KampanyaFilter.all) return;
+    final items = _visible;
+    final i = items.indexWhere((g) => g.id == item.id);
+    final j = i + delta;
+    if (i < 0 || j < 0 || j >= items.length) return;
+    try {
+      final next = List<KampanyaItem>.from(items);
+      final tmp = next[i];
+      next[i] = next[j];
+      next[j] = tmp;
+      await persistCityFeedOrder(kind: _adminKind, ordered: next);
+      await _reload();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sıra değiştirilemedi: $e')),
+      );
+    }
+  }
+
   Future<void> _delete(KampanyaItem item) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const L10nText('Kampanyayı sil?'),
-        content: const L10nText('Bu kampanya kalıcı olarak silinecek.'),
+        title: L10nText(_isEtkinlik ? 'Etkinliği sil?' : 'Kampanyayı sil?'),
+        content: L10nText(
+          _isEtkinlik
+              ? 'Bu etkinlik kalıcı olarak silinecek.'
+              : 'Bu kampanya kalıcı olarak silinecek.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -211,7 +257,9 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
     );
     if (ok != true || !mounted) return;
     try {
-      await deleteKampanyaItem(item.id);
+      await (_isEtkinlik
+          ? deleteEtkinlikItem(item.id)
+          : deleteKampanyaItem(item.id));
       await _reload();
     } catch (e) {
       if (!mounted) return;
@@ -285,13 +333,17 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
   String get _emptyMessage {
     switch (_filter) {
       case _KampanyaFilter.nationwide:
-        return 'Tüm ülkede geçerli kampanya yok.';
+        return _isEtkinlik
+            ? 'Tüm ülkede geçerli etkinlik yok.'
+            : 'Tüm ülkede geçerli kampanya yok.';
       case _KampanyaFilter.city:
         return _city == null
             ? 'İl seçin.'
-            : 'Bu il için henüz kampanya yok.';
+            : _isEtkinlik
+                ? 'Bu il için henüz etkinlik yok.'
+                : 'Bu il için henüz kampanya yok.';
       case _KampanyaFilter.all:
-        return 'Henüz kampanya yok.';
+        return _isEtkinlik ? 'Henüz etkinlik yok.' : 'Henüz kampanya yok.';
     }
   }
 
@@ -306,13 +358,13 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
         foregroundColor: MetoColors.foreground,
         elevation: 0,
         title: L10nText(
-          'Kampanyalar',
+          _pageTitle,
           style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
         ),
         actions: [
           if (_isAdmin)
             IconButton(
-              tooltip: S.auto('Kampanya ekle'),
+              tooltip: S.auto(_addLabel),
               onPressed: () => _openAdd(),
               icon: const Icon(Icons.add_circle_outline),
             ),
@@ -428,6 +480,16 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
                                       _isAdmin ? () => _delete(item) : null,
                                   onEdit:
                                       _isAdmin ? () => _openEdit(item) : null,
+                                  onMoveUp: _isAdmin &&
+                                          _filter == _KampanyaFilter.all &&
+                                          i > 0
+                                      ? () => _move(item, -1)
+                                      : null,
+                                  onMoveDown: _isAdmin &&
+                                          _filter == _KampanyaFilter.all &&
+                                          i < items.length - 1
+                                      ? () => _move(item, 1)
+                                      : null,
                                 );
                               },
                             ),
@@ -461,7 +523,7 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
                   backgroundColor: MetoColors.primary,
                 ),
                 icon: const Icon(Icons.add),
-                label: const L10nText('Kampanya ekle'),
+                label: L10nText(_addLabel),
               ),
             ],
           ],

@@ -41,6 +41,7 @@ import 'data/more_menu_data.dart';
 import 'more_menu_store.dart';
 import 'pages/in_app_web_page.dart';
 import 'pages/gelisim_etkinlikleri_page.dart';
+import 'pages/etkinlikler_page.dart';
 import 'pages/gezi_rehberi_page.dart';
 import 'pages/kampanyalar_page.dart';
 import 'widgets/admin_more_menu_sheet.dart';
@@ -69,6 +70,8 @@ import 'widgets/user_safety_sheet.dart';
 import 'widgets/admin_kesfet_panel.dart';
 import 'widgets/admin_iyilik_liderleri_panel.dart';
 import 'widgets/admin_users_panel.dart';
+import 'widgets/section_editors_panel.dart';
+import 'section_editors.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'l10n/l10n_text.dart';
 
@@ -123,6 +126,7 @@ class _MainShellState extends State<MainShell> {
   bool _showIyilikLiderleri = false;
   bool _showAdminUsers = false;
   bool _showKesfetAdmin = false;
+  bool _showSectionEditors = false;
   bool _showDilSecimi = false;
   /// Android geri: ana sayfadayken ikinci basışta çıkış için zaman damgası.
   DateTime? _lastExitBackAt;
@@ -335,6 +339,9 @@ class _MainShellState extends State<MainShell> {
     _loadUserCloud();
     _loadIlanlarVeFoto();
     _loadSohbetOzetleri();
+    unawaited(ensureSectionEditorsLoaded(widget.user.email).then((_) {
+      if (mounted) setState(() {});
+    }));
     startPresenceHeartbeat();
     _inboxChannel = subscribeInboxRealtime(
       myEmail: widget.user.email,
@@ -537,6 +544,7 @@ class _MainShellState extends State<MainShell> {
       _showIyilikLiderleri = false;
       _showAdminUsers = false;
       _showKesfetAdmin = false;
+      _showSectionEditors = false;
       _showDilSecimi = false;
       _profilDragY = 0;
     });
@@ -597,6 +605,23 @@ class _MainShellState extends State<MainShell> {
                             ),
                           ),
                           if (isAdmin) ...[
+                            IconButton(
+                              tooltip: 'Bölüm yöneticileri',
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                setState(() {
+                                  _showProfilPanel = true;
+                                  _showSectionEditors = true;
+                                  _showIyilikLiderleri = false;
+                                  _showAdminUsers = false;
+                                  _showKesfetAdmin = false;
+                                });
+                              },
+                              icon: const Icon(
+                                Icons.manage_accounts_outlined,
+                                size: 20,
+                              ),
+                            ),
                             TextButton.icon(
                               onPressed: () {
                                 Navigator.pop(ctx);
@@ -2361,6 +2386,7 @@ class _MainShellState extends State<MainShell> {
       _showIyilikLiderleri = false;
       _showAdminUsers = false;
       _showKesfetAdmin = false;
+      _showSectionEditors = false;
       _showDilSecimi = false;
       _profilDragY = 0;
       _resetKredi();
@@ -2404,6 +2430,7 @@ class _MainShellState extends State<MainShell> {
       _showAdminUsers = false;
       _showDilSecimi = false;
       _showKesfetAdmin = true;
+      _showSectionEditors = false;
       _showProfilPanel = true;
     });
   }
@@ -2431,6 +2458,7 @@ class _MainShellState extends State<MainShell> {
       _showIyilikLiderleri = false;
       _showAdminUsers = false;
       _showKesfetAdmin = false;
+      _showSectionEditors = false;
       _showDilSecimi = false;
       _profilDragY = 0;
       _resetKredi();
@@ -2645,7 +2673,8 @@ class _MainShellState extends State<MainShell> {
                       Flexible(
                         child: (_showIyilikLiderleri ||
                                 _showAdminUsers ||
-                                _showKesfetAdmin)
+                                _showKesfetAdmin ||
+                                _showSectionEditors)
                             ? Padding(
                                 padding: const EdgeInsets.fromLTRB(
                                     12, 0, 12, 16),
@@ -2659,10 +2688,16 @@ class _MainShellState extends State<MainShell> {
                                             onBack: () => setState(
                                                 () => _showAdminUsers = false),
                                           )
-                                        : AdminKesfetPanel(
-                                            onBack: () => setState(
-                                                () => _showKesfetAdmin = false),
-                                          ),
+                                        : _showKesfetAdmin
+                                            ? AdminKesfetPanel(
+                                                onBack: () => setState(() =>
+                                                    _showKesfetAdmin = false),
+                                              )
+                                            : SectionEditorsPanel(
+                                                onBack: () => setState(() =>
+                                                    _showSectionEditors =
+                                                        false),
+                                              ),
                               )
                             : NotificationListener<ScrollNotification>(
                           onNotification: (n) {
@@ -3736,6 +3771,18 @@ class _MainShellState extends State<MainShell> {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: _menuTile(
+              emoji: '👤',
+              label: 'Bölüm yöneticileri',
+              sub: 'Duyuru / gezi / kampanya / etkinlik yetkisi',
+              highlight: true,
+              onTap: () => setState(() => _showSectionEditors = true),
+            ),
+          ),
+        ],
+        if (canEditSection(widget.user.email, SectionKey.gezi))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
               emoji: '🗺',
               label: 'Gezi Rehberi',
               sub: '81 il görselleri · ekle / sil',
@@ -3746,6 +3793,7 @@ class _MainShellState extends State<MainShell> {
               ),
             ),
           ),
+        if (canEditSection(widget.user.email, SectionKey.kampanya))
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: _menuTile(
@@ -3759,7 +3807,20 @@ class _MainShellState extends State<MainShell> {
               ),
             ),
           ),
-        ],
+        if (canEditSection(widget.user.email, SectionKey.etkinlik))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '📅',
+              label: 'Etkinlikler',
+              sub: 'Etkinlik ekle / sil',
+              highlight: true,
+              onTap: () => EtkinliklerPage.open(
+                context,
+                userEmail: widget.user.email,
+              ),
+            ),
+          ),
         if (_isProf && !_krediHosBonusGosterildi) ...[
           Container(
             padding: const EdgeInsets.all(16),
@@ -4098,6 +4159,7 @@ class _MainShellState extends State<MainShell> {
               _showIyilikLiderleri = false;
               _showAdminUsers = false;
               _showKesfetAdmin = false;
+              _showSectionEditors = false;
               _showDilSecimi = false;
             });
             clearRuntimeIlanlar();

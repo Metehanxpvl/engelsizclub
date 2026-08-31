@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'admin_config.dart';
 import 'data/duyuru_data.dart';
+import 'section_editors.dart';
 import 'services/broadcast_push_service.dart';
 
 String _seenKey(String email) {
@@ -104,14 +104,16 @@ List<DuyuruItem> sortDuyurular(
 }
 
 /// [forceRefresh] true değilse ve taze önbellek varsa ağ çağrısı yapılmaz.
-/// Admin tüm kayıtları (pasif dahil) görür; diğerleri yalnız aktifleri.
+/// Bölüm editörü / super admin tüm kayıtları (pasif dahil) görür; diğerleri yalnız aktifleri.
 Future<List<DuyuruItem>> loadDuyurular({
   bool forceRefresh = false,
   String? viewerEmail,
 }) async {
+  await ensureSectionEditorsLoaded(viewerEmail);
+  final editor = canEditSection(viewerEmail, SectionKey.duyurular);
   if (!forceRefresh && hasFreshDuyuruCache) {
     final cached = List<DuyuruItem>.from(_duyuruMemoryCache!);
-    if (isAppAdmin(viewerEmail)) return cached;
+    if (editor) return cached;
     return cached.where((d) => d.isVisibleNow()).toList();
   }
   try {
@@ -129,12 +131,12 @@ Future<List<DuyuruItem>> loadDuyurular({
       return d.title.isNotEmpty || d.imageUrl.isNotEmpty;
     }).toList();
     _setDuyuruCache(list);
-    if (isAppAdmin(viewerEmail)) return list;
+    if (editor) return list;
     return list.where((d) => d.isVisibleNow()).toList();
   } catch (_) {
     if (_duyuruMemoryCache != null) {
       final cached = List<DuyuruItem>.from(_duyuruMemoryCache!);
-      if (isAppAdmin(viewerEmail)) return cached;
+      if (editor) return cached;
       return cached.where((d) => d.isVisibleNow()).toList();
     }
     return const [];
@@ -155,8 +157,11 @@ Future<DuyuruItem> addDuyuru({
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
   if (user == null) throw StateError('Giriş gerekli.');
-  if (!isAppAdmin(adminEmail) && !isAppAdmin(user.email)) {
-    throw StateError('Yalnızca admin duyuru / Instagram linki ekleyebilir.');
+  await ensureSectionEditorsLoaded(adminEmail);
+  await ensureSectionEditorsLoaded(user.email);
+  if (!canEditSection(adminEmail, SectionKey.duyurular) &&
+      !canEditSection(user.email, SectionKey.duyurular)) {
+    throw StateError('Bu bölümü yönetme yetkiniz yok.');
   }
 
   final payload = _buildDuyuruPayload(
@@ -228,8 +233,9 @@ Future<DuyuruItem> addInstagramStoryLink({
   DateTime? publishAt,
   DateTime? expiresAt,
 }) async {
-  if (!isAppAdmin(adminEmail)) {
-    throw StateError('Yalnızca admin Instagram linki ekleyebilir.');
+  await ensureSectionEditorsLoaded(adminEmail);
+  if (!canEditSection(adminEmail, SectionKey.duyurular)) {
+    throw StateError('Bu bölümü yönetme yetkiniz yok.');
   }
   final url = normalizeInstagramUrl(instagramUrl);
   if (url == null) {
@@ -326,8 +332,9 @@ Future<DuyuruItem> updateDuyuru({
 }) async {
   if (id <= 0) throw StateError('Geçersiz duyuru.');
   final email = Supabase.instance.client.auth.currentUser?.email;
-  if (!isAppAdmin(email)) {
-    throw StateError('Yalnızca admin güncelleyebilir.');
+  await ensureSectionEditorsLoaded(email);
+  if (!canEditSection(email, SectionKey.duyurular)) {
+    throw StateError('Bu bölümü yönetme yetkiniz yok.');
   }
 
   final payload = _buildDuyuruPayload(
@@ -411,6 +418,11 @@ DuyuruItem? latestActivePopup(List<DuyuruItem> items) {
 
 Future<void> deleteDuyuru(int id) async {
   if (id <= 0) return;
+  final email = Supabase.instance.client.auth.currentUser?.email;
+  await ensureSectionEditorsLoaded(email);
+  if (!canEditSection(email, SectionKey.duyurular)) {
+    throw StateError('Bu bölümü yönetme yetkiniz yok.');
+  }
   await Supabase.instance.client.from('duyurular').delete().eq('id', id);
   final prev = _duyuruMemoryCache;
   if (prev != null) {
