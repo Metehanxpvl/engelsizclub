@@ -163,6 +163,12 @@ try {
   } else {
     Write-Host "==> supabase functions deploy skipped (npx supabase login). Dashboard: Edge Functions → gemini-proxy → Secrets." -ForegroundColor Yellow
   }
+  npx --yes supabase functions deploy titck-kubkt --no-verify-jwt --project-ref qycrkqwqrysypvqaipqn
+  if ($LASTEXITCODE -eq 0) {
+    Write-Host "==> titck-kubkt Edge Function OK" -ForegroundColor Green
+  } else {
+    Write-Host "==> titck-kubkt deploy skipped (TİTCK resmi PDF vekili). Flutter TİTCK listesine düşer." -ForegroundColor Yellow
+  }
 } catch {
   Write-Host "==> supabase functions deploy skipped." -ForegroundColor Yellow
 }
@@ -170,6 +176,26 @@ try {
 Write-Host "==> flutter build web --release --no-web-resources-cdn --no-wasm-dry-run --no-tree-shake-icons" -ForegroundColor Cyan
 flutter build web --release --no-web-resources-cdn --no-wasm-dry-run --no-tree-shake-icons @defines
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+Write-Host "==> Verify vendored ZXing / html5-qrcode copied into build/web" -ForegroundColor Cyan
+foreach ($f in @('zxing_library.min.js', 'zxing_datamatrix.js', 'html5-qrcode.min.js')) {
+  $src = Join-Path 'web' $f
+  $dest = Join-Path 'build\web' $f
+  if (-not (Test-Path -LiteralPath $src)) {
+    Write-Host ("==> Missing source web\" + $f) -ForegroundColor Red
+    exit 1
+  }
+  if (-not (Test-Path -LiteralPath $dest)) {
+    Write-Host ("==> flutter build skipped $f — copying from web/") -ForegroundColor Yellow
+    Copy-Item -Force $src $dest
+  }
+  $destLen = (Get-Item -LiteralPath $dest).Length
+  if ($destLen -lt 1000) {
+    Write-Host ("==> $f too small in build/web") -ForegroundColor Red
+    exit 1
+  }
+  Write-Host ("==> $f OK ($destLen bytes)") -ForegroundColor Green
+}
 
 # Statik sayfalar (Flutter build bazen alt klasorleri atlayabilir)
 Write-Host "==> Sync static pages (bilgi-kutuphanesi, daha-fazlasi, fotografli-puzzle)" -ForegroundColor Cyan

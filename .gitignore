@@ -92,3 +92,6 @@ engelsizclub-*-play.aab
 android/.gradle/
 android/app/.cxx/
 
+# TİTCK/SGK Excel cache for GTIN index rebuild
+tool/.gtin-cache/
+

@@ -263,6 +263,11 @@
     async
     defer
   ></script>
+  <!-- Vendored @zxing/library UMD (script id skips mobile_scanner unpkg/jsdelivr load).
+       Global is `ZXing` (not ZXingBrowser); BrowserMultiFormatReader is on that object. -->
+  <script id="mobile-scanner-barcode-reader" src="zxing_library.min.js?v=20260902-k3"></script>
+  <script src="html5-qrcode.min.js?v=20260902-k3"></script>
+  <script src="zxing_datamatrix.js?v=20260902-k3"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

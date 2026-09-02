@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -14,9 +14,13 @@ import '../services/e_number_explanations.dart';
 import '../services/gemini_service.dart';
 import '../services/medicine_repository.dart';
 import '../services/product_repository.dart';
+import '../services/prospectus_viewer.dart';
 import '../services/image_optimize_service.dart';
 import '../services/label_ocr.dart';
+import '../services/mlkit_barcode.dart';
 import '../services/product_disclaimer.dart';
+import '../services/titck_skrs_index.dart';
+import '../utils/gs1_barcode.dart';
 import '../utils/web_camera_frame.dart';
 import '../utils/web_session_tab.dart';
 import '../widgets/additive_risk_bar.dart';
@@ -56,14 +60,18 @@ class BarcodeScannerScreen extends StatefulWidget {
 
 class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     with WidgetsBindingObserver {
+  /// Both Ürün and İlaç: 1D (EAN/UPC) + 2D (QR / Data Matrix). Product packs
+  /// often show a karekod, not an EAN stripe, in the viewfinder.
   static const _scanFormats = <BarcodeFormat>[
     BarcodeFormat.ean13,
     BarcodeFormat.ean8,
     BarcodeFormat.upcA,
     BarcodeFormat.upcE,
     BarcodeFormat.qrCode,
+    BarcodeFormat.dataMatrix,
+    BarcodeFormat.pdf417,
+    BarcodeFormat.aztec,
     BarcodeFormat.code128,
-    BarcodeFormat.code39,
   ];
 
   final _picker = ImagePicker();
@@ -89,6 +97,17 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
   List<MedicineNameHit> _medicineHits = const [];
   bool _nameSearching = false;
   String? _nameSearchError;
+  Timer? _medicineHintTimer;
+  Timer? _seekingHintTimer;
+  Timer? _decoderPollTimer;
+  bool _showStepBackHint = false;
+  bool _showSeekingHint = false;
+  bool _decoderFailed = false;
+  bool _torchAvailable = false;
+  bool _torchOn = false;
+  String? _flashGtin;
+  String? _flashRaw;
+  String? _lastScanRaw;
 
   bool get _isMedicine => _mode == _TaramaMode.medicine;
 
@@ -96,12 +115,15 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
       ? _medicine?.isFound == true
       : _result?.product?.isFound == true;
 
+  List<BarcodeFormat> get _activeFormats => _scanFormats;
+
   MobileScannerController _newController() => MobileScannerController(
         facing: CameraFacing.back,
         detectionSpeed: DetectionSpeed.normal,
-        detectionTimeoutMs: 200,
+        detectionTimeoutMs: kIsWeb ? 250 : 200,
         autoStart: false,
         formats: _scanFormats,
+        cameraResolution: const Size(1920, 1080),
       );
 
   @override
@@ -110,6 +132,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     WidgetsBinding.instance.addObserver(this);
     _camera = _newController();
     _listenBarcodes();
+    unawaited(TitckSkrsIndex.ensureLoaded());
     if (widget.embedded && widget.isTabActive) {
       persistWebSessionTab('tarama');
     }
@@ -190,12 +213,89 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     if (!kIsWeb) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       prepareLiveVideosForScan();
-      _webPoller.start(_acceptBarcode);
+      boostLiveCameraResolution();
+      _webPoller.start(
+        (hit) => _acceptBarcode(hit.text, format: hit.format),
+        medicineMode: true,
+        onPreviewQuality: (blurry) {
+          if (!mounted || _handling || _loading) return;
+          if (blurry == _showStepBackHint) return;
+          setState(() => _showStepBackHint = blurry);
+        },
+      );
+      debugPrint('Web tarama: ZXing 1D+2D poller start');
+      _medicineHintTimer?.cancel();
+      _seekingHintTimer?.cancel();
+      _showStepBackHint = false;
+      _showSeekingHint = false;
+      _probeTorch();
+      _probeDecoderStatus();
+      _medicineHintTimer = Timer(const Duration(milliseconds: 700), () {
+        if (!mounted) return;
+        _probeTorch();
+        _probeDecoderStatus();
+      });
+      _seekingHintTimer = Timer(const Duration(seconds: 4), () {
+        if (!mounted || _handling || _loading || _hasFoundResult) return;
+        setState(() => _showSeekingHint = true);
+      });
+      _decoderPollTimer?.cancel();
+      if (kIsWeb) {
+        _decoderPollTimer = Timer.periodic(
+          const Duration(milliseconds: 900),
+          (_) => _probeDecoderStatus(),
+        );
+      }
+      if (mounted) setState(() {});
     });
+  }
+
+  void _probeDecoderStatus() {
+    if (!kIsWeb || !mounted) return;
+    final status = webDecoderStatus();
+    final failed = status == 'failed';
+    if (failed == _decoderFailed) return;
+    setState(() => _decoderFailed = failed);
+    if (failed) _decoderPollTimer?.cancel();
+  }
+
+  void _probeTorch() {
+    if (!kIsWeb || !mounted) return;
+    final available = isMedicineTorchAvailable();
+    final on = isMedicineTorchOn();
+    if (available == _torchAvailable && on == _torchOn) return;
+    setState(() {
+      _torchAvailable = available;
+      _torchOn = on;
+    });
+  }
+
+  void _toggleTorch() {
+    if (!kIsWeb) return;
+    final ok = toggleMedicineTorch(!_torchOn);
+    if (!ok) {
+      _probeTorch();
+      return;
+    }
+    setState(() => _torchOn = !_torchOn);
+    Timer(const Duration(milliseconds: 250), () {
+      if (mounted) _probeTorch();
+    });
+  }
+
+  void _onScannerTap(TapDownDetails details, Size size) {
+    if (!kIsWeb || size.width <= 0 || size.height <= 0) return;
+    tapMedicineFocus(
+      details.localPosition.dx / size.width,
+      details.localPosition.dy / size.height,
+    );
   }
 
   Future<void> _stopCamera() async {
     _webPoller.stop();
+    _medicineHintTimer?.cancel();
+    _seekingHintTimer?.cancel();
+    _decoderPollTimer?.cancel();
     try {
       await _camera?.stop();
     } catch (_) {}
@@ -205,6 +305,9 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _webPoller.stop();
+    _medicineHintTimer?.cancel();
+    _seekingHintTimer?.cancel();
+    _decoderPollTimer?.cancel();
     _nameQuery.dispose();
     unawaited(_barcodeSub?.cancel());
     unawaited(_camera?.dispose());
@@ -224,7 +327,6 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
       _handling = false;
       return;
     }
-    if (_loading) return;
     setState(() {
       _handling = true;
       _loading = true;
@@ -234,6 +336,9 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
           ? 'Etiket inceleniyor…'
           : 'Etiket bilgisi tamamlanıyor…';
       _ingredientsOpen = true;
+      _flashGtin = null;
+      _flashRaw = null;
+      _showSeekingHint = false;
       if (hasPhoto) _labelPreview = labelBytes;
     });
     _webPoller.stop();
@@ -241,40 +346,66 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
       await _camera?.stop();
     } catch (_) {}
 
-    final result = await ProductRepository.lookup(
-      code,
-      labelImageBytes: labelBytes,
-      ocrText: ocrText?.trim(),
-      productHint: productHint,
-      brandHint: brandHint,
-    );
-    if (!mounted) return;
-    setState(() {
-      _result = result;
-      _loading = false;
-      _handling = false;
-      _status = null;
-      _pendingBarcode = result.barcode ?? code;
-      final found = result.product?.isFound == true;
-      if (found) {
-        _error = result.product!.hasUsableIngredients
-            ? null
-            : result.error;
-      } else {
-        _error = result.error ??
-            (result.needsKey
-                ? ProductRepository.needsKeyMessage
-                : 'Ürün bulunamadı. Barkodu tekrar deneyin veya isteğe bağlı etiket fotoğrafı ekleyin.');
-      }
-    });
-    if (result.product?.isFound != true && widget.isTabActive) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted &&
-            widget.isTabActive &&
-            _result?.product?.isFound != true) {
-          unawaited(_startCamera());
+    try {
+      final result = await ProductRepository.lookup(
+        code,
+        labelImageBytes: labelBytes,
+        ocrText: ocrText?.trim(),
+        productHint: productHint,
+        brandHint: brandHint,
+      ).timeout(
+        const Duration(seconds: 50),
+        onTimeout: () => ProductLookupResult(
+          status: ProductLookupStatus.notFound,
+          barcode: code.isEmpty ? null : code,
+          error: GeminiService.modelUnavailableMessage,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _result = result;
+        _loading = false;
+        _handling = false;
+        _status = null;
+        _pendingBarcode = result.barcode ?? code;
+        final found = result.product?.isFound == true;
+        if (found) {
+          _error = result.product!.hasUsableIngredients
+              ? null
+              : result.error;
+        } else {
+          _error = result.error ??
+              (result.needsKey
+                  ? ProductRepository.needsKeyMessage
+                  : 'Ürün bulunamadı. Barkodu tekrar deneyin veya isteğe bağlı etiket fotoğrafı ekleyin.');
         }
       });
+      if (result.product?.isFound != true && widget.isTabActive) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted &&
+              widget.isTabActive &&
+              _result?.product?.isFound != true) {
+            unawaited(_startCamera());
+          }
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _handling = false;
+        _status = null;
+        _error = GeminiService.modelUnavailableMessage;
+      });
+      if (widget.isTabActive) unawaited(_startCamera());
+    } finally {
+      if (mounted && _loading) {
+        setState(() {
+          _loading = false;
+          _handling = false;
+          _status = null;
+        });
+      }
     }
   }
 
@@ -283,13 +414,13 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     Uint8List? labelBytes,
     String? ocrText,
   }) async {
-    final code = raw.trim();
+    final parsed = Gs1Barcode.lookupCode(raw);
+    final code = (parsed ?? raw).trim();
     final hasPhoto = labelBytes != null && labelBytes.isNotEmpty;
     if (!hasPhoto && code.isEmpty) {
       _handling = false;
       return;
     }
-    if (_loading) return;
     setState(() {
       _handling = true;
       _loading = true;
@@ -297,7 +428,11 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
       _pendingBarcode = code.isEmpty ? null : code;
       _status = hasPhoto
           ? 'Küpür / prospektüs inceleniyor…'
-          : 'İlaç önbelleği kontrol ediliyor…';
+          : 'Karekod ile prospektüs aranıyor…';
+      _flashGtin = null;
+      _flashRaw = null;
+      _showStepBackHint = false;
+      _showSeekingHint = false;
       if (hasPhoto) _labelPreview = labelBytes;
     });
     _webPoller.stop();
@@ -305,49 +440,100 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
       await _camera?.stop();
     } catch (_) {}
 
-    final result = await MedicineRepository.lookup(
-      barcode: code,
-      imageBytes: labelBytes,
-      ocrText: ocrText?.trim(),
-    );
-    if (!mounted) return;
-    setState(() {
-      _medicine = result;
-      _loading = false;
-      _handling = false;
-      _status = null;
-      _pendingBarcode = result.barcode ?? code;
-      _error = result.isFound
-          ? null
-          : (result.error ??
-              (result.needsKey
-                  ? MedicineRepository.needsKeyMessage
-                  : MedicineRepository.needsPhotoMessage));
-    });
-    if (!result.isFound && widget.isTabActive) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && widget.isTabActive && _medicine?.isFound != true) {
-          unawaited(_startCamera());
-        }
+    try {
+      final result = await MedicineRepository.lookup(
+        barcode: code,
+        imageBytes: labelBytes,
+        ocrText: ocrText?.trim(),
+      ).timeout(
+        const Duration(seconds: 50),
+        onTimeout: () => MedicineLookupResult(
+          barcode: code.isEmpty ? null : code,
+          error: GeminiService.modelUnavailableMessage,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _medicine = result;
+        _loading = false;
+        _handling = false;
+        _status = null;
+        _pendingBarcode = result.barcode ?? code;
+        _error = result.isFound
+            ? null
+            : (result.error ??
+                (result.needsKey
+                    ? MedicineRepository.needsKeyMessage
+                    : MedicineRepository.needsPhotoMessage));
       });
+      if (!result.isFound && widget.isTabActive) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && widget.isTabActive && _medicine?.isFound != true) {
+            unawaited(_startCamera());
+          }
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _handling = false;
+        _status = null;
+        _error = GeminiService.modelUnavailableMessage;
+      });
+      if (widget.isTabActive) unawaited(_startCamera());
+    } finally {
+      if (mounted && _loading) {
+        setState(() {
+          _loading = false;
+          _handling = false;
+          _status = null;
+        });
+      }
     }
   }
 
   void _onDetect(BarcodeCapture capture) {
     for (final b in capture.barcodes) {
       final raw = (b.rawValue ?? b.displayValue)?.trim();
-      if (raw != null && raw.isNotEmpty) {
-        _acceptBarcode(raw);
-        return;
-      }
+      if (raw == null || raw.isEmpty) continue;
+      _acceptBarcode(raw, format: b.format.name);
+      return;
     }
   }
 
-  void _acceptBarcode(String raw) {
-    final code = raw.trim();
-    if (code.isEmpty || _handling || _loading || _hasFoundResult) {
+  void _logScanHit(String raw, String format) {
+    final gtin = Gs1Barcode.lookupCode(raw);
+    final forms = Gs1Barcode.lookupCandidates(raw)
+        .map((c) => '${c.form}:${c.value}')
+        .take(6)
+        .join(',');
+    final clipped = raw.replaceAll(RegExp(r'[\x00-\x1f]'), '');
+    final preview = gtin ??
+        (clipped.length <= 20 ? clipped : '${clipped.substring(0, 20)}…');
+    debugPrint(
+      'Tarama hit format=$format payload=$preview len=${raw.length} forms=$forms',
+    );
+  }
+
+  String _lookupKey(String raw) {
+    final t = raw.trim();
+    return Gs1Barcode.lookupCode(t) ?? t;
+  }
+
+  String _flashPreview(String raw) {
+    final clipped = raw.replaceAll(RegExp(r'[\x00-\x1f]'), '').trim();
+    if (clipped.length <= 36) return clipped;
+    return '${clipped.substring(0, 36)}…';
+  }
+
+  void _acceptBarcode(String raw, {String format = ''}) {
+    final original = raw.trim();
+    if (!mounted || original.isEmpty || _handling || _loading || _hasFoundResult) {
       return;
     }
+    _logScanHit(original, format);
+    final code = _lookupKey(original);
     if (!_isMedicine && _result != null && _lastDetectedCode == code) return;
     if (_isMedicine && _medicine != null && _lastDetectedCode == code) return;
     final now = DateTime.now();
@@ -358,11 +544,31 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     }
     _lastDetectedCode = code;
     _lastDetectedAt = now;
+    _lastScanRaw = original;
     _handling = true;
+    _webPoller.stop();
+    _medicineHintTimer?.cancel();
+    _seekingHintTimer?.cancel();
+    setState(() {
+      _flashRaw = _flashPreview(original);
+      _flashGtin = Gs1Barcode.lookupCode(original) ?? code;
+      _showStepBackHint = false;
+      _showSeekingHint = false;
+    });
+    Future.microtask(() {
+      if (!mounted) return;
+      unawaited(_lookupAfterFlash(code));
+    });
+  }
+
+  Future<void> _lookupAfterFlash(String code) async {
+    // Okundu paints first; TITCK/Gemini stay off this animation frame.
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
     if (_isMedicine) {
-      unawaited(_lookupMedicine(code));
+      await _lookupMedicine(_lastScanRaw ?? code);
     } else {
-      unawaited(_lookup(code));
+      await _lookup(code);
     }
   }
 
@@ -396,7 +602,20 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
       optimized = await ImageOptimizeService.forLabelScan(rawBytes);
     } catch (_) {}
     final bytes = optimized?.bytes ?? rawBytes;
-    final code = _pendingBarcode ?? '';
+    String? fromFrame;
+    if (kIsWeb) {
+      final hit = await decodeWebBarcodeImage(bytes);
+      if (hit != null) {
+        _logScanHit(hit.text, hit.format.isEmpty ? 'still' : hit.format);
+        fromFrame = hit.text;
+      }
+    } else {
+      fromFrame = await MlkitBarcode.scanBytes(bytes);
+      if (fromFrame != null) {
+        _logScanHit(fromFrame, 'mlkit');
+      }
+    }
+    final code = _lookupKey(fromFrame ?? _pendingBarcode ?? '');
     if (_isMedicine) {
       await _lookupMedicine(code, labelBytes: bytes);
     } else {
@@ -438,19 +657,28 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
         _error = null;
       });
 
-      final fromImage = await _barcodeFromImage(file);
+      final rawBytes = await file.readAsBytes();
+      String? fromImage;
+      if (kIsWeb) {
+        final hit = await decodeWebBarcodeImage(rawBytes);
+        if (hit != null) {
+          _logScanHit(hit.text, hit.format.isEmpty ? 'still' : hit.format);
+          fromImage = hit.text;
+        }
+      } else {
+        fromImage = await _barcodeFromImage(file);
+      }
       var ocr = '';
       if (!kIsWeb && file.path.isNotEmpty) {
         ocr = await LabelOcr.readFromPath(file.path);
       }
-      final rawBytes = await file.readAsBytes();
       OptimizedImage? optimized;
       try {
         optimized = await ImageOptimizeService.forLabelScan(rawBytes);
       } catch (_) {}
       final bytes = optimized?.bytes ?? rawBytes;
 
-      final code = fromImage ?? _pendingBarcode ?? '';
+      final code = _lookupKey(fromImage ?? _pendingBarcode ?? '');
       if (_isMedicine) {
         await _lookupMedicine(
           code,
@@ -480,14 +708,26 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     if (kIsWeb) return null;
     final path = file.path;
     if (path.isEmpty) return null;
+    final ml = await MlkitBarcode.scanPath(path);
+    if (ml != null && ml.trim().isNotEmpty) return ml.trim();
     MobileScannerController? probe;
     try {
-      probe = MobileScannerController();
+      probe = MobileScannerController(formats: _activeFormats);
       final capture = await probe.analyzeImage(path);
-      final raw = capture?.barcodes
-          .map((b) => b.rawValue?.trim() ?? '')
-          .firstWhere((s) => s.isNotEmpty, orElse: () => '');
-      return (raw == null || raw.isEmpty) ? null : raw;
+      final barcodes = capture?.barcodes ?? const <Barcode>[];
+      String? first;
+      for (final b in barcodes) {
+        final raw = (b.rawValue ?? b.displayValue)?.trim() ?? '';
+        if (raw.isEmpty) continue;
+        first ??= raw;
+        if (b.format == BarcodeFormat.dataMatrix ||
+            b.format == BarcodeFormat.qrCode ||
+            b.format == BarcodeFormat.pdf417 ||
+            b.format == BarcodeFormat.aztec) {
+          return raw;
+        }
+      }
+      return first;
     } catch (_) {
       return null;
     } finally {
@@ -495,7 +735,20 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     }
   }
 
-  Future<void> _resetScan() async {
+  Future<void> _resetScan({bool recreateCamera = false}) async {
+    _webPoller.stop();
+    _medicineHintTimer?.cancel();
+    _seekingHintTimer?.cancel();
+    _decoderPollTimer?.cancel();
+    MobileScannerController? old;
+    if (recreateCamera) {
+      await _barcodeSub?.cancel();
+      _barcodeSub = null;
+      try {
+        await _camera?.stop();
+      } catch (_) {}
+      old = _camera;
+    }
     setState(() {
       _result = null;
       _medicine = null;
@@ -507,12 +760,29 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
       _pendingBarcode = null;
       _lastDetectedCode = null;
       _lastDetectedAt = null;
+      _lastScanRaw = null;
       _labelPreview = null;
       _nameHits = const [];
       _medicineHits = const [];
       _nameSearching = false;
       _nameSearchError = null;
+      _showStepBackHint = false;
+      _showSeekingHint = false;
+      _decoderFailed = false;
+      _torchAvailable = false;
+      _torchOn = false;
+      _flashGtin = null;
+      _flashRaw = null;
+      if (recreateCamera) {
+        _camera = _newController();
+      }
     });
+    if (recreateCamera) {
+      _listenBarcodes();
+      try {
+        await old?.dispose();
+      } catch (_) {}
+    }
     _nameQuery.clear();
     if (widget.isTabActive) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -524,7 +794,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
   Future<void> _setMode(_TaramaMode mode) async {
     if (_mode == mode) return;
     _mode = mode;
-    await _resetScan();
+    await _resetScan(recreateCamera: true);
   }
 
   Future<void> _searchByName() async {
@@ -690,25 +960,68 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
   Future<void> _selectMedicineHit(MedicineNameHit hit) async {
     if (_loading || _handling) return;
     final rec = hit.record;
-    if (rec == null || !rec.isFound) return;
     FocusManager.instance.primaryFocus?.unfocus();
+    if (rec != null && rec.isComplete) {
+      _webPoller.stop();
+      try {
+        await _camera?.stop();
+      } catch (_) {}
+      if (!mounted) return;
+      setState(() {
+        _medicine = MedicineLookupResult(
+          record: rec,
+          barcode: rec.barcode,
+          fromCache: hit.source == 'cache',
+        );
+        _error = null;
+        _nameHits = const [];
+        _medicineHits = const [];
+        _nameSearchError = null;
+        _nameSearching = false;
+      });
+      return;
+    }
+    final code = (rec?.barcode ?? '').trim();
+    if (code.length >= 4) {
+      await _lookupMedicine(code);
+      return;
+    }
+    final name = rec?.medicineName.trim().isNotEmpty == true
+        ? rec!.medicineName.trim()
+        : hit.name.trim();
+    if (name.length < 2) return;
+    setState(() {
+      _handling = true;
+      _loading = true;
+      _error = null;
+      _status = 'Prospektüs aranıyor…';
+    });
     _webPoller.stop();
     try {
       await _camera?.stop();
     } catch (_) {}
-    if (!mounted) return;
-    setState(() {
-      _medicine = MedicineLookupResult(
-        record: rec,
-        barcode: rec.barcode,
-        fromCache: hit.source == 'cache',
-      );
-      _error = null;
-      _nameHits = const [];
-      _medicineHits = const [];
-      _nameSearchError = null;
-      _nameSearching = false;
-    });
+    try {
+      final result = await MedicineRepository.lookupByName(name);
+      if (!mounted) return;
+      setState(() {
+        _medicine = result;
+        _loading = false;
+        _handling = false;
+        _status = null;
+        _error = result.isFound ? null : result.error;
+        _nameHits = const [];
+        _medicineHits = const [];
+        _nameSearchError = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _handling = false;
+        _status = null;
+        _error = 'Arama hatası: $e';
+      });
+    }
   }
 
   Future<void> _showPhotoSheet() async {
@@ -913,6 +1226,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
               medicine: _medicine!.record!,
               fromCache: _medicine!.fromCache,
               previewBytes: _labelPreview,
+              isGuest: widget.isGuest,
             ),
             const SizedBox(height: 16),
             ..._photoActionButtons(prominent: false),
@@ -1303,7 +1617,9 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                             Text(
                               hit.source == 'cache'
                                   ? 'Önbellek'
-                                  : 'Bilgi amaçlı özet',
+                                  : hit.source == 'titck'
+                                      ? 'TİTCK SKRS'
+                                      : 'Bilgi amaçlı özet',
                               style: GoogleFonts.nunito(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
@@ -1333,118 +1649,235 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
         _camera != null &&
         !_hasFoundResult;
     final showHint = keepScanner && !_loading;
+    final hintText = _showStepBackHint
+        ? 'Biraz uzaklaşın, netlensin (20–40 cm)'
+        : 'Kodu 20–40 cm uzaktan çerçevede tutun';
+    final flashText = (_flashRaw ?? _flashGtin ?? '').trim();
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        height: 240,
+        height: 400,
         decoration: BoxDecoration(
           color: Colors.black,
           border: Border.all(color: MetoColors.border),
         ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (keepScanner)
-              MobileScanner(
-                controller: _camera!,
-                fit: BoxFit.cover,
-                onDetect: _onDetect,
-                errorBuilder: (context, error, child) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted &&
-                        !_cameraError &&
-                        _camera?.value.isRunning != true) {
-                      setState(() => _cameraError = true);
-                    }
-                  });
-                  return const SizedBox.shrink();
-                },
-              )
-            else
-              ColoredBox(
-                color: MetoColors.primaryDark,
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        L10nText(
-                          _cameraError
-                              ? 'Kameraya erişilemedi. Adres çubuğundan kamera izni verin veya etiket fotoğrafı çekin.'
-                              : _hasFoundResult
-                                  ? 'Yeni tarama için aşağıdaki düğmeyi kullanın.'
-                                  : widget.isTabActive
-                                      ? (_isMedicine
-                                          ? 'Kamera açılıyor… Küpürü çerçeveye hizalayın veya fotoğraf çekin.'
-                                          : 'Kamera açılıyor… Barkodu çerçeveye hizalayın.')
-                                      : 'Kamera bu sekmede açılır.',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            height: 1.4,
-                          ),
-                        ),
-                        if (_cameraError && !_hasFoundResult) ...[
-                          const SizedBox(height: 12),
-                          TextButton(
-                            onPressed: () {
-                              setState(() => _cameraError = false);
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (mounted) unawaited(_startCamera());
-                              });
-                            },
-                            child: const L10nText(
-                              'Kamerayı tekrar dene',
-                              style: TextStyle(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final frameW = constraints.maxWidth * 0.86;
+            final frameH = constraints.maxHeight * 0.86;
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                if (keepScanner)
+                  MobileScanner(
+                    controller: _camera!,
+                    fit: BoxFit.cover,
+                    onDetect: _onDetect,
+                    errorBuilder: (context, error, child) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted &&
+                            !_cameraError &&
+                            _camera?.value.isRunning != true) {
+                          setState(() => _cameraError = true);
+                        }
+                      });
+                      return const SizedBox.shrink();
+                    },
+                  )
+                else
+                  ColoredBox(
+                    color: MetoColors.primaryDark,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            L10nText(
+                              _cameraError
+                                  ? 'Kameraya erişilemedi. Adres çubuğundan kamera izni verin veya etiket fotoğrafı çekin.'
+                                  : _hasFoundResult
+                                      ? 'Yeni tarama için aşağıdaki düğmeyi kullanın.'
+                                      : widget.isTabActive
+                                          ? 'Kamera açılıyor… Kodu 20–40 cm uzaktan çerçevede tutun.'
+                                          : 'Kamera bu sekmede açılır.',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
                                 color: Colors.white,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w600,
+                                height: 1.4,
                               ),
                             ),
+                            if (_cameraError && !_hasFoundResult) ...[
+                              const SizedBox(height: 12),
+                              TextButton(
+                                onPressed: () {
+                                  setState(() => _cameraError = false);
+                                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                                    if (mounted) unawaited(_startCamera());
+                                  });
+                                },
+                                child: const L10nText(
+                                  'Kamerayı tekrar dene',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                if (keepScanner)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTapDown: (details) => _onScannerTap(
+                        details,
+                        Size(constraints.maxWidth, constraints.maxHeight),
+                      ),
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                IgnorePointer(
+                  child: Center(
+                    child: Container(
+                      width: frameW,
+                      height: frameH,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.white70, width: 2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                if (keepScanner && _decoderFailed)
+                  Positioned(
+                    left: 10,
+                    right: 10,
+                    top: 10,
+                    child: IgnorePointer(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xE2B91C1C),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'Karekod okuyucu yüklenemedi',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.nunito(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
                           ),
-                        ],
-                      ],
+                        ),
+                      ),
+                    ),
+                  )
+                else if (keepScanner &&
+                    _showSeekingHint &&
+                    flashText.isEmpty &&
+                    !_loading)
+                  Positioned(
+                    left: 10,
+                    right: 10,
+                    top: 10,
+                    child: IgnorePointer(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xCC0F172A),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'Kamera açık, kod aranıyor…',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.nunito(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-            IgnorePointer(
-              child: Center(
-                child: Container(
-                  width: 220,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.white70, width: 2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-            if (showHint)
-              Positioned(
-                left: 12,
-                right: 12,
-                bottom: 10,
-                child: IgnorePointer(
-                  child: L10nText(
-                    _isMedicine
-                        ? 'Küpürü çerçeveye hizalayın veya fotoğraf çekin'
-                        : 'Barkodu çerçeveye hizalayın',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                      shadows: [
-                        Shadow(color: Colors.black54, blurRadius: 6),
-                      ],
+                if (showHint)
+                  Positioned(
+                    left: 12,
+                    right: _torchAvailable ? 52 : 12,
+                    bottom: 10,
+                    child: IgnorePointer(
+                      child: L10nText(
+                        hintText,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          shadows: [
+                            Shadow(color: Colors.black54, blurRadius: 6),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-          ],
+                if (keepScanner && _torchAvailable)
+                  Positioned(
+                    right: 6,
+                    bottom: 6,
+                    child: IconButton(
+                      tooltip: _torchOn ? 'Flaşı kapat' : 'Flaş',
+                      onPressed: _toggleTorch,
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black45,
+                        foregroundColor: Colors.white,
+                      ),
+                      icon: Icon(
+                        _torchOn ? Icons.flash_on : Icons.flash_off,
+                      ),
+                    ),
+                  ),
+                if (flashText.isNotEmpty)
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    top: 10,
+                    child: IgnorePointer(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xE2166B4A),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'Okundu: $flashText',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.nunito(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -1476,9 +1909,10 @@ class _ModeChip extends StatelessWidget {
           child: Text(
             label,
             textAlign: TextAlign.center,
-            style: GoogleFonts.nunito(
+            style: TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 15,
+              height: 1.1,
               color: selected ? Colors.white : MetoColors.primaryDark,
             ),
           ),
@@ -1583,6 +2017,154 @@ class _MedicineResultCard extends StatelessWidget {
     required this.medicine,
     required this.fromCache,
     this.previewBytes,
+    this.isGuest = false,
+  });
+
+  final MedicineRecord medicine;
+  final bool fromCache;
+  final Uint8List? previewBytes;
+  final bool isGuest;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _MedicineIdentityHeader(
+          medicine: medicine,
+          fromCache: fromCache,
+          previewBytes: previewBytes,
+        ),
+        const SizedBox(height: 14),
+        FilledButton.icon(
+          onPressed: () => _MedicineProspectusPage.open(
+            context,
+            medicine: medicine,
+            previewBytes: previewBytes,
+            isGuest: isGuest,
+          ),
+          icon: const Icon(Icons.menu_book_rounded),
+          label: const L10nText('Prospektüs görüntüle'),
+          style: FilledButton.styleFrom(
+            backgroundColor: MetoColors.primary,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(50),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            textStyle: GoogleFonts.nunito(
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+            ),
+          ),
+        ),
+        if (medicine.hasOfficialProspectus) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => ProspectusViewer.open(
+              context,
+              url: medicine.prospectusUrl!.trim(),
+              title: 'Resmi kullanma talimatı (TİTCK)',
+              isGuest: isGuest,
+            ),
+            icon: const Icon(Icons.open_in_new_rounded, size: 18),
+            label: const L10nText('Resmi kullanma talimatı (TİTCK)'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: MetoColors.primaryDark,
+              side: const BorderSide(color: MetoColors.border),
+              minimumSize: const Size.fromHeight(46),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              textStyle: GoogleFonts.nunito(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 16),
+        _MedicineProspectusSections(medicine: medicine),
+      ],
+    );
+  }
+}
+
+class _MedicineProspectusPage extends StatelessWidget {
+  const _MedicineProspectusPage({
+    required this.medicine,
+    this.previewBytes,
+    this.isGuest = false,
+  });
+
+  final MedicineRecord medicine;
+  final Uint8List? previewBytes;
+  final bool isGuest;
+
+  static Future<void> open(
+    BuildContext context, {
+    required MedicineRecord medicine,
+    Uint8List? previewBytes,
+    bool isGuest = false,
+  }) {
+    return Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => _MedicineProspectusPage(
+          medicine: medicine,
+          previewBytes: previewBytes,
+          isGuest: isGuest,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: MetoColors.background,
+      appBar: AppBar(
+        backgroundColor: MetoColors.card,
+        foregroundColor: MetoColors.foreground,
+        elevation: 0,
+        title: L10nText(
+          'Prospektüs',
+          style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+        children: [
+          _MedicineIdentityHeader(
+            medicine: medicine,
+            fromCache: medicine.fromCache,
+            previewBytes: previewBytes,
+          ),
+          const SizedBox(height: 16),
+          _MedicineProspectusSections(medicine: medicine),
+          if (medicine.hasOfficialProspectus) ...[
+            const SizedBox(height: 16),
+            TextButton.icon(
+              onPressed: () => ProspectusViewer.open(
+                context,
+                url: medicine.prospectusUrl!.trim(),
+                title: 'Resmi kullanma talimatı (TİTCK)',
+                isGuest: isGuest,
+              ),
+              icon: const Icon(Icons.open_in_new_rounded, size: 18),
+              label: const L10nText('Resmi kullanma talimatı (TİTCK)'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MedicineIdentityHeader extends StatelessWidget {
+  const _MedicineIdentityHeader({
+    required this.medicine,
+    required this.fromCache,
+    this.previewBytes,
   });
 
   final MedicineRecord medicine;
@@ -1601,16 +2183,6 @@ class _MedicineResultCard extends StatelessWidget {
         : 'İsimsiz ilaç';
     final barcode = (medicine.barcode ?? '').trim();
     final ingredient = medicine.activeIngredient.trim();
-    final usage = medicine.usageText.trim();
-    final warnings = medicine.safetyWarnings.trim();
-    final effects = medicine.sideEffects
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
-    final interactions = medicine.drugInteractions
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
 
     Widget image({required double height}) {
       final child = hasNetworkImage
@@ -1635,70 +2207,202 @@ class _MedicineResultCard extends StatelessWidget {
               fit: BoxFit.contain,
             );
       return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         child: ColoredBox(
-          color: const Color(0xFFF8FAFC),
+          color: MetoColors.selectedBg,
           child: child,
         ),
       );
     }
 
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: MetoColors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: MetoColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: MetoColors.primary.withValues(alpha: 0.07),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hasImage) ...[
+            image(height: 168),
+            const SizedBox(height: 14),
+          ] else ...[
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: MetoColors.selectedBg,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.medication_outlined,
+                color: MetoColors.primary,
+                size: 26,
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: MetoColors.selectedBg,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'BİLGİ AMAÇLI ÖZET',
+              style: GoogleFonts.nunito(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
+                color: MetoColors.primaryDark,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            name,
+            style: GoogleFonts.nunito(
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              height: 1.2,
+              color: MetoColors.foreground,
+            ),
+          ),
+          if (ingredient.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Etken madde',
+              style: GoogleFonts.nunito(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: MetoColors.mutedFg,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              ingredient,
+              style: GoogleFonts.nunito(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: MetoColors.primaryDark,
+                height: 1.35,
+              ),
+            ),
+          ],
+          if (barcode.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Barkod: $barcode${fromCache ? ' · önbellek' : ''}',
+              style: GoogleFonts.nunito(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: MetoColors.mutedFg,
+              ),
+            ),
+          ] else if (fromCache) ...[
+            const SizedBox(height: 8),
+            Text(
+              'önbellek',
+              style: GoogleFonts.nunito(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: MetoColors.mutedFg,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MedicineProspectusSections extends StatelessWidget {
+  const _MedicineProspectusSections({required this.medicine});
+
+  final MedicineRecord medicine;
+
+  static const _missing = 'Bu başlık için kamuya açık özet henüz yok.';
+
+  @override
+  Widget build(BuildContext context) {
+    final indications = medicine.indications.trim();
+    final usage = medicine.usageText.trim();
+    final warnings = medicine.safetyWarnings.trim();
+    final effects = medicine.sideEffects
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    final interactions = medicine.drugInteractions
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: MetoColors.card,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: MetoColors.border),
+        _ProspectusSectionCard(
+          title: 'Ne işe yarar',
+          icon: Icons.health_and_safety_outlined,
+          accent: MetoColors.primary,
+          tint: MetoColors.selectedBg,
+          child: _ProspectusBodyText(
+            indications.isNotEmpty ? indications : _missing,
+            muted: indications.isEmpty,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (hasImage) ...[
-                image(height: 180),
-                const SizedBox(height: 12),
-              ],
-              Text(
-                name,
-                style: GoogleFonts.nunito(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  height: 1.2,
-                  color: MetoColors.foreground,
-                ),
-              ),
-              if (ingredient.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Etken madde: $ingredient',
-                  style: GoogleFonts.nunito(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: MetoColors.primaryDark,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-              if (barcode.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'Barkod: $barcode${fromCache ? ' · önbellek' : ''}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: MetoColors.mutedFg,
-                  ),
-                ),
-              ] else if (fromCache) ...[
-                const SizedBox(height: 4),
-                const Text(
-                  'önbellek',
-                  style: TextStyle(fontSize: 11, color: MetoColors.mutedFg),
-                ),
-              ],
-            ],
+        ),
+        const SizedBox(height: 10),
+        _ProspectusSectionCard(
+          title: 'Nasıl kullanılır',
+          icon: Icons.menu_book_outlined,
+          accent: MetoColors.primaryDark,
+          tint: const Color(0xFFE8F5EE),
+          child: _ProspectusBodyText(
+            usage.isNotEmpty ? usage : _missing,
+            muted: usage.isEmpty,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _ProspectusSectionCard(
+          title: 'Yan etkiler',
+          icon: Icons.list_alt_outlined,
+          accent: const Color(0xFFB45309),
+          tint: const Color(0xFFFFFBEB),
+          child: _ProspectusBulletList(
+            items: effects,
+            accent: const Color(0xFFB45309),
+          ),
+        ),
+        const SizedBox(height: 10),
+        _ProspectusSectionCard(
+          title: 'Etkileşime girecek ilaçlar',
+          icon: Icons.medication_outlined,
+          accent: MetoColors.primary,
+          tint: const Color(0xFFECF8F1),
+          child: _ProspectusBulletList(
+            items: interactions,
+            accent: MetoColors.primaryDark,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _ProspectusSectionCard(
+          title: 'Uyarılar',
+          icon: Icons.warning_amber_rounded,
+          accent: const Color(0xFF991B1B),
+          tint: const Color(0xFFFEF2F2),
+          child: _ProspectusBodyText(
+            warnings.isNotEmpty ? warnings : _missing,
+            muted: warnings.isEmpty,
+            emphasized: warnings.isNotEmpty,
           ),
         ),
         const SizedBox(height: 12),
@@ -1707,114 +2411,169 @@ class _MedicineResultCard extends StatelessWidget {
           body: kMedicineAnalysisDisclaimer,
           icon: Icons.info_outline,
         ),
-        if (usage.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _ResultInfoCard(
-            title: 'Kullanım özeti',
-            bg: const Color(0xFFF0FDF4),
-            fg: MetoColors.primaryDark,
-            icon: Icons.menu_book_outlined,
-            child: L10nText(
-              usage,
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.4,
-                color: MetoColors.foreground,
-              ),
-            ),
+      ],
+    );
+  }
+}
+
+class _ProspectusSectionCard extends StatelessWidget {
+  const _ProspectusSectionCard({
+    required this.title,
+    required this.icon,
+    required this.accent,
+    required this.tint,
+    required this.child,
+  });
+
+  final String title;
+  final IconData icon;
+  final Color accent;
+  final Color tint;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: MetoColors.card,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: MetoColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: MetoColors.primary.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
-        if (effects.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          _ResultInfoCard(
-            title: 'Yan etkiler',
-            bg: const Color(0xFFFFFBEB),
-            fg: const Color(0xFF92400E),
-            icon: Icons.list_alt_outlined,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final e in effects)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 5, color: accent),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        const Text('•  ',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF92400E),
-                            )),
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: tint,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(icon, color: accent, size: 18),
+                        ),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: L10nText(
-                            e,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              height: 1.35,
+                            title,
+                            style: GoogleFonts.nunito(
+                              fontWeight: FontWeight.w800,
+                              color: MetoColors.foreground,
+                              fontSize: 15,
+                              height: 1.2,
                             ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-        if (interactions.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          _ResultInfoCard(
-            title: 'İlaç etkileşimleri',
-            bg: const Color(0xFFEFF6FF),
-            fg: const Color(0xFF1E40AF),
-            icon: Icons.medication_outlined,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final e in interactions)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('•  ',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF1E40AF),
-                            )),
-                        Expanded(
-                          child: L10nText(
-                            e,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              height: 1.35,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-        if (warnings.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          _ResultInfoCard(
-            title: 'Kritik uyarılar',
-            bg: const Color(0xFFFEF2F2),
-            fg: const Color(0xFF991B1B),
-            icon: Icons.warning_amber_rounded,
-            child: L10nText(
-              warnings,
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.4,
-                fontWeight: FontWeight.w600,
+                    const SizedBox(height: 10),
+                    child,
+                  ],
+                ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProspectusBodyText extends StatelessWidget {
+  const _ProspectusBodyText(
+    this.text, {
+    this.muted = false,
+    this.emphasized = false,
+  });
+
+  final String text;
+  final bool muted;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    return L10nText(
+      text,
+      style: GoogleFonts.nunito(
+        fontSize: 14,
+        height: 1.5,
+        fontWeight: emphasized ? FontWeight.w700 : FontWeight.w600,
+        color: muted ? MetoColors.mutedFg : MetoColors.foreground,
+      ),
+    );
+  }
+}
+
+class _ProspectusBulletList extends StatelessWidget {
+  const _ProspectusBulletList({
+    required this.items,
+    required this.accent,
+  });
+
+  final List<String> items;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return const _ProspectusBodyText(
+        _MedicineProspectusSections._missing,
+        muted: true,
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final e in items)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 7),
+                  child: Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: accent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: L10nText(
+                    e,
+                    style: GoogleFonts.nunito(
+                      fontSize: 14,
+                      height: 1.45,
+                      fontWeight: FontWeight.w600,
+                      color: MetoColors.foreground,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
       ],
     );
   }

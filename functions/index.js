@@ -141,8 +141,15 @@ exports.geminiProxy = onRequest(
       }
     }
 
-    const modelRaw = String(payload.model || req.query.model || 'gemini-3.6-flash');
-    const model = modelRaw.replace(/[^a-zA-Z0-9._-]/g, '') || 'gemini-3.6-flash';
+    const DEFAULT_MODEL = 'gemini-flash-latest';
+    const FALLBACK_MODELS = [
+      'gemini-flash-latest',
+      'gemini-3.8-flash',
+      'gemini-flash-lite-latest',
+      'gemini-3.6-flash',
+    ];
+    const modelRaw = String(payload.model || req.query.model || DEFAULT_MODEL);
+    const requested = modelRaw.replace(/[^a-zA-Z0-9._-]/g, '') || DEFAULT_MODEL;
     const contents = payload.contents;
     const generationConfig = payload.generationConfig;
     if (!contents) {
@@ -152,22 +159,68 @@ exports.geminiProxy = onRequest(
       return;
     }
 
-    const url =
-      'https://generativelanguage.googleapis.com/v1beta/models/' +
-      encodeURIComponent(model) +
-      ':generateContent?key=' +
-      encodeURIComponent(key);
-
+    const models = [];
+    for (const m of [...FALLBACK_MODELS, requested]) {
+      if (m && !models.includes(m)) models.push(m);
+    }
+    const googleBody = JSON.stringify({ contents, generationConfig });
     try {
-      const upstream = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents, generationConfig }),
+      let lastStatus = 502;
+      let lastText = '';
+      for (const model of models) {
+        const url =
+          'https://generativelanguage.googleapis.com/v1beta/models/' +
+          encodeURIComponent(model) +
+          ':generateContent?key=' +
+          encodeURIComponent(key);
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), 12000);
+        let upstream;
+        try {
+          upstream = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: googleBody,
+            signal: ac.signal,
+          });
+        } catch (e) {
+          lastStatus = 504;
+          lastText = JSON.stringify({
+            error: { message: String(e && e.message ? e.message : e), status: 'UNAVAILABLE' },
+          });
+          continue;
+        } finally {
+          clearTimeout(timer);
+        }
+        const text = await upstream.text();
+        lastStatus = upstream.status;
+        lastText = text;
+        if (upstream.ok) {
+          res.set({ ...geminiCors, 'Content-Type': 'application/json; charset=utf-8' })
+            .status(upstream.status)
+            .send(text);
+          return;
+        }
+        const lower = text.toLowerCase();
+        const missingFn = lower.includes('requested function was not found');
+        const model404 =
+          !missingFn &&
+          (upstream.status === 404 ||
+            (lower.includes('not_found') &&
+              (lower.includes('model') || lower.includes('gemini-'))));
+        if (!model404 && upstream.status !== 429 && upstream.status !== 504) {
+          res.set({ ...geminiCors, 'Content-Type': 'application/json; charset=utf-8' })
+            .status(upstream.status)
+            .send(text);
+          return;
+        }
+      }
+      res.set(geminiCors).status(503).json({
+        error: {
+          message: 'Analiz modeli şu an yanıt vermedi, tekrar deneyin.',
+          status: 'UNAVAILABLE',
+        },
       });
-      const text = await upstream.text();
-      res.set({ ...geminiCors, 'Content-Type': 'application/json; charset=utf-8' })
-        .status(upstream.status)
-        .send(text);
     } catch (e) {
       console.error('geminiProxy upstream', e);
       res.set(geminiCors).status(502).json({

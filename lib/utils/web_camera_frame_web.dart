@@ -5,11 +5,18 @@ import 'dart:html' as html;
 import 'dart:js_util' as js_util;
 import 'dart:typed_data';
 
+class WebBarcodeHit {
+  const WebBarcodeHit({required this.text, this.format = ''});
+
+  final String text;
+  final String format;
+}
+
 html.VideoElement? _liveVideo() {
   html.VideoElement? fallback;
   for (final node in html.document.querySelectorAll('video')) {
     if (node is! html.VideoElement) continue;
-    if (node.videoWidth <= 0 || node.videoHeight <= 0) continue;
+    if (node.videoWidth < 80 || node.videoHeight < 80) continue;
     fallback ??= node;
     final playing = !node.paused && node.readyState >= 2;
     if (playing) return node;
@@ -29,6 +36,73 @@ void prepareLiveVideosForScan() {
       unawaited(node.play().catchError((_) => null));
     } catch (_) {}
   }
+}
+
+void boostLiveCameraResolution() {
+  try {
+    if (js_util.hasProperty(html.window, '__engelsizBoostCamera')) {
+      js_util.callMethod(html.window, '__engelsizBoostCamera', []);
+    }
+  } catch (_) {}
+}
+
+bool isMedicinePreviewBlurry() {
+  try {
+    if (!js_util.hasProperty(html.window, '__engelsizIsPreviewBlurry')) {
+      return false;
+    }
+    final raw = js_util.callMethod(html.window, '__engelsizIsPreviewBlurry', []);
+    return raw == true;
+  } catch (_) {
+    return false;
+  }
+}
+
+bool isMedicineTorchAvailable() {
+  try {
+    if (!js_util.hasProperty(html.window, '__engelsizTorchAvailable')) {
+      return false;
+    }
+    final raw = js_util.callMethod(html.window, '__engelsizTorchAvailable', []);
+    return raw == true;
+  } catch (_) {
+    return false;
+  }
+}
+
+bool isMedicineTorchOn() {
+  try {
+    if (!js_util.hasProperty(html.window, '__engelsizTorchOn')) {
+      return false;
+    }
+    final raw = js_util.callMethod(html.window, '__engelsizTorchOn', []);
+    return raw == true;
+  } catch (_) {
+    return false;
+  }
+}
+
+bool toggleMedicineTorch([bool? on]) {
+  try {
+    if (!js_util.hasProperty(html.window, '__engelsizToggleTorch')) {
+      return false;
+    }
+    final raw = js_util.callMethod(
+      html.window,
+      '__engelsizToggleTorch',
+      [on],
+    );
+    return raw == true;
+  } catch (_) {
+    return false;
+  }
+}
+
+void tapMedicineFocus(double nx, double ny) {
+  try {
+    if (!js_util.hasProperty(html.window, '__engelsizTapFocus')) return;
+    js_util.callMethod(html.window, '__engelsizTapFocus', [nx, ny]);
+  } catch (_) {}
 }
 
 html.CanvasElement? _frameCanvas(html.VideoElement video) {
@@ -78,107 +152,157 @@ Uint8List? _asBytes(Object? result) {
   return null;
 }
 
+WebBarcodeHit? _hitFromJs(Object? raw) {
+  if (raw == null) return null;
+  try {
+    final text = js_util.getProperty(raw, 'text');
+    if (text is! String || text.trim().isEmpty) return null;
+    var format = '';
+    try {
+      final f = js_util.getProperty(raw, 'format');
+      if (f is String) format = f;
+    } catch (_) {}
+    return WebBarcodeHit(text: text.trim(), format: format);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// `ready` | `loading` | `failed`, or null if the script is missing.
+String? webDecoderStatus() {
+  try {
+    if (js_util.hasProperty(html.window, '__engelsizDecoderStatus')) {
+      final raw =
+          js_util.callMethod(html.window, '__engelsizDecoderStatus', []);
+      if (raw is String && raw.trim().isNotEmpty) return raw.trim();
+    }
+    if (js_util.hasProperty(html.window, 'ZXing')) return 'ready';
+  } catch (_) {}
+  return null;
+}
+
+WebBarcodeHit? decodeMedicineLiveFrame() {
+  final fn = js_util.hasProperty(html.window, '__engelsizDecodeLiveFrame')
+      ? '__engelsizDecodeLiveFrame'
+      : (js_util.hasProperty(html.window, '__engelsizDecodeMedicineFrame')
+          ? '__engelsizDecodeMedicineFrame'
+          : null);
+  if (fn == null) return null;
+  try {
+    final raw = js_util.callMethod(html.window, fn, []);
+    return _hitFromJs(raw);
+  } catch (_) {
+    return null;
+  }
+}
+
+Future<WebBarcodeHit?> decodeMedicineLiveFrameAsync() async {
+  if (js_util.hasProperty(html.window, '__engelsizDecodeLiveFrameAsync')) {
+    try {
+      final promise = js_util.callMethod(
+        html.window,
+        '__engelsizDecodeLiveFrameAsync',
+        [],
+      );
+      final raw = await js_util.promiseToFuture<Object?>(promise);
+      return _hitFromJs(raw);
+    } catch (_) {}
+  }
+  return decodeMedicineLiveFrame();
+}
+
+Future<WebBarcodeHit?> decodeWebBarcodeImage(Uint8List bytes) async {
+  if (bytes.isEmpty) return null;
+  if (!js_util.hasProperty(html.window, '__engelsizDecodeImageBlob')) {
+    return null;
+  }
+  try {
+    final blob = html.Blob([bytes]);
+    final promise = js_util.callMethod(
+      html.window,
+      '__engelsizDecodeImageBlob',
+      [blob],
+    );
+    final raw = await js_util.promiseToFuture<Object?>(promise);
+    return _hitFromJs(raw);
+  } catch (_) {
+    return null;
+  }
+}
+
 class WebLiveBarcodePoller {
+  /// Both Ürün and İlaç: EAN/UPC + QR + Data Matrix (ZXing, not 1D-only).
+  static const productFormats = <String>[
+    'ean_13',
+    'ean_8',
+    'upc_a',
+    'upc_e',
+    'qr_code',
+    'data_matrix',
+    'pdf417',
+    'aztec',
+    'code_128',
+  ];
+
+  static const medicineFormats = productFormats;
+
   Timer? _timer;
   bool _busy = false;
-  Object? _detector;
-  bool _detectorUnavailable = false;
+  bool _boosted = false;
+  DateTime? _lastHitAt;
+  void Function(bool blurry)? _onPreviewQuality;
 
-  void start(void Function(String code) onCode) {
+  void start(
+    void Function(WebBarcodeHit hit) onCode, {
+    List<String>? formats,
+    bool medicineMode = false,
+    void Function(bool blurry)? onPreviewQuality,
+  }) {
     stop();
-    _timer = Timer.periodic(const Duration(milliseconds: 320), (_) {
-      unawaited(_tick(onCode));
-    });
+    _onPreviewQuality = onPreviewQuality;
+    _boosted = false;
+    _lastHitAt = null;
+    _timer = Timer.periodic(
+      const Duration(milliseconds: 160),
+      (_) => unawaited(_tick(onCode)),
+    );
   }
 
   void stop() {
     _timer?.cancel();
     _timer = null;
     _busy = false;
+    _onPreviewQuality = null;
   }
 
-  Object? _ensureDetector() {
-    if (_detectorUnavailable) return null;
-    if (_detector != null) return _detector;
-    if (!js_util.hasProperty(html.window, 'BarcodeDetector')) {
-      _detectorUnavailable = true;
-      return null;
-    }
-    final ctor = js_util.getProperty(html.window, 'BarcodeDetector');
-    try {
-      _detector = js_util.callConstructor(ctor, [
-        js_util.jsify({
-          'formats': [
-            'ean_13',
-            'ean_8',
-            'upc_a',
-            'upc_e',
-            'qr_code',
-            'code_128',
-            'code_39',
-            'itf',
-            'data_matrix',
-          ],
-        }),
-      ]);
-    } catch (_) {
-      try {
-        _detector = js_util.callConstructor(ctor, []);
-      } catch (_) {
-        _detectorUnavailable = true;
-        return null;
-      }
-    }
-    return _detector;
-  }
-
-  Future<void> _tick(void Function(String code) onCode) async {
+  Future<void> _tick(void Function(WebBarcodeHit hit) onCode) async {
     if (_busy) return;
-    final detector = _ensureDetector();
-    if (detector == null) {
-      if (_detectorUnavailable) stop();
-      return;
-    }
-    final video = _liveVideo();
-    if (video == null) return;
     _busy = true;
     try {
       prepareLiveVideosForScan();
-      final canvas = _frameCanvas(video);
-      final source = canvas ?? video;
-      final detected = js_util.callMethod(detector, 'detect', [source]);
-      final raw = await js_util.promiseToFuture<Object?>(detected);
-      final code = _firstCode(raw);
-      if (code != null) onCode(code);
+      if (!_boosted) {
+        _boosted = true;
+        boostLiveCameraResolution();
+      }
+      final hit = await decodeMedicineLiveFrameAsync();
+      if (_timer == null) return;
+      if (hit != null) {
+        final now = DateTime.now();
+        if (_lastHitAt != null &&
+            now.difference(_lastHitAt!) < const Duration(milliseconds: 700)) {
+          return;
+        }
+        _lastHitAt = now;
+        final callback = onCode;
+        stop();
+        callback(hit);
+        return;
+      }
+      _onPreviewQuality?.call(isMedicinePreviewBlurry());
     } catch (_) {
       // Keep polling; a single failed frame is normal.
     } finally {
       _busy = false;
     }
-  }
-
-  String? _firstCode(Object? raw) {
-    if (raw == null) return null;
-    final items = <Object?>[];
-    if (raw is List) {
-      items.addAll(raw);
-    } else if (js_util.hasProperty(raw, 'length')) {
-      final len = js_util.getProperty(raw, 'length');
-      if (len is int) {
-        for (var i = 0; i < len; i++) {
-          items.add(js_util.getProperty(raw, i));
-        }
-      }
-    }
-    for (final item in items) {
-      if (item == null) continue;
-      try {
-        final value = js_util.getProperty(item, 'rawValue');
-        if (value is String && value.trim().isNotEmpty) {
-          return value.trim();
-        }
-      } catch (_) {}
-    }
-    return null;
   }
 }

@@ -2,7 +2,7 @@ name: engelsizclub
 description: MetoCare — özel gereksinimli kahramanlarımız için rehber
 publish_to: "none"
 # Play: versionName+versionCode — her AAB yüklemesinde code artır (ör. 1.0.1+2)
-version: 1.0.88+96
+version: 1.0.89+97
 environment:
   sdk: ^3.5.0
 
@@ -51,6 +51,7 @@ dependencies:
   flame: ^1.24.0
   mobile_scanner: ^6.0.11
   google_mlkit_text_recognition: ^0.14.0
+  google_mlkit_barcode_scanning: ^0.13.0
 
 dev_dependencies:
   flutter_test:
@@ -76,4 +77,5 @@ flutter:
     - assets/cvi/
     - assets/cvi/discovery/
     - assets/aile_kocu/
+    - assets/medicines/
     - src/imports/119686.png

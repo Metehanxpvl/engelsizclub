@@ -3954,7 +3954,7 @@ class _MainShellState extends State<MainShell> {
             child: _menuTile(
               emoji: '🗺',
               label: 'Gezi Rehberi',
-              sub: '81 il görselleri · ekle / sil',
+              sub: 'Tüm yerler · il filtresi · ekle / sil',
               highlight: true,
               onTap: () => GeziRehberiPage.open(
                 context,

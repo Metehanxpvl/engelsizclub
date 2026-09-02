@@ -3,6 +3,7 @@
 -- Akış: barkod → SELECT; isabet → bitir. Yok veya yalnız fotoğraf → Gemini → INSERT.
 -- Ada arama: medicine_name ILIKE (medicines_name_idx); az sonuçta Gemini metin (barkod null).
 -- drug_interactions: prospektüs etkileşimleri (jsonb dizi). Mevcut DB: medicines_interactions.sql.
+-- prospectus_url / indications: mevcut DB: medicines_prospectus.sql.
 -- Gemini / R2 anahtarları burada tutulmaz.
 -- Supabase Dashboard → SQL Editor → bu dosyayı çalıştırın
 -- https://supabase.com/dashboard/project/qycrkqwqrysypvqaipqn/sql/new
@@ -13,9 +14,11 @@ create table if not exists public.medicines (
   medicine_name text,
   active_ingredient text,
   usage_text text,
+  indications text,
   side_effects jsonb not null default '[]'::jsonb,
   drug_interactions jsonb not null default '[]'::jsonb,
   safety_warnings text,
+  prospectus_url text,
   image_url text,
   raw_report jsonb not null default '{}'::jsonb,
   source text not null default 'llm',
@@ -24,7 +27,7 @@ create table if not exists public.medicines (
     barcode is null or char_length(trim(barcode)) >= 4
   ),
   constraint medicines_source_chk check (
-    source in ('llm', 'cache', 'manual', 'photo')
+    source in ('llm', 'cache', 'manual', 'photo', 'titck', 'public_index')
   )
 );
 
@@ -74,6 +77,8 @@ create policy "medicines_update_enrich_incomplete"
     or coalesce(char_length(btrim(barcode)), 0) < 4
     or coalesce(char_length(btrim(medicine_name)), 0) < 2
     or coalesce(char_length(btrim(usage_text)), 0) < 4
+    or coalesce(char_length(btrim(prospectus_url)), 0) < 8
+    or coalesce(char_length(btrim(indications)), 0) < 4
   )
   with check (true);
 

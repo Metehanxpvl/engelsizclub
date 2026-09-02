@@ -199,6 +199,7 @@ Future<void> _bootstrapPlatformServices() async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Theme Nunito (same family as İlanlar/Keşfet) — full TTF, not a latin-only subset.
 
   try {
     await withNetworkTimeout(

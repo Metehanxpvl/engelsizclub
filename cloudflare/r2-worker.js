@@ -158,22 +158,73 @@ function buildGeminiContents(payload) {
   return [{ role: "user", parts }];
 }
 
-const DEFAULT_GEMINI_MODEL = "gemini-3.6-flash";
+const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
 const GEMINI_FALLBACK_MODELS = [
-  "gemini-3.6-flash",
   "gemini-flash-latest",
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
+  "gemini-3.8-flash",
+  "gemini-flash-lite-latest",
+  "gemini-3.6-flash",
 ];
+const GEMINI_PER_MODEL_MS = 12000;
+const GEMINI_EXHAUSTED_TR =
+  "Analiz modeli şu an yanıt vermedi, tekrar deneyin.";
 
 function isGoogleModel404(status, text) {
   const lower = String(text || "").toLowerCase();
   if (lower.includes("requested function was not found")) return false;
-  if (status === 404) return true;
+  if (status === 404) {
+    return (
+      lower.includes("model") ||
+      lower.includes("gemini-") ||
+      lower.includes("not_found") ||
+      lower.includes("not found") ||
+      lower.includes("no longer available") ||
+      lower.length === 0
+    );
+  }
   return (
     lower.includes("not_found") &&
     (lower.includes("model") || lower.includes("gemini-") || lower.includes("is not found"))
   );
+}
+
+function shouldTryNextGemini(status, text) {
+  if (isGoogleModel404(status, text)) return true;
+  if (status === 408 || status === 429 || status === 502 || status === 504) {
+    return true;
+  }
+  const lower = String(text || "").toLowerCase();
+  return lower.includes("timeout") || lower.includes("abort") || lower.includes("timed out");
+}
+
+async function generateGeminiOnce(model, key, body) {
+  const gUrl =
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent` +
+    `?key=${encodeURIComponent(key)}`;
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), GEMINI_PER_MODEL_MS);
+  try {
+    const upstream = await fetch(gUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      signal: ac.signal,
+    });
+    const text = await upstream.text();
+    return { ok: upstream.ok, status: upstream.status, text };
+  } catch (e) {
+    const msg = String(e && e.message ? e.message : e);
+    const aborted = msg.toLowerCase().includes("abort");
+    return {
+      ok: false,
+      status: aborted ? 504 : 502,
+      text: JSON.stringify({
+        error: { message: aborted ? "model timeout" : msg, status: "UNAVAILABLE" },
+      }),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function handleGemini(request, env) {
@@ -208,33 +259,27 @@ async function handleGemini(request, env) {
     });
   }
   const models = [];
-  for (const m of [requested, ...GEMINI_FALLBACK_MODELS]) {
+  for (const m of [...GEMINI_FALLBACK_MODELS, requested]) {
     if (m && !models.includes(m)) models.push(m);
   }
-  let lastStatus = 502;
-  let lastText = "";
+  const googleBody = JSON.stringify({ contents, generationConfig });
   for (const model of models) {
-    const gUrl =
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent` +
-      `?key=${encodeURIComponent(key)}`;
-    const upstream = await fetch(gUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents, generationConfig }),
-    });
-    const text = await upstream.text();
-    lastStatus = upstream.status;
-    lastText = text;
-    if (upstream.ok || !isGoogleModel404(upstream.status, text)) {
-      return new Response(text, {
-        status: upstream.status,
+    const result = await generateGeminiOnce(model, key, googleBody);
+    if (result.ok) {
+      return new Response(result.text, {
+        status: result.status,
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+    if (!shouldTryNextGemini(result.status, result.text)) {
+      return new Response(result.text, {
+        status: result.status,
         headers: { ...cors, "Content-Type": "application/json" },
       });
     }
   }
-  return new Response(lastText, {
-    status: lastStatus,
-    headers: { ...cors, "Content-Type": "application/json" },
+  return json(503, {
+    error: { message: GEMINI_EXHAUSTED_TR, status: "UNAVAILABLE" },
   });
 }
 

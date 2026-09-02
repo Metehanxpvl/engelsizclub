@@ -3,11 +3,12 @@
 ///   flutter run --dart-define=GEMINI_API_KEY=your_key
 ///
 /// Web CORS: tarayıcı Google’a gidemez. Önce
-/// `supabase.functions.invoke('gemini-proxy')` (aynı Supabase HTTPS).
+/// `gemini-proxy` anon Bearer (oturum JWT yok) — aynı Supabase HTTPS.
 /// Yedek: GEMINI_PROXY_URL veya R2_WORKER_URL POST /gemini.
 ///
-/// Etiket görsel analizi: Gemini (varsayılan gemini-3.6-flash).
-/// gemini-1.5-flash emekli — Google 404; çağrı zinciri sonraki modeli dener.
+/// Etiket görsel analizi: Gemini (flash-latest → 3.8-flash → lite).
+/// gemini-3.6-flash asılıyor; zincire alınmaz. 1.5 / 2.0 / 2.5-flash emekli 404.
+/// Çağrı zinciri sonraki modeli dener; model-404 fonksiyon-yok değildir.
 /// Groq yalnız isteğe bağlı metin yedeği.
 class LlmConfig {
   LlmConfig._();
@@ -24,8 +25,16 @@ class LlmConfig {
 
   static const geminiModel = String.fromEnvironment(
     'GEMINI_MODEL',
-    defaultValue: 'gemini-3.6-flash',
+    defaultValue: 'gemini-flash-latest',
   );
+
+  /// Canlıda 200 olanlar önce (flash-latest → 3.8-flash → lite).
+  /// gemini-3.6-flash asılır; zincire alma.
+  static const geminiFallbackModels = <String>[
+    'gemini-flash-latest',
+    'gemini-3.8-flash',
+    'gemini-flash-lite-latest',
+  ];
 
   static const groqModel = String.fromEnvironment(
     'GROQ_MODEL',

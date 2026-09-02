@@ -10,6 +10,7 @@ import '../models/product_safety.dart';
 import '../utils/async_timeout.dart';
 import 'allergen_analyzer.dart';
 import 'e_number_explanations.dart';
+import 'image_optimize_service.dart';
 import 'llm_config.dart';
 import 'open_food_facts_service.dart';
 import 'r2_config.dart';
@@ -33,8 +34,9 @@ class GeminiMedicineResult {
 /// Etiket görseli veya barkod+ad metin → safety_report.
 /// Anahtar sunucuda: Edge Function `gemini-proxy` (GEMINI_API_KEY).
 /// Web: tarayıcı Google’a POST etmez (CORS). Sıra:
-/// `supabase.functions.invoke('gemini-proxy')`, sonra GEMINI_PROXY_URL /
-/// R2 Worker POST /gemini. Native: dart-define anahtar yedek.
+/// `gemini-proxy` **anon** Bearer (oturum JWT yok — misafir / süresi dolmuş
+/// oturum 401 olmasın), sonra GEMINI_PROXY_URL / R2 Worker POST /gemini.
+/// Native: dart-define anahtar yedek.
 class GeminiService {
   GeminiService._();
 
@@ -45,9 +47,15 @@ class GeminiService {
 
   static const _maxOcrChars = 3500;
   static const _maxImageBytes = 8 * 1024 * 1024;
+  static const _compressImageBytes = 350 * 1024;
 
   static const _supabaseProxy =
       'https://qycrkqwqrysypvqaipqn.supabase.co/functions/v1/gemini-proxy';
+
+  /// Public anon / publishable key — `main.dart` Supabase.initialize ile aynı.
+  /// `client.headers['apikey']` çoğu sürümde boş; AuthHttpClient enjekte eder.
+  static const _fallbackAnonKey =
+      'sb_publishable_N7UfnXDF97YsuDTsFTq9zQ_lhnNtMgF';
 
   static String? lastError;
 
@@ -232,12 +240,13 @@ class GeminiService {
     );
   }
 
+  static const modelUnavailableMessage =
+      'Analiz modeli şu an yanıt vermedi, tekrar deneyin.';
+
   /// Küpür / prospektüs görseli → ilaç JSON.
-  /// Varsayılan canlı model gemini-3.6-flash (1.5-flash Google 404 / emekli).
-  /// Model 404 olursa [_geminiGenerate] zinciri dener; fonksiyon-yok 404 değil.
-  static const _medicineModels = <String>[
-    'gemini-3.6-flash',
-  ];
+  /// Varsayılan canlı model gemini-flash-latest (3.8-flash).
+  /// 3.6 asılır; 1.5/2.x emekli 404. Zincir sonraki modeli dener.
+  static const _medicineModels = LlmConfig.geminiFallbackModels;
 
   static Future<GeminiMedicineResult> analyzeMedicine({
     String barcode = '',
@@ -251,8 +260,8 @@ class GeminiService {
     final typedName = medicineName.trim();
     final hasImage = imageBytes != null && imageBytes.isNotEmpty;
     final code = barcode.trim();
-    if (!hasImage && ocr.isEmpty && typedName.isEmpty) {
-      lastError = 'Küpür veya prospektüs görseli yok.';
+    if (!hasImage && ocr.isEmpty && typedName.isEmpty && code.isEmpty) {
+      lastError = 'Küpür, prospektüs veya ilaç barkodu yok.';
       debugPrint('Gemini ilaç: $lastError');
       return GeminiMedicineResult(error: lastError);
     }
@@ -314,8 +323,9 @@ class GeminiService {
       record = record.copyWith(medicineName: typedName);
     }
     if (!record.isFound) {
-      lastError =
-          'Prospektüste okunabilir ilaç adı veya kullanım bilgisi yok.';
+      lastError = (!hasImage && ocr.isEmpty && typedName.isEmpty && code.isNotEmpty)
+          ? 'Bu barkod için kamuya açık ilaç özeti bulunamadı.'
+          : 'Prospektüste okunabilir ilaç adı veya kullanım bilgisi yok.';
       debugPrint('Gemini ilaç: alanlar boş');
       return GeminiMedicineResult(error: lastError);
     }
@@ -331,34 +341,59 @@ class GeminiService {
         ? 'Barkod görselde varsa yaz; yoksa boş bırak.'
         : 'Barkod (varsa doğrula, uydurma): $barcode';
     final typed = medicineName.trim();
-    final nameOnly = typed.isNotEmpty && ocr.isEmpty;
-    final source = nameOnly
-        ? 'Görev: kullanıcının yazdığı ilaç adı için kamuya açık küpür / '
-            'prospektüs bilgisine dayanan, yalnızca bilgi amaçlı kısa özet. '
-            'Görsel yok; fotoğraf zorunlu değil. Teşhis koyma, tedavi veya doz '
-            'önerisi verme, eksik alanı uydurma. Bu bir reçete değildir. '
-            'Emin değilsen ilgili alanı "" veya [] bırak.'
-        : 'Görev: ilaç kutusunun arka yüzü (küpür) veya prospektüs görselinden / '
-            'metninden yalnızca etikette veya prospektüste yer alan bilgileri çıkar. '
-            'Teşhis koyma, tedavi veya doz önerisi verme, eksik alanı uydurma. '
-            'Emin değilsen ilgili alanı "" veya [] bırak; '
-            '"etikette/prospektüste okunamadı" yazılabilir.';
+    final nameOnly = typed.isNotEmpty && ocr.isEmpty && barcode.trim().isEmpty;
+    final barcodeOnly =
+        typed.isEmpty && ocr.isEmpty && barcode.trim().isNotEmpty;
+    final namedBarcode =
+        typed.isNotEmpty && ocr.isEmpty && barcode.trim().isNotEmpty;
+    final String source;
+    if (namedBarcode) {
+      source =
+          'Görev: Türkiye’de bu GTIN / barkod ile satılan ilacın (ad aşağıda, '
+          'TİTCK SKRS / karekod eşleşmesi) kamuya açık kullanma talimatı '
+          '(prospektüs / KT) özeti. Görsel yok; fotoğraf zorunlu değil. '
+          'Ürün adını değiştirme. Teşhis koyma, tedavi veya doz önerisi verme, '
+          'eksik alanı uydurma. Bu bir reçete değildir. '
+          'Emin değilsen ilgili alanı "" veya [] bırak.';
+    } else if (nameOnly) {
+      source =
+          'Görev: kullanıcının yazdığı ilaç adı için kamuya açık küpür / '
+          'prospektüs bilgisine dayanan, yalnızca bilgi amaçlı kısa özet. '
+          'Görsel yok; fotoğraf zorunlu değil. Teşhis koyma, tedavi veya doz '
+          'önerisi verme, eksik alanı uydurma. Bu bir reçete değildir. '
+          'Emin değilsen ilgili alanı "" veya [] bırak.';
+    } else if (barcodeOnly) {
+      source =
+          'Görev: taranan ilaç barkodu / GS1 GTIN için kamuya açık küpür / '
+          'prospektüs bilgisine dayanan, yalnızca bilgi amaçlı kısa özet. '
+          'Görsel yok; fotoğraf zorunlu değil. Türkiye’de bu GTIN ile satılan '
+          'ilacın adını, etken maddesini ve prospektüs özetini doldur. '
+          'Teşhis koyma, tedavi veya doz önerisi verme, eksik alanı uydurma. '
+          'Bu bir reçete değildir. Emin değilsen ilgili alanı "" veya [] bırak.';
+    } else {
+      source =
+          'Görev: ilaç kutusunun arka yüzü (küpür) veya prospektüs görselinden / '
+          'metninden yalnızca etikette veya prospektüste yer alan bilgileri çıkar. '
+          'Teşhis koyma, tedavi veya doz önerisi verme, eksik alanı uydurma. '
+          'Emin değilsen ilgili alanı "" veya [] bırak; '
+          '"etikette/prospektüste okunamadı" yazılabilir.';
+    }
     return '''
 $source
 Kesinlik dili yasak: "kesinlikle güvenlidir", "kesinlikle alma", "doktor yerine geçer", "kullanın", "tedavi eder".
 Dil: Türkçe, bilgi amaçlı. Özetler "etikette/prospektüste yer alan" çerçevede kalsın. Reçete / tıbbi emir yok.
 $barcodeLine
-${typed.isEmpty ? '' : 'İlaç adı (kullanıcı yazdı): $typed\n'}${ocr.isEmpty ? '' : 'ocr:\n$ocr\n'}
+${typed.isEmpty ? '' : 'İlaç adı (kullanıcı yazdı veya TİTCK SKRS): $typed\n'}${ocr.isEmpty ? '' : 'ocr:\n$ocr\n'}
 Yalnız JSON (başka metin yok; markdown çiti olabilir):
-{"product_name":"Ürün veya İlaç Adı","active_ingredient":"Etken Madde (İlaçlar için)","ingredients":"İçindekiler veya kullanım amacı listesi","usage":"Kullanım talimatı özeti","side_effects":["Olası yan etkiler listesi"],"drug_interactions":["Birlikte kullanılmaması veya dikkat edilmesi gereken etken maddeler / ilaç grupları"],"safety_report":{"allergens":["Alerjenler"],"additives":["Katkı maddeleri"],"summary":"Genel bilgilendirme özeti"}}
-product_name: kutuda/prospektüste görünen ad veya kullanıcının yazdığı ad (eski alan medicine_name de kabul). Yoksa "".
+{"product_name":"Ürün veya İlaç Adı","active_ingredient":"Etken Madde (İlaçlar için)","indications":"Ne için kullanılır özeti","usage":"Nasıl kullanılır özeti","side_effects":["Olası yan etkiler listesi"],"drug_interactions":["Birlikte kullanılmaması veya dikkat edilmesi gereken etken maddeler / ilaç grupları"],"safety_report":{"allergens":["Alerjenler"],"additives":["Katkı maddeleri"],"summary":"Uyarılar / genel bilgilendirme özeti"}}
+product_name: kutuda/prospektüste görünen ad veya verilen ad (eski alan medicine_name de kabul). Yoksa "".
 active_ingredient: etken madde. Yoksa "".
-ingredients: içindekiler veya kullanım amacı; yalnız etiket/prospektüste yazan. Yoksa "".
-usage: nasıl kullanılır özeti; yalnız etiket/prospektüste yazan. Doz uydurma yok.
+indications: ne için kullanılır; yalnız kamuya açık KT / prospektüs. Yoksa "". Eski alan ingredients de kabul.
+usage: nasıl kullanılır özeti. Doz uydurma yok. Yoksa "".
 side_effects: kısa string dizisi. Yoksa [].
 drug_interactions: prospektüste yer alan etkileşimler / birlikte kullanılmaması gereken etken maddeler veya ilaç grupları. Bilgi amaçlı; "kesinlikle alma" emri yok. Yoksa [].
-safety_report.summary: genel bilgilendirme (eski alan safety_warnings de kabul).
-Uydurma ve tıbbi kesinlik yok.
+safety_report.summary: uyarılar / genel bilgilendirme (eski alan safety_warnings de kabul).
+Uydurma ve tıbbi kesinlik yok. prospectus_url uydurma.
 ''';
   }
 
@@ -437,16 +472,29 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
       debugPrint(err);
       return (null, err);
     }
-    final mime = mimeType.trim().toLowerCase().startsWith('image/')
+    var bytes = imageBytes;
+    var mime = mimeType.trim().toLowerCase().startsWith('image/')
         ? mimeType.trim()
         : 'image/jpeg';
+    if (bytes.lengthInBytes > _compressImageBytes) {
+      try {
+        final opt = await ImageOptimizeService.forLabelScan(bytes);
+        bytes = opt.bytes;
+        mime = opt.contentType;
+        debugPrint(
+          'Gemini görsel sıkıştırıldı: ${imageBytes.lengthInBytes}B → ${bytes.lengthInBytes}B',
+        );
+      } catch (e) {
+        debugPrint('Gemini görsel sıkıştırma atlandı: $e');
+      }
+    }
     return _geminiGenerate(
       prompt: prompt,
       extraParts: [
         {
           'inlineData': {
             'mimeType': mime,
-            'data': base64Encode(imageBytes),
+            'data': base64Encode(bytes),
           },
         },
       ],
@@ -472,44 +520,59 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
     Duration timeout = const Duration(seconds: 20),
     List<String>? preferredModels,
   }) async {
-    // 1.5-flash emekli (Google 404). 404 = model yok, gemini-proxy fonksiyon yok değil.
+    // flash-latest → 3.8-flash → lite. 3.6 asılır; 1.5/2.x emekli 404.
+    // Model 404 ≠ gemini-proxy fonksiyon yok. Zincir bitene kadar kullanıcıya 404 yok.
+    const liteModel = 'gemini-flash-lite-latest';
     final models = <String>[
       ...?preferredModels,
       LlmConfig.geminiModel,
-      'gemini-3.6-flash',
-      'gemini-flash-latest',
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
+      ...LlmConfig.geminiFallbackModels,
     ];
     final seen = <String>{};
     String? lastFail;
+    var lastWasModel404 = false;
+    var retriedLiteOn503 = false;
+    final perAttempt = extraParts.isEmpty
+        ? const Duration(seconds: 12)
+        : const Duration(seconds: 18);
+    final slice = timeout < perAttempt ? timeout : perAttempt;
+    final deadline = DateTime.now().add(
+      extraParts.isEmpty
+          ? const Duration(seconds: 40)
+          : const Duration(seconds: 50),
+    );
+    final payload = <String, Object>{
+      'contents': [
+        {
+          'parts': [
+            {'text': prompt},
+            ...extraParts,
+          ],
+        },
+      ],
+      'generationConfig': {
+        'temperature': 0.1,
+        'maxOutputTokens': extraParts.isEmpty ? 2048 : 4096,
+        'responseMimeType': 'application/json',
+      },
+    };
     for (final model in models) {
       if (model.isEmpty || !seen.add(model)) continue;
-      final payload = <String, Object>{
-        'contents': [
-          {
-            'parts': [
-              {'text': prompt},
-              ...extraParts,
-            ],
-          },
-        ],
-        'generationConfig': {
-          'temperature': 0.1,
-          'maxOutputTokens': extraParts.isEmpty ? 2048 : 4096,
-          'responseMimeType': 'application/json',
-        },
-      };
+      if (model == 'gemini-3.6-flash') continue;
+      if (DateTime.now().isAfter(deadline)) break;
       try {
-        final res = await _postGemini(
+        var res = await _postGemini(
           model: model,
           payload: payload,
-          timeout: timeout,
+          timeout: slice,
+          proxyTimeout: extraParts.isEmpty
+              ? const Duration(seconds: 40)
+              : const Duration(seconds: 45),
         );
         if (res == null) {
           lastFail ??= lastError ??
               'Analiz isteği gönderilemedi (proxy veya ağ).';
+          lastWasModel404 = false;
           if (_isFatalProxyFail(lastFail)) break;
           continue;
         }
@@ -518,21 +581,67 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
           debugPrint('Gemini $model ${res.statusCode}: ${res.body}');
           // Google model 404 → sonraki model. Yalnız gerçek fonksiyon-yok 404 fatal.
           if (_isFatalProxyStatus(res.statusCode, res.body)) break;
-          if (_isGoogleModelNotFound(res.statusCode, res.body)) {
+          lastWasModel404 = _isGoogleModelNotFound(res.statusCode, res.body);
+          if (lastWasModel404) {
             debugPrint('Gemini $model 404 (model emekli/yok), sonraki deneniyor');
           }
-          continue;
+          if (res.statusCode == 503) {
+            if (!retriedLiteOn503 && DateTime.now().isBefore(deadline)) {
+              retriedLiteOn503 = true;
+              debugPrint('Gemini 503 — $liteModel bir kez daha deneniyor');
+              final liteRes = await _postGemini(
+                model: liteModel,
+                payload: payload,
+                timeout: slice,
+                proxyTimeout: extraParts.isEmpty
+                    ? const Duration(seconds: 40)
+                    : const Duration(seconds: 45),
+              );
+              if (liteRes == null) {
+                lastFail = lastError ?? lastFail;
+                break;
+              }
+              if (liteRes.statusCode < 200 || liteRes.statusCode >= 300) {
+                lastFail = _httpErrorTr(liteRes.statusCode, liteRes.body);
+                debugPrint(
+                  'Gemini $liteModel ${liteRes.statusCode}: ${liteRes.body}',
+                );
+                break;
+              }
+              res = liteRes;
+            } else {
+              break;
+            }
+          } else {
+            continue;
+          }
         }
         final decoded = jsonDecode(res.body);
         if (decoded is! Map) {
           lastFail = 'Etiket okunamadı: beklenmeyen yanıt.';
+          lastWasModel404 = false;
           continue;
         }
         if (decoded['error'] is Map) {
           lastFail = _googleErrorTr(decoded['error'] as Map);
           debugPrint('Gemini $model error: ${decoded['error']}');
-          if (_isGoogleModelNotFound(res.statusCode, res.body)) {
+          lastWasModel404 = _isGoogleModelNotFound(res.statusCode, res.body);
+          if (lastWasModel404) {
             debugPrint('Gemini $model NOT_FOUND (model), sonraki deneniyor');
+          }
+          if (_isMissingGeminiSecret(res.body) || _isFatalProxyFail(lastFail)) {
+            break;
+          }
+          continue;
+        }
+        if (decoded['error'] is String) {
+          lastFail = _httpErrorTr(
+            res.statusCode >= 400 ? res.statusCode : 503,
+            res.body,
+          );
+          debugPrint('Gemini $model error: ${decoded['error']}');
+          if (_isMissingGeminiSecret(res.body) || _isFatalProxyFail(lastFail)) {
+            break;
           }
           continue;
         }
@@ -540,6 +649,7 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
         if (candidates is! List || candidates.isEmpty) {
           lastFail =
               'Analiz modeli aday döndürmedi. Daha sonra tekrar deneyin.';
+          lastWasModel404 = false;
           debugPrint('Gemini $model: candidates boş');
           continue;
         }
@@ -557,35 +667,59 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
         final parts = content is Map ? content['parts'] : null;
         if (parts is! List || parts.isEmpty) {
           lastFail = 'Etiket okunamadı: model metin döndürmedi.';
+          lastWasModel404 = false;
           continue;
         }
         final text = parts.first['text']?.toString();
         if (text != null && text.trim().isNotEmpty) return (text, null);
         lastFail = 'Etiket okunamadı: boş model yanıtı.';
+        lastWasModel404 = false;
       } catch (e, st) {
         lastFail = _exceptionTr(e);
+        lastWasModel404 = false;
         debugPrint('Gemini hata ($model): $e\n$st');
       }
     }
-    return (null, lastFail);
+    if (lastFail != null &&
+        (lastFail.contains('503') ||
+            lastFail.toLowerCase().contains('gemini anahtarı'))) {
+      return (null, lastFail);
+    }
+    if (lastWasModel404 ||
+        (lastFail != null &&
+            (lastFail.contains('404') ||
+                lastFail.toLowerCase().contains('bulunamadı') ||
+                lastFail.toLowerCase().contains('not found')))) {
+      return (null, modelUnavailableMessage);
+    }
+    return (null, lastFail ?? modelUnavailableMessage);
   }
 
   static Future<http.Response?> _postGemini({
     required String model,
     required Map<String, Object> payload,
     required Duration timeout,
+    Duration? proxyTimeout,
   }) async {
+    final wait = proxyTimeout ?? timeout;
     final invoked = await _postViaSupabaseInvoke(
       model: model,
       payload: payload,
-      timeout: timeout,
+      timeout: wait,
     );
-    if (invoked != null) return invoked;
+    if (invoked != null && !_isSupabaseGatewayAuthFail(invoked)) {
+      return invoked;
+    }
+    if (invoked != null) {
+      debugPrint(
+        'Gemini invoke ${invoked.statusCode} (JWT/gateway) — HTTP anon deneniyor',
+      );
+    }
 
     final proxied = await _postViaProxy(
       model: model,
       payload: payload,
-      timeout: timeout,
+      timeout: wait,
     );
     if (proxied != null) return proxied;
     debugPrint(
@@ -620,6 +754,11 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
     final body = <String, Object>{'model': model, ...payload};
     final prompt = _promptFromPayload(payload);
     if (prompt != null) body['prompt'] = prompt;
+    final image = _imageFromPayload(payload);
+    if (image != null) {
+      body['imageBase64'] = image.$1;
+      body['mimeType'] = image.$2;
+    }
     return body;
   }
 
@@ -639,6 +778,28 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
     return null;
   }
 
+  static (String, String)? _imageFromPayload(Map<String, Object> payload) {
+    final contents = payload['contents'];
+    if (contents is! List) return null;
+    for (final item in contents) {
+      if (item is! Map) continue;
+      final parts = item['parts'];
+      if (parts is! List) continue;
+      for (final part in parts) {
+        if (part is! Map) continue;
+        final inline = part['inlineData'] ?? part['inline_data'];
+        if (inline is! Map) continue;
+        final data = inline['data']?.toString().trim() ?? '';
+        if (data.isEmpty) continue;
+        final mime = inline['mimeType']?.toString() ??
+            inline['mime_type']?.toString() ??
+            'image/jpeg';
+        return (data, mime);
+      }
+    }
+    return null;
+  }
+
   /// Same-origin-ish CORS as the rest of the app (Supabase HTTPS API).
   static Future<http.Response?> _postViaSupabaseInvoke({
     required String model,
@@ -647,11 +808,17 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
   }) async {
     try {
       final client = Supabase.instance.client;
-      debugPrint('Gemini invoke gemini-proxy model=$model');
+      final anon = _supabaseAnonKey();
+      if (anon.isEmpty) return null;
+      debugPrint('Gemini invoke gemini-proxy model=$model auth=anon');
       final res = await withNetworkTimeout(
         client.functions.invoke(
           'gemini-proxy',
           body: _proxyBody(model, payload),
+          headers: {
+            'Authorization': 'Bearer $anon',
+            'apikey': anon,
+          },
         ),
         timeout: timeout,
         message: 'Analiz yanıt vermedi. Lütfen tekrar deneyin.',
@@ -747,21 +914,31 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
   /// Google generateContent: emekli/bilinmeyen model. gemini-proxy yok sayılmaz.
   static bool _isGoogleModelNotFound(int status, String body) {
     if (_isMissingFunctionBody(body)) return false;
-    if (status == 404) return true;
     final lower = body.toLowerCase();
+    final aboutModel = lower.contains('model') ||
+        lower.contains('gemini-') ||
+        lower.contains('no longer available') ||
+        lower.contains('not_found') ||
+        lower.contains('not found');
+    if (status == 404 && aboutModel) return true;
+    if (status == 404 && body.trim().isEmpty) return true;
     return lower.contains('not_found') &&
         (lower.contains('model') ||
             lower.contains('gemini-') ||
             lower.contains('is not found'));
   }
 
+  static bool _isMissingGeminiSecret(String body) {
+    final lower = body.toLowerCase();
+    return lower.contains('gemini_api_key') ||
+        lower.contains('tanımlı değil') ||
+        (lower.contains('missing') && lower.contains('api_key'));
+  }
+
   static bool _isFatalProxyStatus(int status, String body) {
     if (status == 401 || status == 403) return true;
     if (status == 404 && _isMissingFunctionBody(body)) return true;
-    if (status == 503) {
-      final lower = body.toLowerCase();
-      return lower.contains('gemini_api_key') || lower.contains('tanımlı değil');
-    }
+    if (status == 503 && _isMissingGeminiSecret(body)) return true;
     return false;
   }
 
@@ -773,23 +950,56 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
         e.contains('requested function was not found') ||
         e.contains('fonksiyonu yok') ||
         e.contains('yetkisiz') ||
-        e.contains('tanımlı değil');
+        e.contains('jwt') ||
+        e.contains('oturum') ||
+        e.contains('tanımlı değil') ||
+        e.contains('dashboard secrets');
+  }
+
+  /// Same anon key gemini-proxy uses (guest / expired JWT yok).
+  static String get supabaseAnonKeyForProxy => _supabaseAnonKey();
+
+  /// gemini-proxy: never send a user session JWT (expired/invalid → gateway 401
+  /// even when Verify JWT is off). Guest tarama uses the public anon key.
+  static String _supabaseAnonKey() {
+    try {
+      final client = Supabase.instance.client;
+      for (final raw in [
+        client.headers['apikey'],
+        client.auth.headers['apikey'],
+      ]) {
+        final key = (raw ?? '').trim();
+        if (key.isEmpty) continue;
+        if (key.toLowerCase().startsWith('bearer ')) continue;
+        return key;
+      }
+    } catch (_) {}
+    return _fallbackAnonKey;
   }
 
   static Map<String, String> _supabaseHeaders(String url) {
     if (!url.contains('supabase.co/functions')) return const {};
-    try {
-      final client = Supabase.instance.client;
-      final key = client.headers['apikey'] ?? '';
-      final token = client.auth.currentSession?.accessToken ?? key;
-      if (key.isEmpty) return const {};
-      return {
-        'apikey': key,
-        'Authorization': 'Bearer $token',
-      };
-    } catch (_) {
-      return const {};
-    }
+    final key = _supabaseAnonKey();
+    if (key.isEmpty) return const {};
+    return {
+      'apikey': key,
+      'Authorization': 'Bearer $key',
+    };
+  }
+
+  static bool _isGoogleAuthError(String body) {
+    final lower = body.toLowerCase();
+    return lower.contains('api key') ||
+        lower.contains('api_key') ||
+        lower.contains('unauthenticated') ||
+        (lower.contains('permission_denied') &&
+            (lower.contains('generativelanguage') ||
+                lower.contains('gemini')));
+  }
+
+  static bool _isSupabaseGatewayAuthFail(http.Response res) {
+    if (res.statusCode != 401 && res.statusCode != 403) return false;
+    return !_isGoogleAuthError(res.body);
   }
 
   static String _clipBody(String body, [int max = 180]) {
@@ -802,13 +1012,22 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
     final lower = body.toLowerCase();
     final clip = _clipBody(body);
     if (status == 401) {
-      return 'Analiz yetkisiz (401). ${clip.isEmpty ? 'JWT veya anon anahtar.' : clip}';
+      if (_isGoogleAuthError(body)) {
+        return 'Gemini anahtarı geçersiz (secret GEMINI_API_KEY).';
+      }
+      return 'Oturum/yetki: gemini-proxy JWT. '
+          'Dashboard’da Verify JWT kapalı olmalı.';
     }
     if (status == 400 && lower.contains('api key')) {
       return 'Analiz anahtarı geçersiz (400).';
     }
     if (status == 403 ||
         (lower.contains('permission') && lower.contains('api_key'))) {
+      if (_isGoogleAuthError(body) ||
+          lower.contains('api key') ||
+          lower.contains('api_key')) {
+        return 'Gemini anahtarı geçersiz (secret GEMINI_API_KEY).';
+      }
       return 'Analiz anahtarı yetkisiz veya kısıtlı (403).';
     }
     if (status == 404) {
@@ -816,18 +1035,23 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
         return 'Analiz fonksiyonu yok (404 gemini-proxy). '
             'Supabase Dashboard → Edge Functions → Deploy.';
       }
-      return 'Analiz modeli bulunamadı (404). $clip';
+      return modelUnavailableMessage;
     }
     if (status == 429) {
       return 'Analiz kotası doldu (429). Biraz sonra tekrar deneyin.';
     }
-    if (status == 503 &&
-        (lower.contains('gemini_api_key') || lower.contains('tanımlı değil'))) {
-      return 'Analiz anahtarı sunucuda tanımlı değil (503 GEMINI_API_KEY). '
-          'Dashboard → Edge Functions → gemini-proxy → Secrets.';
+    if (status == 503 && _isMissingGeminiSecret(body)) {
+      return 'Gemini anahtarı tanımlı değil (Dashboard Secrets)';
+    }
+    if (status == 503) {
+      return clip.isEmpty
+          ? 'Analiz servisi yanıt vermiyor (503).'
+          : 'Analiz servisi yanıt vermiyor (503). $clip';
     }
     if (status >= 500) {
-      return 'Analiz servisi yanıt vermiyor ($status). $clip';
+      return clip.isEmpty
+          ? 'Analiz servisi yanıt vermiyor ($status).'
+          : 'Analiz servisi yanıt vermiyor ($status). $clip';
     }
     return 'Analiz hatası ($status). $clip';
   }
@@ -854,6 +1078,8 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
         e.contains('zaman aşımı') ||
         e.contains('yetkisiz') ||
         e.contains('anahtar') ||
+        e.contains('jwt') ||
+        e.contains('oturum') ||
         e.contains('ağ');
   }
 
@@ -861,14 +1087,21 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
     final msg = error['message']?.toString() ?? '';
     final status = error['status']?.toString() ?? '';
     final lower = '$msg $status'.toLowerCase();
-    if (lower.contains('api key') || lower.contains('api_key')) {
-      return 'Analiz anahtarı geçersiz.';
+    if (lower.contains('api key') ||
+        lower.contains('api_key') ||
+        lower.contains('unauthenticated')) {
+      return 'Gemini anahtarı geçersiz (secret GEMINI_API_KEY).';
     }
     if (lower.contains('not found') || lower.contains('not_found')) {
-      return 'Analiz modeli bulunamadı.';
+      return modelUnavailableMessage;
     }
     if (lower.contains('resource_exhausted') || lower.contains('quota')) {
       return 'Analiz kotası doldu. Biraz sonra tekrar deneyin.';
+    }
+    if (lower.contains('unavailable') || lower.contains('overload')) {
+      return msg.trim().isEmpty
+          ? 'Analiz servisi yanıt vermiyor (503).'
+          : 'Analiz servisi yanıt vermiyor (503). $msg';
     }
     if (msg.trim().isEmpty) {
       return 'Analiz servisi hata verdi.';

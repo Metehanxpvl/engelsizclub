@@ -6,10 +6,12 @@ class MedicineRecord {
     this.barcode,
     this.medicineName = '',
     this.activeIngredient = '',
+    this.indications = '',
     this.usageText = '',
     this.sideEffects = const [],
     this.drugInteractions = const [],
     this.safetyWarnings = '',
+    this.prospectusUrl,
     this.imageUrl,
     this.rawReport = const {},
     this.source = 'llm',
@@ -21,11 +23,15 @@ class MedicineRecord {
   final String? barcode;
   final String medicineName;
   final String activeIngredient;
+  /// Prospektüs: ne için kullanılır.
+  final String indications;
   final String usageText;
   final List<String> sideEffects;
   /// Prospektüste yer alan etkileşimler / birlikte dikkat edilmesi gerekenler.
   final List<String> drugInteractions;
   final String safetyWarnings;
+  /// Resmi KT / e-KT HTTPS (TİTCK PDF veya karekod URL).
+  final String? prospectusUrl;
   final String? imageUrl;
   final Map<String, dynamic> rawReport;
   final String source;
@@ -39,10 +45,16 @@ class MedicineRecord {
 
   bool get isComplete =>
       medicineName.trim().isNotEmpty &&
-      (usageText.trim().isNotEmpty ||
+      (indications.trim().isNotEmpty ||
+          usageText.trim().isNotEmpty ||
           sideEffects.isNotEmpty ||
           drugInteractions.isNotEmpty ||
           safetyWarnings.trim().isNotEmpty);
+
+  bool get hasOfficialProspectus {
+    final u = (prospectusUrl ?? '').trim();
+    return u.startsWith('http://') || u.startsWith('https://');
+  }
 
   factory MedicineRecord.fromJson(
     Map<String, dynamic> json, {
@@ -63,6 +75,7 @@ class MedicineRecord {
             json['activeIngredient'] ??
             json['etken_madde'],
       ),
+      indications: _indicationsFrom(json),
       usageText: _text(
         json['usage_text'] ?? json['usage'] ?? json['kullanim'],
       ),
@@ -75,6 +88,9 @@ class MedicineRecord {
             json['safetyWarnings'] ??
             json['kritik_uyarilar'] ??
             _nestedReportField(json, 'summary'),
+      ),
+      prospectusUrl: _nullableText(
+        json['prospectus_url'] ?? json['prospectusUrl'] ?? json['kt_url'],
       ),
       imageUrl: _nullableText(json['image_url'] ?? json['imageUrl']),
       rawReport: json['raw_report'] is Map
@@ -111,6 +127,7 @@ class MedicineRecord {
             map['etken_madde'] ??
             map['etkenMadde'],
       ),
+      indications: _indicationsFrom(map),
       usageText: _text(
         map['usage'] ??
             map['usage_text'] ??
@@ -145,11 +162,14 @@ class MedicineRecord {
       'medicine_name': medicineName.trim().isEmpty ? null : medicineName.trim(),
       'active_ingredient':
           activeIngredient.trim().isEmpty ? null : activeIngredient.trim(),
+      'indications': indications.trim().isEmpty ? null : indications.trim(),
       'usage_text': usageText.trim().isEmpty ? null : usageText.trim(),
       'side_effects': sideEffects,
       'drug_interactions': drugInteractions,
       'safety_warnings':
           safetyWarnings.trim().isEmpty ? null : safetyWarnings.trim(),
+      'prospectus_url':
+          (prospectusUrl ?? '').trim().isEmpty ? null : prospectusUrl!.trim(),
       'image_url': (imageUrl ?? '').trim().isEmpty ? null : imageUrl!.trim(),
       'raw_report': rawReport,
       'source': source.trim().isEmpty ? 'llm' : source.trim(),
@@ -161,10 +181,12 @@ class MedicineRecord {
     String? barcode,
     String? medicineName,
     String? activeIngredient,
+    String? indications,
     String? usageText,
     List<String>? sideEffects,
     List<String>? drugInteractions,
     String? safetyWarnings,
+    String? prospectusUrl,
     String? imageUrl,
     Map<String, dynamic>? rawReport,
     String? source,
@@ -176,16 +198,36 @@ class MedicineRecord {
       barcode: barcode ?? this.barcode,
       medicineName: medicineName ?? this.medicineName,
       activeIngredient: activeIngredient ?? this.activeIngredient,
+      indications: indications ?? this.indications,
       usageText: usageText ?? this.usageText,
       sideEffects: sideEffects ?? this.sideEffects,
       drugInteractions: drugInteractions ?? this.drugInteractions,
       safetyWarnings: safetyWarnings ?? this.safetyWarnings,
+      prospectusUrl: prospectusUrl ?? this.prospectusUrl,
       imageUrl: imageUrl ?? this.imageUrl,
       rawReport: rawReport ?? this.rawReport,
       source: source ?? this.source,
       createdAt: createdAt ?? this.createdAt,
       fromCache: fromCache ?? this.fromCache,
     );
+  }
+
+  static String _indicationsFrom(Map<String, dynamic> json) {
+    final direct = _text(
+      json['indications'] ??
+          json['indication'] ??
+          json['ne_icin'] ??
+          json['ne_icin_kullanilir'],
+    );
+    if (direct.isNotEmpty) return direct;
+    final nested = _nestedReportMap(json);
+    if (nested != null) {
+      final fromReport = _text(
+        nested['indications'] ?? nested['ingredients'],
+      );
+      if (fromReport.isNotEmpty) return fromReport;
+    }
+    return _text(json['ingredients']);
   }
 
   static List<String> _drugInteractionsFrom(Map<String, dynamic> json) {
