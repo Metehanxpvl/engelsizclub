@@ -105,7 +105,7 @@ class _ActiveSohbet {
     required this.lastTime,
   });
 
-  final SohbetKisi kisi;
+  SohbetKisi kisi;
   String lastMsg;
   String lastTime;
   int unread = 0;
@@ -321,11 +321,15 @@ class IlanlarPageState extends State<IlanlarPage> {
     String? ilanTitle,
   }) {
     final peer = (ilanOwnerById[ilanId] ?? '').trim().toLowerCase();
+    final listingName = poster.fullName.trim().isNotEmpty
+        ? poster.fullName.trim()
+        : poster.name.trim();
+    final ad = chatPeerLabel(peer, listingName: listingName);
     return SohbetKisi(
-      ad: poster.revealedName,
+      ad: ad,
       avatar: poster.avatar.trim().isNotEmpty
           ? poster.avatar
-          : contactAvatarLetter(poster.revealedName),
+          : contactAvatarLetter(ad),
       avatarColor: poster.avatarColor,
       isOnline: false,
       sonGorus: peer.isEmpty ? 'Örnek / demo ilan' : null,
@@ -974,6 +978,8 @@ class IlanlarPageState extends State<IlanlarPage> {
     if (me.isEmpty) return;
     final ozets = await loadSohbetOzetleri(me);
     if (!mounted || ozets.isEmpty) return;
+    final names = await loadUserDisplayNamesByEmail(ozets.map((o) => o.peerEmail));
+    if (!mounted) return;
     setState(() {
       for (final o in ozets) {
         final existing = _activeSohbetler
@@ -982,15 +988,26 @@ class IlanlarPageState extends State<IlanlarPage> {
             .firstOrNull;
         final time =
             '${o.lastTime.toLocal().hour.toString().padLeft(2, '0')}:${o.lastTime.toLocal().minute.toString().padLeft(2, '0')}';
+        final peerKey = o.peerEmail.trim().toLowerCase();
+        final label = chatPeerLabel(
+          o.peerEmail,
+          profileName: names[peerKey],
+          listingName: posterFullNameForOwner(o.peerEmail),
+        );
         if (existing != null) {
           existing.lastMsg = scrubEmailsInText(o.lastMsg);
           existing.lastTime = time;
-        } else {
-          final fromIlan = revealedPosterNameForOwner(o.peerEmail);
-          final label = publicContactLabel(
-            o.peerEmail,
-            preferredName: fromIlan ?? '',
+          existing.kisi = SohbetKisi(
+            ad: label,
+            avatar: contactAvatarLetter(label),
+            avatarColor: existing.kisi.avatarColor,
+            isOnline: existing.kisi.isOnline,
+            sonGorus: existing.kisi.sonGorus,
+            peerEmail: existing.kisi.peerEmail,
+            ilanId: existing.kisi.ilanId,
+            ilanTitle: existing.kisi.ilanTitle,
           );
+        } else {
           _activeSohbetler.add(_ActiveSohbet(
             kisi: SohbetKisi(
               ad: label,
@@ -2015,7 +2032,12 @@ class IlanlarPageState extends State<IlanlarPage> {
                         ilanTitle: title,
                       )
                     : SohbetKisi(
-                        ad: p.name,
+                        ad: chatPeerLabel(
+                          peer,
+                          listingName: p.fullName.trim().isNotEmpty
+                              ? p.fullName
+                              : p.name,
+                        ),
                         avatar: p.avatar,
                         avatarColor: p.avatarColor,
                         isOnline: false,
@@ -2710,7 +2732,7 @@ class IlanlarPageState extends State<IlanlarPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _AvatarButton(
-                  label: ilan.poster.avatar,
+                  label: ilan.poster.publicListingAvatar,
                   color: ilan.poster.avatarColor,
                   onTap: openPoster,
                 ),
@@ -2782,7 +2804,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                   children: [
                     Expanded(
                       child: L10nText(
-                        ilan.poster.name,
+                        ilan.poster.publicListingLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -2925,7 +2947,7 @@ class IlanlarPageState extends State<IlanlarPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _AvatarButton(
-                  label: ilan.poster.avatar,
+                  label: ilan.poster.publicListingAvatar,
                   color: ilan.poster.avatarColor,
                   onTap: openPoster,
                 ),
@@ -2986,7 +3008,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                   children: [
                     Expanded(
                       child: L10nText(
-                        ilan.poster.name,
+                        ilan.poster.publicListingLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -3175,12 +3197,12 @@ class IlanlarPageState extends State<IlanlarPage> {
                 child: Row(
                   children: [
                     _SmallAvatar(
-                        label: ilan.poster.avatar,
+                        label: ilan.poster.publicListingAvatar,
                         color: ilan.poster.avatarColor),
                     const SizedBox(width: 8),
                     Expanded(
                       child: L10nText(
-                        ilan.poster.name,
+                        ilan.poster.publicListingLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -4399,14 +4421,14 @@ class _ProfilDrawerState extends State<_ProfilDrawer> {
             Row(
               children: [
                 _AvatarButton(
-                    label: widget.poster.avatar,
+                    label: widget.poster.publicListingAvatar,
                     color: widget.poster.avatarColor),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      L10nText(widget.poster.name,
+                      L10nText(widget.poster.publicListingLabel,
                           style: const TextStyle(
                               fontWeight: FontWeight.w800, fontSize: 16)),
                       Row(children: [
@@ -4740,7 +4762,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
               child: Row(
                 children: [
                   _AvatarButton(
-                    label: ilan.poster.avatar,
+                    label: ilan.poster.publicListingAvatar,
                     color: ilan.poster.avatarColor,
                     onTap: widget.onProfile,
                   ),
@@ -4750,7 +4772,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         L10nText(
-                          ilan.poster.name,
+                          ilan.poster.publicListingLabel,
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 15,
@@ -5129,7 +5151,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
               child: Row(
                 children: [
                   _AvatarButton(
-                    label: ilan.poster.avatar,
+                    label: ilan.poster.publicListingAvatar,
                     color: ilan.poster.avatarColor,
                     onTap: widget.onProfile,
                   ),
@@ -5139,7 +5161,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         L10nText(
-                          ilan.poster.name,
+                          ilan.poster.publicListingLabel,
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 15,
@@ -5499,7 +5521,7 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
               child: Row(
                 children: [
                   _SmallAvatar(
-                    label: ilan.poster.avatar,
+                    label: ilan.poster.publicListingAvatar,
                     color: ilan.poster.avatarColor,
                   ),
                   const SizedBox(width: 10),
@@ -5508,7 +5530,7 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         L10nText(
-                          ilan.poster.name,
+                          ilan.poster.publicListingLabel,
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 14,
@@ -5684,6 +5706,7 @@ class _SohbetPageState extends State<SohbetPage> {
   String? _error;
   Timer? _poll;
   RealtimeChannel? _realtime;
+  late String _headerName;
 
   String get _me => widget.myEmail.trim().toLowerCase();
   String get _peer => widget.kisi.peerEmail.trim().toLowerCase();
@@ -5705,8 +5728,13 @@ class _SohbetPageState extends State<SohbetPage> {
   void initState() {
     super.initState();
     _peerOnline = widget.kisi.isOnline;
+    _headerName = chatPeerLabel(
+      widget.kisi.peerEmail,
+      listingName: widget.kisi.ad,
+    );
     _load(initial: true);
     unawaited(_refreshPeerOnline());
+    unawaited(_resolvePeerName());
     unawaited(touchMyPresence());
     if (_key.isNotEmpty) {
       _realtime = subscribeSohbetMesajlari(
@@ -5721,6 +5749,18 @@ class _SohbetPageState extends State<SohbetPage> {
       unawaited(_refreshPeerOnline());
       unawaited(touchMyPresence());
     });
+  }
+
+  Future<void> _resolvePeerName() async {
+    if (_peer.isEmpty || !_peer.contains('@')) return;
+    final names = await loadUserDisplayNamesByEmail([_peer]);
+    final next = chatPeerLabel(
+      _peer,
+      profileName: names[_peer],
+      listingName: widget.kisi.ad,
+    );
+    if (!mounted || next == _headerName) return;
+    setState(() => _headerName = next);
   }
 
   Future<void> _refreshPeerOnline() async {
@@ -5898,7 +5938,7 @@ class _SohbetPageState extends State<SohbetPage> {
       builder: (ctx) => AlertDialog(
         title: const L10nText('Sohbeti sil'),
         content: L10nText(
-          '${widget.kisi.ad} ile olan tüm mesajlar silinecek. Bu işlem geri alınamaz.',
+          '$_headerName ile olan tüm mesajlar silinecek. Bu işlem geri alınamaz.',
         ),
         actions: [
           TextButton(
@@ -6024,7 +6064,7 @@ class _SohbetPageState extends State<SohbetPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(widget.kisi.ad,
+                  Text(_headerName,
                       style: const TextStyle(
                           fontWeight: FontWeight.w800, fontSize: 14)),
                   Text(
@@ -6055,7 +6095,7 @@ class _SohbetPageState extends State<SohbetPage> {
                   showUserSafetySheet(
                     context,
                     targetEmail: _peer,
-                    targetDisplayName: widget.kisi.ad,
+                    targetDisplayName: _headerName,
                     contextLabel: 'sohbet',
                     onBlocked: () {
                       if (mounted) Navigator.of(context).maybePop();
@@ -6467,7 +6507,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
     final photo = (widget.profilFoto ?? '').trim();
     final avatar = isAvatarImageSource(photo)
         ? photo
-        : posterAvatarInitials(maskPersonDisplayName(name));
+        : listingPublicAvatar('', displayName: name);
     final note = aciklama.isEmpty ? '—' : aciklama;
     final email = widget.userEmail.trim();
     final edit = widget.editDraft;

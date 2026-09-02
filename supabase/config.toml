@@ -1,0 +1,6 @@
+# Minimal project file so `supabase functions deploy` finds gemini-proxy.
+# JWT is off for guest barcode / medicine analysis (see functions/gemini-proxy).
+project_id = "qycrkqwqrysypvqaipqn"
+
+[functions.gemini-proxy]
+verify_jwt = false

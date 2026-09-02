@@ -20,8 +20,8 @@ import 'cocuk_profil_store.dart';
 import 'data/ilanlar_data.dart'
     show
         SohbetKisi,
+        chatPeerDisplayName,
         contactAvatarLetter,
-        publicContactLabel,
         scrubEmailsInText;
 import 'data/location_models.dart';
 import 'ilan_store.dart';
@@ -41,10 +41,12 @@ import 'data/more_menu_data.dart';
 import 'more_menu_store.dart';
 import 'pages/in_app_web_page.dart';
 import 'pages/gelisim_etkinlikleri_page.dart';
+import 'pages/barcode_scanner_screen.dart';
 import 'pages/etkinlikler_page.dart';
 import 'pages/gezi_rehberi_page.dart';
 import 'pages/kampanyalar_page.dart';
 import 'widgets/admin_more_menu_sheet.dart';
+import 'widgets/taramalar_group_sheet.dart';
 import 'pages/forum_page.dart';
 import 'pages/haklar_page.dart';
 import 'pages/ilanlar_page.dart';
@@ -74,8 +76,71 @@ import 'widgets/section_editors_panel.dart';
 import 'section_editors.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'l10n/l10n_text.dart';
+import 'utils/web_session_tab.dart';
 
-enum MetoTab { home, merkezler, ilanlar, kesfet, forum, haklar, kartlar }
+/// Kaydırılan sekmeler önce: Ana · İlanlar · Tarama · Keşfet · Forum.
+/// merkezler / haklar / kartlar Daha Fazlası üzerinden açılan overlay sayfalar.
+enum MetoTab { home, ilanlar, tarama, kesfet, forum, merkezler, haklar, kartlar }
+
+const _swipeTabs = <MetoTab>[
+  MetoTab.home,
+  MetoTab.ilanlar,
+  MetoTab.tarama,
+  MetoTab.kesfet,
+  MetoTab.forum,
+];
+
+int _swipePageOf(MetoTab t) => _swipeTabs.indexOf(t);
+
+MetoTab? _tabFromSwipePage(int index) {
+  if (index < 0 || index >= _swipeTabs.length) return null;
+  return _swipeTabs[index];
+}
+
+bool _isMoreOverlayTab(MetoTab t) =>
+    t == MetoTab.merkezler || t == MetoTab.haklar || t == MetoTab.kartlar;
+
+MetoTab? _metoTabFromName(String? name) {
+  if (name == null || name.isEmpty) return null;
+  for (final t in MetoTab.values) {
+    if (t.name == name) return t;
+  }
+  return null;
+}
+
+Showcase _navCoachMark({
+  required GlobalKey key,
+  required String title,
+  required String description,
+  required Widget child,
+  TooltipPosition tooltipPosition = TooltipPosition.top,
+}) {
+  return Showcase(
+    key: key,
+    title: title,
+    description: description,
+    tooltipPosition: tooltipPosition,
+    tooltipBackgroundColor: MetoColors.card,
+    textColor: MetoColors.foreground,
+    overlayColor: MetoColors.foreground,
+    overlayOpacity: 0.58,
+    tooltipBorderRadius: BorderRadius.circular(16),
+    tooltipPadding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+    titleTextStyle: GoogleFonts.nunito(
+      fontSize: 15,
+      fontWeight: FontWeight.w800,
+      color: MetoColors.primary,
+    ),
+    descTextStyle: GoogleFonts.nunito(
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+      height: 1.35,
+      color: MetoColors.foreground,
+    ),
+    targetBorderRadius: BorderRadius.circular(12),
+    child: child,
+  );
+}
 
 enum _KrediStep { paket, odeme }
 
@@ -162,7 +227,7 @@ class _MainShellState extends State<MainShell> {
   final _ilanlarPageKey = GlobalKey<IlanlarPageState>();
   bool _showMesajlar = false;
 
-  static const _navTourDoneKey = 'nav_feature_tour_v2';
+  static const _navTourDoneKey = 'navTour_1_0_87';
 
   _KrediStep _krediStep = _KrediStep.paket;
   _KrediPaket? _seciliPaket;
@@ -175,6 +240,7 @@ class _MainShellState extends State<MainShell> {
   List<SohbetOzet> _sohbetOzetleri = const [];
   List<AppBildirim> _bildirimlerInbox = const [];
   Map<String, bool> _peerOnline = const {};
+  Map<String, String> _peerNames = const {};
   Timer? _sohbetTimer;
   RealtimeChannel? _inboxChannel;
   Timer? _guestTabTimer;
@@ -325,7 +391,12 @@ class _MainShellState extends State<MainShell> {
     super.initState();
     LocaleController.instance.addListener(_onLocaleChanged);
     unawaited(LocaleController.instance.ensureLoaded());
-    _tabPageController = PageController(initialPage: MetoTab.home.index);
+    final restored = _metoTabFromName(readWebSessionTab());
+    if (restored != null) {
+      _activeTab = restored;
+    }
+    final swipe = _swipePageOf(_activeTab);
+    _tabPageController = PageController(initialPage: swipe >= 0 ? swipe : 0);
     if (_isGuest) {
       _userKredi = 0;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -396,8 +467,8 @@ class _MainShellState extends State<MainShell> {
     if (!mounted) return;
     ShowcaseView.get().startShowCase([
       _navTourKeys[MetoTab.home]!,
-      _navTourKeys[MetoTab.merkezler]!,
       _navTourKeys[MetoTab.ilanlar]!,
+      _navTourKeys[MetoTab.tarama]!,
       _navTourKeys[MetoTab.kesfet]!,
       _navTourKeys[MetoTab.forum]!,
       _moreNavTourKey,
@@ -575,9 +646,11 @@ class _MainShellState extends State<MainShell> {
               builder: (context, snap) {
                 final items = snap.data ??
                     cachedMoreMenu ??
-                    defaultMoreMenuItems()
-                        .where((e) => e.isActive)
-                        .toList();
+                    prepareUserMoreMenu(
+                      defaultMoreMenuItems()
+                          .where((e) => e.isActive)
+                          .toList(),
+                    );
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -668,8 +741,18 @@ class _MainShellState extends State<MainShell> {
                                       item.subtitle,
                                       style: const TextStyle(fontSize: 12),
                                     ),
-                              trailing: const Icon(Icons.chevron_right),
+                              trailing: Icon(
+                                item.isFolder
+                                    ? Icons.keyboard_arrow_down
+                                    : Icons.chevron_right,
+                              ),
                               onTap: () {
+                                if (item.isFolder) {
+                                  unawaited(
+                                    _openTaramalarGroupSheet(parentSheet: ctx),
+                                  );
+                                  return;
+                                }
                                 Navigator.pop(ctx);
                                 unawaited(_openMoreMenuItem(item));
                               },
@@ -716,6 +799,15 @@ class _MainShellState extends State<MainShell> {
       case 'extension':
         icon = Icons.extension_outlined;
         color = MetoColors.primary;
+      case 'barcode':
+        icon = Icons.qr_code_scanner;
+        color = MetoColors.primary;
+      case 'apps':
+        icon = Icons.apps_outlined;
+        color = MetoColors.primary;
+      case 'games':
+        icon = Icons.extension_outlined;
+        color = Colors.green.shade700;
       default:
         icon = Icons.link;
         color = MetoColors.primary;
@@ -737,6 +829,28 @@ class _MainShellState extends State<MainShell> {
     invalidateMoreMenuCache();
   }
 
+  Future<void> _openTaramalarGroupSheet({BuildContext? parentSheet}) async {
+    await showModalBottomSheet<void>(
+      context: parentSheet ?? context,
+      backgroundColor: MetoColors.card,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (nestedCtx) {
+        return TaramalarGroupSheet(
+          onSelect: (child) {
+            Navigator.pop(nestedCtx);
+            if (parentSheet != null) {
+              Navigator.pop(parentSheet);
+            }
+            unawaited(_openMoreMenuItem(child));
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _openMoreMenuItem(MoreMenuItem item) async {
     final route = item.routeKey;
     final link = route ?? item.link.trim();
@@ -744,6 +858,7 @@ class _MainShellState extends State<MainShell> {
     final extraApp = item.isUrl ||
         link == 'aile_kocu' ||
         link == 'gelisim' ||
+        link == 'puzzle' ||
         link.startsWith('http') ||
         link.startsWith('/');
     if (_isGuest && extraApp && link != 'haklar' && link != 'kartlar' &&
@@ -845,6 +960,23 @@ class _MainShellState extends State<MainShell> {
           ),
         );
         return;
+      case 'barkod':
+        _goToTab(MetoTab.tarama);
+        return;
+      case 'taramalar':
+        await _openTaramalarGroupSheet();
+        return;
+      case 'puzzle':
+        await InAppWebPage.open(
+          context,
+          title: item.title,
+          url: puzzleGameUrl,
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(
+            'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
+          ),
+        );
+        return;
       default:
         final recovered = normalizeMoreMenuRoute(item.link);
         if (recovered != null && recovered != (route ?? link)) {
@@ -909,6 +1041,7 @@ class _MainShellState extends State<MainShell> {
       setState(() {
         _showMesajlar = false;
         _activeTab = t;
+        persistWebSessionTab(t.name);
         if (t == MetoTab.ilanlar) {
           _ilanlarUnread = 0;
           _newIlanlarCount = 0;
@@ -927,20 +1060,21 @@ class _MainShellState extends State<MainShell> {
         unawaited(_refreshFeedDots());
       }
     }
-    if (_tabPageController.hasClients) {
-      final current = _tabPageController.page?.round() ?? _activeTab.index;
-      if (current != t.index) {
+    final page = _swipePageOf(t);
+    if (page >= 0 && _tabPageController.hasClients) {
+      final current = _tabPageController.page?.round() ?? page;
+      if (current != page) {
         _programmaticNavTarget = t;
         // Misafirde animasyon ara sekmelerden geçirip yanlış uyarı verir.
         final useJump = _isGuest || !animate;
         if (useJump) {
-          _tabPageController.jumpToPage(t.index);
+          _tabPageController.jumpToPage(page);
           _programmaticNavTarget = null;
         } else {
           unawaited(
             _tabPageController
                 .animateToPage(
-                  t.index,
+                  page,
                   duration: const Duration(milliseconds: 280),
                   curve: Curves.easeOutCubic,
                 )
@@ -967,8 +1101,8 @@ class _MainShellState extends State<MainShell> {
   }
 
   void _onTabPageChanged(int index) {
-    if (index < 0 || index >= MetoTab.values.length) return;
-    final t = MetoTab.values[index];
+    final t = _tabFromSwipePage(index);
+    if (t == null) return;
     if (_activeTab == t) return;
 
     // Programatik geçişte ara sayfalar (home→haklar iken mesajlar) yok sayılır.
@@ -985,7 +1119,10 @@ class _MainShellState extends State<MainShell> {
         final ok = await _gateTimedTab(t);
         if (!ok || !mounted) {
           if (_tabPageController.hasClients) {
-            _tabPageController.jumpToPage(_activeTab.index);
+            final back = _swipePageOf(_activeTab);
+            if (back >= 0) {
+              _tabPageController.jumpToPage(back);
+            }
           }
           return;
         }
@@ -1002,6 +1139,7 @@ class _MainShellState extends State<MainShell> {
     setState(() {
       _showMesajlar = false;
       _activeTab = t;
+      persistWebSessionTab(t.name);
       if (t == MetoTab.ilanlar) {
         _ilanlarUnread = 0;
         _newIlanlarCount = 0;
@@ -1042,14 +1180,17 @@ class _MainShellState extends State<MainShell> {
         if (!blocked.contains(o.peerEmail.trim().toLowerCase())) o,
     ];
     final merged = _mergeUnreadFromBildirim(filtered, bildirimler);
-    final online = await loadPresenceOnlineMap(
-      merged.map((o) => o.peerEmail),
-    );
+    final peers = merged.map((o) => o.peerEmail);
+    final onlineAndNames = await Future.wait([
+      loadPresenceOnlineMap(peers),
+      loadUserDisplayNamesByEmail(peers),
+    ]);
     if (!mounted) return;
     setState(() {
       _sohbetOzetleri = merged;
       _bildirimlerInbox = bildirimler;
-      _peerOnline = online;
+      _peerOnline = onlineAndNames[0] as Map<String, bool>;
+      _peerNames = onlineAndNames[1] as Map<String, String>;
     });
   }
 
@@ -1116,23 +1257,25 @@ class _MainShellState extends State<MainShell> {
     });
   }
 
-  String _peerDisplayName(String peerEmail) {
+  String _notificationNameFor(String peerEmail) {
     final key = peerEmail.trim().toLowerCase();
     for (final b in _bildirimlerInbox) {
       if (b.actorEmail.trim().toLowerCase() == key &&
-          b.actorName.trim().isNotEmpty &&
-          !b.actorName.contains('@') &&
-          !b.actorName.contains('****')) {
-        return publicContactLabel(b.actorName);
+          b.actorName.trim().isNotEmpty) {
+        return b.actorName.trim();
       }
     }
-    final fromIlan = revealedPosterNameForOwner(key);
-    if (fromIlan != null &&
-        fromIlan.isNotEmpty &&
-        !fromIlan.contains('****')) {
-      return publicContactLabel(fromIlan);
-    }
-    return publicContactLabel(peerEmail);
+    return '';
+  }
+
+  String _peerDisplayName(String peerEmail) {
+    final key = peerEmail.trim().toLowerCase();
+    return chatPeerDisplayName(
+      key,
+      profileName: _peerNames[key],
+      listingName: posterFullNameForOwner(key),
+      notificationName: _notificationNameFor(key),
+    );
   }
 
   void _openSohbet(SohbetOzet o) {
@@ -1628,10 +1771,7 @@ class _MainShellState extends State<MainShell> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  publicContactLabel(
-                    b.actorEmail,
-                    preferredName: b.actorName,
-                  ),
+                  _peerDisplayName(b.actorEmail),
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -1651,10 +1791,7 @@ class _MainShellState extends State<MainShell> {
               TextButton(
                 onPressed: () {
                   Navigator.pop(ctx);
-                  final name = publicContactLabel(
-                    b.actorEmail,
-                    preferredName: b.actorName,
-                  );
+                  final name = _peerDisplayName(b.actorEmail);
                   final kisi = SohbetKisi(
                     ad: name,
                     avatar: contactAvatarLetter(name),
@@ -1700,10 +1837,7 @@ class _MainShellState extends State<MainShell> {
       return;
     }
 
-    final name = publicContactLabel(
-      b.actorEmail,
-      preferredName: b.actorName,
-    );
+    final name = _peerDisplayName(b.actorEmail);
     final kisi = SohbetKisi(
       ad: name,
       avatar: contactAvatarLetter(name),
@@ -2291,11 +2425,10 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget get _body {
-    // Harita sekmesi KeepAlive ile canlı tutulur — her girişte yeniden
-    // konum/merkez araması tetiklenmesin. Sağa/sola kaydırarak sekmeler arası geçiş.
-    return PageView(
+    // Kaydırma: Ana · İlanlar · Tarama · Keşfet · Forum.
+    // Harita / Haklar / Kartlar PageView dışında; Daha Fazlası’ndan overlay.
+    final swipe = PageView(
       controller: _tabPageController,
-      // Yatay: Ana · Harita · İlan · Keşfet · Forum. Dikey kaydırma Keşfet’in kendi PageView’inde.
       physics: const BouncingScrollPhysics(
         parent: AlwaysScrollableScrollPhysics(),
       ),
@@ -2309,7 +2442,6 @@ class _MainShellState extends State<MainShell> {
             onRequireLogin: () => _requireLogin(),
           ),
         ),
-        const _KeepAliveTab(child: MerkezlerPage()),
         IlanlarPage(
           key: _ilanlarPageKey,
           userKredi: _userKredi,
@@ -2337,6 +2469,13 @@ class _MainShellState extends State<MainShell> {
           openEditIlanId: _openEditIlanId,
           openEditIlanToken: _openEditIlanToken,
         ),
+        _KeepAliveTab(
+          child: BarcodeScannerScreen(
+            isGuest: _isGuest,
+            embedded: true,
+            isTabActive: _activeTab == MetoTab.tarama && !_showMesajlar,
+          ),
+        ),
         KesfetPage(
           userEmail: widget.user.email,
           userName: _publicDisplayName,
@@ -2361,8 +2500,24 @@ class _MainShellState extends State<MainShell> {
           openCommentId: _openForumCommentId,
           openPostToken: _openForumToken,
         ),
-        HaklarPage(adminEmail: widget.user.email),
-        const KartlarPage(),
+      ],
+    );
+
+    Widget? overlay;
+    if (_activeTab == MetoTab.merkezler) {
+      overlay = const _KeepAliveTab(child: MerkezlerPage());
+    } else if (_activeTab == MetoTab.haklar) {
+      overlay = HaklarPage(adminEmail: widget.user.email);
+    } else if (_activeTab == MetoTab.kartlar) {
+      overlay = const KartlarPage();
+    }
+
+    if (overlay == null) return swipe;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        swipe,
+        ColoredBox(color: MetoColors.background, child: overlay),
       ],
     );
   }
@@ -2373,6 +2528,7 @@ class _MainShellState extends State<MainShell> {
     Navigator.of(context).popUntil((r) => r.isFirst);
     setState(() {
       _activeTab = MetoTab.home;
+      persistWebSessionTab(MetoTab.home.name);
       _homeRefreshToken++;
       _showMesajlar = false;
       _showProfilPanel = false;
@@ -2392,7 +2548,7 @@ class _MainShellState extends State<MainShell> {
       _resetKredi();
     });
     if (_tabPageController.hasClients) {
-      _tabPageController.jumpToPage(MetoTab.home.index);
+      _tabPageController.jumpToPage(_swipePageOf(MetoTab.home));
     }
     _loadUserCloud();
     _loadIlanlarVeFoto();
@@ -2536,6 +2692,28 @@ class _MainShellState extends State<MainShell> {
         onFinish: () {
           unawaited(_finishNavTour());
         },
+        onDismiss: (_) {
+          unawaited(_finishNavTour());
+        },
+        globalTooltipActionConfig: const TooltipActionConfig(
+          alignment: MainAxisAlignment.end,
+        ),
+        globalTooltipActions: [
+          TooltipActionButton(
+            type: TooltipDefaultActionType.skip,
+            name: S.t('nav_skip'),
+            backgroundColor: MetoColors.muted,
+            textStyle: GoogleFonts.nunito(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: MetoColors.primary,
+            ),
+            onTap: () {
+              ShowcaseView.get().dismiss();
+              unawaited(_finishNavTour());
+            },
+          ),
+        ],
         builder: (context) {
           final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
           return Scaffold(
@@ -2566,17 +2744,11 @@ class _MainShellState extends State<MainShell> {
                       active: _activeTab,
                       tourKeys: _navTourKeys,
                       moreTourKey: _moreNavTourKey,
-                      moreActive: !_showMesajlar &&
-                          (_activeTab == MetoTab.haklar ||
-                              _activeTab == MetoTab.kartlar),
+                      moreActive: !_showMesajlar && _isMoreOverlayTab(_activeTab),
                       ilanlarNewCount: _newIlanlarCount,
                       forumNewCount: _newForumCount,
                       onSelect: (t) => _goToTab(t),
                       onMoreTap: _openMoreSheet,
-                      onSkipTour: () {
-                        ShowcaseView.get().dismiss();
-                        unawaited(_finishNavTour());
-                      },
                     ),
                 ],
               ),
@@ -2817,7 +2989,7 @@ class _MainShellState extends State<MainShell> {
       _openIlanToken++;
     });
     if (_tabPageController.hasClients) {
-      _tabPageController.jumpToPage(MetoTab.ilanlar.index);
+      _tabPageController.jumpToPage(_swipePageOf(MetoTab.ilanlar));
     }
   }
 
@@ -2832,7 +3004,7 @@ class _MainShellState extends State<MainShell> {
       _openEditIlanToken++;
     });
     if (_tabPageController.hasClients) {
-      _tabPageController.jumpToPage(MetoTab.ilanlar.index);
+      _tabPageController.jumpToPage(_swipePageOf(MetoTab.ilanlar));
     }
   }
 
@@ -2970,10 +3142,7 @@ class _MainShellState extends State<MainShell> {
                         b.read ? MetoColors.muted : const Color(0xFFEF4444),
                     child: Text(
                       contactAvatarLetter(
-                        publicContactLabel(
-                          b.actorEmail,
-                          preferredName: b.actorName,
-                        ),
+                        _peerDisplayName(b.actorEmail),
                       ),
                       style: TextStyle(
                         color: b.read ? MetoColors.mutedFg : Colors.white,
@@ -3058,7 +3227,7 @@ class _MainShellState extends State<MainShell> {
                       _activeTab = MetoTab.ilanlar;
                     });
                     if (_tabPageController.hasClients) {
-                      _tabPageController.jumpToPage(MetoTab.ilanlar.index);
+                      _tabPageController.jumpToPage(_swipePageOf(MetoTab.ilanlar));
                     }
                   },
                   style: FilledButton.styleFrom(
@@ -6264,11 +6433,11 @@ class _BrandBar extends StatelessWidget {
             badge: notificationBadge,
           ),
           if (messagesTourKey != null)
-            Showcase(
+            _navCoachMark(
               key: messagesTourKey!,
-              title: 'Mesajlar',
-              description:
-                  'Anlaştığın uzmanlar ve bakıcılarla güvenle mesajlaş, iletişimde kal.',
+              title: S.t('nav_messages'),
+              description: S.t('tour_messages'),
+              tooltipPosition: TooltipPosition.bottom,
               child: messagesButton,
             )
           else
@@ -6347,7 +6516,6 @@ class _BottomNav extends StatelessWidget {
     this.moreActive = false,
     this.ilanlarNewCount = 0,
     this.forumNewCount = 0,
-    this.onSkipTour,
   });
 
   final MetoTab active;
@@ -6358,13 +6526,12 @@ class _BottomNav extends StatelessWidget {
   final bool moreActive;
   final int ilanlarNewCount;
   final int forumNewCount;
-  final VoidCallback? onSkipTour;
 
-  /// Görünen sıra = kaydırma sırası: Ana · Harita · İlan · Keşfet · Forum.
+  /// Görünen sıra = kaydırma sırası: Ana · İlanlar · Tarama · Keşfet · Forum.
   static List<(MetoTab, String, String)> get _primaryItems => [
     (MetoTab.home, S.t('nav_home'), S.t('tour_home')),
-    (MetoTab.merkezler, S.t('nav_map'), S.t('tour_map')),
     (MetoTab.ilanlar, S.t('nav_listings'), S.t('tour_listings')),
+    (MetoTab.tarama, S.t('nav_scan'), S.t('tour_scan')),
     (MetoTab.kesfet, S.t('nav_kesfet'), S.t('tour_kesfet')),
     (MetoTab.forum, S.t('nav_forum'), S.t('tour_forum')),
   ];
@@ -6375,29 +6542,32 @@ class _BottomNav extends StatelessWidget {
   static const keptIcons = <IconData>[
     Icons.home_outlined,
     Icons.home,
-    Icons.map_outlined,
-    Icons.map,
     Icons.work_outline,
     Icons.work,
+    Icons.qr_code_scanner,
     Icons.explore_outlined,
     Icons.explore,
     Icons.forum_outlined,
     Icons.forum,
     Icons.more_horiz,
+    Icons.map_outlined,
+    Icons.map,
   ];
 
   static IconData _outlinedIcon(MetoTab tab) {
     switch (tab) {
       case MetoTab.home:
         return Icons.home_outlined;
-      case MetoTab.merkezler:
-        return Icons.map_outlined;
       case MetoTab.ilanlar:
         return Icons.work_outline;
+      case MetoTab.tarama:
+        return Icons.qr_code_scanner;
       case MetoTab.kesfet:
         return Icons.explore_outlined;
       case MetoTab.forum:
         return Icons.forum_outlined;
+      case MetoTab.merkezler:
+        return Icons.map_outlined;
       case MetoTab.haklar:
       case MetoTab.kartlar:
         return Icons.more_horiz;
@@ -6408,14 +6578,16 @@ class _BottomNav extends StatelessWidget {
     switch (tab) {
       case MetoTab.home:
         return Icons.home;
-      case MetoTab.merkezler:
-        return Icons.map;
       case MetoTab.ilanlar:
         return Icons.work;
+      case MetoTab.tarama:
+        return Icons.qr_code_scanner;
       case MetoTab.kesfet:
         return Icons.explore;
       case MetoTab.forum:
         return Icons.forum;
+      case MetoTab.merkezler:
+        return Icons.map;
       case MetoTab.haklar:
       case MetoTab.kartlar:
         return Icons.more_horiz;
@@ -6430,12 +6602,7 @@ class _BottomNav extends StatelessWidget {
       return const SizedBox.shrink();
     }
     final primaryItems = _primaryItems;
-    final primaryActive =
-        active == MetoTab.home ||
-        active == MetoTab.merkezler ||
-        active == MetoTab.ilanlar ||
-        active == MetoTab.forum ||
-        active == MetoTab.kesfet;
+    final primaryActive = _swipePageOf(active) >= 0;
 
     return Container(
       decoration: const BoxDecoration(
@@ -6450,26 +6617,19 @@ class _BottomNav extends StatelessWidget {
         ],
       ),
       padding: EdgeInsets.fromLTRB(
-        2,
+        0,
         6,
-        2,
+        0,
         8 + MediaQuery.paddingOf(context).bottom,
       ),
       child: Row(
         children: [
           for (final item in primaryItems)
             Expanded(
-              child: Showcase(
+              child: _navCoachMark(
                 key: tourKeys[item.$1]!,
                 title: item.$2,
                 description: item.$3,
-                tooltipActions: [
-                  TooltipActionButton(
-                    type: TooltipDefaultActionType.skip,
-                    name: S.t('nav_skip'),
-                    onTap: onSkipTour,
-                  ),
-                ],
                 child: _NavItem(
                   label: item.$2,
                   icon: (primaryActive && active == item.$1)
@@ -6486,21 +6646,14 @@ class _BottomNav extends StatelessWidget {
               ),
             ),
           Expanded(
-            child: Showcase(
+            child: _navCoachMark(
               key: moreTourKey,
               title: S.t('nav_more'),
               description: S.t('tour_more'),
-              tooltipActions: [
-                TooltipActionButton(
-                  type: TooltipDefaultActionType.skip,
-                  name: S.t('nav_skip'),
-                  onTap: onSkipTour,
-                ),
-              ],
               child: _NavItem(
                 label: S.t('nav_more'),
                 icon: Icons.more_horiz,
-                iconSize: 34,
+                iconSize: 30,
                 active: moreActive,
                 onTap: onMoreTap,
               ),
@@ -6531,7 +6684,7 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resolvedSize = iconSize ?? (active ? 24.0 : 23.0);
+    final resolvedSize = iconSize ?? (active ? 26.0 : 24.0);
     final graphic = Icon(
       icon,
       size: resolvedSize,
@@ -6539,7 +6692,7 @@ class _NavItem extends StatelessWidget {
     );
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(14),
       child: SizedBox(
         width: double.infinity,
         child: Column(
@@ -6560,8 +6713,8 @@ class _NavItem extends StatelessWidget {
                         ? const [
                             BoxShadow(
                               color: Color(0x551A6B4A),
-                              blurRadius: 14,
-                              offset: Offset(0, 3),
+                              blurRadius: 12,
+                              offset: Offset(0, 2),
                             ),
                           ]
                         : null,
@@ -6595,17 +6748,25 @@ class _NavItem extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 5),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: label.length > 7 ? 10 : 11,
-                fontWeight: FontWeight.w700,
-                height: 1,
-                color: active ? MetoColors.primary : MetoColors.mutedFg,
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 1),
+              child: SizedBox(
+                width: double.infinity,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: active ? 11.5 : 11,
+                      fontWeight: FontWeight.w700,
+                      height: 1,
+                      color: active ? MetoColors.primary : MetoColors.mutedFg,
+                    ),
+                  ),
+                ),
               ),
             ),
           ],

@@ -91,9 +91,9 @@ class IlanPoster {
     this.fullName = '',
   });
 
-  /// İlan kartında gösterilen ad (soyadı maskeli olabilir).
+  /// Dahili / yedek etiket. Kamuya açık ilan UI `listingPublicLabel` kullanır.
   final String name;
-  /// Teklif sonrası sohbette gösterilecek tam ad soyad.
+  /// Yalnız iletişim sonrası sohbet için tam ad soyad (ilan kartında gösterilmez).
   final String fullName;
   final String avatar;
   final Color avatarColor;
@@ -104,14 +104,25 @@ class IlanPoster {
   final List<IlanReview> reviews;
   final PosterCv? cv;
 
-  /// Teklif / sohbet: tam ad yerine maskeli ad (M**** Ç****).
+  /// İlan kartı / detay / satıcı satırı: maskeli ad (`Ş**** Ç******`); yoksa Üye.
+  String get publicListingLabel {
+    final source = fullName.trim().isNotEmpty ? fullName : name;
+    return listingPublicLabel(source);
+  }
+
+  /// İlan avatarı: fotoğraf kalır; yoksa maskeli addan baş harf (ad soyad sızmaz).
+  String get publicListingAvatar => listingPublicAvatar(
+        avatar,
+        displayName: fullName.trim().isNotEmpty ? fullName : name,
+      );
+
+  /// Teklif / sohbet: tam ad (maskeleme yok). Kamuya açık ilanda kullanılmaz.
   String get revealedName {
     final full = fullName.trim();
-    if (full.isNotEmpty && !full.contains('@')) {
-      return maskPersonDisplayName(full);
-    }
+    if (full.isNotEmpty && !full.contains('@')) return full;
     final n = name.trim();
-    return n.isEmpty ? 'Üye' : n;
+    if (n.isNotEmpty && n.toLowerCase() != 'üye' && !n.contains('@')) return n;
+    return 'Üye';
   }
 }
 
@@ -1316,7 +1327,8 @@ final List<IkincielIlani> runtimeIkincielIlanlar = <IkincielIlani>[];
 int _ilanIdSeq = 1000;
 int nextIlanId() => ++_ilanIdSeq;
 
-/// İlan / iletişim görünen adı: M**** Ç**** (her kelimenin ilk harfi + ****).
+/// İlan / iletişim görünen adı: her kelimenin ilk harfi + kalan harf kadar `*`.
+/// Örnek: Şakir Çaykara → Ş**** Ç******
 String maskPersonDisplayName(String raw) {
   final parts = raw
       .trim()
@@ -1327,10 +1339,11 @@ String maskPersonDisplayName(String raw) {
   String maskWord(String word) {
     final w = word.trim();
     if (w.isEmpty) return '****';
-    return '${w[0].toUpperCase()}****';
+    final first = w[0].toUpperCase();
+    final rest = w.length > 1 ? List.filled(w.length - 1, '*').join() : '';
+    return '$first$rest';
   }
-  if (parts.length == 1) return maskWord(parts.first);
-  return '${maskWord(parts.first)} ${maskWord(parts.last)}';
+  return parts.map(maskWord).join(' ');
 }
 
 final _emailInTextRe = RegExp(
@@ -1367,7 +1380,42 @@ String scrubEmailsInText(String text) {
       .replaceAllMapped(_socialContactRe, (_) => 'üye');
 }
 
+/// İlan listesi / detay / satıcı-ilan veren satırı: maskeli ad; e-posta / boş ise Üye.
+String listingPublicLabel([String raw = '']) {
+  final s = raw.trim();
+  if (s.isEmpty) return 'Üye';
+  if (s.contains('@') || s.contains('↔')) return 'Üye';
+  final lower = s.toLowerCase();
+  if (lower == 'üye' ||
+      lower == 'uye' ||
+      lower == 'member' ||
+      lower == 'siz') {
+    return 'Üye';
+  }
+  return maskPersonDisplayName(s);
+}
+
+/// İlan kartı avatarı: görsel URL kalır; yoksa görünen addan baş harf.
+String listingPublicAvatar(String rawAvatar, {String displayName = ''}) {
+  final s = rawAvatar.trim();
+  if (s.startsWith('data:image') ||
+      s.startsWith('http://') ||
+      s.startsWith('https://')) {
+    return s;
+  }
+  final fromName = listingPublicLabel(displayName);
+  if (fromName != 'Üye') return posterAvatarInitials(fromName);
+  if (s.isNotEmpty &&
+      s.length <= 3 &&
+      !s.contains('@') &&
+      !s.contains('↔')) {
+    return s.toUpperCase();
+  }
+  return 'Ü';
+}
+
 /// Sohbet / bildirimde gösterilecek ad — e-posta gizler, adı maskeler.
+/// İlan kartlarında kullanma; orada [listingPublicLabel] vardır.
 String publicContactLabel(
   String raw, {
   String preferredName = '',
@@ -1383,6 +1431,58 @@ String publicContactLabel(
   if (s.contains('@')) return fallback;
   return maskPersonDisplayName(s);
 }
+
+/// E-postanın @ öncesi (tam adresi göstermeden son çare etiket).
+String emailLocalPart(String raw) {
+  final s = raw.trim();
+  final at = s.indexOf('@');
+  if (at <= 0) return '';
+  return s.substring(0, at).trim();
+}
+
+bool _isUnusableChatName(String raw) {
+  final t = raw.trim();
+  if (t.isEmpty) return true;
+  if (t.contains('@') || t.contains('↔') || t.contains('****')) return true;
+  final lower = t.toLowerCase();
+  return lower == 'üye' ||
+      lower == 'uye' ||
+      lower == 'member' ||
+      lower == 'siz';
+}
+
+/// 1:1 sohbet listesi / başlık: gerçek görünen ad (maskeleme yok).
+/// Öncelik: profil → ilan → bildirim → e-posta yerel kısmı. Tam e-posta gösterilmez.
+/// Yalnız iletişim sonrası (İletişime geç / sohbet); ilan kartında kullanma.
+String chatPeerDisplayName(
+  String peerEmail, {
+  String? profileName,
+  String? listingName,
+  String? notificationName,
+}) {
+  for (final raw in [profileName, listingName, notificationName]) {
+    if (raw == null) continue;
+    final s = raw.trim();
+    if (!_isUnusableChatName(s)) return s;
+  }
+  final local = emailLocalPart(peerEmail);
+  if (local.isNotEmpty) return local;
+  return 'Üye';
+}
+
+/// [chatPeerDisplayName] ile aynı — sohbet listesi / başlık, ilan kartı değil.
+String chatPeerLabel(
+  String peerEmail, {
+  String? profileName,
+  String? listingName,
+  String? notificationName,
+}) =>
+    chatPeerDisplayName(
+      peerEmail,
+      profileName: profileName,
+      listingName: listingName,
+      notificationName: notificationName,
+    );
 
 String contactAvatarLetter(String label) {
   final s = publicContactLabel(label).trim();

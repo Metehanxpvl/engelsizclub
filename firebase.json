@@ -22,6 +22,13 @@
     ],
     "rewrites": [
       {
+        "source": "/api/gemini",
+        "function": {
+          "functionId": "geminiProxy",
+          "region": "europe-west1"
+        }
+      },
+      {
         "source": "/bilgi-kutuphanesi/premature-bebek",
         "destination": "/bilgi-kutuphanesi/premature-bebek/index.html"
       },
@@ -107,6 +114,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, max-age=0, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=()"
           }
         ]
       },
@@ -116,6 +127,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, max-age=0, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=()"
           }
         ]
       },
@@ -125,6 +140,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, max-age=0, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=()"
           }
         ]
       },
@@ -134,6 +153,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, max-age=0, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=()"
           }
         ]
       },
@@ -143,6 +166,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, max-age=0, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=()"
           }
         ]
       },
@@ -152,6 +179,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, max-age=0, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=()"
           }
         ]
       },
@@ -161,6 +192,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, max-age=0, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=()"
           }
         ]
       },
@@ -170,6 +205,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, max-age=0, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=()"
           }
         ]
       },
@@ -179,6 +218,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, max-age=0, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=()"
           }
         ]
       },
@@ -188,6 +231,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, max-age=0, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=()"
           }
         ]
       },
@@ -197,6 +244,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, max-age=0, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=()"
           }
         ]
       },
@@ -206,6 +257,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, max-age=0, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=()"
           }
         ]
       },
@@ -215,6 +270,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, max-age=0, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=()"
           }
         ]
       },
@@ -224,6 +283,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, max-age=0, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=()"
           }
         ]
       },
@@ -233,6 +296,10 @@
           {
             "key": "Cache-Control",
             "value": "no-cache, max-age=0, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=()"
           }
         ]
       }

@@ -65,6 +65,8 @@ dist/
 # Secrets (asla commit etme)
 .env
 .env.*
+functions/.env
+supabase/.env
 **/google-services.json
 **/GoogleService-Info.plist
 !ios/Runner/GoogleService-Info.plist

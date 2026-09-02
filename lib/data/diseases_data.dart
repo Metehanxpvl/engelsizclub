@@ -403,6 +403,37 @@ const kDiseases = <DiseaseInfo>[
     ],
   ),
   DiseaseInfo(
+    id: 'yas02',
+    name: '0-2 Yaş Gelişim Rehberi',
+    icon: '🍼',
+    color: Color(0xFF1A6B4A),
+    bg: Color(0xFFE8F5EE),
+    photo: 'assets/images/118547.png',
+    desc:
+        '0–24 ay: kaba/ince motor, dil, sosyal ve bilişsel öneriler; dönem dönem ev aktiviteleri ve videolar',
+    symptoms: [
+      '0–3 ay tummy time ve yüksek kontrast',
+      '3–6 ay dönme ve kavrama',
+      '6–9 ay oturma ve cee-e',
+      '9–12 ay ayağa kalkma',
+      '12–24 ay yürüme ve ilk sözcükler',
+    ],
+    diagnosis:
+        'Bu rehber bilgilendirme amaçlıdır; gelişim izlemi çocuk doktoru ile yapılır.',
+    support: [
+      'Çocuk Doktoru',
+      'Erken Müdahale',
+      'Fizik Tedavi',
+      'Dil ve Konuşma',
+    ],
+    faq: [
+      FaqItem(
+        'Her bebek aynı hızda mı gelişir?',
+        'Hayır. Her bebek kendi temposunda ilerler; öneriler baskı değil, evde nazik birer başlangıçtır.',
+      ),
+    ],
+  ),
+  DiseaseInfo(
     id: 'nadir',
     name: 'Nadir Hastalıklar',
     icon: '🔬',

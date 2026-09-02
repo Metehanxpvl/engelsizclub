@@ -1,7 +1,10 @@
 const { onRequest } = require('firebase-functions/v2/https');
 const { setGlobalOptions } = require('firebase-functions/v2');
+const { defineString } = require('firebase-functions/params');
 
 setGlobalOptions({ region: 'europe-west1', maxInstances: 20 });
+
+const geminiApiKey = defineString('GEMINI_API_KEY', { default: '' });
 
 // Client'taki ile aynı anahtar — Cloud'da HTTP referrer kısıtı OLMAMALI
 // (Application restriction: None, API restriction: Places API + Maps).
@@ -87,3 +90,92 @@ exports.placesProxy = onRequest({ cors: true }, async (req, res) => {
     });
   }
 });
+
+const geminiCors = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+/** Web CORS bypass: Flutter POST /api/gemini → Google generateContent. */
+exports.geminiProxy = onRequest(
+  {
+    cors: true,
+    timeoutSeconds: 120,
+    memory: '512MiB',
+    maxInstances: 20,
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.set(geminiCors).status(204).send('');
+      return;
+    }
+    if (req.method !== 'POST') {
+      res.set(geminiCors).status(405).json({ error: 'POST only' });
+      return;
+    }
+
+    let key = '';
+    try {
+      key = String(geminiApiKey.value() || '').trim();
+    } catch (_) {}
+    if (!key) key = String(process.env.GEMINI_API_KEY || '').trim();
+    if (!key) {
+      console.error('geminiProxy: GEMINI_API_KEY missing');
+      res.set(geminiCors).status(503).json({
+        error: { message: 'GEMINI_API_KEY tanımlı değil', status: 'FAILED_PRECONDITION' },
+      });
+      return;
+    }
+
+    let payload = req.body;
+    if (!payload || typeof payload !== 'object') {
+      try {
+        const raw = req.rawBody ? req.rawBody.toString() : '';
+        payload = raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        res.set(geminiCors).status(400).json({
+          error: { message: 'JSON gövde okunamadı', status: 'INVALID_ARGUMENT' },
+        });
+        return;
+      }
+    }
+
+    const modelRaw = String(payload.model || req.query.model || 'gemini-3.6-flash');
+    const model = modelRaw.replace(/[^a-zA-Z0-9._-]/g, '') || 'gemini-3.6-flash';
+    const contents = payload.contents;
+    const generationConfig = payload.generationConfig;
+    if (!contents) {
+      res.set(geminiCors).status(400).json({
+        error: { message: 'contents gerekli', status: 'INVALID_ARGUMENT' },
+      });
+      return;
+    }
+
+    const url =
+      'https://generativelanguage.googleapis.com/v1beta/models/' +
+      encodeURIComponent(model) +
+      ':generateContent?key=' +
+      encodeURIComponent(key);
+
+    try {
+      const upstream = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents, generationConfig }),
+      });
+      const text = await upstream.text();
+      res.set({ ...geminiCors, 'Content-Type': 'application/json; charset=utf-8' })
+        .status(upstream.status)
+        .send(text);
+    } catch (e) {
+      console.error('geminiProxy upstream', e);
+      res.set(geminiCors).status(502).json({
+        error: {
+          message: String(e && e.message ? e.message : e),
+          status: 'UNAVAILABLE',
+        },
+      });
+    }
+  },
+);

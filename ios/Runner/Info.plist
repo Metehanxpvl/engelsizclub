@@ -61,9 +61,9 @@
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Yakınınızdaki rehabilitasyon merkezlerini göstermek ve uygun sonuçları sunmak için konumunuza erişim gerekir.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Fotoğraflı puzzle ve iletişim kartları için kamera ile fotoğraf çekebilirsiniz.</string>
+	<string>Barkod tarama, etiket fotoğrafı, puzzle ve iletişim kartları için kamera kullanılır.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Fotoğraflı puzzle ve iletişim kartları için galerinizden fotoğraf seçebilirsiniz.</string>
+	<string>Etiket fotoğrafı, puzzle ve iletişim kartları için galerinizden görsel seçebilirsiniz.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Çekilen fotoğrafları kaydetmek için fotoğraf kütüphanesine erişim gerekir.</string>
 	<key>NSMicrophoneUsageDescription</key>

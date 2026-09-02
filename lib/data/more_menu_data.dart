@@ -14,6 +14,8 @@ class MoreMenuItem {
 
   /// Uygulama içi route kimlikleri (`link_type: route`).
   static const builtinRoutes = <String>{
+    'harita',
+    'merkezler',
     'aile_kocu',
     'haklar',
     'kartlar',
@@ -21,6 +23,9 @@ class MoreMenuItem {
     'cvi',
     'cvi2',
     'gelisim',
+    'barkod',
+    'taramalar',
+    'puzzle',
   };
 
   final int id;
@@ -41,6 +46,7 @@ class MoreMenuItem {
 
   bool get isUrl => !isKnownRoute && linkType == 'url';
   bool get isRoute => isKnownRoute || linkType == 'route';
+  bool get isFolder => routeKey == 'taramalar';
 
   MoreMenuItem copyWith({
     int? id,
@@ -109,24 +115,190 @@ String? normalizeMoreMenuRoute(String raw) {
   if (s.startsWith('route:')) s = s.substring(6).trim();
   if (s.startsWith('/')) s = s.substring(1);
   if (s.contains('://') || s.contains('.')) return null;
+  if (s == 'taramalar_egzersizler_oyun') s = 'taramalar';
   return MoreMenuItem.builtinRoutes.contains(s) ? s : null;
 }
 
-/// Harita ana sekmede; Daha Fazlası’ndaki kopyayı gösterme (eski DB satırı olsa bile).
-List<MoreMenuItem> withoutMainNavMapItems(List<MoreMenuItem> items) {
-  return [
-    for (final e in items)
-      if (!_isMainNavMapItem(e)) e,
-  ];
-}
+const defaultHaritaMenuItem = MoreMenuItem(
+  id: -9,
+  title: 'Harita',
+  subtitle: 'Destek merkezleri ve yakındaki hizmet noktaları',
+  linkType: 'route',
+  link: 'harita',
+  icon: 'place',
+  sortOrder: 0,
+  isActive: true,
+  isBuiltin: true,
+);
 
-bool _isMainNavMapItem(MoreMenuItem e) {
+bool isHaritaMenuItem(MoreMenuItem e) {
   final k = (e.routeKey ?? e.link.trim().toLowerCase());
   return k == 'harita' || k == 'merkezler';
 }
 
+/// Harita artık alt menüde değil; Daha Fazlası’nda üstte dursun.
+/// [pinTop] kullanıcı menüsünde her zaman en üste alır; admin listesinde sıra korunur.
+List<MoreMenuItem> withProminentHarita(
+  List<MoreMenuItem> items, {
+  bool pinTop = true,
+}) {
+  final existing = items.where(isHaritaMenuItem).toList();
+  if (existing.isEmpty) {
+    return [defaultHaritaMenuItem, ...items];
+  }
+  if (!pinTop) return items;
+  return [existing.first, ...items.where((e) => !isHaritaMenuItem(e))];
+}
+
+/// Eski çağrılar: haritayı gizleme — artık menüde öne çıkar.
+List<MoreMenuItem> withoutMainNavMapItems(List<MoreMenuItem> items) {
+  return withProminentHarita(items);
+}
+
+const puzzleGameUrl = '/fotografli-puzzle.html';
+
+const defaultTaramalarGroupItem = MoreMenuItem(
+  id: -10,
+  title: 'Taramalar & Egzersizler & Oyun',
+  subtitle: 'Puzzle, CVI egzersizleri ve otizm tarama',
+  linkType: 'route',
+  link: 'taramalar',
+  icon: 'apps',
+  sortOrder: 5,
+  isActive: true,
+  isBuiltin: true,
+);
+
+bool isTaramalarGroupItem(MoreMenuItem e) {
+  final k = (e.routeKey ?? e.link.trim().toLowerCase());
+  return k == 'taramalar' || k == 'taramalar_egzersizler_oyun';
+}
+
+/// Üst menüde durmamalı; grup içine taşınan öğeler.
+bool isTaramalarChildItem(MoreMenuItem e) {
+  if (isTaramalarGroupItem(e)) return false;
+  final key = e.routeKey;
+  if (key == 'cvi' || key == 'cvi2' || key == 'mchat' || key == 'puzzle') {
+    return true;
+  }
+  final raw = e.link.trim().toLowerCase();
+  if (raw.contains('fotografli-puzzle')) return true;
+  if (raw.contains('cvi-egzersizleri-2')) return true;
+  if (raw.contains('cvi-gorsel-egzersiz')) return true;
+  return false;
+}
+
+/// Grup altındaki 4 özellik (mevcut ekranlar — yeniden yazılmaz).
+List<MoreMenuItem> taramalarGroupChildren() => const [
+      MoreMenuItem(
+        id: -11,
+        title: 'Puzzled oyun',
+        subtitle: 'Fotoğraflı puzzle',
+        linkType: 'route',
+        link: 'puzzle',
+        icon: 'games',
+        sortOrder: 1,
+        isActive: true,
+        isBuiltin: true,
+      ),
+      MoreMenuItem(
+        id: -12,
+        title: 'CVI görsel egzersizleri',
+        subtitle: '20 adımlık yüksek kontrastlı görsel egzersiz',
+        linkType: 'route',
+        link: 'cvi',
+        icon: 'eye',
+        sortOrder: 2,
+        isActive: true,
+        isBuiltin: true,
+      ),
+      MoreMenuItem(
+        id: -13,
+        title: 'CVI görsel egzersizleri-2',
+        subtitle: 'Yıldızlar · Meyveler · Arabalar — Görsel Keşif',
+        linkType: 'route',
+        link: 'cvi2',
+        icon: 'eye',
+        sortOrder: 3,
+        isActive: true,
+        isBuiltin: true,
+      ),
+      MoreMenuItem(
+        id: -14,
+        title: 'Otizm tarama modülleri',
+        subtitle: 'M-CHAT tarama akışı',
+        linkType: 'route',
+        link: 'mchat',
+        icon: 'search',
+        sortOrder: 4,
+        isActive: true,
+        isBuiltin: true,
+      ),
+    ];
+
+/// Bilgi Kütüphanesi’ne taşınan öğeler (üst menü ve grupta tekrar görünmesin).
+bool isMovedToLibraryMenuItem(MoreMenuItem e) {
+  final raw = e.link.trim().toLowerCase().replaceAll('–', '-');
+  final title = e.title.trim().toLowerCase().replaceAll('–', '-');
+  if (raw.contains('0-2-yas-gelisim-rehberi')) return true;
+  if (raw.contains('daha-fazlasi/ozel')) return true;
+  if (title.contains('0-2') && title.contains('gelişim rehberi')) return true;
+  if (title.contains('0-2') && title.contains('gelisim rehberi')) return true;
+  return false;
+}
+
+List<MoreMenuItem> withoutMovedLibraryItems(List<MoreMenuItem> items) {
+  return items.where((e) => !isMovedToLibraryMenuItem(e)).toList();
+}
+
+/// Grubu Harita’dan hemen sonra gösterir; çocukları üst listeden çeker.
+/// [pinTop] kullanıcı menüsü; admin listesinde sıra korunur, eksik grup eklenir.
+List<MoreMenuItem> withTaramalarGroup(
+  List<MoreMenuItem> items, {
+  bool pinTop = true,
+}) {
+  final existing = items.where(isTaramalarGroupItem).toList();
+  final rest = items.where((e) => !isTaramalarGroupItem(e)).toList();
+  final group = existing.isEmpty ? defaultTaramalarGroupItem : existing.first;
+
+  if (!pinTop) {
+    if (existing.isNotEmpty) return items;
+    final haritaIdx = rest.indexWhere(isHaritaMenuItem);
+    if (haritaIdx >= 0) {
+      return [
+        ...rest.take(haritaIdx + 1),
+        group,
+        ...rest.skip(haritaIdx + 1),
+      ];
+    }
+    return [group, ...rest];
+  }
+
+  final visible = rest.where((e) => !isTaramalarChildItem(e)).toList();
+  if (visible.isNotEmpty && isHaritaMenuItem(visible.first)) {
+    return [visible.first, group, ...visible.skip(1)];
+  }
+  return [group, ...visible];
+}
+
+List<MoreMenuItem> prepareUserMoreMenu(List<MoreMenuItem> items) {
+  return withTaramalarGroup(
+    withProminentHarita(withoutMovedLibraryItems(items), pinTop: true),
+    pinTop: true,
+  );
+}
+
+List<MoreMenuItem> prepareAdminMoreMenu(List<MoreMenuItem> items) {
+  return withTaramalarGroup(
+    withProminentHarita(withoutMovedLibraryItems(items), pinTop: false),
+    pinTop: false,
+  );
+}
+
 /// DB yoksa / hata olursa kullanılan varsayılan menü.
 List<MoreMenuItem> defaultMoreMenuItems() => const [
+      defaultHaritaMenuItem,
+      defaultTaramalarGroupItem,
       MoreMenuItem(
         id: -1,
         title: 'Aile Koçum',
@@ -161,39 +333,6 @@ List<MoreMenuItem> defaultMoreMenuItems() => const [
         isBuiltin: true,
       ),
       MoreMenuItem(
-        id: -4,
-        title: 'Otizm Tarama',
-        subtitle: 'M-CHAT tarama akışı',
-        linkType: 'route',
-        link: 'mchat',
-        icon: 'search',
-        sortOrder: 40,
-        isActive: true,
-        isBuiltin: true,
-      ),
-      MoreMenuItem(
-        id: -5,
-        title: 'CVI Görsel Egzersizleri',
-        subtitle: '20 adımlık yüksek kontrastlı görsel egzersiz',
-        linkType: 'route',
-        link: 'cvi',
-        icon: 'eye',
-        sortOrder: 50,
-        isActive: true,
-        isBuiltin: true,
-      ),
-      MoreMenuItem(
-        id: -7,
-        title: 'CVI Egzersizleri-2',
-        subtitle: 'Yıldızlar · Meyveler · Arabalar — Görsel Keşif',
-        linkType: 'url',
-        link: '/bilgi-kutuphanesi/cvi-egzersizleri-2',
-        icon: 'eye',
-        sortOrder: 55,
-        isActive: true,
-        isBuiltin: true,
-      ),
-      MoreMenuItem(
         id: -6,
         title: 'Gelişim Etkinlikleri',
         subtitle: '120 etkinlik · 7 grup · filtre ve video',
@@ -201,6 +340,17 @@ List<MoreMenuItem> defaultMoreMenuItems() => const [
         link: 'gelisim',
         icon: 'extension',
         sortOrder: 60,
+        isActive: true,
+        isBuiltin: true,
+      ),
+      MoreMenuItem(
+        id: -8,
+        title: 'Barkod / Ürün Analizi',
+        subtitle: 'İçerik, olası alerjenler ve katkı bilgisi (teşhis değildir)',
+        linkType: 'route',
+        link: 'barkod',
+        icon: 'barcode',
+        sortOrder: 70,
         isActive: true,
         isBuiltin: true,
       ),

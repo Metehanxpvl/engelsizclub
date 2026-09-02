@@ -234,9 +234,10 @@ String _safeIlanText(String? raw) =>
     scrubIlanListingText((raw ?? '').toString());
 
 IlanPoster _posterFrom(Map<String, dynamic> j) {
-  final rawName = (j['posterName'] ?? j['poster_name'])?.toString() ?? 'Siz';
-  final fullName = rawName.trim().isEmpty ? 'Siz' : rawName.trim();
-  final name = maskPersonDisplayName(fullName);
+  final rawName = (j['posterName'] ?? j['poster_name'])?.toString() ?? '';
+  final fullName = rawName.trim();
+  // Kartta maskeli ad; sohbet tam adı fullName / RPC ile alır.
+  final name = listingPublicLabel(fullName);
   final avatar = (j['posterAvatar'] ?? j['poster_avatar'])?.toString();
   return IlanPoster(
     name: name,
@@ -1141,7 +1142,7 @@ Future<void> publishIlanToCloud({
 
   final fullPosterName =
       posterName.trim().isEmpty ? 'Siz' : posterName.trim();
-  final displayPosterName = maskPersonDisplayName(fullPosterName);
+  final displayPosterName = listingPublicLabel(fullPosterName);
   final safePosterAvatar = posterAvatar.trim().isEmpty
       ? posterAvatarInitials(displayPosterName)
       : posterAvatar.trim();
@@ -1708,8 +1709,42 @@ void applyRuntimeIlanViews(int id, int views) {
   }
 }
 
+bool _usablePosterFullName(String raw) {
+  final n = raw.trim();
+  if (n.isEmpty || n == 'Üye' || n == 'Siz') return false;
+  if (n.contains('@') || n.contains('****')) return false;
+  return true;
+}
+
+/// Sohbet için ilan sahibinin maskelenmemiş tam adı (e-posta ile).
+String? posterFullNameForOwner(String email) {
+  final e = email.trim().toLowerCase();
+  if (e.isEmpty) return null;
+  for (final i in runtimeUzmanIlanlar) {
+    if ((ilanOwnerById[i.id] ?? '') == e) {
+      final n = i.poster.fullName.trim();
+      if (_usablePosterFullName(n)) return n;
+    }
+  }
+  for (final i in runtimeBakiciIlanlar) {
+    if ((ilanOwnerById[i.id] ?? '') == e) {
+      final n = i.poster.fullName.trim();
+      if (_usablePosterFullName(n)) return n;
+    }
+  }
+  for (final i in runtimeIkincielIlanlar) {
+    if ((ilanOwnerById[i.id] ?? '') == e) {
+      final n = i.poster.fullName.trim();
+      if (_usablePosterFullName(n)) return n;
+    }
+  }
+  return null;
+}
+
 /// Teklif / sohbet için ilan sahibinin tam adı (e-posta ile).
 String? revealedPosterNameForOwner(String email) {
+  final full = posterFullNameForOwner(email);
+  if (full != null) return full;
   final e = email.trim().toLowerCase();
   if (e.isEmpty) return null;
   for (final i in runtimeUzmanIlanlar) {

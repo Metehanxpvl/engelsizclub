@@ -1,0 +1,22 @@
+# Engelsiz Club — R2 presign + Gemini CORS proxy (ücretsiz Workers).
+# Sırlar git'e koyulmaz.
+#
+# Bir kez:
+#   npx wrangler login
+#   npx wrangler secret put GEMINI_API_KEY
+#   npx wrangler secret put R2_ACCOUNT_ID
+#   npx wrangler secret put R2_ACCESS_KEY_ID
+#   npx wrangler secret put R2_SECRET_ACCESS_KEY
+#   npx wrangler secret put R2_BUCKET
+#   npx wrangler secret put R2_PUBLIC_BASE_URL
+#
+# Deploy:
+#   npx wrangler deploy
+#
+# Flutter (www.engelsizclub.com):
+#   --dart-define=R2_WORKER_URL=https://engelsizclub-r2.<hesap>.workers.dev
+#   veya --dart-define=GEMINI_PROXY_URL=https://engelsizclub-r2.<hesap>.workers.dev/gemini
+
+name = "engelsizclub-r2"
+main = "r2-worker.js"
+compatibility_date = "2025-09-01"

@@ -252,8 +252,8 @@ class CatalogAdapters {
       for (final r in rows) _diseaseFromRow(r),
     ].where((d) => d.id.isNotEmpty).toList();
     if (mapped.isEmpty) return kDiseases;
-    // Yerel rehber sayfaları remote katalogda yoksa ekle (ör. prematüre).
-    const localGuideIds = {'premature'};
+    // Yerel rehber sayfaları remote katalogda yoksa ekle (ör. prematüre, 0–2 yaş).
+    const localGuideIds = {'premature', 'yas02'};
     final ids = {for (final d in mapped) d.id};
     final extras = [
       for (final d in kDiseases)

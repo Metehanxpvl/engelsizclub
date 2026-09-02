@@ -31,13 +31,17 @@ const _tables = <AppLang, Map<String, String>>{
   AppLang.tr: {
     'nav_home': 'Ana',
     'nav_map': 'Harita',
-    'nav_listings': 'İlan',
+    'nav_listings': 'İlanlar',
+    'nav_scan': 'Tarama',
     'nav_forum': 'Forum',
     'nav_kesfet': 'Keşfet',
-    'nav_more': 'Daha Fazlası',
+    'nav_more': 'Daha fazlası',
     'nav_skip': 'Geç',
+    'nav_messages': 'Mesajlar',
     'tour_home':
-        'Uygulamanın ana akışına, duyurulara ve bilgilendirme içeriklerine buradan ulaşabilirsin. Engelsiz Club sosyal destek platformudur; klinik hizmet sunmaz.',
+        'Ana sayfada duyurular ve Bilgi Kütüphanesi var. 0–2 yaş gelişim rehberi burada; Daha fazlası menüsünde değil.',
+    'tour_scan':
+        'Ürün barkodu / etiket ve ilaç küpürü tarayın. Üstte Ürün | İlaç seçin. Bu bir teşhis değildir.',
     'tour_map':
         'Yakınındaki özel gereksinimli kahramanları, uzmanları ve hizmet noktalarını harita üzerinden kolayca görüntüle.',
     'tour_listings':
@@ -45,9 +49,13 @@ const _tables = <AppLang, Map<String, String>>{
     'tour_forum':
         'Diğer aileler ve uzmanlarla deneyimlerini paylaş, sorularına topluluktan destek bul.',
     'tour_kesfet':
-        'Onaylı kısa videolar: engellilik, sağlık, haklar ve aile. Eğlence veya alakasız içerik yok.',
+        'Onaylı kısa videolar: engellilik, sağlık, haklar ve aile. Forum yanındaki sekmede.',
     'tour_more':
-        'Haklar rehberi ve kartlara buradan ulaş. Alt menüyü daha ferah tutmak için ek sayfalar bu menüde.',
+        'Harita artık alt çubukta değil — buradan açılır. Taramalar & Egzersizler & Oyun (Puzzle, CVI, otizm taraması) da burada.',
+    'tour_messages':
+        'Mesajlar üst çubukta duruyor. Anlaştığın uzman ve bakıcılarla iletişim buradan devam eder.',
+    'more_map': 'Harita',
+    'more_map_sub': 'Destek merkezleri ve yakındaki hizmet noktaları',
     'more_rights': 'Hak Sorgulama Sihirbazı',
     'more_rights_sub': 'Haklarınızı adım adım sorgulayın',
     'more_cards': 'İletişim Kartları',
@@ -60,6 +68,8 @@ const _tables = <AppLang, Map<String, String>>{
     'more_gelisim_sub': '120 etkinlik · 7 grup · filtre ve video',
     'more_aile_kocu': 'Aile Koçum',
     'more_aile_kocu_sub': 'Ders, ilaç ve not takibi (çevrimdışı)',
+    'more_barkod': 'Barkod / Ürün Analizi',
+    'more_barkod_sub': 'İçerik, olası alerjenler ve katkı bilgisi (teşhis değildir)',
     'profile_swipe_close': 'Aşağı kaydırarak kapat',
     'profile_complete': 'Profilinizi tamamlayın',
     'profile_photo_add': 'Fotoğraf eklemek için avatara dokun',
@@ -122,12 +132,15 @@ const _tables = <AppLang, Map<String, String>>{
   AppLang.en: {
     'nav_home': 'Home',
     'nav_map': 'Map',
+    'nav_listings': 'Listings',
+    'nav_scan': 'Scan',
     'nav_forum': 'Forum',
     'nav_kesfet': 'Discover',
     'nav_more': 'More',
     'nav_skip': 'Skip',
+    'nav_messages': 'Messages',
     'tour_home':
-        'Open the home feed, announcements and info content. Engelsiz Club is a social support platform; it does not provide clinical services.',
+        'Home has announcements and the Knowledge Library. The 0–2 age development guide is here, not under More.',
     'tour_map':
         'Find nearby centers, specialists and services on the map.',
     'tour_listings':
@@ -135,9 +148,15 @@ const _tables = <AppLang, Map<String, String>>{
     'tour_forum':
         'Share experiences with families and specialists, get community support.',
     'tour_kesfet':
-        'Approved short videos on disability, health, rights and family. No unrelated entertainment.',
+        'Approved short videos on disability, health, rights and family. Forum is the next tab.',
+    'tour_scan':
+        'Scan a product barcode/label or a medicine package insert. Switch Ürün | İlaç at the top. This is not a diagnosis.',
     'tour_more':
-        'Reach rights guide, cards and extra tools from this menu.',
+        'Map is no longer on the bar — open it here. Screenings, exercises and games (Puzzle, CVI, autism screening) are here too.',
+    'tour_messages':
+        'Messages stay in the top bar. Chat with specialists and caregivers from here.',
+    'more_map': 'Map',
+    'more_map_sub': 'Support centers and nearby services',
     'more_rights': 'Benefits Wizard',
     'more_rights_sub': 'Check your rights step by step',
     'more_cards': 'Communication Cards',
@@ -150,6 +169,8 @@ const _tables = <AppLang, Map<String, String>>{
     'more_gelisim_sub': '120 activities · 7 groups · filters & video',
     'more_aile_kocu': 'Family Coach',
     'more_aile_kocu_sub': 'Lessons, medicine & notes (offline)',
+    'more_barkod': 'Barcode / Product analysis',
+    'more_barkod_sub': 'Ingredients, possible allergens & additives (not a diagnosis)',
     'profile_swipe_close': 'Swipe down to close',
     'profile_complete': 'Complete your profile',
     'profile_photo_add': 'Tap avatar to add a photo',
@@ -212,12 +233,15 @@ const _tables = <AppLang, Map<String, String>>{
   AppLang.de: {
     'nav_home': 'Start',
     'nav_map': 'Karte',
+    'nav_listings': 'Anzeigen',
+    'nav_scan': 'Scan',
     'nav_forum': 'Forum',
     'nav_kesfet': 'Entdecken',
     'nav_more': 'Mehr',
     'nav_skip': 'Überspringen',
+    'nav_messages': 'Nachrichten',
     'tour_home':
-        'Zugang zum Feed, Ankündigungen und Infos. Engelsiz Club ist eine soziale Unterstützungsplattform und kein klinischer Dienst.',
+        'Startseite: Ankündigungen und Wissensbibliothek. Der 0–2-Jahre-Entwicklungsratgeber ist hier, nicht unter Mehr.',
     'tour_map':
         'Finde Zentren, Fachleute und Dienste in deiner Nähe auf der Karte.',
     'tour_listings':
@@ -225,9 +249,15 @@ const _tables = <AppLang, Map<String, String>>{
     'tour_forum':
         'Erfahrungen teilen und Unterstützung in der Community finden.',
     'tour_kesfet':
-        'Freigegebene Kurzvideos zu Behinderung, Gesundheit, Rechten und Familie.',
+        'Freigegebene Kurzvideos zu Behinderung, Gesundheit, Rechten und Familie. Forum ist der nächste Tab.',
+    'tour_scan':
+        'Produktbarcode/-etikett oder Beipackzettel scannen. Oben Ürün | İlaç wählen. Keine Diagnose.',
     'tour_more':
-        'Rechte-Guide, Karten und Extra-Tools findest du hier.',
+        'Die Karte ist nicht mehr in der Leiste — hier öffnen. Screenings, Übungen und Spiele (Puzzle, CVI, Autismus-Screening) auch hier.',
+    'tour_messages':
+        'Nachrichten bleiben in der oberen Leiste. Chat mit Fachleuten und Betreuungspersonen von hier.',
+    'more_map': 'Karte',
+    'more_map_sub': 'Zentren und Dienste in der Nähe',
     'more_rights': 'Rechte-Assistent',
     'more_rights_sub': 'Rechte Schritt für Schritt prüfen',
     'more_cards': 'Kommunikationskarten',
@@ -240,6 +270,8 @@ const _tables = <AppLang, Map<String, String>>{
     'more_gelisim_sub': '120 Aktivitäten · 7 Gruppen · Filter & Video',
     'more_aile_kocu': 'Familien-Coach',
     'more_aile_kocu_sub': 'Unterricht, Medikamente & Notizen (offline)',
+    'more_barkod': 'Barcode / Produktanalyse',
+    'more_barkod_sub': 'Inhalt, mögliche Allergene und Zusatzstoffe (keine Diagnose)',
     'profile_swipe_close': 'Zum Schließen nach unten ziehen',
     'profile_complete': 'Profil vervollständigen',
     'profile_photo_add': 'Für Foto auf Avatar tippen',
@@ -302,12 +334,15 @@ const _tables = <AppLang, Map<String, String>>{
   AppLang.ar: {
     'nav_home': 'الرئيسية',
     'nav_map': 'الخريطة',
+    'nav_listings': 'الإعلانات',
+    'nav_scan': 'مسح',
     'nav_forum': 'المنتدى',
     'nav_kesfet': 'اكتشف',
     'nav_more': 'المزيد',
     'nav_skip': 'تخطّي',
+    'nav_messages': 'الرسائل',
     'tour_home':
-        'من هنا تصل إلى الصفحة الرئيسية والإعلانات والمحتوى الإرشادي. Engelsiz Club منصة دعم اجتماعي وليست خدمة طبية.',
+        'الرئيسية فيها الإعلانات ومكتبة المعلومات. دليل نمو 0–2 سنة هنا وليس في المزيد.',
     'tour_map':
         'اعثر على المراكز والمتخصصين والخدمات القريبة على الخريطة.',
     'tour_listings':
@@ -315,9 +350,15 @@ const _tables = <AppLang, Map<String, String>>{
     'tour_forum':
         'شارك التجارب مع العائلات والمتخصصين واحصل على دعم المجتمع.',
     'tour_kesfet':
-        'فيديوهات قصيرة معتمدة عن الإعاقة والصحة والحقوق والأسرة. لا محتوى ترفيهي غير ذي صلة.',
+        'فيديوهات قصيرة معتمدة عن الإعاقة والصحة والحقوق والأسرة. المنتدى في التبويب التالي.',
+    'tour_scan':
+        'امسح باركود/ملصق المنتج أو نشرة الدواء. اختر Ürün | İlaç في الأعلى. هذا ليس تشخيصاً.',
     'tour_more':
-        'دليل الحقوق والبطاقات والأدوات الإضافية من هذه القائمة.',
+        'الخريطة لم تعد في الشريط — افتحها من هنا. الفحوصات والتمارين والألعاب (بازل، CVI، فحص التوحد) هنا أيضاً.',
+    'tour_messages':
+        'الرسائل ما زالت في الشريط العلوي. تابع المحادثة مع المختصين ومقدمي الرعاية من هنا.',
+    'more_map': 'الخريطة',
+    'more_map_sub': 'مراكز الدعم والخدمات القريبة',
     'more_rights': 'معالج الحقوق',
     'more_rights_sub': 'تحقق من حقوقك خطوة بخطوة',
     'more_cards': 'بطاقات التواصل',
@@ -330,6 +371,8 @@ const _tables = <AppLang, Map<String, String>>{
     'more_gelisim_sub': '120 نشاطًا · 7 مجموعات · تصفية وفيديو',
     'more_aile_kocu': 'مدرب العائلة',
     'more_aile_kocu_sub': 'دروس وأدوية وملاحظات (بدون إنترنت)',
+    'more_barkod': 'تحليل الباركود / المنتج',
+    'more_barkod_sub': 'المكونات ومسببات الحساسية المحتملة (ليس تشخيصاً)',
     'profile_swipe_close': 'اسحب للأسفل للإغلاق',
     'profile_complete': 'أكمل ملفك الشخصي',
     'profile_photo_add': 'المس الصورة الرمزية لإضافة صورة',
@@ -392,12 +435,15 @@ const _tables = <AppLang, Map<String, String>>{
   AppLang.fr: {
     'nav_home': 'Accueil',
     'nav_map': 'Carte',
+    'nav_listings': 'Annonces',
+    'nav_scan': 'Scan',
     'nav_forum': 'Forum',
     'nav_kesfet': 'Découvrir',
     'nav_more': 'Plus',
     'nav_skip': 'Passer',
+    'nav_messages': 'Messages',
     'tour_home':
-        'Accédez au fil d’accueil, aux annonces et aux infos. Engelsiz Club est une plateforme de soutien social, pas un service clinique.',
+        'L’accueil a les annonces et la bibliothèque. Le guide 0–2 ans est ici, pas dans Plus.',
     'tour_map':
         'Trouvez centres, spécialistes et services à proximité sur la carte.',
     'tour_listings':
@@ -405,9 +451,15 @@ const _tables = <AppLang, Map<String, String>>{
     'tour_forum':
         'Partagez vos expériences et trouvez du soutien dans la communauté.',
     'tour_kesfet':
-        'Courtes vidéos validées sur le handicap, la santé, les droits et la famille.',
+        'Courtes vidéos validées sur le handicap, la santé, les droits et la famille. Le forum est l’onglet suivant.',
+    'tour_scan':
+        'Scannez un code-barres/étiquette produit ou une notice médicament. Choisissez Ürün | İlaç en haut. Pas un diagnostic.',
     'tour_more':
-        'Guide des droits, cartes et outils supplémentaires depuis ce menu.',
+        'La carte n’est plus dans la barre — ouvrez-la ici. Dépistages, exercices et jeux (Puzzle, CVI, dépistage autisme) aussi ici.',
+    'tour_messages':
+        'Les messages restent dans la barre du haut. Continuez le chat avec spécialistes et aidants ici.',
+    'more_map': 'Carte',
+    'more_map_sub': 'Centres et services à proximité',
     'more_rights': 'Assistant des droits',
     'more_rights_sub': 'Vérifiez vos droits étape par étape',
     'more_cards': 'Cartes de communication',
@@ -420,6 +472,8 @@ const _tables = <AppLang, Map<String, String>>{
     'more_gelisim_sub': '120 activités · 7 groupes · filtres et vidéo',
     'more_aile_kocu': 'Coach famille',
     'more_aile_kocu_sub': 'Cours, médicaments et notes (hors ligne)',
+    'more_barkod': 'Code-barres / Analyse produit',
+    'more_barkod_sub': 'Ingrédients, allergènes possibles (pas un diagnostic)',
     'profile_swipe_close': 'Glisser vers le bas pour fermer',
     'profile_complete': 'Complétez votre profil',
     'profile_photo_add': 'Touchez l’avatar pour ajouter une photo',

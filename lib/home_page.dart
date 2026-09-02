@@ -22,6 +22,7 @@ import 'widgets/gezi_kampanya_home_section.dart';
 import 'widgets/hastaliklar_section.dart';
 import 'widgets/home_social_footer.dart';
 import 'pages/premature_gelisim_rehberi_page.dart';
+import 'pages/yas02_gelisim_rehberi_page.dart';
 import 'widgets/admin_disease_edit_sheet.dart';
 import 'widgets/home_hero_admin_sheet.dart';
 import 'widgets/medical_info_card.dart';
@@ -183,9 +184,20 @@ class _HomePageState extends State<HomePage> {
     return fallback();
   }
 
+  bool _isYas02Guide(DiseaseInfo d) {
+    final id = d.id.trim().toLowerCase();
+    if (id == 'yas02' || id.contains('0-2-yas')) return true;
+    final n = d.name.trim().toLowerCase().replaceAll('–', '-');
+    return n.contains('0-2') && n.contains('gelişim rehberi');
+  }
+
   void _openDisease(DiseaseInfo d) {
     if (d.id == 'premature') {
       PrematureGelisimRehberiPage.open(context);
+      return;
+    }
+    if (_isYas02Guide(d)) {
+      Yas02GelisimRehberiPage.open(context);
       return;
     }
     setState(() {

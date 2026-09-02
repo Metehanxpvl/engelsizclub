@@ -227,6 +227,12 @@ class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
         icon = Icons.place_outlined;
       case 'extension':
         icon = Icons.extension_outlined;
+      case 'barcode':
+        icon = Icons.qr_code_scanner;
+      case 'apps':
+        icon = Icons.apps_outlined;
+      case 'games':
+        icon = Icons.extension_outlined;
       default:
         icon = Icons.link;
     }
@@ -398,7 +404,11 @@ class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
                                         const SizedBox(height: 2),
                                         Text(
                                           [
-                                            item.isUrl ? 'Link' : 'Uygulama',
+                                            item.isFolder
+                                                ? 'Grup'
+                                                : item.isUrl
+                                                    ? 'Link'
+                                                    : 'Uygulama',
                                             item.isActive ? 'Aktif' : 'Pasif',
                                             if (item.isBuiltin) 'Yerleşik',
                                           ].join(' · '),
@@ -623,7 +633,7 @@ class _MoreMenuEditSheetState extends State<_MoreMenuEditSheet> {
               decoration: InputDecoration(
                 labelText: _linkType == 'url'
                     ? 'Link (https://… veya /bilgi-kutuphanesi/…)'
-                    : 'Route (aile_kocu, haklar, kartlar, mchat, cvi, cvi2, gelisim)',
+                    : 'Route (harita, taramalar, aile_kocu, haklar, kartlar, mchat, cvi, cvi2, gelisim, barkod, puzzle)',
                 border: const OutlineInputBorder(),
               ),
             ),

@@ -9,6 +9,7 @@ import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
 import '../pages/in_app_web_page.dart';
 import '../pages/premature_gelisim_rehberi_page.dart';
+import '../pages/yas02_gelisim_rehberi_page.dart';
 import '../services/catalog_adapters.dart';
 import 'kesfet_models.dart';
 
@@ -61,6 +62,13 @@ Future<void> openKesfetRelated(
       await PrematureGelisimRehberiPage.open(context);
       return;
     }
+    if (slug == 'yas02' ||
+        slug.contains('0-2-yas') ||
+        slug.contains('0-2-yas-gelisim')) {
+      if (!context.mounted) return;
+      await Yas02GelisimRehberiPage.open(context);
+      return;
+    }
     DiseaseInfo? disease;
     for (final d in CatalogAdapters.diseases()) {
       if (d.id == slug || d.name.toLowerCase() == slug.toLowerCase()) {
@@ -69,6 +77,14 @@ Future<void> openKesfetRelated(
       }
     }
     if (disease != null && context.mounted) {
+      if (disease.id == 'premature') {
+        await PrematureGelisimRehberiPage.open(context);
+        return;
+      }
+      if (disease.id == 'yas02') {
+        await Yas02GelisimRehberiPage.open(context);
+        return;
+      }
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => _KesfetDiseasePage(disease: disease!),

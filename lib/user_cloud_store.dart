@@ -367,3 +367,83 @@ Future<void> _cacheLocally(String email, UserCloudProfile profile) async {
     await saveProfilFoto(email, photo);
   }
 }
+
+final Map<String, String> _displayNameCache = {};
+
+String _sanitizePublicDisplayName(String raw) {
+  final s = raw.trim();
+  if (s.isEmpty) return '';
+  if (s.contains('@') || s.contains('↔') || s.contains('****')) return '';
+  final lower = s.toLowerCase();
+  if (lower == 'üye' ||
+      lower == 'uye' ||
+      lower == 'member' ||
+      lower == 'siz') {
+    return '';
+  }
+  return s;
+}
+
+/// owner_email → görünen ad (sohbet). RPC yoksa ilan poster_name yedeklenir.
+Future<Map<String, String>> loadUserDisplayNamesByEmail(
+  Iterable<String> emails,
+) async {
+  final needed = <String>{};
+  final result = <String, String>{};
+  for (final raw in emails) {
+    final e = raw.trim().toLowerCase();
+    if (e.isEmpty || !e.contains('@')) continue;
+    final cached = _displayNameCache[e];
+    if (cached != null) {
+      if (cached.isNotEmpty) result[e] = cached;
+    } else {
+      needed.add(e);
+    }
+  }
+  if (needed.isEmpty) return result;
+
+  void store(String email, String rawName) {
+    final name = _sanitizePublicDisplayName(rawName);
+    if (email.isEmpty || name.isEmpty) return;
+    _displayNameCache[email] = name;
+    result[email] = name;
+  }
+
+  try {
+    final client = Supabase.instance.client;
+    try {
+      final rows = await withNetworkTimeout(
+        client.rpc(
+          'get_user_display_names',
+          params: {'emails': needed.toList()},
+        ),
+      );
+      if (rows is List) {
+        for (final row in rows.whereType<Map>()) {
+          final email = (row['owner_email']?.toString() ?? '').toLowerCase();
+          store(email, row['display_name']?.toString() ?? '');
+        }
+      }
+    } catch (_) {
+      // RPC henüz yok / RLS — ilan adıyla dene.
+    }
+
+    final missing = needed.where((e) => !result.containsKey(e)).toList();
+    if (missing.isNotEmpty) {
+      try {
+        final rows = await withNetworkTimeout(
+          client
+              .from('ilanlar')
+              .select('owner_email, poster_name')
+              .inFilter('owner_email', missing),
+        );
+        for (final row in (rows as List).whereType<Map>()) {
+          final email = (row['owner_email']?.toString() ?? '').toLowerCase();
+          store(email, row['poster_name']?.toString() ?? '');
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+
+  return result;
+}

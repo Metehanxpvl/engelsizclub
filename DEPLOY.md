@@ -102,6 +102,36 @@ Authentication → URL Configuration:
 
 Uygulama akışı: önce Aile / Uzman / Bakıcı seçilir → Google butonu görünür → seçilen rol hesaba yazılır.
 
+## Ürün analizi — Gemini proxy (CORS, Blaze yok)
+
+Tarayıcı `generativelanguage.googleapis.com` çağırmaz. Ücretsiz proxy:
+
+### A) Cloudflare Worker (tercih)
+```bash
+cd cloudflare
+npx wrangler login
+npx wrangler secret put GEMINI_API_KEY
+npx wrangler secret put R2_ACCOUNT_ID
+npx wrangler secret put R2_ACCESS_KEY_ID
+npx wrangler secret put R2_SECRET_ACCESS_KEY
+npx wrangler secret put R2_BUCKET
+npx wrangler secret put R2_PUBLIC_BASE_URL
+npx wrangler deploy
+```
+Çıkan URL’yi `.env` içine yazın (değerleri git’e koymayın):
+- `R2_WORKER_URL=https://engelsizclub-r2.<hesap>.workers.dev`
+- `GEMINI_PROXY_URL=https://engelsizclub-r2.<hesap>.workers.dev/gemini`
+
+### B) Supabase Edge Function (yedek, ücretsiz)
+```bash
+npx supabase login
+npx supabase secrets set GEMINI_API_KEY=... --project-ref qycrkqwqrysypvqaipqn
+npx supabase functions deploy gemini-proxy --no-verify-jwt --project-ref qycrkqwqrysypvqaipqn
+```
+Uygulama varsayılan olarak `…/functions/v1/gemini-proxy` adresini dener.
+
+Firebase Cloud Function `/api/gemini` Blaze ister; kullanılmaz.
+
 ## Başarı kontrolü
 - [ ] `https://www.engelsizclub.com` açılıyor
 - [ ] HTTPS geçerli

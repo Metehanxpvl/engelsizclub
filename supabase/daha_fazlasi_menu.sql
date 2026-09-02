@@ -5,7 +5,7 @@ create table if not exists public.daha_fazlasi_menu (
   id bigint generated always as identity primary key,
   title text not null,
   subtitle text not null default '',
-  -- 'route' = uygulama içi (aile_kocu, haklar, kartlar, mchat, cvi, gelisim)
+  -- 'route' = uygulama içi (harita, taramalar, aile_kocu, haklar, kartlar, mchat, cvi, cvi2, gelisim, barkod, puzzle)
   -- 'url'   = harici / bilgi-kütüphanesi sayfası
   link_type text not null default 'url'
     check (link_type in ('route', 'url')),
@@ -70,13 +70,47 @@ create policy "more_menu_delete_admin"
 insert into public.daha_fazlasi_menu
   (title, subtitle, link_type, link, icon, sort_order, is_active, is_builtin)
 select * from (values
+  ('Taramalar & Egzersizler & Oyun', 'Puzzle, CVI egzersizleri ve otizm tarama', 'route', 'taramalar', 'apps', 5, true, true),
   ('Aile Koçum', 'Ders, ilaç ve not takibi (çevrimdışı)', 'route', 'aile_kocu', 'family', 10, true, true),
   ('Haklar', 'Devlet hakları ve rehber', 'route', 'haklar', 'balance', 20, true, true),
   ('Kartlar', 'Görsel destek kartları', 'route', 'kartlar', 'grid', 30, true, true),
-  ('Otizm Tarama', 'M-CHAT tarama akışı', 'route', 'mchat', 'search', 40, true, true),
-  ('CVI Görsel Egzersizleri', '20 adımlık yüksek kontrastlı görsel egzersiz', 'route', 'cvi', 'eye', 50, true, true),
   ('Gelişim Etkinlikleri', '120 etkinlik · 7 grup · filtre ve video', 'route', 'gelisim', 'extension', 60, true, true)
 ) as v(title, subtitle, link_type, link, icon, sort_order, is_active, is_builtin)
 where not exists (select 1 from public.daha_fazlasi_menu limit 1);
+
+-- Harita alt menüden Daha Fazlası’na taşındı (tablo dolu olsa da ekle).
+insert into public.daha_fazlasi_menu
+  (title, subtitle, link_type, link, icon, sort_order, is_active, is_builtin)
+select
+  'Harita',
+  'Destek merkezleri ve yakındaki hizmet noktaları',
+  'route',
+  'harita',
+  'place',
+  0,
+  true,
+  true
+where not exists (
+  select 1 from public.daha_fazlasi_menu
+  where lower(link) in ('harita', 'merkezler')
+);
+
+-- Taramalar & Egzersizler & Oyun grubu (tablo dolu olsa da ekle).
+-- Çocuklar (puzzle / cvi / cvi2 / mchat) istemcide bu grubun altında açılır.
+insert into public.daha_fazlasi_menu
+  (title, subtitle, link_type, link, icon, sort_order, is_active, is_builtin)
+select
+  'Taramalar & Egzersizler & Oyun',
+  'Puzzle, CVI egzersizleri ve otizm tarama',
+  'route',
+  'taramalar',
+  'apps',
+  5,
+  true,
+  true
+where not exists (
+  select 1 from public.daha_fazlasi_menu
+  where lower(trim(link)) in ('taramalar', 'taramalar_egzersizler_oyun')
+);
 
 notify pgrst, 'reload schema';

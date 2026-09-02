@@ -4,7 +4,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_config.dart';
 import 'data/ilanlar_data.dart'
-    show kIlanCatUzmanAriyorum, publicContactLabel, scrubEmailsInText;
+    show
+        kIlanCatUzmanAriyorum,
+        chatPeerDisplayName,
+        publicContactLabel,
+        scrubEmailsInText;
 import 'kredi_store.dart';
 import 'services/broadcast_push_service.dart';
 import 'sohbet_store.dart';
@@ -146,9 +150,9 @@ Future<bool> notifyIlanSahibiTeklif({
     // RLS / tablo yoksa insert denemesine devam; unique index varsa yine korur.
   }
 
-  final name = publicContactLabel(
+  final name = chatPeerDisplayName(
     actorEmail,
-    preferredName: actorName,
+    profileName: actorName,
   );
   final key = sohbetKeyFor(actorEmail, owner);
 
@@ -204,9 +208,9 @@ Future<void> notifySohbetMesaj({
   if (user == null || actorEmail.isEmpty || owner.isEmpty) return;
   if (owner == actorEmail) return;
 
-  final name = publicContactLabel(
+  final name = chatPeerDisplayName(
     actorEmail,
-    preferredName: actorName ?? '',
+    profileName: actorName ?? '',
   );
   final raw = scrubEmailsInText(messageBody.trim());
   if (raw.isEmpty) return;

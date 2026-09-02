@@ -60,6 +60,20 @@ class ImageOptimizeService {
     );
   }
 
+  /// İlan / katalog kartı değil — etiket OCR için daha yüksek çözünürlük.
+  static Future<OptimizedImage> forLabelScan(Uint8List raw) {
+    return Future(
+      () => _optimize(
+        raw,
+        maxSide: 1600,
+        maxBytes: 900 * 1024,
+        startQuality: 82,
+        minQuality: 68,
+        filePrefix: 'label',
+      ),
+    );
+  }
+
   /// Bilgi kütüphanesi / duyuru kart görselleri.
   static Future<OptimizedImage> forCatalogCard(Uint8List raw) {
     return Future(
