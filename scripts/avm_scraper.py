@@ -34,7 +34,7 @@ import time
 from datetime import date
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -114,6 +114,30 @@ def _env(name: str, *alts: str) -> str:
         if val:
             return val
     return ""
+
+
+_CANONICAL_SUPABASE_URL = "https://qycrkqwqrysypvqaipqn.supabase.co"
+_TYPO_HOST = "qycrkqwqrysypvqipqn.supabase.co"
+
+
+def _normalize_supabase_url(raw: str) -> str:
+    """Trim, ensure https://, strip trailing slash; rewrite known typo host."""
+    s = (raw or "").strip()
+    if not s:
+        return s
+    if not re.match(r"^https?://", s, flags=re.I):
+        s = f"https://{s}"
+    s = s.rstrip("/")
+    host = (urlparse(s).hostname or "").lower()
+    if not host:
+        host = s.split("://", 1)[-1].split("/", 1)[0].lower()
+    has_typo = host == _TYPO_HOST or (
+        "ypvqipqn" in host and "ypvqaipqn" not in host
+    )
+    if has_typo:
+        print("Using corrected SUPABASE_URL host", flush=True)
+        return _CANONICAL_SUPABASE_URL
+    return s
 
 
 def _redact_error(msg: str) -> str:
@@ -682,7 +706,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     _load_dotenv()
     args = parse_args()
-    supabase_url = _env("SUPABASE_URL")
+    supabase_url = _normalize_supabase_url(_env("SUPABASE_URL"))
     supabase_key = _env(
         "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_KEY"
     )

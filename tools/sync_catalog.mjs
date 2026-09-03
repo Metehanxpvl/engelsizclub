@@ -15,19 +15,37 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const contentDir = path.join(root, 'content');
 
-const url = (process.env.SUPABASE_URL || '').trim().replace(/\/$/, '');
+const CANONICAL_SUPABASE_URL = 'https://qycrkqwqrysypvqaipqn.supabase.co';
+const TYPO_HOST = 'qycrkqwqrysypvqipqn.supabase.co';
+
+/** Trim, ensure https://, strip trailing slash; rewrite known typo host. */
+function normalizeSupabaseUrl(raw) {
+  let s = (raw || '').trim();
+  if (!s) return s;
+  if (!/^https?:\/\//i.test(s)) s = `https://${s}`;
+  s = s.replace(/\/+$/, '');
+  let hostname = '';
+  try {
+    hostname = new URL(s).hostname.toLowerCase();
+  } catch {
+    hostname = s.replace(/^https?:\/\//i, '').split('/')[0].toLowerCase();
+  }
+  const hasTypo =
+    hostname === TYPO_HOST ||
+    (hostname.includes('ypvqipqn') && !hostname.includes('ypvqaipqn'));
+  if (hasTypo) {
+    console.log('Using corrected SUPABASE_URL host');
+    return CANONICAL_SUPABASE_URL;
+  }
+  return s;
+}
+
+const url = normalizeSupabaseUrl(process.env.SUPABASE_URL);
 const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 
 if (!url || !key) {
   console.error(
     'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Set SUPABASE_URL to https://qycrkqwqrysypvqaipqn.supabase.co (include https://).',
-  );
-  process.exit(1);
-}
-
-if (url.includes('qycrkqwqrysypvqipqn')) {
-  console.error(
-    'SUPABASE_URL hostname is missing "ai" (typo: ypvqipqn). Use https://qycrkqwqrysypvqaipqn.supabase.co',
   );
   process.exit(1);
 }
