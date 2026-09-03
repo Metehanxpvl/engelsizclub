@@ -16,7 +16,7 @@ enum CityFeedKind { kampanya, etkinlik }
 
 /// Kampanyalar / Etkinlikler — story benzeri dikey liste (görsel + açıklama).
 /// Kampanyalar: Tümü | Tüm ülkede geçerli | il ara (81 il).
-/// Etkinlikler: Tümü (il başlıkları) | il ara; boş / ülke geneli en sonda «Tüm ülke».
+/// Etkinlikler: Tümü (boş il → «Tüm ülke» üstte, sonra il başlıkları) | il ara.
 class KampanyalarPage extends StatefulWidget {
   const KampanyalarPage({
     super.key,
@@ -82,20 +82,25 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
 
   Future<void> _reload({bool silent = false}) async {
     if (!silent && mounted) setState(() => _loading = true);
-    final list = _isEtkinlik
-        ? await loadEtkinlikItems(
-            forceRefresh: !hasFreshEtkinlikCache,
-            viewerEmail: widget.userEmail,
-          )
-        : await loadKampanyaItems(
-            forceRefresh: !hasFreshKampanyaCache,
-            viewerEmail: widget.userEmail,
-          );
-    if (!mounted) return;
-    setState(() {
-      _items = list;
-      _loading = false;
-    });
+    try {
+      final list = _isEtkinlik
+          ? await loadEtkinlikItems(
+              forceRefresh: !hasFreshEtkinlikCache,
+              viewerEmail: widget.userEmail,
+            )
+          : await loadKampanyaItems(
+              forceRefresh: !hasFreshKampanyaCache,
+              viewerEmail: widget.userEmail,
+            );
+      if (!mounted) return;
+      setState(() {
+        _items = list;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
   }
 
   List<KampanyaItem> get _activeBase {
@@ -164,27 +169,27 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
     return raw;
   }
 
-  /// Tümü: illere göre grup (kCityNames sırası), bilinmeyen iller, en sonda Tüm ülke.
+  /// Tümü: boş / ülke geneli önce «Tüm ülke» (gizlenmesin), sonra iller, sonra bilinmeyen.
   List<MapEntry<String, List<KampanyaItem>>> get _etkinlikGroups {
     final buckets = <String, List<KampanyaItem>>{};
     for (final k in _visible) {
       final key = _etkinlikCityHeading(k);
       (buckets[key] ??= []).add(k);
     }
+    final nationwide = buckets.remove(_nationwideHeading);
     final out = <MapEntry<String, List<KampanyaItem>>>[];
+    if (nationwide != null && nationwide.isNotEmpty) {
+      out.add(MapEntry(_nationwideHeading, nationwide));
+    }
     for (final name in kCityNames) {
       final list = buckets.remove(name);
       if (list != null && list.isNotEmpty) {
         out.add(MapEntry(name, list));
       }
     }
-    final nationwide = buckets.remove(_nationwideHeading);
     final unknown = buckets.entries.toList()
       ..sort((a, b) => foldTurkish(a.key).compareTo(foldTurkish(b.key)));
     out.addAll(unknown);
-    if (nationwide != null && nationwide.isNotEmpty) {
-      out.add(MapEntry(_nationwideHeading, nationwide));
-    }
     return out;
   }
 
@@ -401,6 +406,17 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
     }
   }
 
+  String? get _emptyHint {
+    if (!_isEtkinlik || _filter != _KampanyaFilter.all) return null;
+    final err = lastEtkinlikLoadError;
+    if (err != null && err.isNotEmpty) return err;
+    if (_isAdmin) {
+      return 'Haftalık AVM listesi için GitHub → Actions → scrape_events → Run workflow '
+          '(GEMINI_API_KEY secret). Cron yalnız main’de çalışır.';
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final items = _visible;
@@ -514,7 +530,15 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
                         ),
                       )
                     : items.isEmpty
-                        ? _buildEmpty()
+                        ? RefreshIndicator(
+                            color: MetoColors.primary,
+                            onRefresh: () => _reload(),
+                            child: ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.fromLTRB(16, 48, 16, 32),
+                              children: [_buildEmpty()],
+                            ),
+                          )
                         : RefreshIndicator(
                             color: MetoColors.primary,
                             onRefresh: () => _reload(),
@@ -621,6 +645,22 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
 
   Widget _buildGroupedEtkinlikList() {
     final groups = _etkinlikGroups;
+    if (groups.isEmpty) {
+      final items = _visible;
+      return ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, i) {
+          return _etkinlikCard(
+            items[i],
+            index: i,
+            length: items.length,
+          );
+        },
+      );
+    }
     final rows = <Object>[];
     for (var gi = 0; gi < groups.length; gi++) {
       final g = groups[gi];
@@ -666,10 +706,22 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
               _emptyMessage,
               textAlign: TextAlign.center,
               style: GoogleFonts.nunito(
-                fontWeight: FontWeight.w700,
-                color: MetoColors.mutedFg,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: MetoColors.foreground,
               ),
             ),
+            if (_emptyHint != null) ...[
+              const SizedBox(height: 10),
+              L10nText(
+                _emptyHint!,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.nunito(
+                  fontWeight: FontWeight.w600,
+                  color: MetoColors.mutedFg,
+                ),
+              ),
+            ],
             if (_isAdmin) ...[
               const SizedBox(height: 16),
               FilledButton.icon(

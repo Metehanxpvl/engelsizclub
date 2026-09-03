@@ -51,6 +51,17 @@ Flutter: `AppCatalogService` + `CatalogAdapters` — remote boşsa yerel `lib/da
 - Yeni görsel için: Supabase Storage’a yükle → satırda `photo` / `media_url` = `https://...`  
   → store güncellemesi gerekmez (`CatalogImage` network destekler)
 
+## Etkinlikler (AVM scraper) — katalog değil
+
+`Sync catalog to Supabase` **Etkinlikler** sayfasını doldurmaz. Liste `public.etkinlikler` okur; AVM scraper ayrı workflow’dur.
+
+1. Supabase SQL Editor → `supabase/events.sql` (mevcut etkinlikleri silmez)
+2. GitHub secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`
+3. GitHub → **Actions** → **Scrape AVM family events** (`scrape_events`) → **Run workflow**  
+   Cron yalnızca **main**’de çalışır.
+
+Yerel deneme: `python scripts/avm_scraper.py --max-sources 3`
+
 ## Store güncellemesi ne zaman gerekir?
 
 - Yeni ekran / bug fix / native izin / paket bağımlılığı

@@ -1,6 +1,13 @@
 -- AVM çocuk / aile etkinlikleri (scraper → events → etkinlikler)
 -- Dashboard: https://supabase.com/dashboard/project/qycrkqwqrysypvqaipqn/sql/new
 --
+-- İlk kurulum:
+--   1) Bu dosyayı SQL Editor’de çalıştırın (additive; mevcut satırları silmez)
+--   2) GitHub secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY
+--   3) GitHub → Actions → "Scrape AVM family events" (scrape_events.yml)
+--      → Run workflow
+-- Catalog sync (sync-catalog) etkinlik listesini DOLDURMAZ — ayrı workflow.
+--
 -- Bu dosya additive’dir: mevcut etkinlikler satırlarını silmez.
 -- Dart hâlâ public.etkinlikler okur. Scraper önce events’e yazar, sonra
 -- source='avm_scrape' + external_id ile etkinlikler’e senkronlar.
@@ -10,9 +17,7 @@
 -- external_id’yi deleted_avm_events’e kaydeder; scraper geri getirmez.
 -- is_active=false satırlarda scraper is_active’i tekrar true yapmaz.
 --
--- Çalıştırdıktan sonra GitHub secrets:
---   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY
--- Workflow: .github/workflows/scrape_events.yml (günlük 05:00 UTC)
+-- Workflow: .github/workflows/scrape_events.yml (günlük 05:00 UTC, yalnızca main)
 
 -- ── ham AVM kayıtları ──────────────────────────────────────────────────────
 create table if not exists public.events (

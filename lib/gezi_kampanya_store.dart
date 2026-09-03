@@ -463,6 +463,60 @@ List<KampanyaItem> _parseScopedRows(dynamic rows, {required String table}) {
   }).toList();
 }
 
+/// Son yükleme hatası (sessiz boş liste yerine UI’da gösterilir).
+String? lastEtkinlikLoadError;
+String? lastKampanyaLoadError;
+
+void _clearFeedLoadError(String table) {
+  if (table == kEtkinlikTable) {
+    lastEtkinlikLoadError = null;
+  } else {
+    lastKampanyaLoadError = null;
+  }
+}
+
+void _setFeedLoadError(String table, Object e) {
+  final raw = e.toString();
+  final missingTable = raw.contains('PGRST205') ||
+      raw.contains('schema cache') ||
+      raw.contains('does not exist') ||
+      raw.contains('42P01') ||
+      raw.contains('Could not find the table');
+  final msg = table == kEtkinlikTable
+      ? (missingTable
+          ? 'Etkinlikler tablosu yok. Supabase SQL Editor’de etkinlikler.sql çalıştırın.'
+          : 'Etkinlikler yüklenemedi.')
+      : (missingTable
+          ? 'Kampanyalar tablosu yok. Supabase’de gezi_kampanya.sql çalıştırın.'
+          : 'Kampanyalar yüklenemedi.');
+  if (table == kEtkinlikTable) {
+    lastEtkinlikLoadError = msg;
+  } else {
+    lastKampanyaLoadError = msg;
+  }
+}
+
+Future<dynamic> _selectScopedRows(String table) async {
+  final sortCol = table == kEtkinlikTable ? 'sort_index' : 'sort_order';
+  try {
+    return await withNetworkTimeout(
+      Supabase.instance.client
+          .from(table)
+          .select()
+          .order(sortCol)
+          .order('created_at', ascending: false),
+    );
+  } catch (_) {
+    // sort_index / sort_order yoksa yine oku; boş liste sanılmasın.
+    return await withNetworkTimeout(
+      Supabase.instance.client
+          .from(table)
+          .select()
+          .order('created_at', ascending: false),
+    );
+  }
+}
+
 Future<List<KampanyaItem>> _loadScopedFeedItems({
   required String table,
   bool forceRefresh = false,
@@ -479,25 +533,20 @@ Future<List<KampanyaItem>> _loadScopedFeedItems({
     return cached.where((k) => k.isActive).toList();
   }
   try {
-    final sortCol = table == kEtkinlikTable ? 'sort_index' : 'sort_order';
-    final rows = await withNetworkTimeout(
-      Supabase.instance.client
-          .from(table)
-          .select()
-          .order(sortCol)
-          .order('created_at', ascending: false),
-    );
+    final rows = await _selectScopedRows(table);
     final list = _parseScopedRows(rows, table: table);
     _setScopedCache(table, list);
+    _clearFeedLoadError(table);
     if (admin) return list;
     return list.where((k) => k.isActive).toList();
-  } catch (_) {
+  } catch (e) {
     final cachedRaw = _scopedCacheList(table);
     if (cachedRaw != null) {
       final cached = List<KampanyaItem>.from(cachedRaw);
       if (admin) return cached;
       return cached.where((k) => k.isActive).toList();
     }
+    _setFeedLoadError(table, e);
     return const [];
   }
 }

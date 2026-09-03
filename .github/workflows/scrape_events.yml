@@ -1,3 +1,12 @@
+# AVM çocuk/aile etkinlikleri → public.events + public.etkinlikler
+#
+# Cron only runs on the default branch (main). workflow_dispatch works on any
+# branch that contains this file.
+#
+# Before the first run:
+#   1) Supabase SQL Editor → supabase/events.sql (additive; does not delete rows)
+#   2) Repo secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY
+#   3) GitHub → Actions → "Scrape AVM family events" → Run workflow
 name: Scrape AVM family events
 
 on:
@@ -21,4 +30,9 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python scripts/avm_scraper.py
+        run: |
+          # Secret may omit the extra `a` in the project ref; rewrite before python.
+          SUPABASE_URL="${SUPABASE_URL//qycrkqwqrysypvqipqn/qycrkqwqrysypvqaipqn}"
+          SUPABASE_URL="${SUPABASE_URL//ypvqipqn.supabase.co/ypvqaipqn.supabase.co}"
+          export SUPABASE_URL
+          python scripts/avm_scraper.py
