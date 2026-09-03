@@ -15,7 +15,8 @@ enum _KampanyaFilter { all, nationwide, city }
 enum CityFeedKind { kampanya, etkinlik }
 
 /// Kampanyalar / Etkinlikler — story benzeri dikey liste (görsel + açıklama).
-/// Filtre: Tümü | Tüm ülkede geçerli | il ara (Gezi ile aynı 81 il).
+/// Kampanyalar: Tümü | Tüm ülkede geçerli | il ara (81 il).
+/// Etkinlikler: Tümü (il başlıkları) | il ara; boş / ülke geneli en sonda «Tüm ülke».
 class KampanyalarPage extends StatefulWidget {
   const KampanyalarPage({
     super.key,
@@ -149,6 +150,55 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
     }
   }
 
+  static const _nationwideHeading = 'Tüm ülke';
+
+  /// 81-il resmi adı; boş / ülke geneli → Tüm ülke; listede yoksa ham metin.
+  String _etkinlikCityHeading(KampanyaItem k) {
+    if (k.isNationwide) return _nationwideHeading;
+    final raw = k.city.trim();
+    if (raw.isEmpty) return _nationwideHeading;
+    final folded = foldTurkish(raw);
+    for (final name in kCityNames) {
+      if (foldTurkish(name) == folded) return name;
+    }
+    return raw;
+  }
+
+  /// Tümü: illere göre grup (kCityNames sırası), bilinmeyen iller, en sonda Tüm ülke.
+  List<MapEntry<String, List<KampanyaItem>>> get _etkinlikGroups {
+    final buckets = <String, List<KampanyaItem>>{};
+    for (final k in _visible) {
+      final key = _etkinlikCityHeading(k);
+      (buckets[key] ??= []).add(k);
+    }
+    final out = <MapEntry<String, List<KampanyaItem>>>[];
+    for (final name in kCityNames) {
+      final list = buckets.remove(name);
+      if (list != null && list.isNotEmpty) {
+        out.add(MapEntry(name, list));
+      }
+    }
+    final nationwide = buckets.remove(_nationwideHeading);
+    final unknown = buckets.entries.toList()
+      ..sort((a, b) => foldTurkish(a.key).compareTo(foldTurkish(b.key)));
+    out.addAll(unknown);
+    if (nationwide != null && nationwide.isNotEmpty) {
+      out.add(MapEntry(_nationwideHeading, nationwide));
+    }
+    return out;
+  }
+
+  bool _reorderEnabled(int i, int len, int delta) {
+    if (!_isAdmin) return false;
+    if (_isEtkinlik) {
+      if (_filter != _KampanyaFilter.city) return false;
+    } else if (_filter != _KampanyaFilter.all) {
+      return false;
+    }
+    final j = i + delta;
+    return j >= 0 && j < len;
+  }
+
   void _selectAll() {
     setState(() {
       _filter = _KampanyaFilter.all;
@@ -212,7 +262,11 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
   }
 
   Future<void> _move(KampanyaItem item, int delta) async {
-    if (_filter != _KampanyaFilter.all) return;
+    if (_isEtkinlik) {
+      if (_filter != _KampanyaFilter.city) return;
+    } else if (_filter != _KampanyaFilter.all) {
+      return;
+    }
     final items = _visible;
     final i = items.indexWhere((g) => g.id == item.id);
     final j = i + delta;
@@ -384,11 +438,12 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
                   selected: _filter == _KampanyaFilter.all,
                   onTap: _selectAll,
                 ),
-                _chip(
-                  label: 'Tüm ülkede geçerli',
-                  selected: _filter == _KampanyaFilter.nationwide,
-                  onTap: _selectNationwide,
-                ),
+                if (!_isEtkinlik)
+                  _chip(
+                    label: 'Tüm ülkede geçerli',
+                    selected: _filter == _KampanyaFilter.nationwide,
+                    onTap: _selectNationwide,
+                  ),
                 if (_city != null)
                   Material(
                     color: MetoColors.primary,
@@ -463,40 +518,140 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
                         : RefreshIndicator(
                             color: MetoColors.primary,
                             onRefresh: () => _reload(),
-                            child: ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-                              itemCount: items.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 12),
-                              itemBuilder: (context, i) {
-                                final item = items[i];
-                                return GeziKampanyaFeedCard(
-                                  imageUrl: item.imageUrl,
-                                  title: item.title,
-                                  description: item.description,
-                                  locationLabel: item.locationLabel,
-                                  isAdmin: _isAdmin,
-                                  onDelete:
-                                      _isAdmin ? () => _delete(item) : null,
-                                  onEdit:
-                                      _isAdmin ? () => _openEdit(item) : null,
-                                  onMoveUp: _isAdmin &&
-                                          _filter == _KampanyaFilter.all &&
-                                          i > 0
-                                      ? () => _move(item, -1)
-                                      : null,
-                                  onMoveDown: _isAdmin &&
-                                          _filter == _KampanyaFilter.all &&
-                                          i < items.length - 1
-                                      ? () => _move(item, 1)
-                                      : null,
-                                );
-                              },
-                            ),
+                            child: _isEtkinlik &&
+                                    _filter == _KampanyaFilter.all
+                                ? _buildGroupedEtkinlikList()
+                                : ListView.separated(
+                                    physics:
+                                        const AlwaysScrollableScrollPhysics(),
+                                    padding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      4,
+                                      16,
+                                      32,
+                                    ),
+                                    itemCount: items.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(height: 12),
+                                    itemBuilder: (context, i) {
+                                      return _etkinlikCard(
+                                        items[i],
+                                        index: i,
+                                        length: items.length,
+                                      );
+                                    },
+                                  ),
                           ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _etkinlikCard(
+    KampanyaItem item, {
+    required int index,
+    required int length,
+  }) {
+    return GeziKampanyaFeedCard(
+      imageUrl: item.imageUrl,
+      title: item.title,
+      description: item.description,
+      locationLabel:
+          _isEtkinlik ? item.avmName.trim() : item.locationLabel,
+      isAdmin: _isAdmin,
+      onDelete: _isAdmin ? () => _delete(item) : null,
+      onEdit: _isAdmin ? () => _openEdit(item) : null,
+      onMoveUp:
+          _reorderEnabled(index, length, -1) ? () => _move(item, -1) : null,
+      onMoveDown:
+          _reorderEnabled(index, length, 1) ? () => _move(item, 1) : null,
+    );
+  }
+
+  Widget _buildCityHeading({
+    required String title,
+    required int count,
+    required bool isFirst,
+  }) {
+    final nationwide = title == _nationwideHeading;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(0, isFirst ? 4 : 18, 0, 10),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: MetoColors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              nationwide
+                  ? Icons.public_outlined
+                  : Icons.location_city_outlined,
+              size: 16,
+              color: MetoColors.primary,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: L10nText(
+              title,
+              style: GoogleFonts.nunito(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: MetoColors.foreground,
+              ),
+            ),
+          ),
+          Text(
+            '$count',
+            style: GoogleFonts.nunito(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: MetoColors.mutedFg,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGroupedEtkinlikList() {
+    final groups = _etkinlikGroups;
+    final rows = <Object>[];
+    for (var gi = 0; gi < groups.length; gi++) {
+      final g = groups[gi];
+      rows.add(
+        _EtkinlikGroupHeader(
+          title: g.key,
+          count: g.value.length,
+          isFirst: gi == 0,
+        ),
+      );
+      rows.addAll(g.value);
+    }
+    return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+      itemCount: rows.length,
+      itemBuilder: (context, i) {
+        final row = rows[i];
+        if (row is _EtkinlikGroupHeader) {
+          return _buildCityHeading(
+            title: row.title,
+            count: row.count,
+            isFirst: row.isFirst,
+          );
+        }
+        final item = row as KampanyaItem;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _etkinlikCard(item, index: 0, length: 1),
+        );
+      },
     );
   }
 
@@ -625,3 +780,16 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
     );
   }
 }
+
+class _EtkinlikGroupHeader {
+  const _EtkinlikGroupHeader({
+    required this.title,
+    required this.count,
+    required this.isFirst,
+  });
+
+  final String title;
+  final int count;
+  final bool isFirst;
+}
+

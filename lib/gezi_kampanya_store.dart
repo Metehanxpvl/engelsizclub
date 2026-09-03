@@ -153,6 +153,7 @@ class KampanyaItem {
     required this.imageUrl,
     this.description = '',
     this.city = '',
+    this.avmName = '',
     this.sortOrder = 0,
     this.isActive = true,
     this.createdBy = '',
@@ -165,6 +166,8 @@ class KampanyaItem {
   final String description;
   /// Boş veya sentinel → tüm ülkede; aksi halde il adı (ör. Ankara).
   final String city;
+  /// AVM adı (scraper); kampanyalarda boş.
+  final String avmName;
   final int sortOrder;
   final bool isActive;
   final String createdBy;
@@ -174,7 +177,13 @@ class KampanyaItem {
 
   bool get isNationwide => isKampanyaNationwide(city);
 
-  String get locationLabel => kampanyaLocationLabel(city);
+  String get locationLabel {
+    final loc = kampanyaLocationLabel(city);
+    final avm = avmName.trim();
+    if (avm.isEmpty) return loc;
+    if (isNationwide) return avm;
+    return '$avm · $loc';
+  }
 
   factory KampanyaItem.fromJson(Map<String, dynamic> json) {
     final created =
@@ -187,6 +196,7 @@ class KampanyaItem {
       imageUrl: json['image_url']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       city: json['city']?.toString() ?? '',
+      avmName: json['avm_name']?.toString() ?? '',
       sortOrder: sortOrder > 0 ? sortOrder : sortIndex,
       isActive: json['is_active'] != false,
       createdBy: json['created_by']?.toString() ?? '',
@@ -441,11 +451,16 @@ void _invalidateScopedCache(String table) {
   }
 }
 
-List<KampanyaItem> _parseScopedRows(dynamic rows) {
+List<KampanyaItem> _parseScopedRows(dynamic rows, {required String table}) {
   return [
     for (final e in (rows as List).whereType<Map>())
       KampanyaItem.fromJson(Map<String, dynamic>.from(e)),
-  ].where((k) => k.id > 0 && k.imageUrl.trim().isNotEmpty).toList();
+  ].where((k) {
+    if (k.id <= 0) return false;
+    // Scrape etkinliklerinde görsel olmayabilir; kampanyada görsel zorunlu.
+    if (table == kEtkinlikTable) return true;
+    return k.imageUrl.trim().isNotEmpty;
+  }).toList();
 }
 
 Future<List<KampanyaItem>> _loadScopedFeedItems({
@@ -472,7 +487,7 @@ Future<List<KampanyaItem>> _loadScopedFeedItems({
           .order(sortCol)
           .order('created_at', ascending: false),
     );
-    final list = _parseScopedRows(rows);
+    final list = _parseScopedRows(rows, table: table);
     _setScopedCache(table, list);
     if (admin) return list;
     return list.where((k) => k.isActive).toList();

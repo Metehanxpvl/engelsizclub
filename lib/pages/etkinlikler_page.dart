@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'kampanyalar_page.dart';
 
-/// Etkinlikler — Kampanyalar ile aynı il / tüm ülke akışı.
+/// Etkinlikler — KampanyalarPage (kind: etkinlik); Tümü il başlıklarıyla, il ara ile tek il.
 class EtkinliklerPage {
   static Future<void> open(
     BuildContext context, {

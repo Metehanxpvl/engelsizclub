@@ -20,11 +20,23 @@ create table if not exists public.etkinlikler (
   image_url text not null,
   description text not null default '',
   city text,
+  sort_order int not null default 0,
   sort_index int not null default 0,
   is_active boolean not null default true,
   created_by text not null default '',
   created_at timestamptz not null default now()
 );
+
+-- Mevcut tablo (CREATE IF NOT EXISTS atlanır): Dart insert her zaman sort_order gönderir
+alter table public.etkinlikler
+  add column if not exists sort_order int not null default 0;
+
+alter table public.etkinlikler
+  add column if not exists sort_index int not null default 0;
+
+update public.etkinlikler
+set sort_order = sort_index
+where coalesce(sort_order, 0) = 0 and coalesce(sort_index, 0) <> 0;
 
 create index if not exists etkinlikler_sort_idx
   on public.etkinlikler (is_active, sort_index, created_at desc);
