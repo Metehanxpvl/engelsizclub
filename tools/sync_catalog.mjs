@@ -15,11 +15,33 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const contentDir = path.join(root, 'content');
 
-const url = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+/** Aggressive rewrite: secret often omits the extra `a` in the project ref. */
+function rewriteSupabaseHost(raw) {
+  let s = String(raw ?? '').trim();
+  if (!s) return s;
+  s = s.replace(/qycrkqwqrysypvqipqn/gi, 'qycrkqwqrysypvqaipqn');
+  s = s.replace(/ypvqipqn\.supabase\.co/gi, 'ypvqaipqn.supabase.co');
+  if (!/^https?:\/\//i.test(s)) s = `https://${s}`;
+  return s.replace(/\/+$/, '');
+}
 
-if (!url || !key) {
-  console.error('SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY gerekli.');
+function applySupabaseUrl() {
+  const next = rewriteSupabaseHost(process.env.SUPABASE_URL);
+  process.env.SUPABASE_URL = next;
+  return next;
+}
+
+function restUrl(pathAndQuery) {
+  const base = applySupabaseUrl();
+  return `${base}/rest/v1/${pathAndQuery}`;
+}
+
+const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+
+if (!rewriteSupabaseHost(process.env.SUPABASE_URL) || !key) {
+  console.error(
+    'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Set SUPABASE_URL to https://qycrkqwqrysypvqaipqn.supabase.co (include https://).',
+  );
   process.exit(1);
 }
 
@@ -33,7 +55,7 @@ const headers = {
 async function upsert(table, rows, onConflict = 'id') {
   if (!rows?.length) return;
   const res = await fetch(
-    `${url}/rest/v1/${table}?on_conflict=${encodeURIComponent(onConflict)}`,
+    restUrl(`${table}?on_conflict=${encodeURIComponent(onConflict)}`),
     {
       method: 'POST',
       headers,
@@ -60,7 +82,7 @@ async function upsertSettings(obj) {
     }));
   // settings PK = key
   const res = await fetch(
-    `${url}/rest/v1/app_settings?on_conflict=key`,
+    restUrl('app_settings?on_conflict=key'),
     {
       method: 'POST',
       headers,
@@ -80,6 +102,7 @@ function readJson(name) {
 }
 
 async function main() {
+  process.env.SUPABASE_URL = rewriteSupabaseHost(process.env.SUPABASE_URL);
   const settings = readJson('settings.json');
   if (settings) await upsertSettings(settings);
 
