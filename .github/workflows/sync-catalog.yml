@@ -23,4 +23,9 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: node tools/sync_catalog.mjs
+        run: |
+          # Secret may omit the extra `a` in the project ref; rewrite before node.
+          SUPABASE_URL="${SUPABASE_URL//qycrkqwqrysypvqipqn/qycrkqwqrysypvqaipqn}"
+          SUPABASE_URL="${SUPABASE_URL//ypvqipqn.supabase.co/ypvqaipqn.supabase.co}"
+          export SUPABASE_URL
+          node tools/sync_catalog.mjs
