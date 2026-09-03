@@ -18,6 +18,9 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    # ~100 AVM sources: fetch + Gemini per mall. Default job limit is 360m;
+    # 90m is enough for a full run with polite delays.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
