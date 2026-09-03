@@ -15,11 +15,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const contentDir = path.join(root, 'content');
 
-const url = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const url = (process.env.SUPABASE_URL || '').trim().replace(/\/$/, '');
+const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 
 if (!url || !key) {
-  console.error('SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY gerekli.');
+  console.error(
+    'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Set SUPABASE_URL to https://qycrkqwqrysypvqaipqn.supabase.co (include https://).',
+  );
+  process.exit(1);
+}
+
+if (url.includes('qycrkqwqrysypvqipqn')) {
+  console.error(
+    'SUPABASE_URL hostname is missing "ai" (typo: ypvqipqn). Use https://qycrkqwqrysypvqaipqn.supabase.co',
+  );
   process.exit(1);
 }
 

@@ -19,6 +19,8 @@ jobs:
           node-version: '20'
       - name: Upsert content → Supabase
         env:
+          # URL must be https://qycrkqwqrysypvqaipqn.supabase.co (must include https://)
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node tools/sync_catalog.mjs
