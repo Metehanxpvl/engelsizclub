@@ -27,7 +27,9 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install scraper deps
-        run: pip install -r scripts/requirements-avm.txt
+        run: |
+          pip install -r scripts/requirements-avm.txt
+          python -m playwright install --with-deps chromium
       - name: Fetch mall pages → Gemini → Supabase
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

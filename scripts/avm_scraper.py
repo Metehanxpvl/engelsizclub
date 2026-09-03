@@ -39,14 +39,21 @@ from urllib.parse import urljoin, urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+# Optional: playwright for JS-rendered SPA pages
+try:
+    from playwright.sync_api import sync_playwright  # type: ignore[import-untyped]
+
+    HAS_PLAYWRIGHT = True
+except ImportError:
+    HAS_PLAYWRIGHT = False
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent
 SOURCES_PATH = SCRIPT_DIR / "avm_sources.json"
 
 USER_AGENT = (
-    "Mozilla/5.0 (compatible; EngelsizClubEventBot/1.0; "
-    "+https://engelsiz.club) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 )
 FETCH_TIMEOUT = 20.0
 GEMINI_TIMEOUT = 45.0
@@ -229,14 +236,24 @@ def gemini_prompt(city: str, avm_name: str, today: str, page_text: str) -> str:
 Bugünün tarihi: {today} (Türkiye).
 Kaynak AVM: {avm_name}, şehir: {city}.
 
-Görevin: Aşağıdaki sayfa metninden YALNIZCA çocuk / aile / ebeveyn-çocuk
-etkinliklerini çıkar. Önümüzdeki 7 gün (bu hafta) için geçerli olanları seç.
+Görevin: Aşağıdaki sayfa metninden çocuklara, ailelere veya genel ziyaretçilere
+yönelik TÜM etkinlikleri çıkar.
+Tarih kuralı: Tarihi açıkça yazılmış etkinliklerde bu haftayı (7 gün) tercih et,
+AMA tarih belirtilmemişse veya "her hafta sonu", "sürekli", "devam ediyor" gibi
+ifadeler varsa onları DA dahil et — event_date alanına "Her hafta sonu" veya
+"Devam ediyor" yaz.
+
 Şunları DAHİL ET: çocuk atölyesi, masal saati, 23 Nisan, aile festivali,
 oyun alanı etkinliği, bebek/çocuk kulübü, ücretsiz minik etkinlikleri,
-okul öncesi atölye, ailece katılınan gösteriler.
-Şunları HARİÇ TUT: yetişkin konser/stand-up (çocuk belirtilmemişse),
-mağaza indirimi, restoran kampanyası, iş ilanı, üyelik, genel AVM tanıtımı,
-tarihi belirsiz ve bu haftayla ilgisi olmayan eski duyurular.
+okul öncesi atölye, ailece katılınan gösteriler, tiyatro, sirk, gösteri,
+müzik etkinliği, dans gösterisi, resim/el sanatları atölyesi, bilim atölyesi,
+doğa etkinliği, spor etkinliği, karakter buluşması, kostüm partisi,
+sinema etkinliği, kitap okuma, AVM içi animasyon / eğlence programı,
+açık hava etkinlikleri, konser (aile/çocuk dostu olanlar), paten/buz pateni,
+tema parkı etkinlikleri.
+Şunları HARİÇ TUT: yalnızca yetişkinlere yönelik konser/stand-up
+(çocuk/aile belirtilmemişse), mağaza indirimi, restoran kampanyası,
+iş ilanı, üyelik, genel AVM tanıtımı.
 
 Çıktı: yalnızca bir JSON dizisi. Markdown yok, açıklama yok.
 Her öğe tam olarak bu anahtarlar:
@@ -401,7 +418,41 @@ def coerce_event(
     }
 
 
+def _fetch_with_playwright(url: str) -> str | None:
+    """Render a JS-heavy page with headless Chromium; returns HTML or None."""
+    if not HAS_PLAYWRIGHT:
+        return None
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            ctx = browser.new_context(
+                user_agent=USER_AGENT,
+                locale="tr-TR",
+                viewport={"width": 1280, "height": 900},
+            )
+            page = ctx.new_page()
+            page.goto(url, wait_until="domcontentloaded", timeout=25_000)
+            # Wait a bit for JS to hydrate content
+            page.wait_for_timeout(3000)
+            html = page.content()
+            browser.close()
+        return html
+    except Exception as exc:  # noqa: BLE001
+        print(f"  playwright hatası: {_redact_error(str(exc))}", file=sys.stderr)
+        return None
+
+
+# Minimum text length to consider a page useful
+_MIN_TEXT_LEN = 80
+# Threshold: if plain fetch text is below this, try Playwright
+_JS_FALLBACK_THRESHOLD = 200
+
+
 def fetch_page(http: httpx.Client, url: str) -> tuple[str, str] | None:
+    html: str | None = None
+    final_url = url
+
+    # --- Attempt 1: plain HTTP ---
     try:
         res = http.get(
             url,
@@ -411,32 +462,53 @@ def fetch_page(http: httpx.Client, url: str) -> tuple[str, str] | None:
                 "User-Agent": USER_AGENT,
                 "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.5",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-Dest": "document",
+                "Upgrade-Insecure-Requests": "1",
             },
         )
+        final_url = str(res.url)
+        if res.status_code < 400:
+            raw = res.content[:MAX_HTML_BYTES]
+            try:
+                html = raw.decode(res.encoding or "utf-8", errors="replace")
+            except LookupError:
+                html = raw.decode("utf-8", errors="replace")
+        else:
+            print(f"  HTTP {res.status_code}", file=sys.stderr)
     except httpx.HTTPError as exc:
         print(f"  istek hatası: {_redact_error(str(exc))}", file=sys.stderr)
+
+    # Check if plain HTML has enough text; if not, try Playwright
+    plain_text = html_to_text(html) if html else ""
+    if len(plain_text) < _JS_FALLBACK_THRESHOLD and HAS_PLAYWRIGHT:
+        print("  → JS render deneniyor (playwright)…", file=sys.stderr)
+        rendered = _fetch_with_playwright(url)
+        if rendered:
+            rendered_text = html_to_text(rendered)
+            if len(rendered_text) > len(plain_text):
+                html = rendered
+                plain_text = rendered_text
+
+    if not html:
+        print("  sayfa alınamadı, atlandı", file=sys.stderr)
         return None
-    if res.status_code in SKIP_STATUS or res.status_code >= 400:
-        print(f"  HTTP {res.status_code}, atlandı", file=sys.stderr)
-        return None
-    content_type = (res.headers.get("content-type") or "").lower()
-    if "login" in str(res.url).lower() and "text/html" not in content_type:
-        print("  giriş/paywall sayfası, atlandı", file=sys.stderr)
-        return None
-    raw = res.content[:MAX_HTML_BYTES]
-    try:
-        html = raw.decode(res.encoding or "utf-8", errors="replace")
-    except LookupError:
-        html = raw.decode("utf-8", errors="replace")
+
     low = html.lower()
-    if "password" in low and "login" in low and len(html_to_text(html)) < 400:
+    if "password" in low and "login" in low and len(plain_text) < 400:
         print("  giriş duvarı, atlandı", file=sys.stderr)
         return None
-    text = html_to_text(html)
-    if len(text) < 80:
-        print("  metin yok / çok kısa, atlandı", file=sys.stderr)
+    content_type_hint = html.lower()
+    if "login" in final_url.lower() and "<html" not in content_type_hint[:500]:
+        print("  giriş/paywall sayfası, atlandı", file=sys.stderr)
         return None
-    cover = og_image(html, str(res.url))
+
+    text = plain_text if plain_text else html_to_text(html)
+    if len(text) < _MIN_TEXT_LEN:
+        print(f"  metin çok kısa ({len(text)} karakter), atlandı", file=sys.stderr)
+        return None
+    cover = og_image(html, final_url)
     return text, cover
 
 
@@ -734,6 +806,11 @@ def main() -> int:
     covers: dict[tuple[str, str], str] = {}
     seen_keys: set[tuple[str, str, str, str]] = set()
 
+    # Per-source stats for summary
+    stats_ok: list[str] = []
+    stats_empty: list[str] = []
+    stats_fail: list[str] = []
+
     with httpx.Client(http2=False, follow_redirects=True) as http:
         gemini = GeminiClient(gemini_key, http)
         db = None
@@ -743,10 +820,12 @@ def main() -> int:
 
         for i, src in enumerate(sources, 1):
             city, avm, url = src["city"], src["avm_name"], src["events_url"]
-            print(f"[{i}/{len(sources)}] {city} / {avm}")
+            label = f"{city}/{avm}"
+            print(f"[{i}/{len(sources)}] {label}")
             fetched = fetch_page(http, url)
             polite_sleep()
             if not fetched:
+                stats_fail.append(label)
                 continue
             text, cover = fetched
             if cover:
@@ -755,6 +834,7 @@ def main() -> int:
                 events = gemini.extract_events(city, avm, today_label, text)
             except Exception as exc:  # noqa: BLE001 — skip mall, keep going
                 print(f"  parse atlandı: {_redact_error(str(exc))}", file=sys.stderr)
+                stats_fail.append(label)
                 continue
             kept = 0
             for event in events:
@@ -769,7 +849,24 @@ def main() -> int:
                 seen_keys.add(key)
                 all_events.append(event)
                 kept += 1
-            print(f"  {kept} çocuk/aile etkinliği")
+            print(f"  {kept} etkinlik")
+            if kept > 0:
+                stats_ok.append(f"{label} ({kept})")
+            else:
+                stats_empty.append(label)
+
+        # --- Coverage summary ---
+        total = len(sources)
+        print(f"\n{'='*60}")
+        print(f"KAYNAK ÖZETİ: {total} AVM")
+        print(f"  ✓ Etkinlik bulunan: {len(stats_ok)}")
+        print(f"  ○ Sayfa alındı, etkinlik yok: {len(stats_empty)}")
+        print(f"  ✗ Sayfa alınamadı/hata: {len(stats_fail)}")
+        if stats_fail:
+            print(f"  Başarısız kaynaklar: {', '.join(stats_fail[:20])}")
+            if len(stats_fail) > 20:
+                print(f"    … ve {len(stats_fail)-20} daha")
+        print(f"{'='*60}\n")
 
         if args.dry_run:
             print(json.dumps(all_events, ensure_ascii=False, indent=2))
