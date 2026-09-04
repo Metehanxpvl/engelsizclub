@@ -989,7 +989,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
       _handling = true;
       _loading = true;
       _error = null;
-      _status = 'Prospektüs aranıyor…';
+      _status = 'İlaç bilgisi aranıyor…';
     });
     _webPoller.stop();
     try {
@@ -1162,11 +1162,15 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
             ),
             const SizedBox(height: 12),
             _buildNameSearchBar(),
-            if (_nameSearching ||
-                _nameHits.isNotEmpty ||
+            if (_loading || _nameSearching) ...[
+              const SizedBox(height: 8),
+              _ExaminingLoader(status: _visibleSearchStatus),
+            ],
+            if (_nameHits.isNotEmpty ||
                 _medicineHits.isNotEmpty ||
                 (_nameSearchError != null &&
-                    _nameSearchError!.trim().isNotEmpty)) ...[
+                    _nameSearchError!.trim().isNotEmpty &&
+                    !_nameSearching)) ...[
               const SizedBox(height: 8),
               _buildNameSearchResults(),
             ],
@@ -1174,10 +1178,6 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
             _buildScannerCard(),
             const SizedBox(height: 12),
             ..._photoActionButtons(prominent: true),
-          ],
-          if (_loading) ...[
-            const SizedBox(height: 16),
-            _ExaminingLoader(status: _status),
           ],
           if (!_loading && _error != null && !foundAny) ...[
             const SizedBox(height: 16),
@@ -1366,6 +1366,14 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
         ],
       ),
     );
+  }
+
+  String get _visibleSearchStatus {
+    final status = _status?.trim();
+    if (status != null && status.isNotEmpty) return status;
+    if (_isMedicine) return 'İlaç bilgisi aranıyor…';
+    if (_nameSearching) return 'Ürün bilgisi aranıyor…';
+    return 'Etiket bilgisi aranıyor…';
   }
 
   Widget _buildNameSearchBar() {
@@ -3099,7 +3107,9 @@ class _ExaminingLoaderState extends State<_ExaminingLoader>
               ),
               const SizedBox(height: 12),
               L10nText(
-                'Etiket bilgisi tamamlanıyor',
+                (widget.status != null && widget.status!.trim().isNotEmpty)
+                    ? widget.status!
+                    : 'İlaç bilgisi aranıyor…',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.nunito(
                   fontWeight: FontWeight.w800,
@@ -3115,18 +3125,6 @@ class _ExaminingLoaderState extends State<_ExaminingLoader>
                   backgroundColor: MetoColors.primary.withValues(alpha: 0.15),
                 ),
               ),
-              if (widget.status != null && widget.status!.trim().isNotEmpty) ...[
-                const SizedBox(height: 10),
-                L10nText(
-                  widget.status!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: MetoColors.mutedFg,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
             ],
           ),
         );
