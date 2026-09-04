@@ -53,8 +53,12 @@ class _ForceUpdateGateState extends State<ForceUpdateGate>
 
   @override
   Widget build(BuildContext context) {
-    if (!_svc.blocked) return widget.child;
+    // Never block launch. Remote min-build misconfig must fail-open.
+    return widget.child;
+  }
 
+  // ignore: unused_element
+  Widget _lockOverlay() {
     return Stack(
       fit: StackFit.expand,
       children: [

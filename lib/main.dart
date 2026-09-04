@@ -35,7 +35,6 @@ import 'services/force_update_service.dart';
 import 'services/push_notification_service.dart';
 import 'utils/async_timeout.dart';
 import 'widgets/force_update_gate.dart';
-import 'widgets/loading_error_view.dart';
 
 export 'meto_theme.dart';
 
@@ -221,27 +220,6 @@ Future<void> main() async {
   } catch (e, st) {
     debugPrint('Supabase init failed: $e\n$st');
   }
-  unawaited(AppScreenConfigStore.instance.load());
-
-  try {
-    await GoogleAuthService.startMobileDeepLinkListener();
-  } catch (e, st) {
-    debugPrint('Deep link listener failed: $e\n$st');
-  }
-
-  try {
-    // Dinamik katalog: diskten yükle + arka planda Supabase sync (kota dostu)
-    await withNetworkTimeout(
-      AppCatalogService.instance.bootstrap(),
-      timeout: kBootstrapTimeout,
-    );
-  } catch (e, st) {
-    debugPrint('Catalog bootstrap failed: $e\n$st');
-    // Diskten yüklemeyi yine de dene — ağ yavaşsa uygulama açılsın
-    try {
-      await AppCatalogService.instance.bootstrap();
-    } catch (_) {}
-  }
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -251,6 +229,22 @@ Future<void> main() async {
   );
   runApp(const ProviderScope(child: MetoCareApp()));
   unawaited(_bootstrapPlatformServices());
+  unawaited(_deferredAfterFirstFrame());
+}
+
+/// Remote catalog / screen config / deep links — after UI is already up.
+Future<void> _deferredAfterFirstFrame() async {
+  unawaited(AppScreenConfigStore.instance.load());
+  try {
+    await GoogleAuthService.startMobileDeepLinkListener().timeout(kUiTimeout);
+  } catch (e, st) {
+    debugPrint('Deep link listener failed: $e\n$st');
+  }
+  try {
+    await AppCatalogService.instance.bootstrap().timeout(kUiTimeout);
+  } catch (e, st) {
+    debugPrint('Catalog bootstrap failed: $e\n$st');
+  }
 }
 
 class MetoCareApp extends StatefulWidget {
@@ -261,8 +255,8 @@ class MetoCareApp extends StatefulWidget {
 }
 
 class _MetoCareAppState extends State<MetoCareApp> {
-  AuthUser? _user;
-  bool _booting = true;
+  AuthUser? _user = AuthUser.guest;
+  bool _booting = false;
   bool _bootTimedOut = false;
   bool _needsPasswordReset = false;
   StreamSubscription<AuthState>? _authSub;
@@ -313,7 +307,10 @@ class _MetoCareAppState extends State<MetoCareApp> {
         if (session == null) {
           if (mounted) {
             setState(() {
-              _user = null;
+              // Cold start signed-out: keep guest MainShell.
+              if (_user != null && !_user!.isGuest) {
+                _user = null;
+              }
               _needsPasswordReset = false;
             });
           }
@@ -545,7 +542,7 @@ class _MetoCareAppState extends State<MetoCareApp> {
         final pendingRole = await readPendingGoogleRole();
         setState(() {
           _user = still == null
-              ? null
+              ? (_user?.isGuest == true ? _user : null)
               : authUserFromSupabase(
                   still.user,
                   fallbackUserType: pendingRole,
@@ -630,14 +627,7 @@ class _MetoCareAppState extends State<MetoCareApp> {
               ),
             );
           },
-          home: _booting
-              ? const Scaffold(
-                  body: LoadingErrorView(
-                    loading: true,
-                    loadingMessage: 'Uygulama hazırlanıyor…',
-                  ),
-                )
-              : _needsPasswordReset
+          home: _needsPasswordReset
                   ? _NewPasswordScreen(
                       onDone: () async {
                         final u = Supabase.instance.client.auth.currentUser;
