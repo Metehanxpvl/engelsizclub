@@ -829,6 +829,12 @@ class IlanlarPageState extends State<IlanlarPage> {
     return false;
   }
 
+  /// Card on screen with no image yet: pull its photo in the background.
+  void _ensureCardPhoto(int id, List<IlanPhoto> photos) {
+    if (photos.any((p) => p.hasImage)) return;
+    unawaited(hydrateFeedCardPhoto(id));
+  }
+
   Future<void> _hydrateSelectedDetail(int id) async {
     final ok = await hydrateIlanDetail(id);
     if (!ok || !mounted) return;
@@ -2691,6 +2697,7 @@ class IlanlarPageState extends State<IlanlarPage> {
   }
 
   Widget _buildUzmanCard(UzmanIlani ilan) {
+    _ensureCardPhoto(ilan.id, ilan.photos);
     final renk = uzmanRenkFor(ilan.uzmanlik);
     final avgR = avgRating(ilan.poster.reviews);
     final km = uzmanKm[ilan.id];
@@ -2907,6 +2914,7 @@ class IlanlarPageState extends State<IlanlarPage> {
   }
 
   Widget _buildBakiciCard(BakiciIlani ilan) {
+    _ensureCardPhoto(ilan.id, ilan.photos);
     final avgR = avgRating(ilan.poster.reviews);
     final km = bakiciKm[ilan.id];
     void openDetail() {
@@ -3119,6 +3127,7 @@ class IlanlarPageState extends State<IlanlarPage> {
   }
 
   Widget _buildIkincielCard(IkincielIlani ilan) {
+    _ensureCardPhoto(ilan.id, ilan.photos);
     final avgR = avgRating(ilan.poster.reviews);
     void openDetail() {
       setState(() => _selectedIkinciel = ilan);
@@ -3726,6 +3735,7 @@ class _PhotoStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final height = photos.length == 1 ? 220.0 : 180.0;
     final gallery = _ilanGalleryImages(photos);
+    final glyph = emoji.trim().isEmpty ? '📦' : emoji;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: SizedBox(
@@ -3757,7 +3767,7 @@ class _PhotoStrip extends StatelessWidget {
                       ? FillPhoto(
                           source: photo.dataUrl,
                           placeholder: Text(
-                            emoji,
+                            glyph,
                             style: TextStyle(
                               fontSize: photos.length == 1 ? 48 : 32,
                               color: Colors.black.withValues(alpha: 0.85),
@@ -3765,7 +3775,7 @@ class _PhotoStrip extends StatelessWidget {
                           ),
                         )
                       : Text(
-                          emoji,
+                          glyph,
                           style: TextStyle(
                             fontSize: photos.length == 1 ? 48 : 32,
                             color: Colors.black.withValues(alpha: 0.85),

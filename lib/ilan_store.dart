@@ -638,6 +638,49 @@ Future<List<Map<String, dynamic>>> _queryIlanlarRows({int offset = 0}) async {
   );
 }
 
+/// Feed thumbnail: first photo only, and only when it is a hosted URL.
+/// Keeps legacy base64 blobs out of the list payload.
+const _kIlanThumbSelect = 'id, thumb:photos->>0';
+
+/// False after the server rejects the JSON-path projection — cards then keep
+/// their emoji placeholder instead of retrying on every page.
+bool _ilanThumbSelectSupported = true;
+
+/// Gives listed rows their first photo so feed cards show the same image the
+/// detail drawer shows. Silent on failure: the card falls back to its
+/// placeholder and the detail view still loads the full `photos` array.
+Future<void> _hydrateListThumbs(Iterable<int> ids) async {
+  if (!_ilanThumbSelectSupported) return;
+  final wanted = ids.where((id) => id > 0).toSet().toList();
+  if (wanted.isEmpty) return;
+  try {
+    final rows = await withNetworkTimeout(
+      Supabase.instance.client
+          .from('ilanlar')
+          .select(_kIlanThumbSelect)
+          .inFilter('id', wanted)
+          .like('photos->>0', 'http%'),
+      timeout: kIlanlarTimeout,
+    );
+    final thumbs = <int, List<IlanPhoto>>{};
+    for (final row in _asIlanMaps(rows)) {
+      final id = (row['id'] as num?)?.toInt() ?? 0;
+      final url = (row['thumb'] ?? '').toString().trim();
+      if (id <= 0 || url.isEmpty) continue;
+      final photo = IlanPhoto.data(url);
+      if (photo.hasImage) thumbs[id] = [photo];
+    }
+    if (thumbs.isEmpty) return;
+    _restoreKeptPhotos(thumbs);
+    _touchIlanlarFeed();
+  } on PostgrestException catch (e) {
+    final code = (e.code ?? '').toUpperCase();
+    if (code.startsWith('PGRST1') || code.startsWith('42')) {
+      _ilanThumbSelectSupported = false;
+    }
+  } catch (_) {}
+}
+
 Future<Map<String, dynamic>?> _queryIlanDetailRow(int id) async {
   final client = Supabase.instance.client;
   try {
@@ -692,6 +735,17 @@ Future<bool> hydrateIlanDetail(int id) async {
   }
 }
 
+final Set<int> _feedPhotoRequests = <int>{};
+
+/// Feed card with no image left after [_hydrateListThumbs] — its photo is a
+/// legacy base64 blob the list query cannot carry. Pull the single row the
+/// same way the detail view does, once per listing, and repaint the feed.
+Future<void> hydrateFeedCardPhoto(int id) async {
+  if (id <= 0 || !ilanExistsInRuntime(id)) return;
+  if (!_feedPhotoRequests.add(id)) return;
+  if (await hydrateIlanDetail(id)) _touchIlanlarFeed();
+}
+
 /// Deep-link / edit: ensure the row is in memory, with photos if possible.
 Future<bool> ensureIlanLoaded(int id) async {
   if (id <= 0) return false;
@@ -714,6 +768,10 @@ Future<bool> _loadIlanlarPage({
       _applyRows(list, replace: replace);
       _ilanListOffset = replace ? list.length : _ilanListOffset + list.length;
       ilanlarHasMore = list.length >= kIlanListPageSize;
+      _touchIlanlarFeed();
+      await _hydrateListThumbs(
+        [for (final row in list) (row['id'] as num?)?.toInt() ?? 0],
+      );
       await _cacheAllLocally();
       _touchIlanlarFeed();
       return true;
