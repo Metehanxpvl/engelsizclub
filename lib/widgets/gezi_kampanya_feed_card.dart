@@ -403,7 +403,9 @@ class GeziKampanyaFeedCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       L10nText(
-                        '$joinCount kişi katılmak istiyor',
+                        joinedByMe
+                            ? '$joinCount kişi katılmak istiyor · Katılıyorsunuz'
+                            : '$joinCount kişi katılmak istiyor',
                         style: GoogleFonts.nunito(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
@@ -411,39 +413,59 @@ class GeziKampanyaFeedCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      OutlinedButton(
-                        onPressed: joinBusy ? null : onJoinTap,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: joinedByMe
-                              ? MetoColors.mutedFg
-                              : MetoColors.primary,
-                          side: BorderSide(
-                            color: joinedByMe
-                                ? MetoColors.border
-                                : MetoColors.primary,
+                      if (joinedByMe)
+                        OutlinedButton.icon(
+                          onPressed: joinBusy ? null : onJoinTap,
+                          icon: joinBusy
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Color(0xFFB45309),
+                                  ),
+                                )
+                              : const Icon(Icons.logout_outlined, size: 18),
+                          label: L10nText(
+                            'Katılmaktan vazgeç',
+                            style: GoogleFonts.nunito(
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFB45309),
+                            side: const BorderSide(color: Color(0xFFB45309)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        )
+                      else
+                        FilledButton.icon(
+                          onPressed: joinBusy ? null : onJoinTap,
+                          icon: joinBusy
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.favorite_outline, size: 18),
+                          label: L10nText(
+                            'Katılmak istiyorum',
+                            style: GoogleFonts.nunito(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: MetoColors.primary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
-                        child: joinBusy
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: MetoColors.primary,
-                                ),
-                              )
-                            : L10nText(
-                                joinedByMe
-                                    ? 'Katılmaktan vazgeç'
-                                    : 'Katılmak istiyorum',
-                                style: GoogleFonts.nunito(
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                      ),
                     ],
                   ),
                 ),

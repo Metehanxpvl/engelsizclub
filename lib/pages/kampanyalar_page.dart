@@ -351,7 +351,19 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
       return;
     }
     if (!mounted || _joinBusyId == item.id) return;
-    setState(() => _joinBusyId = item.id);
+    final nextJoined = !item.joinedByMe;
+    final nextCount =
+        (item.joinCount + (nextJoined ? 1 : -1)).clamp(0, 999999).toInt();
+    setState(() {
+      _joinBusyId = item.id;
+      _items = [
+        for (final k in _items)
+          if (k.id == item.id)
+            k.copyWith(joinedByMe: nextJoined, joinCount: nextCount)
+          else
+            k,
+      ];
+    });
     try {
       final result = await toggleEtkinlikKatilim(item.id);
       if (!mounted) return;
@@ -367,7 +379,19 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _joinBusyId = null);
+      setState(() {
+        _items = [
+          for (final k in _items)
+            if (k.id == item.id)
+              k.copyWith(
+                joinedByMe: item.joinedByMe,
+                joinCount: item.joinCount,
+              )
+            else
+              k,
+        ];
+        _joinBusyId = null;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$e')),
       );
