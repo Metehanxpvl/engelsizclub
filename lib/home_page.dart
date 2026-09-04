@@ -398,7 +398,11 @@ class _HomePageState extends State<HomePage> {
             userEmail: widget.userEmail,
           ),
 
-          GeziKampanyaHomeSection(userEmail: widget.userEmail),
+          GeziKampanyaHomeSection(
+            userEmail: widget.userEmail,
+            isGuest: widget.isGuest,
+            onRequireLogin: widget.onRequireLogin,
+          ),
 
           HastaliklarSection(
             userEmail: widget.userEmail,

@@ -256,6 +256,34 @@ String cityFeedTable(GeziKampanyaKind kind) {
   }
 }
 
+const kEtkinlikStatusPending = 'pending';
+const kEtkinlikStatusApproved = 'approved';
+const kEtkinlikStatusRejected = 'rejected';
+const kEtkinlikSourceScrape = 'avm_scrape';
+const kEtkinlikSourceUser = 'user';
+
+/// Onaylı / scrape (null status = onaylı). Reddedilen veya bekleyen değil.
+bool isEtkinlikListed(KampanyaItem k) {
+  if (!k.isActive) return false;
+  if (k.source.trim() == kEtkinlikSourceScrape) return true;
+  final s = k.status.trim().toLowerCase();
+  return s.isEmpty || s == kEtkinlikStatusApproved;
+}
+
+bool isEtkinlikPending(KampanyaItem k) =>
+    k.status.trim().toLowerCase() == kEtkinlikStatusPending;
+
+bool isEtkinlikRejected(KampanyaItem k) =>
+    k.status.trim().toLowerCase() == kEtkinlikStatusRejected;
+
+String formatEtkinlikWhen(DateTime dt, {int? hour, int? minute}) {
+  final when = '${dt.day} ${_trMonthNames[dt.month - 1]} ${dt.year}';
+  if (hour == null) return when;
+  final hh = hour.toString().padLeft(2, '0');
+  final mm = (minute ?? 0).toString().padLeft(2, '0');
+  return '$when, $hh:$mm';
+}
+
 /// Kampanya / etkinlik satırı (aynı kolonlar; etkinlikler.sort_index → sortOrder).
 class KampanyaItem {
   const KampanyaItem({
@@ -269,6 +297,11 @@ class KampanyaItem {
     this.sortOrder = 0,
     this.isActive = true,
     this.createdBy = '',
+    this.status = '',
+    this.source = '',
+    this.rejectionReason = '',
+    this.joinCount = 0,
+    this.joinedByMe = false,
     required this.createdAt,
   });
 
@@ -285,11 +318,43 @@ class KampanyaItem {
   final int sortOrder;
   final bool isActive;
   final String createdBy;
+  /// `pending` | `approved` | `rejected` (boş = onaylı).
+  final String status;
+  final String source;
+  final String rejectionReason;
+  final int joinCount;
+  final bool joinedByMe;
   final DateTime createdAt;
 
   bool get hasDescription => description.trim().isNotEmpty;
 
   bool get isNationwide => isKampanyaNationwide(city);
+
+  KampanyaItem copyWith({
+    int? joinCount,
+    bool? joinedByMe,
+    String? status,
+    String? rejectionReason,
+  }) {
+    return KampanyaItem(
+      id: id,
+      title: title,
+      imageUrl: imageUrl,
+      description: description,
+      city: city,
+      avmName: avmName,
+      eventDate: eventDate,
+      sortOrder: sortOrder,
+      isActive: isActive,
+      createdBy: createdBy,
+      status: status ?? this.status,
+      source: source,
+      rejectionReason: rejectionReason ?? this.rejectionReason,
+      joinCount: joinCount ?? this.joinCount,
+      joinedByMe: joinedByMe ?? this.joinedByMe,
+      createdAt: createdAt,
+    );
+  }
 
   ({String when, String time, String body}) get _whenParts => splitEtkinlikWhen(
         description: description,
@@ -329,6 +394,9 @@ class KampanyaItem {
       sortOrder: sortOrder > 0 ? sortOrder : sortIndex,
       isActive: json['is_active'] != false,
       createdBy: json['created_by']?.toString() ?? '',
+      status: json['status']?.toString() ?? '',
+      source: json['source']?.toString() ?? '',
+      rejectionReason: json['rejection_reason']?.toString() ?? '',
       createdAt: created,
     );
   }
@@ -657,26 +725,93 @@ Future<List<KampanyaItem>> _loadScopedFeedItems({
     table == kEtkinlikTable ? SectionKey.etkinlik : SectionKey.kampanya,
   );
   if (!forceRefresh && _hasFreshScopedCache(table)) {
-    final cached = List<KampanyaItem>.from(_scopedCacheList(table)!);
-    if (admin) return cached;
-    return cached.where((k) => k.isActive).toList();
+    return _filterScopedForViewer(
+      List<KampanyaItem>.from(_scopedCacheList(table)!),
+      table: table,
+      admin: admin,
+      viewerEmail: viewerEmail,
+    );
   }
   try {
     final rows = await _selectScopedRows(table);
     final list = _parseScopedRows(rows, table: table);
     _setScopedCache(table, list);
     _clearFeedLoadError(table);
-    if (admin) return list;
-    return list.where((k) => k.isActive).toList();
+    return _filterScopedForViewer(
+      list,
+      table: table,
+      admin: admin,
+      viewerEmail: viewerEmail,
+    );
   } catch (e) {
     final cachedRaw = _scopedCacheList(table);
     if (cachedRaw != null) {
-      final cached = List<KampanyaItem>.from(cachedRaw);
-      if (admin) return cached;
-      return cached.where((k) => k.isActive).toList();
+      return _filterScopedForViewer(
+        List<KampanyaItem>.from(cachedRaw),
+        table: table,
+        admin: admin,
+        viewerEmail: viewerEmail,
+      );
     }
     _setFeedLoadError(table, e);
     return const [];
+  }
+}
+
+Future<List<KampanyaItem>> _filterScopedForViewer(
+  List<KampanyaItem> all, {
+  required String table,
+  required bool admin,
+  String? viewerEmail,
+}) async {
+  var list = all;
+  if (table == kEtkinlikTable) {
+    final email = (viewerEmail ?? '').trim().toLowerCase();
+    if (!admin) {
+      list = list
+          .where(
+            (k) =>
+                isEtkinlikListed(k) ||
+                (isEtkinlikPending(k) &&
+                    k.createdBy.trim().toLowerCase() == email &&
+                    email.isNotEmpty),
+          )
+          .toList();
+    }
+    list = await _withJoinState(list);
+  } else if (!admin) {
+    list = list.where((k) => k.isActive).toList();
+  }
+  return list;
+}
+
+Future<List<KampanyaItem>> _withJoinState(List<KampanyaItem> list) async {
+  if (list.isEmpty) return list;
+  try {
+    final rows = await withNetworkTimeout(
+      Supabase.instance.client.rpc(
+        'etkinlik_katilim_ozet',
+        params: {'p_ids': [for (final k in list) k.id]},
+      ),
+    );
+    final map = <int, ({int count, bool mine})>{};
+    for (final e in (rows as List).whereType<Map>()) {
+      final id = (e['event_id'] as num?)?.toInt() ?? 0;
+      if (id <= 0) continue;
+      map[id] = (
+        count: (e['join_count'] as num?)?.toInt() ?? 0,
+        mine: e['joined_by_me'] == true,
+      );
+    }
+    return [
+      for (final k in list)
+        k.copyWith(
+          joinCount: map[k.id]?.count ?? 0,
+          joinedByMe: map[k.id]?.mine ?? false,
+        ),
+    ];
+  } catch (_) {
+    return list;
   }
 }
 
@@ -1052,4 +1187,153 @@ Future<void> persistCityFeedOrder({
     await Supabase.instance.client.from(table).update(patch).eq('id', ordered[i].id);
   }
   _invalidateScopedCache(table);
+}
+
+StateError _etkinlikOneriSchemaError(Object e) {
+  final raw = e.toString();
+  if (raw.contains('status') ||
+      raw.contains('etkinlik_katilim') ||
+      raw.contains('PGRST') ||
+      raw.contains('schema cache') ||
+      raw.contains('42P01') ||
+      raw.contains('Could not find')) {
+    return StateError(
+      'Etkinlik önerisi tablosu yok. Supabase SQL Editor’de etkinlik_oneri_katilim.sql çalıştırın.',
+    );
+  }
+  return StateError('İşlem başarısız: $e');
+}
+
+/// Üye etkinlik önerir — `pending`, admin onayına kadar listede görünmez.
+Future<KampanyaItem> proposeEtkinlik({
+  required String title,
+  required String description,
+  required String city,
+  required String eventDate,
+  String avmName = '',
+  String imageUrl = '',
+}) async {
+  final user = Supabase.instance.client.auth.currentUser;
+  final email = (user?.email ?? '').trim().toLowerCase();
+  if (user == null || email.isEmpty) {
+    throw StateError('Etkinlik önermek için giriş yapın.');
+  }
+  final heading = title.trim();
+  if (heading.isEmpty) throw StateError('Başlık girin.');
+  final cityName = city.trim();
+  if (cityName.isEmpty || isKampanyaNationwide(cityName)) {
+    throw StateError('İl seçin.');
+  }
+  final when = eventDate.trim();
+  if (when.isEmpty) throw StateError('Tarih seçin.');
+  final next = await _nextSort(kEtkinlikTable);
+  final payload = <String, dynamic>{
+    'title': heading,
+    'description': description.trim(),
+    'city': cityName,
+    'avm_name': avmName.trim(),
+    'image_url': imageUrl.trim(),
+    'event_date': when,
+    'status': kEtkinlikStatusPending,
+    'source': kEtkinlikSourceUser,
+    'rejection_reason': '',
+    'sort_order': next,
+    'sort_index': next,
+    'is_active': true,
+    'created_by': email,
+  };
+  try {
+    final row = await Supabase.instance.client
+        .from(kEtkinlikTable)
+        .insert(payload)
+        .select()
+        .single();
+    invalidateEtkinlikCache();
+    return KampanyaItem.fromJson(Map<String, dynamic>.from(row));
+  } catch (e) {
+    final raw = e.toString();
+    if (raw.contains('event_date') || raw.contains('rejection_reason')) {
+      payload.remove('event_date');
+      payload.remove('rejection_reason');
+      payload['description'] = when.isEmpty
+          ? description.trim()
+          : '$when\n\n${description.trim()}'.trim();
+      try {
+        final row = await Supabase.instance.client
+            .from(kEtkinlikTable)
+            .insert(payload)
+            .select()
+            .single();
+        invalidateEtkinlikCache();
+        return KampanyaItem.fromJson(Map<String, dynamic>.from(row));
+      } catch (e2) {
+        throw _etkinlikOneriSchemaError(e2);
+      }
+    }
+    throw _etkinlikOneriSchemaError(e);
+  }
+}
+
+Future<void> approveEtkinlik({
+  required int id,
+  required String adminEmail,
+}) async {
+  await _requireSection(adminEmail, SectionKey.etkinlik);
+  try {
+    await Supabase.instance.client.from(kEtkinlikTable).update({
+      'status': kEtkinlikStatusApproved,
+      'rejection_reason': '',
+      'is_active': true,
+    }).eq('id', id);
+    invalidateEtkinlikCache();
+  } catch (e) {
+    throw _etkinlikOneriSchemaError(e);
+  }
+}
+
+Future<void> rejectEtkinlik({
+  required int id,
+  required String adminEmail,
+  String reason = '',
+}) async {
+  await _requireSection(adminEmail, SectionKey.etkinlik);
+  try {
+    await Supabase.instance.client.from(kEtkinlikTable).update({
+      'status': kEtkinlikStatusRejected,
+      'rejection_reason': reason.trim(),
+    }).eq('id', id);
+    invalidateEtkinlikCache();
+  } catch (e) {
+    throw _etkinlikOneriSchemaError(e);
+  }
+}
+
+Future<({bool joined, int joinCount})> toggleEtkinlikKatilim(int eventId) async {
+  final user = Supabase.instance.client.auth.currentUser;
+  if (user == null) {
+    throw StateError('Katılmak için giriş yapın.');
+  }
+  try {
+    final rows = await Supabase.instance.client.rpc(
+      'etkinlik_toggle_katilim',
+      params: {'p_event_id': eventId},
+    );
+    if (rows is List && rows.isNotEmpty && rows.first is Map) {
+      final m = Map<String, dynamic>.from(rows.first as Map);
+      return (
+        joined: m['joined'] == true,
+        joinCount: (m['join_count'] as num?)?.toInt() ?? 0,
+      );
+    }
+    if (rows is Map) {
+      return (
+        joined: rows['joined'] == true,
+        joinCount: (rows['join_count'] as num?)?.toInt() ?? 0,
+      );
+    }
+    throw StateError('Katılım güncellenemedi.');
+  } catch (e) {
+    if (e is StateError) rethrow;
+    throw _etkinlikOneriSchemaError(e);
+  }
 }

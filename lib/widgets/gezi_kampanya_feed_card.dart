@@ -27,6 +27,12 @@ class GeziKampanyaFeedCard extends StatelessWidget {
     this.coverPlaceholderLabel = '',
     this.avmCoverUrl = '',
     this.coverVariantSeed = 0,
+    this.showJoin = false,
+    this.joinCount = 0,
+    this.joinedByMe = false,
+    this.joinBusy = false,
+    this.onJoinTap,
+    this.statusBadge = '',
   });
 
   final String imageUrl;
@@ -51,6 +57,13 @@ class GeziKampanyaFeedCard extends StatelessWidget {
   final String avmCoverUrl;
   /// Son çare illüstrasyon varyantı (etkinlik id).
   final int coverVariantSeed;
+  final bool showJoin;
+  final int joinCount;
+  final bool joinedByMe;
+  final bool joinBusy;
+  final VoidCallback? onJoinTap;
+  /// Örn. Onay bekliyor / Reddedildi (admin veya öneren).
+  final String statusBadge;
 
   bool get _hasCaption => description.trim().isNotEmpty;
   bool get _hasTitle => title.trim().isNotEmpty;
@@ -341,7 +354,7 @@ class GeziKampanyaFeedCard extends StatelessWidget {
                           14,
                           (_hasTitle || _hasMeta) ? 6 : 12,
                           14,
-                          14,
+                          showJoin || statusBadge.trim().isNotEmpty ? 6 : 14,
                         ),
                         child: L10nText(
                           description.trim(),
@@ -353,11 +366,87 @@ class GeziKampanyaFeedCard extends StatelessWidget {
                           ),
                         ),
                       )
-                    else if (!_hasTitle && !_hasMeta)
+                    else if (!_hasTitle && !_hasMeta && !showJoin)
                       const SizedBox(height: 4),
                   ],
                 ),
               ),
+              if (statusBadge.trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: MetoColors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: L10nText(
+                        statusBadge.trim(),
+                        style: GoogleFonts.nunito(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: MetoColors.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              if (showJoin)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      L10nText(
+                        '$joinCount kişi katılmak istiyor',
+                        style: GoogleFonts.nunito(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: MetoColors.mutedFg,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton(
+                        onPressed: joinBusy ? null : onJoinTap,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: joinedByMe
+                              ? MetoColors.mutedFg
+                              : MetoColors.primary,
+                          side: BorderSide(
+                            color: joinedByMe
+                                ? MetoColors.border
+                                : MetoColors.primary,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: joinBusy
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: MetoColors.primary,
+                                ),
+                              )
+                            : L10nText(
+                                joinedByMe
+                                    ? 'Katılmaktan vazgeç'
+                                    : 'Katılmak istiyorum',
+                                style: GoogleFonts.nunito(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
           Positioned.fill(

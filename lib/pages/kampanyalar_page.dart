@@ -8,8 +8,11 @@ import '../l10n/app_strings.dart';
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
 import '../data/avm_cover_lookup.dart';
+import '../widgets/etkinlik_oneri_sheet.dart';
+import '../widgets/etkinlik_pending_sheet.dart';
 import '../widgets/gezi_kampanya_admin_sheet.dart';
 import '../widgets/gezi_kampanya_feed_card.dart';
+import '../widgets/guest_gate.dart';
 
 enum _KampanyaFilter { all, nationwide, city }
 
@@ -23,19 +26,30 @@ class KampanyalarPage extends StatefulWidget {
     super.key,
     required this.userEmail,
     this.kind = CityFeedKind.kampanya,
+    this.isGuest = false,
+    this.onRequireLogin,
   });
 
   final String userEmail;
   final CityFeedKind kind;
+  final bool isGuest;
+  final VoidCallback? onRequireLogin;
 
   static Future<void> open(
     BuildContext context, {
     required String userEmail,
     CityFeedKind kind = CityFeedKind.kampanya,
+    bool isGuest = false,
+    VoidCallback? onRequireLogin,
   }) {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => KampanyalarPage(userEmail: userEmail, kind: kind),
+        builder: (_) => KampanyalarPage(
+          userEmail: userEmail,
+          kind: kind,
+          isGuest: isGuest,
+          onRequireLogin: onRequireLogin,
+        ),
       ),
     );
   }
@@ -51,6 +65,7 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
   bool _loading = true;
   _KampanyaFilter _filter = _KampanyaFilter.all;
   String? _city;
+  int? _joinBusyId;
 
   bool get _isAdmin => canEditSection(
         widget.userEmail,
@@ -63,6 +78,17 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
 
   String get _pageTitle => _isEtkinlik ? 'Etkinlikler' : 'Kampanyalar';
   String get _addLabel => _isEtkinlik ? 'Etkinlik ekle' : 'Kampanya ekle';
+  bool get _isGuest =>
+      widget.isGuest || widget.userEmail.trim().isEmpty;
+
+  Future<bool> _requireMember(String message) {
+    return ensureMemberAccess(
+      context,
+      isGuest: _isGuest,
+      onRequireLogin: widget.onRequireLogin ?? () {},
+      message: message,
+    );
+  }
 
   @override
   void initState() {
@@ -115,13 +141,41 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
   }
 
   List<KampanyaItem> get _activeBase {
-    final list = (_isAdmin ? _items : _items.where((k) => k.isActive)).toList();
+    final list = _items.where((k) {
+      if (_isEtkinlik) {
+        if (isEtkinlikPending(k) || isEtkinlikRejected(k)) return false;
+        if (_isAdmin) return true;
+        return isEtkinlikListed(k);
+      }
+      return _isAdmin ? true : k.isActive;
+    }).toList();
     list.sort((a, b) {
       final o = a.sortOrder.compareTo(b.sortOrder);
       if (o != 0) return o;
       return b.createdAt.compareTo(a.createdAt);
     });
     return list;
+  }
+
+  List<KampanyaItem> get _moderationItems {
+    if (!_isEtkinlik) return const [];
+    return _items.where((k) => isEtkinlikPending(k) || isEtkinlikRejected(k)).toList();
+  }
+
+  int get _pendingCount =>
+      _items.where(isEtkinlikPending).length;
+
+  List<KampanyaItem> get _myPending {
+    if (!_isEtkinlik || _isGuest) return const [];
+    final email = widget.userEmail.trim().toLowerCase();
+    if (email.isEmpty) return const [];
+    return _items
+        .where(
+          (k) =>
+              isEtkinlikPending(k) &&
+              k.createdBy.trim().toLowerCase() == email,
+        )
+        .toList();
   }
 
   Map<String, int> get _cityCounts {
@@ -245,6 +299,79 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
       _city = null;
       _search.clear();
     });
+  }
+
+  Future<void> _openPropose({String? city}) async {
+    if (!await _requireMember(
+      'Etkinlik önermek için giriş yapmanız veya üye olmanız gerekiyor.',
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => EtkinlikOneriSheet(presetCity: city ?? _city),
+    );
+    if (ok == true && mounted) {
+      await _reload();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: L10nText('Öneriniz admin onayına gönderildi.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openPending() async {
+    if (!_isAdmin) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => SizedBox(
+        height: MediaQuery.sizeOf(ctx).height * 0.88,
+        child: EtkinlikPendingSheet(
+          items: _moderationItems,
+          adminEmail: widget.userEmail,
+          avmCovers: _avmCovers,
+          onChanged: _reload,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _toggleJoin(KampanyaItem item) async {
+    if (!isEtkinlikListed(item)) return;
+    if (!await _requireMember(
+      'Katılmak için giriş yapmanız veya üye olmanız gerekiyor.',
+    )) {
+      return;
+    }
+    if (!mounted || _joinBusyId == item.id) return;
+    setState(() => _joinBusyId = item.id);
+    try {
+      final result = await toggleEtkinlikKatilim(item.id);
+      if (!mounted) return;
+      setState(() {
+        _items = [
+          for (final k in _items)
+            if (k.id == item.id)
+              k.copyWith(joinedByMe: result.joined, joinCount: result.joinCount)
+            else
+              k,
+        ];
+        _joinBusyId = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _joinBusyId = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    }
   }
 
   Future<void> _openAdd({String? city}) async {
@@ -443,6 +570,22 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
           style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
         ),
         actions: [
+          if (_isEtkinlik)
+            IconButton(
+              tooltip: S.auto('Etkinlik öner'),
+              onPressed: () => _openPropose(),
+              icon: const Icon(Icons.event_available_outlined),
+            ),
+          if (_isEtkinlik && _isAdmin)
+            IconButton(
+              tooltip: S.auto('Onay bekleyenler'),
+              onPressed: _openPending,
+              icon: Badge(
+                isLabelVisible: _pendingCount > 0,
+                label: Text('$_pendingCount'),
+                child: const Icon(Icons.pending_actions_outlined),
+              ),
+            ),
           if (_isAdmin)
             IconButton(
               tooltip: S.auto(_addLabel),
@@ -526,6 +669,29 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
               decoration: _searchDecoration(),
             ),
           ),
+          if (_isEtkinlik && _myPending.isNotEmpty && !_isAdmin)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Material(
+                color: MetoColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  child: L10nText(
+                    _myPending.length == 1
+                        ? '1 öneriniz onay bekliyor.'
+                        : '${_myPending.length} öneriniz onay bekliyor.',
+                    style: GoogleFonts.nunito(
+                      fontWeight: FontWeight.w800,
+                      color: MetoColors.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           if (_loading)
             const LinearProgressIndicator(
               minHeight: 2,
@@ -610,6 +776,14 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
           _reorderEnabled(index, length, -1) ? () => _move(item, -1) : null,
       onMoveDown:
           _reorderEnabled(index, length, 1) ? () => _move(item, 1) : null,
+      showJoin: _isEtkinlik && isEtkinlikListed(item),
+      joinCount: item.joinCount,
+      joinedByMe: item.joinedByMe,
+      joinBusy: _joinBusyId == item.id,
+      onJoinTap: () => _toggleJoin(item),
+      statusBadge: _isEtkinlik && isEtkinlikPending(item)
+          ? 'Onay bekliyor'
+          : '',
     );
   }
 
@@ -740,6 +914,17 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
                   fontWeight: FontWeight.w600,
                   color: MetoColors.mutedFg,
                 ),
+              ),
+            ],
+            if (_isEtkinlik) ...[
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: () => _openPropose(city: _city),
+                style: FilledButton.styleFrom(
+                  backgroundColor: MetoColors.primary,
+                ),
+                icon: const Icon(Icons.event_available_outlined),
+                label: const L10nText('Etkinlik öner'),
               ),
             ],
             if (_isAdmin) ...[

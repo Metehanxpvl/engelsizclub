@@ -4055,6 +4055,7 @@ class _MainShellState extends State<MainShell> {
               onTap: () => EtkinliklerPage.open(
                 context,
                 userEmail: widget.user.email,
+                onRequireLogin: widget.onRequireLogin,
               ),
             ),
           ),

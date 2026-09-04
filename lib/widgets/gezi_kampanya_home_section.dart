@@ -21,9 +21,13 @@ class GeziKampanyaHomeSection extends StatefulWidget {
   const GeziKampanyaHomeSection({
     super.key,
     required this.userEmail,
+    this.isGuest = false,
+    this.onRequireLogin,
   });
 
   final String userEmail;
+  final bool isGuest;
+  final VoidCallback? onRequireLogin;
 
   @override
   State<GeziKampanyaHomeSection> createState() =>
@@ -174,6 +178,8 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
                       onTap: () => KampanyalarPage.open(
                         context,
                         userEmail: widget.userEmail,
+                        isGuest: widget.isGuest,
+                        onRequireLogin: widget.onRequireLogin,
                       ),
                     ),
                     tile(
@@ -182,6 +188,8 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
                       onTap: () => EtkinliklerPage.open(
                         context,
                         userEmail: widget.userEmail,
+                        isGuest: widget.isGuest,
+                        onRequireLogin: widget.onRequireLogin,
                       ),
                     ),
                   ],

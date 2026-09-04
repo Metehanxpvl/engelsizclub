@@ -7,11 +7,15 @@ class EtkinliklerPage {
   static Future<void> open(
     BuildContext context, {
     required String userEmail,
+    bool isGuest = false,
+    VoidCallback? onRequireLogin,
   }) {
     return KampanyalarPage.open(
       context,
       userEmail: userEmail,
       kind: CityFeedKind.etkinlik,
+      isGuest: isGuest,
+      onRequireLogin: onRequireLogin,
     );
   }
 }
