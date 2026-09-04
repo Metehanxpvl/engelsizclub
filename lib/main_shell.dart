@@ -778,6 +778,11 @@ class _MainShellState extends State<MainShell> {
         height: 22,
       );
     }
+    if (item.icon == '🎨' ||
+        item.icon == 'palette' ||
+        item.link == 'boyama') {
+      return const Text('🎨', style: TextStyle(fontSize: 22));
+    }
     final IconData icon;
     final Color color;
     switch (item.icon) {
@@ -859,6 +864,7 @@ class _MainShellState extends State<MainShell> {
         link == 'aile_kocu' ||
         link == 'gelisim' ||
         link == 'puzzle' ||
+        link == 'boyama' ||
         link.startsWith('http') ||
         link.startsWith('/');
     if (_isGuest && extraApp && link != 'haklar' && link != 'kartlar' &&
@@ -971,6 +977,17 @@ class _MainShellState extends State<MainShell> {
           context,
           title: item.title,
           url: puzzleGameUrl,
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(
+            'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
+          ),
+        );
+        return;
+      case 'boyama':
+        await InAppWebPage.open(
+          context,
+          title: item.title,
+          url: boyamaPageUrl,
           isGuest: _isGuest,
           onRequireLogin: () => _requireLogin(
             'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',

@@ -233,7 +233,21 @@ class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
         icon = Icons.apps_outlined;
       case 'games':
         icon = Icons.extension_outlined;
+      case 'palette':
+      case '🎨':
+        return CircleAvatar(
+          radius: 24,
+          backgroundColor: MetoColors.primary.withValues(alpha: 0.12),
+          child: const Text('🎨', style: TextStyle(fontSize: 22)),
+        );
       default:
+        if (item.link == 'boyama') {
+          return CircleAvatar(
+            radius: 24,
+            backgroundColor: MetoColors.primary.withValues(alpha: 0.12),
+            child: const Text('🎨', style: TextStyle(fontSize: 22)),
+          );
+        }
         icon = Icons.link;
     }
     return CircleAvatar(
@@ -633,7 +647,7 @@ class _MoreMenuEditSheetState extends State<_MoreMenuEditSheet> {
               decoration: InputDecoration(
                 labelText: _linkType == 'url'
                     ? 'Link (https://… veya /bilgi-kutuphanesi/…)'
-                    : 'Route (harita, taramalar, aile_kocu, haklar, kartlar, mchat, cvi, cvi2, gelisim, barkod, puzzle)',
+                    : 'Route (harita, taramalar, aile_kocu, haklar, kartlar, mchat, cvi, cvi2, gelisim, barkod, puzzle, boyama)',
                 border: const OutlineInputBorder(),
               ),
             ),

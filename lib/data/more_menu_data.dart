@@ -26,6 +26,7 @@ class MoreMenuItem {
     'barkod',
     'taramalar',
     'puzzle',
+    'boyama',
   };
 
   final int id;
@@ -156,11 +157,12 @@ List<MoreMenuItem> withoutMainNavMapItems(List<MoreMenuItem> items) {
 }
 
 const puzzleGameUrl = '/fotografli-puzzle.html';
+const boyamaPageUrl = '/boyama';
 
 const defaultTaramalarGroupItem = MoreMenuItem(
   id: -10,
   title: 'Taramalar & Egzersizler & Oyun',
-  subtitle: 'Puzzle, CVI egzersizleri ve otizm tarama',
+  subtitle: 'Puzzle, boyama, CVI egzersizleri ve otizm tarama',
   linkType: 'route',
   link: 'taramalar',
   icon: 'apps',
@@ -178,17 +180,24 @@ bool isTaramalarGroupItem(MoreMenuItem e) {
 bool isTaramalarChildItem(MoreMenuItem e) {
   if (isTaramalarGroupItem(e)) return false;
   final key = e.routeKey;
-  if (key == 'cvi' || key == 'cvi2' || key == 'mchat' || key == 'puzzle') {
+  if (key == 'cvi' ||
+      key == 'cvi2' ||
+      key == 'mchat' ||
+      key == 'puzzle' ||
+      key == 'boyama') {
     return true;
   }
   final raw = e.link.trim().toLowerCase();
   if (raw.contains('fotografli-puzzle')) return true;
+  if (raw == '/boyama' || raw.endsWith('/boyama') || raw.contains('boyama.html')) {
+    return true;
+  }
   if (raw.contains('cvi-egzersizleri-2')) return true;
   if (raw.contains('cvi-gorsel-egzersiz')) return true;
   return false;
 }
 
-/// Grup altındaki 4 özellik (mevcut ekranlar — yeniden yazılmaz).
+/// Grup altındaki özellikler (mevcut ekranlar — yeniden yazılmaz).
 List<MoreMenuItem> taramalarGroupChildren() => const [
       MoreMenuItem(
         id: -11,
@@ -202,13 +211,24 @@ List<MoreMenuItem> taramalarGroupChildren() => const [
         isBuiltin: true,
       ),
       MoreMenuItem(
+        id: -15,
+        title: 'engelsiz Boyama',
+        subtitle: 'Boyama sayfası',
+        linkType: 'route',
+        link: 'boyama',
+        icon: '🎨',
+        sortOrder: 2,
+        isActive: true,
+        isBuiltin: true,
+      ),
+      MoreMenuItem(
         id: -12,
         title: 'CVI görsel egzersizleri',
         subtitle: '20 adımlık yüksek kontrastlı görsel egzersiz',
         linkType: 'route',
         link: 'cvi',
         icon: 'eye',
-        sortOrder: 2,
+        sortOrder: 3,
         isActive: true,
         isBuiltin: true,
       ),
@@ -219,7 +239,7 @@ List<MoreMenuItem> taramalarGroupChildren() => const [
         linkType: 'route',
         link: 'cvi2',
         icon: 'eye',
-        sortOrder: 3,
+        sortOrder: 4,
         isActive: true,
         isBuiltin: true,
       ),
@@ -230,7 +250,7 @@ List<MoreMenuItem> taramalarGroupChildren() => const [
         linkType: 'route',
         link: 'mchat',
         icon: 'search',
-        sortOrder: 4,
+        sortOrder: 5,
         isActive: true,
         isBuiltin: true,
       ),

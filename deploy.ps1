@@ -198,11 +198,13 @@ foreach ($f in @('zxing_library.min.js', 'zxing_datamatrix.js', 'html5-qrcode.mi
 }
 
 # Statik sayfalar (Flutter build bazen alt klasorleri atlayabilir)
-Write-Host "==> Sync static pages (bilgi-kutuphanesi, daha-fazlasi, fotografli-puzzle)" -ForegroundColor Cyan
+Write-Host "==> Sync static pages (bilgi-kutuphanesi, daha-fazlasi, fotografli-puzzle, boyama)" -ForegroundColor Cyan
 $staticRoots = @(
   "web\bilgi-kutuphanesi",
   "web\daha-fazlasi",
-  "web\fotografli-puzzle.html"
+  "web\fotografli-puzzle.html",
+  "web\boyama.html",
+  "web\admin"
 )
 foreach ($src in $staticRoots) {
   if (Test-Path $src) {

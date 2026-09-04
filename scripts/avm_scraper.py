@@ -3,7 +3,9 @@
 
 Kaynak listesi: scripts/avm_sources.json (şehir + AVM + public URL).
 Sayfa HTML'i sade metne çevrilir, Gemini yalnızca çocuk/aile etkinliklerini
-JSON dizi olarak çıkarır. Upsert: events unique (city, avm_name, event_name,
+JSON dizi olarak çıkarır. Görsel: etkinlik kartı fotoğrafı varsa o, yoksa
+AVM sayfasının og:image / twitter:image / hero kapağı (küçük logo/sprite atlanır).
+Upsert: events unique (city, avm_name, event_name,
 event_date). Etkinlikler sayfası public.etkinlikler okuduğu için aynı kayıt
 source='avm_scrape' + external_id (sha256) ile oraya senkronlanır.
 
@@ -33,7 +35,7 @@ import sys
 import time
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -181,31 +183,371 @@ def html_to_text(html: str) -> str:
     return "\n".join(lines)
 
 
-def og_image(html: str, base_url: str) -> str:
-    soup = BeautifulSoup(html, "html.parser")
-    tag = soup.find("meta", attrs={"property": "og:image"}) or soup.find(
-        "meta", attrs={"name": "og:image"}
-    )
-    if tag:
-        raw = (tag.get("content") or "").strip()
-        abs_url = _abs_http(raw, base_url)
-        if abs_url:
-            return abs_url
-    for img in soup.find_all("img"):
-        raw = (img.get("src") or img.get("data-src") or "").strip()
-        abs_url = _abs_http(raw, base_url)
-        if abs_url and not abs_url.lower().endswith(".svg"):
-            return abs_url
-    return ""
+# Tiny logos / sprites / social icons — not usable as an event cover.
+_SKIP_IMAGE_URL = re.compile(
+    r"(?:^|/)(?:logos?|icons?|favicons?|sprites?|pixels?|"
+    r"tracking|badges?|buttons?|arrows?|social)(?:[-_/.\?]|$)|"
+    r"(?:favicon|apple-touch|android-chrome|mstile)|"
+    r"(?:whatsapp|facebook|instagram|linkedin|pinterest|tiktok|youtube)"
+    r"[-_/](?:icon|logo)?|"
+    r"\b(?:16x16|32x32|48x48|64x64|96x96|128x128)\b|"
+    r"spacer|blank\.gif|1x1\.(?:gif|png|jpg)",
+    re.I,
+)
+_SKIP_IMAGE_EXT = re.compile(r"\.(?:svg|ico|gif|mp4|webm|m4v)(?:\?|$)", re.I)
+_PHOTO_EXT = re.compile(r"\.(?:jpe?g|png|webp|avif)(?:\?|$)", re.I)
+_SKIP_IMAGE_URL = re.compile(
+    r"(?:^|/)(?:logos?|icons?|favicons?|sprites?|pixels?|"
+    r"tracking|badges?|buttons?|arrows?|social)(?:[-_/.\?]|$)|"
+    r"(?:favicon|apple-touch|android-chrome|mstile)|"
+    r"(?:whatsapp|facebook|instagram|linkedin|pinterest|tiktok|youtube)"
+    r"[-_/](?:icon|logo)?|"
+    r"\b(?:16x16|32x32|48x48|64x64|96x96|128x128)\b|"
+    r"spacer|blank\.gif|1x1\.(?:gif|png|jpg)|"
+    r"dummy\.png|transparent\.png|facebook\.png|event-offer-m\.png|"
+    r"hugedomains|holder\.js|_logo\.png|/logo\.png",
+    re.I,
+)
+_PHOTO_HINT = re.compile(
+    r"hero|banner|slider|swiper|carousel|cover|gallery|etkinlik|event|"
+    r"kampanya|campaign|aktivite|activity|haber|duyuru|featured|"
+    r"og-image|main[-_]?img|visual|photo|gorsel|görsel|slide",
+    re.I,
+)
+_EVENT_HINT = re.compile(
+    r"etkinlik|event|kampanya|campaign|aktivite|workshop|atoly|atöly|"
+    r"masal|cocuk|çocuk|aile|family|kids",
+    re.I,
+)
+_BG_URL = re.compile(r"url\((['\"]?)(.+?)\1\)", re.I)
+_DIM_ATTR = re.compile(r"(\d{2,5})\s*[x×]\s*(\d{2,5})", re.I)
 
 
 def _abs_http(raw: str, base_url: str) -> str:
     if not raw or raw.startswith("data:"):
         return ""
-    abs_url = urljoin(base_url, raw)
+    abs_url = urljoin(base_url, raw.strip())
     if abs_url.startswith("http://") or abs_url.startswith("https://"):
         return abs_url
     return ""
+
+
+def _looks_like_photo_url(url: str) -> bool:
+    if not url:
+        return False
+    path = urlparse(url).path.lower()
+    if _SKIP_IMAGE_EXT.search(path) or _SKIP_IMAGE_EXT.search(url):
+        return False
+    if _SKIP_IMAGE_URL.search(url):
+        return False
+    if not _PHOTO_EXT.search(path):
+        return False
+    return True
+
+
+def _int_attr(tag: Any, *names: str) -> int:
+    for name in names:
+        raw = (tag.get(name) or "").strip()
+        if not raw:
+            continue
+        m = re.search(r"(\d{2,5})", raw)
+        if m:
+            try:
+                return int(m.group(1))
+            except ValueError:
+                continue
+    return 0
+
+
+def _best_from_srcset(srcset: str, base_url: str) -> str:
+    best_url = ""
+    best_w = -1
+    for part in (srcset or "").split(","):
+        bits = part.strip().split()
+        if not bits:
+            continue
+        url = _abs_http(bits[0], base_url)
+        if not url:
+            continue
+        width = 0
+        if len(bits) > 1:
+            token = bits[-1].lower()
+            if token.endswith("w"):
+                try:
+                    width = int(token[:-1])
+                except ValueError:
+                    width = 0
+            elif token.endswith("x"):
+                try:
+                    width = int(float(token[:-1]) * 800)
+                except ValueError:
+                    width = 0
+        if width >= best_w and _looks_like_photo_url(url):
+            best_w = width
+            best_url = url
+    return best_url
+
+
+def _tag_image_url(tag: Any, base_url: str) -> str:
+    for attr in (
+        "srcset",
+        "data-srcset",
+        "data-lazy-srcset",
+    ):
+        raw = (tag.get(attr) or "").strip()
+        if raw:
+            hit = _best_from_srcset(raw, base_url)
+            if hit:
+                return hit
+    for attr in (
+        "src",
+        "data-src",
+        "data-lazy-src",
+        "data-original",
+        "data-bg",
+        "data-background",
+        "data-image",
+        "data-src-large",
+        "content",
+    ):
+        raw = (tag.get(attr) or "").strip()
+        if raw:
+            url = _abs_http(raw, base_url)
+            if url and _looks_like_photo_url(url):
+                return url
+    style = tag.get("style") or ""
+    m = _BG_URL.search(style)
+    if m:
+        url = _abs_http(m.group(2), base_url)
+        if url and _looks_like_photo_url(url):
+            return url
+    return ""
+
+
+def _score_image(
+    url: str,
+    *,
+    kind: str,
+    width: int = 0,
+    height: int = 0,
+    hint: str = "",
+) -> int:
+    if not _looks_like_photo_url(url):
+        return 0
+    score = {
+        "og": 100,
+        "twitter": 92,
+        "jsonld": 88,
+        "link": 80,
+        "hero": 72,
+        "event": 78,
+        "img": 40,
+    }.get(kind, 30)
+    if width and height:
+        if min(width, height) < 80:
+            return 0
+        if min(width, height) >= 400:
+            score += 18
+        elif min(width, height) >= 240:
+            score += 10
+        if width >= 600:
+            score += 8
+    elif _DIM_ATTR.search(url):
+        m = _DIM_ATTR.search(url)
+        if m and min(int(m.group(1)), int(m.group(2))) < 80:
+            return 0
+    if hint and _PHOTO_HINT.search(hint):
+        score += 16
+    if hint and _EVENT_HINT.search(hint):
+        score += 12
+    path = urlparse(url).path.lower()
+    if any(path.endswith(ext) for ext in (".jpg", ".jpeg", ".webp", ".avif")):
+        score += 6
+    return score
+
+
+def _walk_jsonld_images(node: Any) -> list[str]:
+    out: list[str] = []
+    if isinstance(node, str):
+        if node.startswith("http"):
+            out.append(node)
+        return out
+    if isinstance(node, list):
+        for item in node:
+            out.extend(_walk_jsonld_images(item))
+        return out
+    if not isinstance(node, dict):
+        return out
+    for key in ("image", "thumbnailUrl", "thumbnail", "photo", "contentUrl"):
+        if key in node:
+            out.extend(_walk_jsonld_images(node[key]))
+    if node.get("@type") == "ImageObject" and node.get("url"):
+        out.append(str(node["url"]))
+    for key, val in node.items():
+        if key in ("image", "thumbnailUrl", "thumbnail", "photo", "contentUrl", "url"):
+            continue
+        if isinstance(val, (dict, list)):
+            out.extend(_walk_jsonld_images(val))
+    return out
+
+
+def _nearby_text(tag: Any, limit: int = 280) -> str:
+    parent = tag
+    for _ in range(5):
+        if parent is None:
+            break
+        text = normalize_ws(parent.get_text(" ", strip=True))
+        alt = normalize_ws(
+            " ".join(
+                filter(
+                    None,
+                    [
+                        tag.get("alt") if parent is tag else "",
+                        tag.get("title") if parent is tag else "",
+                    ],
+                )
+            )
+        )
+        blob = normalize_ws(f"{alt} {text}")
+        if len(blob) > 12:
+            return blob[:limit]
+        parent = getattr(parent, "parent", None)
+    return ""
+
+
+class ImageCandidate:
+    __slots__ = ("url", "score", "text")
+
+    def __init__(self, url: str, score: int, text: str = "") -> None:
+        self.url = url
+        self.score = score
+        self.text = text
+
+
+def extract_image_candidates(html: str, base_url: str) -> list[ImageCandidate]:
+    """Rank usable photos from a mall page (og/twitter/json-ld/hero/event cards)."""
+    soup = BeautifulSoup(html, "html.parser")
+    found: dict[str, ImageCandidate] = {}
+
+    def add(url: str, score: int, text: str = "") -> None:
+        if not url or score <= 0:
+            return
+        prev = found.get(url)
+        if prev is None or score > prev.score:
+            found[url] = ImageCandidate(url, score, text)
+
+    for prop, kind in (
+        ("og:image", "og"),
+        ("og:image:url", "og"),
+        ("og:image:secure_url", "og"),
+        ("twitter:image", "twitter"),
+        ("twitter:image:src", "twitter"),
+    ):
+        tag = soup.find("meta", attrs={"property": prop}) or soup.find(
+            "meta", attrs={"name": prop}
+        )
+        if not tag:
+            continue
+        url = _abs_http((tag.get("content") or "").strip(), base_url)
+        add(url, _score_image(url, kind=kind), prop)
+
+    for link in soup.find_all("link"):
+        rel = " ".join(link.get("rel") or []).lower()
+        if "image_src" in rel or (
+            "preload" in rel and (link.get("as") or "").lower() == "image"
+        ):
+            url = _abs_http((link.get("href") or "").strip(), base_url)
+            add(url, _score_image(url, kind="link"), rel)
+
+    for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        raw = script.string or script.get_text() or ""
+        if not raw.strip():
+            continue
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        for raw_url in _walk_jsonld_images(data):
+            url = _abs_http(raw_url, base_url)
+            add(url, _score_image(url, kind="jsonld"), "jsonld")
+
+    for img in soup.find_all(["img", "source"]):
+        url = _tag_image_url(img, base_url)
+        if not url:
+            continue
+        width = _int_attr(img, "width")
+        height = _int_attr(img, "height")
+        hint = " ".join(
+            filter(
+                None,
+                [
+                    img.get("alt") or "",
+                    img.get("title") or "",
+                    img.get("class") and " ".join(img.get("class") or []),
+                    img.get("id") or "",
+                ],
+            )
+        )
+        parent_hint = ""
+        parent = img.parent
+        for _ in range(4):
+            if parent is None:
+                break
+            parent_hint += " " + " ".join(parent.get("class") or [])
+            parent_hint += " " + (parent.get("id") or "")
+            parent = parent.parent
+        blob = f"{hint} {parent_hint}"
+        kind = "img"
+        if _EVENT_HINT.search(blob):
+            kind = "event"
+        elif _PHOTO_HINT.search(blob):
+            kind = "hero"
+        score = _score_image(
+            url, kind=kind, width=width, height=height, hint=blob
+        )
+        add(url, score, _nearby_text(img))
+
+    for node in soup.find_all(True):
+        style = node.get("style") or ""
+        m = _BG_URL.search(style)
+        if not m:
+            continue
+        url = _abs_http(m.group(2), base_url)
+        hint = " ".join(node.get("class") or []) + " " + (node.get("id") or "")
+        kind = "hero" if _PHOTO_HINT.search(hint) else "img"
+        add(
+            url,
+            _score_image(url, kind=kind, hint=hint),
+            _nearby_text(node),
+        )
+
+    ranked = sorted(found.values(), key=lambda c: c.score, reverse=True)
+    return [c for c in ranked if c.score >= 40]
+
+
+def extract_mall_cover(html: str, base_url: str) -> str:
+    cands = extract_image_candidates(html, base_url)
+    return cands[0].url if cands else ""
+
+
+def pick_event_image(
+    event_name: str, candidates: list[ImageCandidate], mall_cover: str
+) -> str:
+    """Prefer a photo whose nearby text mentions this event; else mall cover."""
+    name = normalize_ws(event_name).lower()
+    if name and len(name) >= 5 and candidates:
+        needle = name[:48]
+        best: ImageCandidate | None = None
+        for cand in candidates:
+            text = (cand.text or "").lower()
+            if not text:
+                continue
+            if needle in text or (len(needle) > 10 and needle[:14] in text):
+                if best is None or cand.score > best.score:
+                    best = cand
+        if best and best.url:
+            return best.url
+    return mall_cover
 
 
 def chunk_text(text: str) -> list[str]:
@@ -409,12 +751,18 @@ def coerce_event(
     desc = normalize_ws(str(row.get("description") or ""))
     if not name or not event_date:
         return None
+    image_url = normalize_ws(
+        str(row.get("image_url") or row.get("image") or "")
+    )
+    if image_url and not image_url.startswith(("http://", "https://")):
+        image_url = ""
     return {
         "city": normalize_ws(city)[:120],
         "avm_name": normalize_ws(avm_name)[:160],
         "event_name": name[:240],
         "event_date": event_date[:160],
         "description": desc[:2000],
+        "image_url": image_url[:500],
     }
 
 
@@ -448,11 +796,18 @@ _MIN_TEXT_LEN = 80
 _JS_FALLBACK_THRESHOLD = 200
 
 
-def fetch_page(http: httpx.Client, url: str) -> tuple[str, str] | None:
+class FetchedPage(NamedTuple):
+    text: str
+    html: str
+    final_url: str
+    cover: str
+
+
+def _http_get_html(
+    http: httpx.Client, url: str
+) -> tuple[str | None, str]:
     html: str | None = None
     final_url = url
-
-    # --- Attempt 1: plain HTTP ---
     try:
         res = http.get(
             url,
@@ -479,17 +834,52 @@ def fetch_page(http: httpx.Client, url: str) -> tuple[str, str] | None:
             print(f"  HTTP {res.status_code}", file=sys.stderr)
     except httpx.HTTPError as exc:
         print(f"  istek hatası: {_redact_error(str(exc))}", file=sys.stderr)
+    return html, final_url
 
-    # Check if plain HTML has enough text; if not, try Playwright
+
+def _maybe_playwright(
+    url: str,
+    html: str | None,
+    plain_text: str,
+    cover: str,
+) -> tuple[str | None, str, str]:
+    """JS-render when the static page is thin (SPA) so og:image can appear."""
+    need_js = len(plain_text) < _JS_FALLBACK_THRESHOLD
+    if not cover and len(plain_text) < 500:
+        need_js = True
+    if not need_js or not HAS_PLAYWRIGHT:
+        return html, plain_text, cover
+    print("  → JS render deneniyor (playwright)…", file=sys.stderr)
+    rendered = _fetch_with_playwright(url)
+    if not rendered:
+        return html, plain_text, cover
+    rendered_text = html_to_text(rendered)
+    rendered_cover = extract_mall_cover(rendered, url)
+    better_text = len(rendered_text) > len(plain_text)
+    better_cover = bool(rendered_cover) and (
+        not cover or rendered_cover != cover
+    )
+    if better_text or (better_cover and not cover):
+        return rendered, rendered_text, rendered_cover or cover
+    if better_cover:
+        return rendered, rendered_text or plain_text, rendered_cover
+    return html, plain_text, cover
+
+
+def fetch_html(
+    http: httpx.Client,
+    url: str,
+    *,
+    require_text: bool = True,
+    use_playwright: bool = True,
+) -> FetchedPage | None:
+    html, final_url = _http_get_html(http, url)
     plain_text = html_to_text(html) if html else ""
-    if len(plain_text) < _JS_FALLBACK_THRESHOLD and HAS_PLAYWRIGHT:
-        print("  → JS render deneniyor (playwright)…", file=sys.stderr)
-        rendered = _fetch_with_playwright(url)
-        if rendered:
-            rendered_text = html_to_text(rendered)
-            if len(rendered_text) > len(plain_text):
-                html = rendered
-                plain_text = rendered_text
+    cover = extract_mall_cover(html, final_url) if html else ""
+    if use_playwright:
+        html, plain_text, cover = _maybe_playwright(
+            url, html, plain_text, cover
+        )
 
     if not html:
         print("  sayfa alınamadı, atlandı", file=sys.stderr)
@@ -499,17 +889,21 @@ def fetch_page(http: httpx.Client, url: str) -> tuple[str, str] | None:
     if "password" in low and "login" in low and len(plain_text) < 400:
         print("  giriş duvarı, atlandı", file=sys.stderr)
         return None
-    content_type_hint = html.lower()
-    if "login" in final_url.lower() and "<html" not in content_type_hint[:500]:
+    if "login" in final_url.lower() and "<html" not in html.lower()[:500]:
         print("  giriş/paywall sayfası, atlandı", file=sys.stderr)
         return None
 
     text = plain_text if plain_text else html_to_text(html)
-    if len(text) < _MIN_TEXT_LEN:
+    if require_text and len(text) < _MIN_TEXT_LEN:
         print(f"  metin çok kısa ({len(text)} karakter), atlandı", file=sys.stderr)
         return None
-    cover = og_image(html, final_url)
-    return text, cover
+    if not cover:
+        cover = extract_mall_cover(html, final_url)
+    return FetchedPage(text=text, html=html, final_url=final_url, cover=cover)
+
+
+def fetch_page(http: httpx.Client, url: str) -> FetchedPage | None:
+    return fetch_html(http, url, require_text=True)
 
 
 class Supabase:
@@ -702,7 +1096,8 @@ def sync_etkinlikler(
         if eid in deleted:
             skipped += 1
             continue
-        cover = covers.get((event["city"], event["avm_name"])) or ""
+        mall_cover = covers.get((event["city"], event["avm_name"])) or ""
+        cover = (event.get("image_url") or "").strip() or mall_cover
         payload_core = {
             "title": event["event_name"],
             "description": etkinlik_description(event),
@@ -755,8 +1150,63 @@ def load_sources() -> list[dict[str, str]]:
         if key in seen:
             continue
         seen.add(key)
-        out.append({"city": city, "avm_name": avm, "events_url": url})
+        image = normalize_ws(str(item.get("image") or ""))
+        if image and not image.startswith(("http://", "https://")):
+            image = ""
+        out.append(
+            {
+                "city": city,
+                "avm_name": avm,
+                "events_url": url,
+                "image": image,
+            }
+        )
     return out
+
+
+def harvest_covers(sources: list[dict[str, str]]) -> int:
+    """Write official page photos into avm_sources.json `image` fields."""
+    raw = json.loads(SOURCES_PATH.read_text(encoding="utf-8"))
+    by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        city = normalize_ws(str(item.get("city") or ""))
+        avm = normalize_ws(str(item.get("avm_name") or ""))
+        if city and avm:
+            by_key[(city, avm)] = item
+
+    found = 0
+    failed = 0
+    with httpx.Client(http2=False, follow_redirects=True) as http:
+        for i, src in enumerate(sources, 1):
+            city, avm, url = src["city"], src["avm_name"], src["events_url"]
+            label = f"{city}/{avm}"
+            print(f"[{i}/{len(sources)}] kapak {label}")
+            fetched = fetch_html(
+                http, url, require_text=False, use_playwright=False
+            )
+            time.sleep(0.4)
+            cover = ""
+            if fetched and fetched.cover:
+                cover = fetched.cover
+            elif src.get("image"):
+                cover = src["image"]
+            item = by_key.get((city, avm))
+            if cover and item is not None:
+                item["image"] = cover
+                found += 1
+                print(f"  {cover[:90]}")
+            else:
+                failed += 1
+                print("  kapak yok")
+
+    SOURCES_PATH.write_text(
+        json.dumps(raw, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    print(f"Kapak yazıldı: {found}; boş: {failed}")
+    return 0 if found else 1
 
 
 def parse_args() -> argparse.Namespace:
@@ -772,12 +1222,27 @@ def parse_args() -> argparse.Namespace:
         default=0,
         help="En fazla N AVM dene (yerel test)",
     )
+    p.add_argument(
+        "--harvest-covers",
+        action="store_true",
+        help="Gemini/DB yok; her AVM sayfasından kapak URL'sini avm_sources.json'a yaz",
+    )
     return p.parse_args()
 
 
 def main() -> int:
     _load_dotenv()
     args = parse_args()
+    sources = load_sources()
+    if args.max_sources and args.max_sources > 0:
+        sources = sources[: args.max_sources]
+    if not sources:
+        print("avm_sources.json boş.", file=sys.stderr)
+        return 1
+
+    if args.harvest_covers:
+        return harvest_covers(sources)
+
     supabase_url = _normalize_supabase_url(_env("SUPABASE_URL"))
     supabase_key = _env(
         "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_KEY"
@@ -791,13 +1256,6 @@ def main() -> int:
             "SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY gerekli.",
             file=sys.stderr,
         )
-        return 1
-
-    sources = load_sources()
-    if args.max_sources and args.max_sources > 0:
-        sources = sources[: args.max_sources]
-    if not sources:
-        print("avm_sources.json boş.", file=sys.stderr)
         return 1
 
     today_label = _today_tr()
@@ -827,11 +1285,12 @@ def main() -> int:
             if not fetched:
                 stats_fail.append(label)
                 continue
-            text, cover = fetched
-            if cover:
-                covers[(city, avm)] = cover
+            mall_cover = fetched.cover or src.get("image") or ""
+            if mall_cover:
+                covers[(city, avm)] = mall_cover
+            candidates = extract_image_candidates(fetched.html, fetched.final_url)
             try:
-                events = gemini.extract_events(city, avm, today_label, text)
+                events = gemini.extract_events(city, avm, today_label, fetched.text)
             except Exception as exc:  # noqa: BLE001 — skip mall, keep going
                 print(f"  parse atlandı: {_redact_error(str(exc))}", file=sys.stderr)
                 stats_fail.append(label)
@@ -847,9 +1306,13 @@ def main() -> int:
                 if key in seen_keys:
                     continue
                 seen_keys.add(key)
+                if not event.get("image_url"):
+                    event["image_url"] = pick_event_image(
+                        event["event_name"], candidates, mall_cover
+                    )
                 all_events.append(event)
                 kept += 1
-            print(f"  {kept} etkinlik")
+            print(f"  {kept} etkinlik" + (f" · kapak var" if mall_cover else ""))
             if kept > 0:
                 stats_ok.append(f"{label} ({kept})")
             else:

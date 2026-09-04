@@ -635,11 +635,15 @@
       if (!menu || !toggle) return;
       let items = [];
       try {
-        const res = await fetch('/admin/daha_fazlasi_menu.json');
+        const res = await fetch('/admin/daha_fazlasi_menu.json', { cache: 'no-store' });
         if (res.ok) items = await res.json();
       } catch (_) {}
       if (!Array.isArray(items) || !items.length) {
         items = [{ id: 1, isim: 'Gelişim Etkinlikleri', link: '/bilgi-kutuphanesi/gelisim-etkinlikleri.html', aktif: 1 }];
+      }
+      const hasBoyama = items.some((x) => String(x.link || '').toLowerCase().includes('boyama'));
+      if (!hasBoyama) {
+        items.push({ id: 7, isim: '🎨 engelsiz Boyama', link: '/boyama', aktif: 1 });
       }
       menu.innerHTML = items
         .filter((x) => Number(x.aktif) === 1)

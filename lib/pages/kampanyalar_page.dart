@@ -7,6 +7,7 @@ import '../section_editors.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
+import '../data/avm_cover_lookup.dart';
 import '../widgets/gezi_kampanya_admin_sheet.dart';
 import '../widgets/gezi_kampanya_feed_card.dart';
 
@@ -46,6 +47,7 @@ class KampanyalarPage extends StatefulWidget {
 class _KampanyalarPageState extends State<KampanyalarPage> {
   final _search = TextEditingController();
   List<KampanyaItem> _items = const [];
+  AvmCoverIndex _avmCovers = AvmCoverIndex.empty;
   bool _loading = true;
   _KampanyaFilter _filter = _KampanyaFilter.all;
   String? _city;
@@ -72,6 +74,15 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
       _loading = false;
     }
     _reload(silent: cached != null);
+    if (_isEtkinlik) {
+      _loadAvmCovers();
+    }
+  }
+
+  Future<void> _loadAvmCovers() async {
+    final idx = await AvmCoverIndex.load();
+    if (!mounted) return;
+    setState(() => _avmCovers = idx);
   }
 
   @override
@@ -588,6 +599,10 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
       timeLabel: _isEtkinlik ? item.eventTimeLabel : '',
       brandedCover: _isEtkinlik,
       coverPlaceholderLabel: _isEtkinlik ? item.avmName.trim() : '',
+      avmCoverUrl: _isEtkinlik
+          ? _avmCovers.urlFor(city: item.city, avmName: item.avmName)
+          : '',
+      coverVariantSeed: item.id,
       isAdmin: _isAdmin,
       onDelete: _isAdmin ? () => _delete(item) : null,
       onEdit: _isAdmin ? () => _openEdit(item) : null,

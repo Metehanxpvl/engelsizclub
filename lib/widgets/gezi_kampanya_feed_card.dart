@@ -25,6 +25,8 @@ class GeziKampanyaFeedCard extends StatelessWidget {
     this.timeLabel = '',
     this.brandedCover = false,
     this.coverPlaceholderLabel = '',
+    this.avmCoverUrl = '',
+    this.coverVariantSeed = 0,
   });
 
   final String imageUrl;
@@ -45,6 +47,10 @@ class GeziKampanyaFeedCard extends StatelessWidget {
   /// Etkinlik kartlarında boş/kırık görsel için markalı kapak.
   final bool brandedCover;
   final String coverPlaceholderLabel;
+  /// AVM sayfasından og/hero foto (etkinlik görseli yoksa / yüklenemezse).
+  final String avmCoverUrl;
+  /// Son çare illüstrasyon varyantı (etkinlik id).
+  final int coverVariantSeed;
 
   bool get _hasCaption => description.trim().isNotEmpty;
   bool get _hasTitle => title.trim().isNotEmpty;
@@ -52,10 +58,15 @@ class GeziKampanyaFeedCard extends StatelessWidget {
   bool get _hasWhen => whenLabel.trim().isNotEmpty;
   bool get _hasTime => timeLabel.trim().isNotEmpty;
   bool get _hasMeta => _hasVenue || _hasWhen || _hasTime;
-  bool get _hasPhoto => imageUrl.trim().isNotEmpty;
+
+  String get _lightboxSrc {
+    final eventSrc = imageUrl.trim();
+    if (eventSrc.isNotEmpty) return eventSrc;
+    return avmCoverUrl.trim();
+  }
 
   void _openLightbox(BuildContext context) {
-    final src = imageUrl.trim();
+    final src = _lightboxSrc;
     if (src.isEmpty) return;
     openFillPhotoOverlay(context, source: src);
   }
@@ -78,9 +89,12 @@ class GeziKampanyaFeedCard extends StatelessWidget {
     );
   }
 
-  Widget _coverPlaceholder() {
+  Widget _lastResortCover() {
     if (brandedCover) {
-      return _BrandedCoverPlaceholder(label: coverPlaceholderLabel);
+      return _BrandedCoverPlaceholder(
+        label: coverPlaceholderLabel,
+        variant: coverVariantSeed.abs() % 3,
+      );
     }
     return ColoredBox(
       color: MetoColors.muted,
@@ -89,6 +103,28 @@ class GeziKampanyaFeedCard extends StatelessWidget {
         color: MetoColors.mutedFg.withValues(alpha: 0.7),
         size: 40,
       ),
+    );
+  }
+
+  Widget _coverImage() {
+    final last = SizedBox.expand(child: _lastResortCover());
+    final eventSrc = imageUrl.trim();
+    final mallSrc = avmCoverUrl.trim();
+    if (eventSrc.isEmpty && mallSrc.isEmpty) return last;
+    if (eventSrc.isEmpty) {
+      return FillPhoto(
+        source: mallSrc,
+        fit: BoxFit.cover,
+        placeholder: last,
+      );
+    }
+    final mallFallback = (mallSrc.isNotEmpty && mallSrc != eventSrc)
+        ? FillPhoto(source: mallSrc, fit: BoxFit.cover, placeholder: last)
+        : last;
+    return FillPhoto(
+      source: eventSrc,
+      fit: BoxFit.cover,
+      placeholder: mallFallback,
     );
   }
 
@@ -122,8 +158,7 @@ class GeziKampanyaFeedCard extends StatelessWidget {
         isAdmin && (onDelete != null || onEdit != null);
     final showReorder =
         isAdmin && (onMoveUp != null || onMoveDown != null);
-    final showLocationChip =
-        _hasPhoto && locationLabel.trim().isNotEmpty;
+    final showLocationChip = locationLabel.trim().isNotEmpty;
 
     // Frame is a later Stack sibling so web HtmlElementView photos cannot
     // cover it (Kampanyalar cards are often image-only; clip+border was eaten).
@@ -149,11 +184,7 @@ class GeziKampanyaFeedCard extends StatelessWidget {
                 children: [
                   AspectRatio(
                     aspectRatio: 16 / 10,
-                    child: FillPhoto(
-                      source: imageUrl,
-                      fit: BoxFit.cover,
-                      placeholder: SizedBox.expand(child: _coverPlaceholder()),
-                    ),
+                    child: _coverImage(),
                   ),
                   // Html img yutmasın diye dokunma katmanı görselin ÜSTÜNDE (kardeş).
                   Positioned.fill(
@@ -345,127 +376,109 @@ class GeziKampanyaFeedCard extends StatelessWidget {
   }
 }
 
-/// Boş / kırık görsel: yeşil degrade + baş harf / AVM adı.
+/// Son çare: AVM sayfasında foto yoksa çocuk etkinliği illüstrasyonu.
 class _BrandedCoverPlaceholder extends StatelessWidget {
-  const _BrandedCoverPlaceholder({this.label = ''});
+  const _BrandedCoverPlaceholder({this.label = '', this.variant = 0});
 
   final String label;
-
-  String get _initials {
-    final t = label.trim();
-    if (t.isEmpty) return '';
-    String firstRune(String s) =>
-        s.isEmpty ? '' : String.fromCharCode(s.runes.first);
-    final parts =
-        t.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-    if (parts.length >= 2) {
-      return '${firstRune(parts[0])}${firstRune(parts[1])}'.toUpperCase();
-    }
-    final runes = t.runes.take(2).toList();
-    return String.fromCharCodes(runes).toUpperCase();
-  }
+  final int variant;
 
   @override
   Widget build(BuildContext context) {
     final name = label.trim();
-    final initials = _initials;
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF1A6B4A), Color(0xFF0D2B1F)],
-        ),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Positioned(
-            right: -28,
-            top: -36,
-            child: Container(
-              width: 140,
-              height: 140,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: MetoColors.accentGold.withValues(alpha: 0.16),
-              ),
-            ),
-          ),
-          Positioned(
-            left: -20,
-            bottom: -28,
-            child: Container(
-              width: 90,
-              height: 90,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.06),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.14),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.28),
-                    ),
-                  ),
-                  child: initials.isEmpty
-                      ? const Icon(
-                          Icons.event_outlined,
-                          color: Colors.white,
-                          size: 28,
-                        )
-                      : Text(
-                          initials,
-                          style: GoogleFonts.nunito(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            height: 1,
-                          ),
-                        ),
-                ),
-                if (name.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  L10nText(
-                    name,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.nunito(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      height: 1.2,
-                      color: Colors.white,
-                    ),
-                  ),
-                ] else ...[
-                  const SizedBox(height: 8),
-                  L10nText(
-                    'Etkinlik',
-                    style: GoogleFonts.nunito(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
+    return Semantics(
+      label: name.isEmpty ? 'Etkinlik' : name,
+      child: CustomPaint(
+        painter: _KidsEventCoverPainter(variant: variant),
       ),
     );
   }
+}
+
+class _KidsEventCoverPainter extends CustomPainter {
+  _KidsEventCoverPainter({required this.variant});
+
+  final int variant;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final bg = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF1A6B4A), Color(0xFF0D2B1F)],
+      ).createShader(rect);
+    canvas.drawRect(rect, bg);
+
+    final gold = Paint()..color = const Color(0xFFF4A832);
+    final cream = Paint()..color = const Color(0xFFFFF6E0);
+    final coral = Paint()..color = const Color(0xFFE07A5F);
+    final mint = Paint()..color = const Color(0xFF7BC49A);
+    final whiteSoft = Paint()..color = Colors.white.withValues(alpha: 0.18);
+
+    canvas.drawCircle(Offset(size.width * 0.88, size.height * -0.08), 70, whiteSoft);
+    canvas.drawCircle(Offset(size.width * 0.08, size.height * 1.05), 54, whiteSoft);
+
+    switch (variant % 3) {
+      case 0:
+        _balloon(canvas, Offset(size.width * 0.22, size.height * 0.42), 16, coral);
+        _balloon(canvas, Offset(size.width * 0.38, size.height * 0.32), 14, gold);
+        _balloon(canvas, Offset(size.width * 0.72, size.height * 0.38), 17, mint);
+        _block(canvas, Offset(size.width * 0.52, size.height * 0.62), 28, 22, cream);
+        _block(canvas, Offset(size.width * 0.58, size.height * 0.72), 22, 16, gold);
+        break;
+      case 1:
+        _block(canvas, Offset(size.width * 0.28, size.height * 0.55), 32, 24, gold);
+        _block(canvas, Offset(size.width * 0.34, size.height * 0.68), 26, 18, coral);
+        _block(canvas, Offset(size.width * 0.18, size.height * 0.68), 20, 18, mint);
+        canvas.drawCircle(Offset(size.width * 0.72, size.height * 0.42), 22, cream);
+        canvas.drawCircle(Offset(size.width * 0.72, size.height * 0.42), 8, coral);
+        break;
+      default:
+        _balloon(canvas, Offset(size.width * 0.68, size.height * 0.34), 15, gold);
+        _balloon(canvas, Offset(size.width * 0.80, size.height * 0.44), 13, coral);
+        _kite(canvas, Offset(size.width * 0.30, size.height * 0.40), cream, mint);
+        canvas.drawCircle(Offset(size.width * 0.52, size.height * 0.70), 18, gold);
+        break;
+    }
+  }
+
+  void _balloon(Canvas canvas, Offset c, double r, Paint paint) {
+    canvas.drawOval(Rect.fromCenter(center: c, width: r * 1.5, height: r * 2), paint);
+    final string = Paint()
+      ..color = Colors.white.withValues(alpha: 0.45)
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+    canvas.drawLine(c.translate(0, r), c.translate(4, r + 22), string);
+  }
+
+  void _block(Canvas canvas, Offset origin, double w, double h, Paint paint) {
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(origin.dx, origin.dy, w, h),
+        const Radius.circular(4),
+      ),
+      paint,
+    );
+  }
+
+  void _kite(Canvas canvas, Offset c, Paint fill, Paint accent) {
+    final path = Path()
+      ..moveTo(c.dx, c.dy - 22)
+      ..lineTo(c.dx + 16, c.dy)
+      ..lineTo(c.dx, c.dy + 22)
+      ..lineTo(c.dx - 16, c.dy)
+      ..close();
+    canvas.drawPath(path, fill);
+    final line = Paint()
+      ..color = accent.color
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+    canvas.drawLine(c.translate(-16, 0), c.translate(16, 0), line);
+  }
+
+  @override
+  bool shouldRepaint(covariant _KidsEventCoverPainter oldDelegate) =>
+      oldDelegate.variant != variant;
 }

@@ -2,7 +2,8 @@
   {
     "city": "Adana",
     "avm_name": "M1 Adana",
-    "events_url": "https://www.m1adana.com.tr/tr"
+    "events_url": "https://www.m1adana.com.tr/tr",
+    "image": "https://www.m1adana.com.tr/content/upload/event/e9b71f98-0f4c-4ffd-b5bb-f4f410aa4ada_320.jpg?q=2edde44c-23a4-4a3b-b626-5c1294853ee7"
   },
   {
     "city": "Adana",
@@ -17,7 +18,8 @@
   {
     "city": "Afyonkarahisar",
     "avm_name": "Afium",
-    "events_url": "https://afium.com.tr/"
+    "events_url": "https://afium.com.tr/",
+    "image": "https://afium.com.tr/wp-content/uploads/2025/12/kis_saatleri-03-1.jpg"
   },
   {
     "city": "Aksaray",
@@ -27,7 +29,8 @@
   {
     "city": "Ankara",
     "avm_name": "Ankamall",
-    "events_url": "https://www.ankamall.com.tr/"
+    "events_url": "https://www.ankamall.com.tr/",
+    "image": "https://www.ankamall.com.tr/ankamall/assets/img/slider/ankamall_slider.jpg"
   },
   {
     "city": "Ankara",
@@ -52,7 +55,8 @@
   {
     "city": "Ankara",
     "avm_name": "Kentpark",
-    "events_url": "https://www.kentpark.com.tr/"
+    "events_url": "https://www.kentpark.com.tr/",
+    "image": "https://www.kentpark.com.tr/themes/kentpark/assets/images/ogimage.png"
   },
   {
     "city": "Ankara",
@@ -72,7 +76,8 @@
   {
     "city": "Antalya",
     "avm_name": "MarkAntalya",
-    "events_url": "https://www.markantalya.com/"
+    "events_url": "https://www.markantalya.com/",
+    "image": "https://markantalya.com/wp-content/uploads/2026/02/markantalya-2.jpg"
   },
   {
     "city": "Antalya",
@@ -92,12 +97,14 @@
   {
     "city": "Balıkesir",
     "avm_name": "10 Burda",
-    "events_url": "https://www.10burda.com/"
+    "events_url": "https://www.10burda.com/",
+    "image": "https://cdn.esasgm.com.tr/Uploads/esasburda10/Page/089_10-burda-tshirt-boyama-atolyesi_1417x620px.jpg"
   },
   {
     "city": "Batman",
     "avm_name": "Batman Park",
-    "events_url": "https://www.batmanpark.com/"
+    "events_url": "https://www.batmanpark.com/",
+    "image": "https://www.batmanpark.com/wp-content/uploads/2018/03/video-stream.jpg"
   },
   {
     "city": "Bingöl",
@@ -107,17 +114,20 @@
   {
     "city": "Bolu",
     "avm_name": "14 Burda",
-    "events_url": "https://www.14burda.com/kampanya-etkinlik"
+    "events_url": "https://www.14burda.com/kampanya-etkinlik",
+    "image": "https://cdn.esasgm.com.tr/Uploads/esasburda14/Campaign/061_14-burda-14-urun-kampanyasi-459x459px.jpg"
   },
   {
     "city": "Bursa",
     "avm_name": "Anatolium",
-    "events_url": "https://anatolium-bursa.com/tr"
+    "events_url": "https://anatolium-bursa.com/tr",
+    "image": "https://klepierre.s3.eu-central-1.amazonaws.com/images/webslider/web_slider_image/main/0f4a4327-4768-4328-9a6e-49b9daad0301.jpeg?1788431141914?1788431141914"
   },
   {
     "city": "Bursa",
     "avm_name": "Kent Meydanı",
-    "events_url": "https://www.kentmeydani.com.tr/"
+    "events_url": "https://www.kentmeydani.com.tr/",
+    "image": "https://kentmeydani.com/wp-content/uploads/2018/06/web-site-banner-860x480-1-1.jpg"
   },
   {
     "city": "Bursa",
@@ -127,17 +137,20 @@
   {
     "city": "Bursa",
     "avm_name": "Zafer Plaza",
-    "events_url": "https://zaferplaza.com.tr/"
+    "events_url": "https://zaferplaza.com.tr/",
+    "image": "https://zaferplaza.com.tr/assets/upload/images/37cfb7c4b1904c335c9521e2bc6ba3ba.jpeg"
   },
   {
     "city": "Çanakkale",
     "avm_name": "17 Burda",
-    "events_url": "https://www.17burda.com/"
+    "events_url": "https://www.17burda.com/",
+    "image": "https://cdn.esasgm.com.tr/Uploads/esasburda17/Page/bbbb_1.png"
   },
   {
     "city": "Çankırı",
     "avm_name": "Yunus AVM",
-    "events_url": "https://yunusavm.com/"
+    "events_url": "https://yunusavm.com/",
+    "image": "https://yunusavm.com/www/banner/5cbec6761ff45_12.jpg"
   },
   {
     "city": "Çorum",
@@ -152,7 +165,8 @@
   {
     "city": "Denizli",
     "avm_name": "Teraspark",
-    "events_url": "https://www.teraspark.com.tr/tr"
+    "events_url": "https://www.teraspark.com.tr/tr",
+    "image": "https://klepierre.s3.eu-central-1.amazonaws.com/images/webslider/web_slider_image/main/6723def4-be3d-4cd7-a096-2702f097cf70.jpeg?1760439464547?1760439464547"
   },
   {
     "city": "Diyarbakır",
@@ -167,7 +181,8 @@
   {
     "city": "Edirne",
     "avm_name": "Erasta Edirne",
-    "events_url": "https://erastaedirne.com/"
+    "events_url": "https://erastaedirne.com/",
+    "image": "https://erastaedirne.com/uploads/edirne/slider/7c364a0a-9cb2-4e1c-b978-2cf2c0c24680.webp"
   },
   {
     "city": "Elazığ",
@@ -187,7 +202,8 @@
   {
     "city": "Eskişehir",
     "avm_name": "Espark",
-    "events_url": "https://www.espark.com.tr/"
+    "events_url": "https://www.espark.com.tr/",
+    "image": "https://www.espark.com.tr/fileadmin/_processed_/c/2/csm_1-epe-slider-background-hp-102022_03fe80b9c3.jpg"
   },
   {
     "city": "Gaziantep",
@@ -197,12 +213,14 @@
   {
     "city": "Gaziantep",
     "avm_name": "Sanko Park",
-    "events_url": "https://www.sankopark.com.tr/"
+    "events_url": "https://www.sankopark.com.tr/",
+    "image": "https://static.wixstatic.com/media/306a31_a2a0ee2a5a5c43e8aef758991f654c5b%7Emv2.png/v1/fit/w_2500,h_1330,al_c/306a31_a2a0ee2a5a5c43e8aef758991f654c5b%7Emv2.png"
   },
   {
     "city": "Hatay",
     "avm_name": "Primemall Antakya",
-    "events_url": "https://www.primemallantakya.com.tr/tr"
+    "events_url": "https://www.primemallantakya.com.tr/tr",
+    "image": "https://primemall.s3.eu-west-1.amazonaws.com/images/webslider/web_slider_desktop_image_tr/medium/c628531e-d60a-442f-92ad-150f69beb7dd.jpeg?1632128010781?1632128010781"
   },
   {
     "city": "Hatay",
@@ -212,7 +230,8 @@
   {
     "city": "Isparta",
     "avm_name": "Iyaşpark",
-    "events_url": "https://iyasparkavm.com/"
+    "events_url": "https://iyasparkavm.com/",
+    "image": "https://cdn-ildnpjb.nitrocdn.com/AtnlSOOyCnmCSeBvWYOodwEFZLzCXqxH/assets/images/optimized/rev-5df9031/iyasparkavm.com/wp-content/uploads/2025/07/park-pc.jpg"
   },
   {
     "city": "İstanbul",
@@ -227,17 +246,20 @@
   {
     "city": "İstanbul",
     "avm_name": "Akmerkez",
-    "events_url": "https://www.akmerkez.com.tr/"
+    "events_url": "https://www.akmerkez.com.tr/",
+    "image": "https://akis-gyo.s3.eu-central-1.amazonaws.com/images/webslider/web_slider_desktop_image/main/1d5344eb-2bc8-4b53-9f17-e1c048e49e9f.jpeg?1788358112641?1788358112641"
   },
   {
     "city": "İstanbul",
     "avm_name": "Capitol",
-    "events_url": "https://www.capitol.com.tr/tr"
+    "events_url": "https://www.capitol.com.tr/tr",
+    "image": "https://www.capitol.com.tr/media/q01frxan/konsept_aura-1440x800-1.jpg"
   },
   {
     "city": "İstanbul",
     "avm_name": "Cevahir",
-    "events_url": "https://istanbulcevahir.com/etkinlikler/"
+    "events_url": "https://istanbulcevahir.com/etkinlikler/",
+    "image": "https://istanbulcevahir.com/wp-content/uploads/2026/06/kucuk-adimlar-buyuk-fikirler-haziran-kucuk-tr.webp"
   },
   {
     "city": "İstanbul",
@@ -262,17 +284,20 @@
   {
     "city": "İstanbul",
     "avm_name": "Kanyon",
-    "events_url": "https://www.kanyon.com.tr/tr"
+    "events_url": "https://www.kanyon.com.tr/tr",
+    "image": "https://www.kanyon.com.tr/assets/images/kanyon-og.webp"
   },
   {
     "city": "İstanbul",
     "avm_name": "Mall of İstanbul",
-    "events_url": "https://www.mallofistanbul.com.tr/tr"
+    "events_url": "https://www.mallofistanbul.com.tr/tr",
+    "image": "https://mall-of-istanbul.s3.eu-central-1.amazonaws.com/images/webslider/web_slider_desktop_image/main/0edcc6a8-5b63-40ce-a66e-6e7c407f1aae.jpeg?1787320712788?1787320712788"
   },
   {
     "city": "İstanbul",
     "avm_name": "Metropol İstanbul",
-    "events_url": "https://www.metropolistanbul.com/"
+    "events_url": "https://www.metropolistanbul.com/",
+    "image": "https://citypartners.fra1.digitaloceanspaces.com/images/webslider/web_slider_desktop_image/main/f8827447-ce5f-4fdd-b96a-7c244ddfc38b.jpeg?1788263956889?1788263956889"
   },
   {
     "city": "İstanbul",
@@ -317,7 +342,8 @@
   {
     "city": "Karaman",
     "avm_name": "Park Karaman",
-    "events_url": "https://parkkaraman.com/tr"
+    "events_url": "https://parkkaraman.com/tr",
+    "image": "https://parkkaraman.com/storage/posts/September2024/S3LfwKMU7o9QXImSzc8s.jpeg"
   },
   {
     "city": "Kastamonu",
@@ -332,22 +358,26 @@
   {
     "city": "Kırıkkale",
     "avm_name": "Podium",
-    "events_url": "https://www.podiumkirikkale.com.tr/"
+    "events_url": "https://www.podiumkirikkale.com.tr/",
+    "image": "https://www.podiumkirikkale.com.tr/assets/images/ankarapodium.jpg"
   },
   {
     "city": "Kırklareli",
     "avm_name": "MiniMALL",
-    "events_url": "https://minimall.com.tr/tr"
+    "events_url": "https://minimall.com.tr/tr",
+    "image": "https://minimall.com.tr/uploads/Slider_1_a8961bc593.webp"
   },
   {
     "city": "Kocaeli",
     "avm_name": "41 Burda",
-    "events_url": "https://www.41burda.com/"
+    "events_url": "https://www.41burda.com/",
+    "image": "https://cdn.esasgm.com.tr/Uploads/esasburda41/Page/029_41-burda-ges-uretimi-1417x620.jpg"
   },
   {
     "city": "Kocaeli",
     "avm_name": "Gebze Center",
-    "events_url": "https://gebzecenter.com.tr/"
+    "events_url": "https://gebzecenter.com.tr/",
+    "image": "https://gebzecenter.com.tr/wp-content/uploads/2023/08/70x100cm_COCUK_KULUBU_AGUSTOS-1-scaled.jpg"
   },
   {
     "city": "Konya",
@@ -357,12 +387,14 @@
   {
     "city": "Konya",
     "avm_name": "KuleSite",
-    "events_url": "https://www.kulesite.com/"
+    "events_url": "https://www.kulesite.com/",
+    "image": "https://admin.kulesite.com/Files/Etkinlikler/Events_27072026_00001.jpeg"
   },
   {
     "city": "Kütahya",
     "avm_name": "Sera Kütahya",
-    "events_url": "https://www.serakutahyaavm.com.tr/"
+    "events_url": "https://www.serakutahyaavm.com.tr/",
+    "image": "https://www.serakutahyaavm.com.tr/uploads/4d12b54c80854517b2b8d9b884492b2c.png"
   },
   {
     "city": "Malatya",
@@ -377,12 +409,14 @@
   {
     "city": "Manisa",
     "avm_name": "Novada Akhisar",
-    "events_url": "https://www.akhisarnovada.com/"
+    "events_url": "https://www.akhisarnovada.com/",
+    "image": "https://www.akhisarnovada.com/assets/img2/slider.png"
   },
   {
     "city": "Mardin",
     "avm_name": "Mardian Mall",
-    "events_url": "https://mardianmall.com/"
+    "events_url": "https://mardianmall.com/",
+    "image": "https://mardianmall.com/dosyalar/slider/sld01.jpg"
   },
   {
     "city": "Mersin",
@@ -392,7 +426,8 @@
   {
     "city": "Mersin",
     "avm_name": "Palmcity",
-    "events_url": "https://www.palmcitymersin.com/"
+    "events_url": "https://www.palmcitymersin.com/",
+    "image": "https://www.palmcitymersin.com/media/slider/Palmcity_Al%C4%B1sverisin_Yeni_Dunyas%C4%B1-Web-01.webp"
   },
   {
     "city": "Muğla",
@@ -402,7 +437,8 @@
   {
     "city": "Muğla",
     "avm_name": "Midtown Bodrum",
-    "events_url": "https://www.midtown.com.tr/"
+    "events_url": "https://www.midtown.com.tr/",
+    "image": "https://www.midtown.com.tr/wp-content/uploads/2023/10/Yuruyen-merdiven.jpg"
   },
   {
     "city": "Nevşehir",
@@ -417,7 +453,8 @@
   {
     "city": "Ordu",
     "avm_name": "Novada Ordu",
-    "events_url": "https://www.novadaordu.com.tr/"
+    "events_url": "https://www.novadaordu.com.tr/",
+    "image": "https://www.novadaordu.com.tr/img/feature.jpg"
   },
   {
     "city": "Osmaniye",
@@ -427,7 +464,8 @@
   {
     "city": "Rize",
     "avm_name": "Şimal AVM",
-    "events_url": "https://www.simalavm.com.tr/haber-ve-duyurular/"
+    "events_url": "https://www.simalavm.com.tr/haber-ve-duyurular/",
+    "image": "https://www.simalavm.com.tr/wp-content/uploads/2024/04/WhatsApp-Image-2024-03-30-at-5.34.37-PM.jpeg"
   },
   {
     "city": "Sakarya",
@@ -447,7 +485,8 @@
   {
     "city": "Siirt",
     "avm_name": "Siirt Park",
-    "events_url": "https://siirtpark.com/"
+    "events_url": "https://siirtpark.com/",
+    "image": "https://siirtpark.com/wp-content/uploads/2026/07/Fit-Hatirlatici-Banner.png"
   },
   {
     "city": "Sivas",
@@ -457,7 +496,8 @@
   {
     "city": "Şanlıurfa",
     "avm_name": "Novada Park Şanlıurfa",
-    "events_url": "https://www.novadasanliurfa.com/"
+    "events_url": "https://www.novadasanliurfa.com/",
+    "image": "https://www.novadasanliurfa.com/uploads/sliders/01JSS1N19GG6EV2148B87WTR9H.png"
   },
   {
     "city": "Şanlıurfa",
@@ -467,12 +507,14 @@
   {
     "city": "Tekirdağ",
     "avm_name": "Orion Çorlu",
-    "events_url": "https://www.orionavm.com.tr/"
+    "events_url": "https://www.orionavm.com.tr/",
+    "image": "https://www.orionavm.com.tr/uploads/sliders/OKULKAMP1.jpg"
   },
   {
     "city": "Tekirdağ",
     "avm_name": "Tekira",
-    "events_url": "https://tekira.com.tr/tr/etkinlikler"
+    "events_url": "https://tekira.com.tr/tr/etkinlikler",
+    "image": "https://klepierre.s3.eu-central-1.amazonaws.com/images/banner/event_banner_web_image/main/42278034-b7df-41f9-b449-38b4d16a99be.jpeg?1704436855731?1704436855731"
   },
   {
     "city": "Tokat",
@@ -497,7 +539,8 @@
   {
     "city": "Yalova",
     "avm_name": "Star AVM",
-    "events_url": "https://www.yalovastar.com.tr/"
+    "events_url": "https://www.yalovastar.com.tr/",
+    "image": "https://www.yalovastar.com.tr/tema/belediye/uploads/haberler/manset/etkinliklere-doyamayacaksiniz-365-gun-etkinlik-aktivite.png"
   },
   {
     "city": "Yozgat",
@@ -507,6 +550,7 @@
   {
     "city": "Zonguldak",
     "avm_name": "67 Burda",
-    "events_url": "https://www.esas67burda.com/"
+    "events_url": "https://www.esas67burda.com/",
+    "image": "https://cdn.esasgm.com.tr/Uploads/esasburda67/Page/046_67-burda-el-fani-kampanyasi_1417x620_2.png"
   }
 ]

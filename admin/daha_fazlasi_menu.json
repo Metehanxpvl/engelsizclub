@@ -28,5 +28,11 @@
     "isim": "Fotoğraflı Puzzle",
     "link": "/fotografli-puzzle.html",
     "aktif": 1
+  },
+  {
+    "id": 7,
+    "isim": "🎨 engelsiz Boyama",
+    "link": "/boyama",
+    "aktif": 1
   }
 ]

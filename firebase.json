@@ -69,6 +69,14 @@
         "destination": "/fotografli-puzzle.html"
       },
       {
+        "source": "/boyama",
+        "destination": "/boyama.html"
+      },
+      {
+        "source": "/boyama/**",
+        "destination": "/boyama.html"
+      },
+      {
         "source": "/support",
         "destination": "/support.html"
       },
@@ -96,6 +104,15 @@
           {
             "key": "Cache-Control",
             "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "/admin/daha_fazlasi_menu.json",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
           }
         ]
       },
@@ -215,6 +232,19 @@
       },
       {
         "source": "/fotografli-puzzle.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=()"
+          }
+        ]
+      },
+      {
+        "source": "/boyama.html",
         "headers": [
           {
             "key": "Cache-Control",
