@@ -110,12 +110,22 @@ class MoreMenuItem {
 }
 
 /// `cvi2`, `/cvi2`, `route:cvi2` → `cvi2` (bilinmeyen route ise null).
+/// `boyama.html` / `/boyama` URL’leri in-app `boyama` route’una çevrilir.
 String? normalizeMoreMenuRoute(String raw) {
   var s = raw.trim().toLowerCase();
   if (s.isEmpty) return null;
   if (s.startsWith('route:')) s = s.substring(6).trim();
+
+  final isUrlish = s.contains('://') || s.contains('.');
+  if (isUrlish) {
+    if (s.contains('boyama.html') ||
+        RegExp(r'(^|/)boyama(/|$|\?)').hasMatch(s)) {
+      return 'boyama';
+    }
+    return null;
+  }
+
   if (s.startsWith('/')) s = s.substring(1);
-  if (s.contains('://') || s.contains('.')) return null;
   if (s == 'taramalar_egzersizler_oyun') s = 'taramalar';
   return MoreMenuItem.builtinRoutes.contains(s) ? s : null;
 }
@@ -157,16 +167,27 @@ List<MoreMenuItem> withoutMainNavMapItems(List<MoreMenuItem> items) {
 }
 
 const puzzleGameUrl = '/fotografli-puzzle.html';
-const boyamaPageUrl = '/boyama';
 
 const defaultTaramalarGroupItem = MoreMenuItem(
   id: -10,
   title: 'Taramalar & Egzersizler & Oyun',
-  subtitle: 'Puzzle, boyama, CVI egzersizleri ve otizm tarama',
+  subtitle: 'Puzzle, CVI egzersizleri ve otizm tarama',
   linkType: 'route',
   link: 'taramalar',
   icon: 'apps',
   sortOrder: 5,
+  isActive: true,
+  isBuiltin: true,
+);
+
+const defaultBoyamaMenuItem = MoreMenuItem(
+  id: -15,
+  title: 'engelsiz Boyama',
+  subtitle: 'Galeriden fotoğraf → siyah-beyaz boyama sayfası',
+  linkType: 'route',
+  link: 'boyama',
+  icon: '🎨',
+  sortOrder: 6,
   isActive: true,
   isBuiltin: true,
 );
@@ -176,28 +197,29 @@ bool isTaramalarGroupItem(MoreMenuItem e) {
   return k == 'taramalar' || k == 'taramalar_egzersizler_oyun';
 }
 
-/// Üst menüde durmamalı; grup içine taşınan öğeler.
+bool isBoyamaMenuItem(MoreMenuItem e) {
+  if (e.routeKey == 'boyama') return true;
+  final raw = e.link.trim().toLowerCase();
+  final title = e.title.trim().toLowerCase();
+  return raw.contains('boyama') || title.contains('boyama');
+}
+
+/// Üst menüde durmamalı; grup içine taşınan öğeler (Boyama üst düzeyde kalır).
 bool isTaramalarChildItem(MoreMenuItem e) {
-  if (isTaramalarGroupItem(e)) return false;
+  if (isTaramalarGroupItem(e) || isBoyamaMenuItem(e)) return false;
   final key = e.routeKey;
-  if (key == 'cvi' ||
-      key == 'cvi2' ||
-      key == 'mchat' ||
-      key == 'puzzle' ||
-      key == 'boyama') {
+  if (key == 'cvi' || key == 'cvi2' || key == 'mchat' || key == 'puzzle') {
     return true;
   }
   final raw = e.link.trim().toLowerCase();
   if (raw.contains('fotografli-puzzle')) return true;
-  if (raw == '/boyama' || raw.endsWith('/boyama') || raw.contains('boyama.html')) {
-    return true;
-  }
   if (raw.contains('cvi-egzersizleri-2')) return true;
   if (raw.contains('cvi-gorsel-egzersiz')) return true;
   return false;
 }
 
 /// Grup altındaki özellikler (mevcut ekranlar — yeniden yazılmaz).
+/// Boyama bu listede değil; üst Daha Fazlası satırıdır.
 List<MoreMenuItem> taramalarGroupChildren() => const [
       MoreMenuItem(
         id: -11,
@@ -207,17 +229,6 @@ List<MoreMenuItem> taramalarGroupChildren() => const [
         link: 'puzzle',
         icon: 'games',
         sortOrder: 1,
-        isActive: true,
-        isBuiltin: true,
-      ),
-      MoreMenuItem(
-        id: -15,
-        title: 'engelsiz Boyama',
-        subtitle: 'Boyama sayfası',
-        linkType: 'route',
-        link: 'boyama',
-        icon: '🎨',
-        sortOrder: 2,
         isActive: true,
         isBuiltin: true,
       ),
@@ -301,17 +312,47 @@ List<MoreMenuItem> withTaramalarGroup(
   return [group, ...visible];
 }
 
+/// 🎨 engelsiz Boyama üst listede, Taramalar grubunun hemen altında.
+/// Supabase id 13 yok/pasif olsa bile hardcoded satır eklenir.
+List<MoreMenuItem> withTopLevelBoyama(List<MoreMenuItem> items) {
+  final existing = items.where(isBoyamaMenuItem).toList();
+  final rest = items.where((e) => !isBoyamaMenuItem(e)).toList();
+  final boyama = existing.isEmpty ? defaultBoyamaMenuItem : existing.first;
+
+  final groupIdx = rest.indexWhere(isTaramalarGroupItem);
+  if (groupIdx >= 0) {
+    return [
+      ...rest.take(groupIdx + 1),
+      boyama,
+      ...rest.skip(groupIdx + 1),
+    ];
+  }
+  final haritaIdx = rest.indexWhere(isHaritaMenuItem);
+  if (haritaIdx >= 0) {
+    return [
+      ...rest.take(haritaIdx + 1),
+      boyama,
+      ...rest.skip(haritaIdx + 1),
+    ];
+  }
+  return [boyama, ...rest];
+}
+
 List<MoreMenuItem> prepareUserMoreMenu(List<MoreMenuItem> items) {
-  return withTaramalarGroup(
-    withProminentHarita(withoutMovedLibraryItems(items), pinTop: true),
-    pinTop: true,
+  return withTopLevelBoyama(
+    withTaramalarGroup(
+      withProminentHarita(withoutMovedLibraryItems(items), pinTop: true),
+      pinTop: true,
+    ),
   );
 }
 
 List<MoreMenuItem> prepareAdminMoreMenu(List<MoreMenuItem> items) {
-  return withTaramalarGroup(
-    withProminentHarita(withoutMovedLibraryItems(items), pinTop: false),
-    pinTop: false,
+  return withTopLevelBoyama(
+    withTaramalarGroup(
+      withProminentHarita(withoutMovedLibraryItems(items), pinTop: false),
+      pinTop: false,
+    ),
   );
 }
 
@@ -319,6 +360,7 @@ List<MoreMenuItem> prepareAdminMoreMenu(List<MoreMenuItem> items) {
 List<MoreMenuItem> defaultMoreMenuItems() => const [
       defaultHaritaMenuItem,
       defaultTaramalarGroupItem,
+      defaultBoyamaMenuItem,
       MoreMenuItem(
         id: -1,
         title: 'Aile Koçum',

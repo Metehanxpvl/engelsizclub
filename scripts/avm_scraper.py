@@ -57,7 +57,9 @@ USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 )
-FETCH_TIMEOUT = 20.0
+FETCH_TIMEOUT = 30.0
+FETCH_RETRIES = 3
+RETRY_HTTP_STATUS = {429, 502, 503, 504}
 GEMINI_TIMEOUT = 45.0
 DELAY_MIN = 1.0
 DELAY_MAX = 2.0
@@ -777,9 +779,13 @@ def _fetch_with_playwright(url: str) -> str | None:
                 user_agent=USER_AGENT,
                 locale="tr-TR",
                 viewport={"width": 1280, "height": 900},
+                extra_http_headers={
+                    "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+                    "Upgrade-Insecure-Requests": "1",
+                },
             )
             page = ctx.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=25_000)
+            page.goto(url, wait_until="domcontentloaded", timeout=35_000)
             # Wait a bit for JS to hydrate content
             page.wait_for_timeout(3000)
             html = page.content()
@@ -803,37 +809,78 @@ class FetchedPage(NamedTuple):
     cover: str
 
 
+_BROWSER_HEADERS = {
+    "User-Agent": USER_AGENT,
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "image/avif,image/webp,*/*;q=0.8"
+    ),
+    "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+}
+
+
 def _http_get_html(
     http: httpx.Client, url: str
 ) -> tuple[str | None, str]:
     html: str | None = None
     final_url = url
-    try:
-        res = http.get(
-            url,
-            timeout=FETCH_TIMEOUT,
-            follow_redirects=True,
-            headers={
-                "User-Agent": USER_AGENT,
-                "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.5",
-                "Sec-Fetch-Mode": "navigate",
-                "Sec-Fetch-Site": "none",
-                "Sec-Fetch-Dest": "document",
-                "Upgrade-Insecure-Requests": "1",
-            },
-        )
-        final_url = str(res.url)
-        if res.status_code < 400:
-            raw = res.content[:MAX_HTML_BYTES]
-            try:
-                html = raw.decode(res.encoding or "utf-8", errors="replace")
-            except LookupError:
-                html = raw.decode("utf-8", errors="replace")
-        else:
+    last_err = ""
+    for attempt in range(1, FETCH_RETRIES + 1):
+        try:
+            res = http.get(
+                url,
+                timeout=FETCH_TIMEOUT,
+                follow_redirects=True,
+                headers=_BROWSER_HEADERS,
+            )
+            final_url = str(res.url)
+            if res.status_code in RETRY_HTTP_STATUS and attempt < FETCH_RETRIES:
+                wait = min(1.5 * attempt, 6.0)
+                print(
+                    f"  HTTP {res.status_code}, yeniden deneme "
+                    f"{attempt}/{FETCH_RETRIES} ({wait:.0f}s)",
+                    file=sys.stderr,
+                )
+                time.sleep(wait)
+                continue
+            if res.status_code < 400:
+                raw = res.content[:MAX_HTML_BYTES]
+                try:
+                    html = raw.decode(res.encoding or "utf-8", errors="replace")
+                except LookupError:
+                    html = raw.decode("utf-8", errors="replace")
+                return html, final_url
             print(f"  HTTP {res.status_code}", file=sys.stderr)
-    except httpx.HTTPError as exc:
-        print(f"  istek hatası: {_redact_error(str(exc))}", file=sys.stderr)
+            return html, final_url
+        except (
+            httpx.TimeoutException,
+            httpx.ConnectError,
+            httpx.RemoteProtocolError,
+        ) as exc:
+            last_err = _redact_error(str(exc))
+            if attempt < FETCH_RETRIES:
+                wait = min(1.5 * attempt, 6.0)
+                print(
+                    f"  geçici hata, yeniden deneme {attempt}/{FETCH_RETRIES} "
+                    f"({wait:.0f}s): {last_err}",
+                    file=sys.stderr,
+                )
+                time.sleep(wait)
+                continue
+            print(f"  istek hatası: {last_err}", file=sys.stderr)
+            return html, final_url
+        except httpx.HTTPError as exc:
+            print(f"  istek hatası: {_redact_error(str(exc))}", file=sys.stderr)
+            return html, final_url
+    if last_err:
+        print(f"  istek hatası: {last_err}", file=sys.stderr)
     return html, final_url
 
 
@@ -1330,6 +1377,12 @@ def main() -> int:
             if len(stats_fail) > 20:
                 print(f"    … ve {len(stats_fail)-20} daha")
         print(f"{'='*60}\n")
+        if stats_fail:
+            print(
+                f"Uyarı: {len(stats_fail)} kaynak alınamadı; "
+                "bu kısmi başarısızlık işi düşürmez (exit 0).",
+                flush=True,
+            )
 
         if args.dry_run:
             print(json.dumps(all_events, ensure_ascii=False, indent=2))
@@ -1337,12 +1390,24 @@ def main() -> int:
             return 0
 
         assert db is not None
-        n_events = db.upsert_events(all_events)
-        inserted, updated, skipped = sync_etkinlikler(db, all_events, covers)
+        try:
+            n_events = db.upsert_events(all_events)
+            inserted, updated, skipped = sync_etkinlikler(
+                db, all_events, covers
+            )
+        except Exception as exc:  # noqa: BLE001 — true fatal: DB write
+            print(
+                f"Supabase yazma başarısız: {_redact_error(str(exc))}",
+                file=sys.stderr,
+            )
+            return 1
         print(
             f"events upsert={n_events}; "
             f"etkinlikler insert={inserted} update={updated} skip={skipped}"
         )
+    # Partial source failures are warnings only. Exit 0 when the scrape
+    # loop finished and (if not dry-run) Supabase write succeeded —
+    # including 0 events.
     return 0
 
 
@@ -1351,3 +1416,8 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except KeyboardInterrupt:
         raise SystemExit(130)
+    except SystemExit:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        print(f"Ölümcül hata: {_redact_error(str(exc))}", file=sys.stderr)
+        raise SystemExit(1) from exc

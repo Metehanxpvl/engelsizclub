@@ -89,11 +89,6 @@ class TaramalarGroupSheet extends StatelessWidget {
         height: 22,
       );
     }
-    if (item.icon == '🎨' ||
-        item.icon == 'palette' ||
-        item.link == 'boyama') {
-      return const Text('🎨', style: TextStyle(fontSize: 22));
-    }
     switch (item.icon) {
       case 'games':
         return Icon(Icons.extension_outlined, color: Colors.green.shade700);

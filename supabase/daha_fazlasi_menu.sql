@@ -71,6 +71,7 @@ insert into public.daha_fazlasi_menu
   (title, subtitle, link_type, link, icon, sort_order, is_active, is_builtin)
 select * from (values
   ('Taramalar & Egzersizler & Oyun', 'Puzzle, CVI egzersizleri ve otizm tarama', 'route', 'taramalar', 'apps', 5, true, true),
+  ('engelsiz Boyama', 'Galeriden fotoğraf → siyah-beyaz boyama sayfası', 'route', 'boyama', '🎨', 6, true, true),
   ('Aile Koçum', 'Ders, ilaç ve not takibi (çevrimdışı)', 'route', 'aile_kocu', 'family', 10, true, true),
   ('Haklar', 'Devlet hakları ve rehber', 'route', 'haklar', 'balance', 20, true, true),
   ('Kartlar', 'Görsel destek kartları', 'route', 'kartlar', 'grid', 30, true, true),
@@ -97,6 +98,7 @@ where not exists (
 
 -- Taramalar & Egzersizler & Oyun grubu (tablo dolu olsa da ekle).
 -- Çocuklar (puzzle / cvi / cvi2 / mchat) istemcide bu grubun altında açılır.
+-- Engelsiz Boyama üst listede kalır (id 13 silinmesin — bkz. daha_fazlasi_boyama_move.sql).
 insert into public.daha_fazlasi_menu
   (title, subtitle, link_type, link, icon, sort_order, is_active, is_builtin)
 select
@@ -111,6 +113,26 @@ select
 where not exists (
   select 1 from public.daha_fazlasi_menu
   where lower(trim(link)) in ('taramalar', 'taramalar_egzersizler_oyun')
+);
+
+-- Engelsiz Boyama üst Daha Fazlası satırı (tablo dolu olsa da ekle; id 13 silinmesin).
+insert into public.daha_fazlasi_menu
+  (title, subtitle, link_type, link, icon, sort_order, is_active, is_builtin)
+select
+  'engelsiz Boyama',
+  'Galeriden fotoğraf → siyah-beyaz boyama sayfası',
+  'route',
+  'boyama',
+  '🎨',
+  6,
+  true,
+  true
+where not exists (
+  select 1 from public.daha_fazlasi_menu
+  where id = 13
+     or lower(trim(link)) in ('boyama', '/boyama', 'route:boyama')
+     or lower(link) like '%boyama.html%'
+     or lower(title) like '%boyama%'
 );
 
 notify pgrst, 'reload schema';

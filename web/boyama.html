@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <meta name="description" content="Engelsiz Boyama — Engelsiz Club boyama sayfası." />
+  <meta name="description" content="Engelsiz Boyama — galeriden fotoğrafı siyah-beyaz boyama sayfasına çevir." />
   <title>Engelsiz Boyama — Engelsiz Club</title>
   <style>
     :root {
@@ -52,8 +52,12 @@
       cursor: pointer;
     }
     .swatch {
-      width: 36px;
-      height: 36px;
+      width: 44px;
+      height: 44px;
+      flex-shrink: 0;
+      filter: none;
+      -webkit-appearance: none;
+      appearance: none;
     }
     .swatch.active { border-color: var(--fg); }
     .size {
@@ -73,93 +77,170 @@
       border: none;
       border-radius: 10px;
     }
+    button.action:disabled { opacity: 0.6; cursor: wait; }
     #wrap {
       flex: 1;
       min-height: 0;
       padding: 0 12px 16px;
+      position: relative;
     }
-    canvas {
-      display: block;
+    #stage {
+      position: relative;
       width: 100%;
       height: 100%;
-      background: #fff;
       border-radius: 16px;
+      overflow: hidden;
       box-shadow: 0 1px 4px rgba(0,0,0,.06);
+      background: #fff;
+    }
+    #paint, #lines {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
       touch-action: none;
     }
+    #lines {
+      pointer-events: none;
+      mix-blend-mode: multiply;
+    }
+    #busy {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,.72);
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: var(--accent);
+      z-index: 2;
+    }
+    #busy.on { display: flex; }
   </style>
 </head>
 <body>
   <header>
     <a href="/">← Engelsiz Club</a>
     <h1>🎨 Engelsiz Boyama</h1>
-    <p class="sub">Rengi seç, parmağınla boya.</p>
+    <p class="sub">Galeriden fotoğraf seç; siyah-beyaz boyama sayfasına dönüşür. Sonra boya.</p>
   </header>
   <div class="tools" id="tools">
-    <button type="button" class="swatch active" data-color="#1a6b4a" style="background:#1a6b4a" aria-label="Yeşil"></button>
-    <button type="button" class="swatch" data-color="#e07a5f" style="background:#e07a5f" aria-label="Turuncu"></button>
-    <button type="button" class="swatch" data-color="#5b8dd9" style="background:#5b8dd9" aria-label="Mavi"></button>
-    <button type="button" class="swatch" data-color="#f4a832" style="background:#f4a832" aria-label="Sarı"></button>
-    <button type="button" class="swatch" data-color="#9c6db3" style="background:#9c6db3" aria-label="Mor"></button>
-    <button type="button" class="swatch" data-color="#111111" style="background:#111" aria-label="Siyah"></button>
-    <button type="button" class="swatch" data-color="#ffffff" style="background:#fff;border-color:#ccc" aria-label="Silgi"></button>
+    <input type="file" id="photo" accept="image/*" hidden />
+    <button type="button" class="action" id="pick">Galeriden seç</button>
+    <button type="button" class="swatch active" data-color="#e31b23" style="background:#e31b23" aria-label="Kırmızı"></button>
+    <button type="button" class="swatch" data-color="#ffd400" style="background:#ffd400" aria-label="Sarı"></button>
+    <button type="button" class="swatch" data-color="#1565c0" style="background:#1565c0" aria-label="Mavi"></button>
+    <button type="button" class="swatch" data-color="#ff7a18" style="background:#ff7a18" aria-label="Turuncu"></button>
+    <button type="button" class="swatch" data-color="#2e9b3a" style="background:#2e9b3a" aria-label="Yeşil"></button>
+    <button type="button" class="swatch" data-color="#8e24aa" style="background:#8e24aa" aria-label="Mor"></button>
+    <button type="button" class="swatch" data-color="#f06292" style="background:#f06292" aria-label="Pembe"></button>
+    <button type="button" class="swatch" data-color="#8d5b3d" style="background:#8d5b3d" aria-label="Kahverengi"></button>
+    <button type="button" class="swatch" data-color="#e8b89a" style="background:#e8b89a" aria-label="Ten"></button>
+    <button type="button" class="swatch" data-color="#9e9e9e" style="background:#9e9e9e" aria-label="Gri"></button>
+    <button type="button" class="swatch" data-color="#111111" style="background:#111111" aria-label="Siyah"></button>
+    <button type="button" class="swatch" data-color="#ffffff" style="background:#ffffff;border-color:#ccc" aria-label="Silgi"></button>
     <button type="button" class="size active" data-size="8">S</button>
     <button type="button" class="size" data-size="18">M</button>
     <button type="button" class="size" data-size="32">L</button>
     <button type="button" class="action" id="clear">Temizle</button>
   </div>
-  <div id="wrap"><canvas id="c" aria-label="Boyama alanı"></canvas></div>
+  <div id="wrap">
+    <div id="stage">
+      <canvas id="paint" aria-label="Boyama alanı"></canvas>
+      <canvas id="lines" aria-hidden="true"></canvas>
+      <div id="busy">Boyama sayfasına dönüştürülüyor…</div>
+    </div>
+  </div>
   <script>
     (function () {
-      var canvas = document.getElementById('c');
-      var ctx = canvas.getContext('2d');
-      var color = '#1a6b4a';
+      var paint = document.getElementById('paint');
+      var lines = document.getElementById('lines');
+      var pctx = paint.getContext('2d', { willReadFrequently: false });
+      var lctx = lines.getContext('2d', { willReadFrequently: true });
+      var color = '#e31b23';
       var size = 8;
       var drawing = false;
+      var lineArt = null;
+      var busy = false;
 
-      function resize() {
-        var wrap = document.getElementById('wrap');
-        var r = wrap.getBoundingClientRect();
+      function cssSize(el) {
+        var r = el.getBoundingClientRect();
+        return { w: Math.max(1, r.width), h: Math.max(1, r.height) };
+      }
+
+      function resizeCanvas(cv, ctx, fillWhite) {
+        var stage = document.getElementById('stage');
+        var s = cssSize(stage);
         var dpr = Math.max(1, window.devicePixelRatio || 1);
-        canvas.width = Math.floor(r.width * dpr);
-        canvas.height = Math.floor(r.height * dpr);
+        cv.width = Math.floor(s.w * dpr);
+        cv.height = Math.floor(s.h * dpr);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
+        if (fillWhite) {
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, s.w, s.h);
+        } else {
+          ctx.clearRect(0, 0, s.w, s.h);
+        }
+      }
+
+      function drawLineArt() {
+        var s = cssSize(document.getElementById('stage'));
+        lctx.setTransform(1, 0, 0, 1, 0, 0);
+        lctx.clearRect(0, 0, lines.width, lines.height);
+        var dpr = Math.max(1, window.devicePixelRatio || 1);
+        lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        if (!lineArt) return;
+        var scale = Math.min(s.w / lineArt.width, s.h / lineArt.height);
+        var dw = lineArt.width * scale;
+        var dh = lineArt.height * scale;
+        var x = (s.w - dw) / 2;
+        var y = (s.h - dh) / 2;
+        lctx.imageSmoothingEnabled = false;
+        lctx.drawImage(lineArt, x, y, dw, dh);
+      }
+
+      function resize() {
+        resizeCanvas(paint, pctx, true);
+        resizeCanvas(lines, lctx, false);
+        drawLineArt();
       }
       resize();
       window.addEventListener('resize', resize);
 
       function pos(e) {
-        var r = canvas.getBoundingClientRect();
+        var r = paint.getBoundingClientRect();
         var t = e.touches ? e.touches[0] : e;
         return { x: t.clientX - r.left, y: t.clientY - r.top };
       }
       function start(e) {
+        if (busy) return;
         drawing = true;
         var p = pos(e);
-        ctx.beginPath();
-        ctx.moveTo(p.x, p.y);
+        pctx.beginPath();
+        pctx.moveTo(p.x, p.y);
         e.preventDefault();
       }
       function move(e) {
         if (!drawing) return;
         var p = pos(e);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = size;
-        ctx.lineTo(p.x, p.y);
-        ctx.stroke();
+        pctx.strokeStyle = color;
+        pctx.lineWidth = size;
+        pctx.lineTo(p.x, p.y);
+        pctx.stroke();
         e.preventDefault();
       }
       function end() { drawing = false; }
 
-      canvas.addEventListener('pointerdown', start);
-      canvas.addEventListener('pointermove', move);
-      canvas.addEventListener('pointerup', end);
-      canvas.addEventListener('pointerleave', end);
-      canvas.addEventListener('touchstart', start, { passive: false });
-      canvas.addEventListener('touchmove', move, { passive: false });
-      canvas.addEventListener('touchend', end);
+      paint.addEventListener('pointerdown', start);
+      paint.addEventListener('pointermove', move);
+      paint.addEventListener('pointerup', end);
+      paint.addEventListener('pointerleave', end);
+      paint.addEventListener('touchstart', start, { passive: false });
+      paint.addEventListener('touchmove', move, { passive: false });
+      paint.addEventListener('touchend', end);
 
       document.getElementById('tools').addEventListener('click', function (e) {
         var btn = e.target.closest('button');
@@ -175,9 +256,160 @@
         }
       });
       document.getElementById('clear').addEventListener('click', function () {
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        resize();
+        resizeCanvas(paint, pctx, true);
+      });
+
+      function setBusy(on) {
+        busy = on;
+        document.getElementById('busy').classList.toggle('on', on);
+        document.getElementById('pick').disabled = on;
+      }
+
+      function invertGray(src) {
+        var out = new Uint8ClampedArray(src.length);
+        for (var i = 0; i < src.length; i++) out[i] = 255 - src[i];
+        return out;
+      }
+
+      function boxBlur(src, w, h, radius) {
+        var r = Math.max(1, radius | 0);
+        var tmp = new Float32Array(w * h);
+        var out = new Uint8ClampedArray(w * h);
+        var i, x, y, acc, count, n;
+        for (y = 0; y < h; y++) {
+          acc = 0; count = 0;
+          for (x = -r; x <= r; x++) {
+            if (x >= 0 && x < w) { acc += src[y * w + x]; count++; }
+          }
+          for (x = 0; x < w; x++) {
+            tmp[y * w + x] = acc / count;
+            var leave = x - r;
+            var enter = x + r + 1;
+            if (leave >= 0) { acc -= src[y * w + leave]; count--; }
+            if (enter < w) { acc += src[y * w + enter]; count++; }
+          }
+        }
+        for (x = 0; x < w; x++) {
+          acc = 0; count = 0;
+          for (y = -r; y <= r; y++) {
+            if (y >= 0 && y < h) { acc += tmp[y * w + x]; count++; }
+          }
+          for (y = 0; y < h; y++) {
+            n = Math.round(acc / count);
+            out[y * w + x] = n < 0 ? 0 : n > 255 ? 255 : n;
+            var leave = y - r;
+            var enter = y + r + 1;
+            if (leave >= 0) { acc -= tmp[leave * w + x]; count--; }
+            if (enter < h) { acc += tmp[enter * w + x]; count++; }
+          }
+        }
+        return out;
+      }
+
+      function toLineArt(imageData) {
+        var w = imageData.width;
+        var h = imageData.height;
+        var d = imageData.data;
+        var gray = new Uint8ClampedArray(w * h);
+        var i, x, y, o, gx, gy, mag, dodge, g, b, v, line;
+        for (i = 0; i < w * h; i++) {
+          o = i * 4;
+          gray[i] = (0.299 * d[o] + 0.587 * d[o + 1] + 0.114 * d[o + 2]) | 0;
+        }
+        var blurInv = boxBlur(invertGray(gray), w, h, 4);
+        var soft = boxBlur(gray, w, h, 1);
+        var out = new Uint8ClampedArray(w * h);
+        for (y = 1; y < h - 1; y++) {
+          for (x = 1; x < w - 1; x++) {
+            i = y * w + x;
+            g = gray[i];
+            b = blurInv[i];
+            dodge = b >= 254 ? 255 : Math.min(255, (g * 255) / (255 - b));
+            gx = -soft[i - w - 1] - 2 * soft[i - 1] - soft[i + w - 1]
+              + soft[i - w + 1] + 2 * soft[i + 1] + soft[i + w + 1];
+            gy = -soft[i - w - 1] - 2 * soft[i - w] - soft[i - w + 1]
+              + soft[i + w - 1] + 2 * soft[i + w] + soft[i + w + 1];
+            mag = Math.min(255, Math.hypot(gx, gy));
+            line = dodge < 178 || mag > 40;
+            out[i] = line ? 0 : 255;
+          }
+        }
+        for (x = 0; x < w; x++) { out[x] = 255; out[(h - 1) * w + x] = 255; }
+        for (y = 0; y < h; y++) { out[y * w] = 255; out[y * w + w - 1] = 255; }
+        var thick = new Uint8ClampedArray(out);
+        for (y = 1; y < h - 1; y++) {
+          for (x = 1; x < w - 1; x++) {
+            if (out[y * w + x] > 32) continue;
+            thick[y * w + x - 1] = 0;
+            thick[y * w + x + 1] = 0;
+            thick[(y - 1) * w + x] = 0;
+            thick[(y + 1) * w + x] = 0;
+          }
+        }
+        for (i = 0; i < w * h; i++) {
+          v = thick[i];
+          d[i * 4] = v;
+          d[i * 4 + 1] = v;
+          d[i * 4 + 2] = v;
+          d[i * 4 + 3] = 255;
+        }
+        return imageData;
+      }
+
+      function loadImageFile(file) {
+        return new Promise(function (resolve, reject) {
+          var url = URL.createObjectURL(file);
+          var im = new Image();
+          im.onload = function () {
+            URL.revokeObjectURL(url);
+            resolve(im);
+          };
+          im.onerror = function () {
+            URL.revokeObjectURL(url);
+            reject(new Error('Görsel okunamadı'));
+          };
+          im.src = url;
+        });
+      }
+
+      function rasterToLineArt(im) {
+        var maxSide = 960;
+        var scale = Math.min(1, maxSide / Math.max(im.width, im.height));
+        var w = Math.max(2, Math.round(im.width * scale));
+        var h = Math.max(2, Math.round(im.height * scale));
+        var off = document.createElement('canvas');
+        off.width = w;
+        off.height = h;
+        var ox = off.getContext('2d', { willReadFrequently: true });
+        ox.fillStyle = '#fff';
+        ox.fillRect(0, 0, w, h);
+        ox.drawImage(im, 0, 0, w, h);
+        var data = ox.getImageData(0, 0, w, h);
+        toLineArt(data);
+        ox.putImageData(data, 0, 0);
+        return off;
+      }
+
+      document.getElementById('pick').addEventListener('click', function () {
+        if (busy) return;
+        document.getElementById('photo').click();
+      });
+
+      document.getElementById('photo').addEventListener('change', function (e) {
+        var file = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        setBusy(true);
+        loadImageFile(file)
+          .then(function (im) {
+            lineArt = rasterToLineArt(im);
+            resizeCanvas(paint, pctx, true);
+            drawLineArt();
+          })
+          .catch(function () {
+            alert('Fotoğraf boyama sayfasına çevrilemedi. Başka bir JPEG/PNG deneyin.');
+          })
+          .then(function () { setBusy(false); });
       });
     })();
   </script>

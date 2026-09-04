@@ -40,6 +40,7 @@ import 'mchat/mchat_entry.dart';
 import 'data/more_menu_data.dart';
 import 'more_menu_store.dart';
 import 'pages/in_app_web_page.dart';
+import 'pages/boyama_page.dart';
 import 'pages/gelisim_etkinlikleri_page.dart';
 import 'pages/barcode_scanner_screen.dart';
 import 'pages/etkinlikler_page.dart';
@@ -984,10 +985,9 @@ class _MainShellState extends State<MainShell> {
         );
         return;
       case 'boyama':
-        await InAppWebPage.open(
+        await BoyamaPage.open(
           context,
           title: item.title,
-          url: boyamaPageUrl,
           isGuest: _isGuest,
           onRequireLogin: () => _requireLogin(
             'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
