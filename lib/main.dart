@@ -35,6 +35,7 @@ import 'services/force_update_service.dart';
 import 'services/push_notification_service.dart';
 import 'utils/async_timeout.dart';
 import 'widgets/force_update_gate.dart';
+import 'widgets/loading_error_view.dart';
 
 export 'meto_theme.dart';
 
@@ -186,13 +187,13 @@ Future<void> _bootstrapPlatformServices() async {
   // Firebase/FCM Play Services kullanır; uygulama açıldıktan sonra başlat ki
   // bazı cihazlarda görünen "Google Play is enabled" diyalogu ana ekranı kilitlemesin.
   try {
-    await ensureFirebaseInitialized();
+    await ensureFirebaseInitialized().timeout(kUiTimeout);
   } catch (e, st) {
     debugPrint('Firebase init failed: $e\n$st');
   }
 
   try {
-    await PushNotificationService.instance.init();
+    await PushNotificationService.instance.init().timeout(kUiTimeout);
   } catch (e, st) {
     debugPrint('FCM init failed: $e\n$st');
   }
@@ -248,76 +249,8 @@ Future<void> main() async {
       statusBarIconBrightness: Brightness.light,
     ),
   );
-  // Release ErrorWidget is a solid grey box — never show that as the first frame.
-  ErrorWidget.builder = (details) {
-    debugPrint('Launch/build error: ${details.exception}');
-    return const Directionality(
-      textDirection: TextDirection.ltr,
-      child: Material(
-        color: MetoColors.background,
-        child: _LaunchPlaceholder(message: 'Uygulama hazırlanıyor…'),
-      ),
-    );
-  };
   runApp(const ProviderScope(child: MetoCareApp()));
   unawaited(_bootstrapPlatformServices());
-}
-
-/// İlk kare: çeviri / font / locale olmadan boyanır (gri ErrorWidget olmasın).
-class _LaunchPlaceholder extends StatelessWidget {
-  const _LaunchPlaceholder({this.message = 'Uygulama hazırlanıyor…'});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: MetoColors.background,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(color: MetoColors.primary),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
-                color: MetoColors.mutedFg,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-ThemeData _metoTheme() {
-  const scheme = ColorScheme.light(
-    primary: MetoColors.primary,
-    onPrimary: Colors.white,
-    surface: MetoColors.card,
-    onSurface: MetoColors.foreground,
-  );
-  try {
-    return ThemeData(
-      useMaterial3: true,
-      scaffoldBackgroundColor: MetoColors.background,
-      textTheme: GoogleFonts.nunitoTextTheme(),
-      primaryTextTheme: GoogleFonts.nunitoTextTheme(),
-      colorScheme: scheme,
-    );
-  } catch (e) {
-    debugPrint('Theme fonts: $e');
-    return ThemeData(
-      useMaterial3: true,
-      scaffoldBackgroundColor: MetoColors.background,
-      colorScheme: scheme,
-    );
-  }
 }
 
 class MetoCareApp extends StatefulWidget {
@@ -661,8 +594,9 @@ class _MetoCareAppState extends State<MetoCareApp> {
           title: 'EngelsizClub',
           debugShowCheckedModeBanner: false,
           scaffoldMessengerKey: _messengerKey,
-          // Do not force `locale:` — iOS/Android can assert/grey-screen if the
-          // exact Locale object is not in supportedLocales (tr vs tr_TR).
+          // Do not set `locale:` — 1.0.93 grey-screened when lang.locale
+          // was not an exact supportedLocales entry (tr vs tr_TR).
+          // Date pickers pass Locale('tr') themselves.
           supportedLocales: const [
             Locale('tr'),
             Locale('en'),
@@ -670,32 +604,39 @@ class _MetoCareAppState extends State<MetoCareApp> {
             Locale('ar'),
             Locale('fr'),
           ],
-          localeResolutionCallback: (device, supported) {
-            final wanted = lang.locale.languageCode;
-            for (final l in supported) {
-              if (l.languageCode == wanted) return l;
-            }
-            if (device != null) {
-              for (final l in supported) {
-                if (l.languageCode == device.languageCode) return l;
-              }
-            }
-            return const Locale('tr');
-          },
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          theme: _metoTheme(),
+          theme: ThemeData(
+            useMaterial3: true,
+            scaffoldBackgroundColor: MetoColors.background,
+            textTheme: GoogleFonts.nunitoTextTheme(),
+            primaryTextTheme: GoogleFonts.nunitoTextTheme(),
+            colorScheme: const ColorScheme.light(
+              primary: MetoColors.primary,
+              onPrimary: Colors.white,
+              surface: MetoColors.card,
+              onSurface: MetoColors.foreground,
+            ),
+          ),
           builder: (context, child) {
-            return ForceUpdateGate(
-              child: child ??
-                  const Scaffold(body: _LaunchPlaceholder()),
+            return Directionality(
+              textDirection:
+                  lang.isRtl ? TextDirection.rtl : TextDirection.ltr,
+              child: ForceUpdateGate(
+                child: child ?? const SizedBox.shrink(),
+              ),
             );
           },
           home: _booting
-              ? const Scaffold(body: _LaunchPlaceholder())
+              ? const Scaffold(
+                  body: LoadingErrorView(
+                    loading: true,
+                    loadingMessage: 'Uygulama hazırlanıyor…',
+                  ),
+                )
               : _needsPasswordReset
                   ? _NewPasswordScreen(
                       onDone: () async {

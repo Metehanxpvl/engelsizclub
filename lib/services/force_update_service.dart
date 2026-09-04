@@ -9,7 +9,7 @@ import 'app_catalog_service.dart';
 import '../utils/async_timeout.dart';
 
 /// pubspec `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
-const kAppBuildNumber = 102;
+const kAppBuildNumber = 103;
 
 /// Mağazadaki zorunlu / yeni sürüm. Web'de kapalı.
 class ForceUpdateService extends ChangeNotifier {

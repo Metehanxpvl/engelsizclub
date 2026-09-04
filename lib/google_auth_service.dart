@@ -58,9 +58,13 @@ class GoogleAuthService {
     _listening = true;
     final appLinks = AppLinks();
     try {
-      final initial = await appLinks.getInitialLink();
+      final initial = await appLinks.getInitialLink().timeout(
+            const Duration(seconds: 3),
+          );
       if (initial != null) {
-        await handleMobileAuthDeepLink(initial);
+        await handleMobileAuthDeepLink(initial).timeout(
+          const Duration(seconds: 3),
+        );
       }
     } catch (_) {}
     _linkSub = appLinks.uriLinkStream.listen((uri) {

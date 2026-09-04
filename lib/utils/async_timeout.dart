@@ -3,7 +3,10 @@ import 'dart:async';
 /// Default network timeout for Supabase / HTTP calls.
 const kNetworkTimeout = Duration(seconds: 10);
 
-/// App launch auth/session restore timeout.
+/// Soft cap for deferred iOS work (APNs / FCM / deep link). Not the first frame.
+const kUiTimeout = Duration(seconds: 3);
+
+/// App launch auth/session restore timeout (same as 2d8ad95).
 const kBootstrapTimeout = Duration(seconds: 10);
 
 /// Single-row ilan detail (photos). List feed has no client timeout.

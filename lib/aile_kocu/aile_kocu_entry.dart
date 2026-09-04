@@ -95,8 +95,11 @@ Future<void> bootstrapAileKocuReminders() async {
     // Bildirimler yalnızca mobil
     if (kIsWeb) return;
     try {
-      await AileKocuNotificationService.instance.init();
-      await AileKocuNotificationService.instance.ensurePermissions();
+      await AileKocuNotificationService.instance
+          .init()
+          .timeout(const Duration(seconds: 3));
+      // Do not prompt for iOS notification permission at cold start —
+      // requestAuthorization can hang the platform channel behind the boot UI.
       final s = loadSettings();
       for (final m in medicinesBox.values) {
         await AileKocuNotificationService.instance.rescheduleMedicine(

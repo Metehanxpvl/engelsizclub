@@ -81,7 +81,7 @@ class PushNotificationService {
     }
 
     try {
-      await _initLocalNotifications();
+      await _initLocalNotifications().timeout(const Duration(seconds: 3));
     } catch (e) {
       debugPrint('FCM local init: $e');
     }

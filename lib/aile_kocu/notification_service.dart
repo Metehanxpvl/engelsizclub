@@ -42,9 +42,9 @@ class AileKocuNotificationService {
     }
 
     const ios = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
     );
     var initialized = false;
     for (final icon in const [_smallIcon, 'ic_launcher']) {

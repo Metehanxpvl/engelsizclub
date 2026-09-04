@@ -5843,6 +5843,7 @@ class _CocukProfilFormState extends State<_CocukProfilForm> {
         DateTime(now.year - 5, now.month, now.day);
     final picked = await showDatePicker(
       context: context,
+      locale: const Locale('tr'),
       initialDate: initial.isAfter(now) ? now : initial,
       firstDate: DateTime(now.year - 25),
       lastDate: now,
