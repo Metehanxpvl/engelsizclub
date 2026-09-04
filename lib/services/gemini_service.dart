@@ -450,11 +450,11 @@ $ingredientsRule
 Yalnız JSON:
 {"barcode":"","product_name":"","ingredients":"","categoryLabel":"","safety_report":{"ingredientsSummary":"","possibleAllergens":[{"key":"","labelTr":""}],"additives":[{"code":"e500","labelTr":"","flag":"note"}],"additiveRiskLevel":"bilinmiyor","notesLevel":"unknown|none|notes|concerns","notes":[],"infoSummary":"","sugarsPer100g":null,"saltPer100g":null,"categoryLabel":"","nutriScore":null,"novaGroup":null}}
 additives: listedeki tüm E-kodları (E500, E330…); labelTr boş bırakılabilir.
-additiveRiskLevel: asiri|cok|az|cokAz|yok|bilinmiyor. E-kodu sayısından türet. Gerçek içindekiler var ve E-kodu yoksa yok. İçindekiler yok ve katkı tag/E-kodu yoksa bilinmiyor (yeşil yok uydurma).
+additiveRiskLevel: asiri|cok|az|cokAz|yok|bilinmiyor. E-kodu sayısından türet; NOVA/işlenmişlikten BAĞIMSIZ. Gerçek içindekiler var ve E-kodu yoksa yok. İçindekiler yok ve katkı tag/E-kodu yoksa bilinmiyor (yeşil yok uydurma). novaGroup null olsa bile E-kodlarından risk yaz.
 categoryLabel: kısa Türkçe kategori (CİPS, İÇECEK…) biliniyorsa; yoksa "".
 sugarsPer100g / saltPer100g: yalnız sayı varsa; yoksa null. Uydurma.
 nutriScore: yalnız A–E. Open Food Facts nutriscore_grade veya etiket üzerinde basılıysa yaz. Emin değilsen null. Rastgele E/D uydurma.
-novaGroup: yalnız 1–4. Open Food Facts nova_group veya etiket açıkça belirtiyorsa yaz. Emin değilsen null. Rastgele 4 uydurma.
+novaGroup: yalnız 1–4. Open Food Facts nova_group / nova_groups_tags veya etiket açıkça belirtiyorsa yaz. Emin değilsen null (uygulama gri Bilinmiyor gösterir). 1 veya 4 uydurma.
 infoSummary Türkçe 1-2 cümle; tıbbi iddia, kesinlik veya "güvenli" yok. Belirsizlik varsa söyle.
 Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, çay, kahve dahildir). İçeceği "gıda değil" deyip boş JSON dönme. drug_interactions yazma. Odak: içindekiler, alerjenler, katkılar (E-kodları), varsa Nutri-Score/NOVA.
 ''';

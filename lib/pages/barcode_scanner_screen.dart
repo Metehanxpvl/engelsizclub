@@ -2649,8 +2649,7 @@ class _ProductResultCard extends StatelessWidget {
       additives: safety.additives,
       ingredients: ingredientsBlob,
     );
-    final ingredientsKnown = product.hasUsableIngredients ||
-        ProductRecord.isUsableIngredientText(safety.ingredientsSummary);
+    final ingredientsKnown = product.knowsIngredientList;
     final risk = AdditiveRiskLevel.fromAdditives(
       additives,
       ingredientsKnown: ingredientsKnown,

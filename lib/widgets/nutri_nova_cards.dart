@@ -6,12 +6,14 @@ import '../meto_theme.dart';
 import '../models/product_safety.dart';
 
 /// Nutri-Score ve NOVA bilgi kartları (tıbbi teşhis değil).
+/// Skor yoksa kart gizlenmez; gri **Bilinmiyor** (1/4 veya E uydurulmaz).
 class NutriNovaCards extends StatelessWidget {
   const NutriNovaCards({super.key, required this.safety});
 
   final SafetyReport safety;
 
   static const _unknown = Color(0xFF64748B);
+  static const _unknownFill = Color(0xFFCBD5E1);
   static const _estimateHint = 'tahmini / etiket bilgisine göre';
 
   static const _nutriColors = <Color>[
@@ -36,7 +38,7 @@ class NutriNovaCards extends StatelessWidget {
         _ScoreCard(
           kicker: 'NUTRI-SCORE',
           title: 'Besleyicilik Düzeyi',
-          subtitle: safety.nutriScore?.subtitleTr ?? 'Bilgi yok',
+          subtitle: safety.nutriScore?.subtitleTr ?? NutriScoreGrade.unknownLabelTr,
           subtitleColor: safety.nutriScore == null
               ? _unknown
               : _nutriColors[safety.nutriScore!.index],
@@ -48,7 +50,7 @@ class NutriNovaCards extends StatelessWidget {
         _ScoreCard(
           kicker: 'NOVA',
           title: 'İşlenmişlik Düzeyi',
-          subtitle: safety.novaGroup?.subtitleTr ?? 'Bilgi yok',
+          subtitle: safety.novaGroup?.subtitleTr ?? NovaGroup.unknownLabelTr,
           subtitleColor: safety.novaGroup == null
               ? _unknown
               : _novaColors[safety.novaGroup!.index],
@@ -259,7 +261,9 @@ class _NutriScale extends StatelessWidget {
           for (var i = 0; i < 5; i++)
             _NutriCell(
               letter: _letters[i],
-              color: NutriNovaCards._nutriColors[i],
+              color: grade == null
+                  ? NutriNovaCards._unknownFill
+                  : NutriNovaCards._nutriColors[i],
               selected: grade != null && grade!.index == i,
               faded: grade == null,
               width: w,
@@ -293,7 +297,7 @@ class _NutriCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fill = faded ? color.withValues(alpha: 0.35) : color;
+    final fill = faded ? NutriNovaCards._unknownFill : color;
     if (selected) {
       return Container(
         width: selectedSize,
@@ -335,7 +339,7 @@ class _NutriCell extends StatelessWidget {
         style: GoogleFonts.nunito(
           fontWeight: FontWeight.w800,
           fontSize: 11,
-          color: Colors.white.withValues(alpha: faded ? 0.85 : 1),
+          color: faded ? NutriNovaCards._unknown : Colors.white,
           height: 1,
         ),
       ),
@@ -360,7 +364,9 @@ class _NovaScale extends StatelessWidget {
             if (i > 0) const SizedBox(width: 4),
             _NovaCell(
               number: '${i + 1}',
-              color: NutriNovaCards._novaColors[i],
+              color: group == null
+                  ? NutriNovaCards._unknownFill
+                  : NutriNovaCards._novaColors[i],
               selected: group != null && group!.index == i,
               faded: group == null,
               size: size,
@@ -389,7 +395,7 @@ class _NovaCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fill = faded ? color.withValues(alpha: 0.35) : color;
+    final fill = faded ? NutriNovaCards._unknownFill : color;
     return Container(
       width: size,
       height: size,
@@ -406,7 +412,7 @@ class _NovaCell extends StatelessWidget {
         style: GoogleFonts.nunito(
           fontWeight: FontWeight.w900,
           fontSize: selected ? 14 : 12,
-          color: Colors.white.withValues(alpha: faded ? 0.85 : 1),
+          color: faded ? NutriNovaCards._unknown : Colors.white,
           height: 1,
         ),
       ),

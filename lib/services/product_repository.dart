@@ -125,7 +125,7 @@ class ProductRepository {
         if (cached != null) {
           if (_isCacheComplete(cached) &&
               !hasPhoto &&
-              cached.safety.hasScoreLookup) {
+              !_needsOffScoreRefresh(cached.safety)) {
             return ProductLookupResult(
               status: ProductLookupStatus.cached,
               product: cached,
@@ -135,7 +135,7 @@ class ProductRepository {
           seed = _mergeEnrich(seed, cached);
           if (_isCacheComplete(cached) &&
               !hasPhoto &&
-              !cached.safety.hasScoreLookup) {
+              _needsOffScoreRefresh(cached.safety)) {
             try {
               off = ean == null
                   ? null
@@ -337,7 +337,11 @@ class ProductRepository {
         record = record.copyWith(imageUrl: imageUrl);
       }
       record = _mergeEnrich(seed, record);
-      record = _withOffScores(record, off);
+      record = _withOffScores(
+        record,
+        off,
+        offQueried: _offWasQueried(ean ?? resolved),
+      );
       if (record.barcode != resolved) {
         record = record.copyWith(barcode: resolved);
       }
@@ -373,8 +377,23 @@ class ProductRepository {
 
   /// Tam önbellek: gerçek içindekiler metni şart.
   /// Yalnız ad / alerjen etiketi / boş rapor → Gemini doldursun (ilaçtaki gibi).
+  /// NOVA yok diye eksik sayılmaz — katkı riski içindekilerden bağımsızdır.
   static bool _isCacheComplete(ProductRecord record) {
     return record.hasUsableIngredients;
+  }
+
+  /// OFF henüz sorulmadıysa veya NOVA/Nutri resmi skorla doldurulabilirse dene.
+  /// `unknown` = katalogda yok; her taramada tekrar sorulmaz.
+  static bool _needsOffScoreRefresh(SafetyReport safety) {
+    if (safety.novaGroup == null &&
+        safety.novaGroupSource != LabelScoreSource.unknown) {
+      return true;
+    }
+    if (safety.nutriScore == null &&
+        safety.nutriScoreSource != LabelScoreSource.unknown) {
+      return true;
+    }
+    return !safety.hasScoreLookup;
   }
 
   static Future<ProductLookupResult> _enrichWithGeminiText({
@@ -415,7 +434,11 @@ class ProductRepository {
       );
     }
     var record = _mergeEnrich(seed, llm);
-    record = _withOffScores(record, off);
+    record = _withOffScores(
+      record,
+      off,
+      offQueried: _offWasQueried(ean),
+    );
     final extracted = OpenFoodFactsService.normalizeBarcode(llm.barcode);
     if (extracted != null) {
       record = record.copyWith(barcode: extracted);
@@ -487,12 +510,26 @@ class ProductRepository {
     return primary.mergeLabelScores(base).mergeLabelScores(incoming);
   }
 
-  static ProductRecord _withOffScores(ProductRecord record, OffProduct? off) {
-    return record.copyWith(
-      safety: record.safety
-          .withOffScores(offNutri: off?.nutriScore, offNova: off?.novaGroup)
-          .markScoresLookedUp(),
+  static bool _offWasQueried(String? code) {
+    final raw = (code ?? '').trim();
+    if (raw.isEmpty || OpenFoodFactsService.isNameCacheKey(raw)) return false;
+    return OpenFoodFactsService.normalizeBarcode(raw) != null;
+  }
+
+  static ProductRecord _withOffScores(
+    ProductRecord record,
+    OffProduct? off, {
+    bool offQueried = false,
+  }) {
+    var safety = record.safety.withOffScores(
+      offNutri: off?.nutriScore,
+      offNova: off?.novaGroup,
     );
+    // OFF sorulmadıysa unknown işaretleme — sonraki taramada katalog tekrar denensin.
+    if (off != null || offQueried) {
+      safety = safety.markScoresLookedUp();
+    }
+    return record.copyWith(safety: safety);
   }
 
   static String _photoKey(Uint8List bytes) {

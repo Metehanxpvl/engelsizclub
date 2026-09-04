@@ -202,7 +202,7 @@ enum AdditiveRiskLevel {
   /// (yeşil Yok uydurulmaz).
   static AdditiveRiskLevel fromAdditives(
     Iterable<AdditiveHit> additives, {
-    bool ingredientsKnown = true,
+    bool ingredientsKnown = false,
   }) {
     var count = 0;
     var concern = 0;
@@ -271,6 +271,8 @@ enum NutriScoreGrade {
   }
 
   String get titleTr => 'Besleyicilik Düzeyi';
+
+  static const unknownLabelTr = 'Bilinmiyor';
 
   String get subtitleTr {
     switch (this) {
@@ -364,8 +366,17 @@ enum NovaGroup {
     }
   }
 
+  static const unknownLabelTr = 'Bilinmiyor';
+
   static NovaGroup? tryParse(Object? raw) {
     if (raw == null) return null;
+    if (raw is Iterable && raw is! String) {
+      for (final e in raw) {
+        final g = tryParse(e);
+        if (g != null) return g;
+      }
+      return null;
+    }
     if (raw is int && raw >= 1 && raw <= 4) return _fromNumber(raw);
     if (raw is num) {
       final n = raw.round();
@@ -380,10 +391,14 @@ enum NovaGroup {
         s == 'n/a' ||
         s == 'none' ||
         s == 'null' ||
+        s == '0' ||
         s.contains('unknown')) {
       return null;
     }
     if (RegExp(r'^[1-4]$').hasMatch(s)) return _fromNumber(int.parse(s));
+    // OFF: "4-ultra-processed-food", "en:3-processed-foods"
+    final leading = RegExp(r'^([1-4])(?:\b|[-_])').firstMatch(s);
+    if (leading != null) return _fromNumber(int.parse(leading.group(1)!));
     final tagged = RegExp(r'(?:nova[_\s-]*groups?[:\s-]*)([1-4])\b').firstMatch(s);
     if (tagged != null) return _fromNumber(int.parse(tagged.group(1)!));
     return null;
@@ -576,6 +591,7 @@ class SafetyReport {
 
   /// Alerjen / katkı / gerçek içindekiler özeti — “içerik sınırlı” yer tutucu değil.
   /// Ürün adından heuristic alerjen tek başına tam kayıt sayılmaz.
+  /// Katkı kodu olması NOVA veya yeşil Yok anlamına gelmez.
   bool get hasUsableContent {
     if (additives.any((a) => a.code.trim().isNotEmpty)) return true;
     if (ProductRecord.isUsableIngredientText(ingredientsSummary)) return true;
@@ -587,7 +603,7 @@ class SafetyReport {
   /// `bilinmiyor` donmuşsa bile E-kodları + içindekiler metninden türet.
   AdditiveRiskLevel resolvedAdditiveRisk({
     Iterable<AdditiveHit>? display,
-    bool ingredientsKnown = true,
+    bool ingredientsKnown = false,
   }) {
     return AdditiveRiskLevel.fromAdditives(
       display ?? additives,
@@ -597,7 +613,7 @@ class SafetyReport {
 
   int? resolvedDensityScore({
     Iterable<AdditiveHit>? display,
-    bool ingredientsKnown = true,
+    bool ingredientsKnown = false,
   }) {
     return resolvedAdditiveRisk(
       display: display,
@@ -903,6 +919,11 @@ class ProductRecord {
 
   bool get hasUsableIngredients => isUsableIngredientText(ingredients);
 
+  /// Katkı barı için: gerçek içindekiler metni (ad / NOVA / katkı listesi yetmez).
+  bool get knowsIngredientList =>
+      hasUsableIngredients ||
+      isUsableIngredientText(safety.ingredientsSummary);
+
   /// Ad / alerjen etiketi tek başına yetmez. Gerçek içindekiler veya dolu rapor.
   bool get isComplete => hasUsableIngredients || safety.hasUsableContent;
 
@@ -922,10 +943,16 @@ class ProductRecord {
       'icindekiler metni sinirli',
       'icindekiler metni yok',
       'icerik bilgisi sinirli',
+      'urun bilgisi sinirli',
+      'icerik yok',
+      'etiket okunamadi',
+      'bilinmiyor',
+      'bilgi yok',
       'unknown',
       'n/a',
       'not available',
       'none',
+      'yok',
     ];
     for (final t in thin) {
       if (folded == t || folded.startsWith('$t.') || folded.startsWith('$t;')) {

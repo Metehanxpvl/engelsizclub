@@ -53,6 +53,7 @@ class OpenFoodFactsService {
     'nutrition_grade_fr',
     'nova_group',
     'nova_groups',
+    'nova_groups_tags',
   ].join(',');
 
   /// Ürün yoksa `null`.
@@ -323,6 +324,7 @@ class OffProduct {
     this.categories = const [],
     this.nutriScore,
     this.novaGroup,
+    this.novaTags = const [],
   });
 
   final String barcode;
@@ -341,6 +343,8 @@ class OffProduct {
   final List<String> categories;
   final NutriScoreGrade? nutriScore;
   final NovaGroup? novaGroup;
+  /// Ham OFF etiketleri (parse edilemezse Gemini ipucu).
+  final List<String> novaTags;
 
   /// Kısa Türkçe chip (CİPS…). Eşleşme yoksa null — uydurulmaz.
   String? get categoryLabel => categoryChipFromTags(categories);
@@ -365,7 +369,10 @@ class OffProduct {
       if (sugarsPer100g != null) 'sugars_100g: $sugarsPer100g',
       if (saltPer100g != null) 'salt_100g: $saltPer100g',
       if (nutriScore != null) 'nutriscore_grade: ${nutriScore!.letter}',
-      if (novaGroup != null) 'nova_group: ${novaGroup!.number}',
+      if (novaGroup != null)
+        'nova_group: ${novaGroup!.number}'
+      else if (novaTags.isNotEmpty)
+        'nova_groups_tags: ${novaTags.take(6).join(', ')}',
     ];
     return lines.join('\n');
   }
@@ -437,7 +444,16 @@ class OffProduct {
             p['nutrition_grades'] ??
             p['nutrition_grade_fr'],
       ),
-      novaGroup: NovaGroup.tryParse(p['nova_group'] ?? p['nova_groups']),
+      novaTags: [
+        ..._asStringList(p['nova_groups_tags']),
+        if (p['nova_groups'] != null && p['nova_groups'].toString().trim().isNotEmpty)
+          p['nova_groups'].toString().trim(),
+        if (p['nova_group'] != null && p['nova_group'].toString().trim().isNotEmpty)
+          p['nova_group'].toString().trim(),
+      ],
+      novaGroup: NovaGroup.tryParse(p['nova_group']) ??
+          NovaGroup.tryParse(p['nova_groups']) ??
+          NovaGroup.tryParse(p['nova_groups_tags']),
     );
   }
 
