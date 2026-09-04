@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
@@ -53,7 +52,12 @@ class _ForceUpdateGateState extends State<ForceUpdateGate>
 
   @override
   Widget build(BuildContext context) {
-    if (!_svc.blocked) return widget.child;
+    // 1.0.94 hotfix: never cover the first frame. A remote min-build
+    // misconfig or overlay throw painted a grey/blank launch on iOS+Android.
+    return widget.child;
+  }
+
+  Widget _lockOverlay() {
 
     return Stack(
       fit: StackFit.expand,
@@ -88,10 +92,10 @@ class _ForceUpdateGateState extends State<ForceUpdateGate>
                           ),
                         ),
                         const SizedBox(height: 16),
-                        L10nText(
+                        const L10nText(
                           'Güncelleme gerekli',
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.nunito(
+                          style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
                             color: MetoColors.foreground,
@@ -101,7 +105,7 @@ class _ForceUpdateGateState extends State<ForceUpdateGate>
                         L10nText(
                           _svc.message,
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.nunito(
+                          style: const TextStyle(
                             fontSize: 14,
                             height: 1.45,
                             color: MetoColors.mutedFg,
@@ -121,9 +125,9 @@ class _ForceUpdateGateState extends State<ForceUpdateGate>
                                 borderRadius: BorderRadius.circular(14),
                               ),
                             ),
-                            child: L10nText(
+                            child: const L10nText(
                               'Mağazadan güncelle',
-                              style: GoogleFonts.nunito(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 15,
                               ),

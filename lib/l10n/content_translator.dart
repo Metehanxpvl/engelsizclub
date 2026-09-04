@@ -64,6 +64,14 @@ class ContentTranslator extends ChangeNotifier {
   /// Senkron: önbellekte varsa çeviri, yoksa kaynak.
   /// Kaynak genelde TR; hedef TR iken İngilizce görünen metinleri TR'ye çevirir.
   String sync(String text, {String from = 'tr'}) {
+    try {
+      return _syncImpl(text, from: from);
+    } catch (_) {
+      return text;
+    }
+  }
+
+  String _syncImpl(String text, {String from = 'tr'}) {
     final t = _normalize(text);
     if (t.isEmpty) return text;
     final to = targetCode;

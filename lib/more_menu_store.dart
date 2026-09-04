@@ -28,6 +28,53 @@ void _setCache(List<MoreMenuItem> items) {
   _cacheAt = DateTime.now();
 }
 
+const _menuColsWithParent =
+    'id, title, subtitle, link_type, link, icon, sort_order, is_active, is_builtin, parent_id, updated_at';
+const _menuColsLegacy =
+    'id, title, subtitle, link_type, link, icon, sort_order, is_active, is_builtin, updated_at';
+
+MoreMenuItem? _tryParseMenuRow(dynamic raw) {
+  try {
+    if (raw is! Map) return null;
+    return MoreMenuItem.fromJson(Map<String, dynamic>.from(raw));
+  } catch (_) {
+    return null;
+  }
+}
+
+Future<List<dynamic>> _fetchMenuRows({required bool includeInactive}) async {
+  Future<List<dynamic>> run(String cols) async {
+    var q = _db.from('daha_fazlasi_menu').select(cols);
+    if (!includeInactive) {
+      q = q.eq('is_active', true);
+    }
+    final rows = await withNetworkTimeout(
+      q.order('sort_order').order('id'),
+    );
+    return rows is List ? rows : const [];
+  }
+
+  try {
+    return await run(_menuColsWithParent);
+  } catch (e) {
+    if (isMissingParentIdColumn(e)) {
+      try {
+        return await run(_menuColsLegacy);
+      } catch (_) {}
+    }
+    try {
+      var q = _db.from('daha_fazlasi_menu').select();
+      if (!includeInactive) q = q.eq('is_active', true);
+      final rows = await withNetworkTimeout(
+        q.order('sort_order').order('id'),
+      );
+      return rows is List ? rows : const [];
+    } catch (_) {
+      rethrow;
+    }
+  }
+}
+
 bool get _hasFreshCache {
   final at = _cacheAt;
   final list = _allCache;
@@ -81,16 +128,12 @@ Future<List<MoreMenuItem>> loadMoreMenuAll({
   }
 
   try {
-    var q = _db.from('daha_fazlasi_menu').select();
-    if (!includeInactive) {
-      q = q.eq('is_active', true);
+    final rows = await _fetchMenuRows(includeInactive: includeInactive);
+    final items = <MoreMenuItem>[];
+    for (final r in rows) {
+      final item = _tryParseMenuRow(r);
+      if (item != null) items.add(item);
     }
-    final rows = await withNetworkTimeout(
-      q.order('sort_order').order('id'),
-    );
-    final items = <MoreMenuItem>[
-      for (final r in rows) MoreMenuItem.fromJson(r),
-    ];
     if (items.isEmpty) {
       final fallback = defaultMoreMenuItems()
           .where((e) => includeInactive || e.isActive)

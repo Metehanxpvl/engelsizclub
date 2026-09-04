@@ -35,7 +35,12 @@ class L10nText extends StatelessWidget {
         ContentTranslator.instance,
       ]),
       builder: (context, _) {
-        final text = ContentTranslator.instance.sync(source, from: from);
+        String text;
+        try {
+          text = ContentTranslator.instance.sync(source, from: from);
+        } catch (_) {
+          text = source;
+        }
         return Text(
           text,
           style: style,

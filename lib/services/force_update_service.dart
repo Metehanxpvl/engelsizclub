@@ -9,7 +9,7 @@ import 'app_catalog_service.dart';
 import '../utils/async_timeout.dart';
 
 /// pubspec `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
-const kAppBuildNumber = 88;
+const kAppBuildNumber = 102;
 
 /// Mağazadaki zorunlu / yeni sürüm. Web'de kapalı.
 class ForceUpdateService extends ChangeNotifier {
@@ -70,7 +70,12 @@ class ForceUpdateService extends ChangeNotifier {
           ? null
           : (ios ? cfg['ios_latest_build'] : cfg['android_latest_build']),
     );
-    requiredBuild = minBuild > latestBuild ? minBuild : latestBuild;
+    // latest_build yalnızca bilgi; kilit YALNIZ min_build.
+    // latest'i kilit eşiği yapmak, uzak "son sürüm" yazılınca herkesi kilitler.
+    requiredBuild = minBuild;
+    if (latestBuild > requiredBuild) {
+      debugPrint('ForceUpdate latest=$latestBuild (info only, lock uses min)');
+    }
 
     final msg = (cfg == null ? '' : (cfg['message']?.toString() ?? '')).trim();
     if (msg.isNotEmpty) message = msg;
@@ -82,11 +87,12 @@ class ForceUpdateService extends ChangeNotifier {
             ? 'https://apps.apple.com/tr/search?term=Engelsiz%20Club'
             : defaultPlayUrl);
 
-    // Yalnızca uzak min/latest > yüklü build ise kilitle.
-    // Play In-App Update "updateAvailable" güncel uygulamada da true kalabiliyor;
-    // o yüzden mağaza sinyalini kilit için kullanma.
-    final must =
-        requiredBuild > 0 && localBuild > 0 && localBuild < requiredBuild;
+    // Fail-open: config yok / min bu derlemeden büyükse (yanlış SQL) kilit yok.
+    final must = cfg != null &&
+        minBuild > 0 &&
+        minBuild <= kAppBuildNumber &&
+        localBuild > 0 &&
+        localBuild < minBuild;
     debugPrint(
       'ForceUpdate: local=$localBuild required=$requiredBuild blocked=$must',
     );

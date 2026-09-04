@@ -74,30 +74,60 @@ class PushNotificationService {
     if (_initialized || kIsWeb) return;
     _initialized = true;
 
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    try {
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    } catch (e) {
+      debugPrint('FCM background handler: $e');
+    }
 
-    await _initLocalNotifications();
-    await _requestPermission();
+    try {
+      await _initLocalNotifications();
+    } catch (e) {
+      debugPrint('FCM local init: $e');
+    }
 
-    await _messaging.setForegroundNotificationPresentationOptions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    // iOS izin diyaloğu ilk kareyi bekletmesin / asılı kalmasın.
+    unawaited(_requestPermission());
 
-    await _refreshToken();
-    _messaging.onTokenRefresh.listen((token) {
-      fcmToken = token;
-      debugPrint('FCM token yenilendi: $token');
-      unawaited(registerTokenWithServer(token));
-    });
+    try {
+      await _messaging
+          .setForegroundNotificationPresentationOptions(
+            alert: true,
+            badge: true,
+            sound: true,
+          )
+          .timeout(const Duration(seconds: 3));
+    } catch (e) {
+      debugPrint('FCM presentation options: $e');
+    }
 
-    FirebaseMessaging.onMessage.listen(_onForegroundMessage);
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleOpen);
+    unawaited(_refreshToken());
+    try {
+      _messaging.onTokenRefresh.listen((token) {
+        fcmToken = token;
+        debugPrint('FCM token yenilendi: $token');
+        unawaited(registerTokenWithServer(token));
+      });
+    } catch (e) {
+      debugPrint('FCM token refresh listen: $e');
+    }
 
-    final initial = await _messaging.getInitialMessage();
-    if (initial != null) {
-      _handleOpen(initial);
+    try {
+      FirebaseMessaging.onMessage.listen(_onForegroundMessage);
+      FirebaseMessaging.onMessageOpenedApp.listen(_handleOpen);
+    } catch (e) {
+      debugPrint('FCM message listen: $e');
+    }
+
+    try {
+      final initial = await _messaging
+          .getInitialMessage()
+          .timeout(const Duration(seconds: 3));
+      if (initial != null) {
+        _handleOpen(initial);
+      }
+    } catch (e) {
+      debugPrint('FCM initial message: $e');
     }
   }
 
@@ -193,19 +223,27 @@ class PushNotificationService {
   }
 
   Future<void> _requestPermission() async {
-    final settings = await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-      provisional: false,
-    );
-    debugPrint('FCM izin durumu: ${settings.authorizationStatus}');
+    try {
+      final settings = await _messaging
+          .requestPermission(
+            alert: true,
+            badge: true,
+            sound: true,
+            provisional: true,
+          )
+          .timeout(const Duration(seconds: 8));
+      debugPrint('FCM izin durumu: ${settings.authorizationStatus}');
+    } catch (e) {
+      debugPrint('FCM requestPermission: $e');
+    }
 
     final androidPlugin = _local.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     try {
       // runApp öncesi mainActivity null olabilir — FCM init'i düşürmesin.
-      await androidPlugin?.requestNotificationsPermission();
+      await androidPlugin
+          ?.requestNotificationsPermission()
+          .timeout(const Duration(seconds: 5));
     } catch (e) {
       debugPrint('POST_NOTIFICATIONS isteği: $e');
     }
@@ -213,7 +251,7 @@ class PushNotificationService {
 
   Future<void> _refreshToken() async {
     try {
-      fcmToken = await _messaging.getToken();
+      fcmToken = await _messaging.getToken().timeout(const Duration(seconds: 8));
       debugPrint('FCM token: $fcmToken');
       await registerTokenWithServer(fcmToken);
     } catch (e) {
