@@ -26,8 +26,24 @@ import '../utils/web_session_tab.dart';
 import '../widgets/additive_risk_bar.dart';
 import '../widgets/medical_info_card.dart';
 import '../widgets/nutri_nova_cards.dart';
+import '../widgets/photo_gallery_lightbox.dart';
 
 enum _TaramaMode { product, medicine }
+
+void _openLabelPreview(
+  BuildContext context, {
+  String? url,
+  Uint8List? bytes,
+}) {
+  final images = <ImageProvider>[];
+  if (url != null && url.startsWith('http')) {
+    images.add(NetworkImage(url));
+  } else if (bytes != null && bytes.isNotEmpty) {
+    images.add(MemoryImage(bytes));
+  }
+  if (images.isEmpty) return;
+  unawaited(openPhotoGallery(context, images: images));
+}
 
 /// Barkod / etiket tarama + alerjen / çocuk uygunluğu özeti.
 class BarcodeScannerScreen extends StatefulWidget {
@@ -626,7 +642,13 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
   Future<void> _pickLabel({required bool camera}) async {
     if (_handling) return;
     persistWebSessionTab('tarama');
-    if (kIsWeb && camera) {
+    final liveScannerVisible = kIsWeb &&
+        camera &&
+        widget.isTabActive &&
+        _camera?.value.isRunning == true &&
+        _result == null &&
+        _medicine == null;
+    if (liveScannerVisible) {
       await _captureFromLiveCamera();
       return;
     }
@@ -1177,20 +1199,13 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
             const SizedBox(height: 12),
             _buildScannerCard(),
             const SizedBox(height: 12),
-            ..._photoActionButtons(prominent: true),
+            ..._photoActionButtons(),
           ],
           if (!_loading && _error != null && !foundAny) ...[
             const SizedBox(height: 16),
             _NotFoundCard(
               message: _error!,
-              askPhoto: _isMedicine
-                  ? _medicine?.needsKey != true
-                  : _result?.needsKey != true,
-              photoLabel: _isMedicine
-                  ? 'Küpür / prospektüs fotoğrafı'
-                  : 'Daha net için etiket fotoğrafı',
               onRetry: _resetScan,
-              onPhoto: kIsWeb ? _captureFromLiveCamera : _showPhotoSheet,
             ),
           ],
           if (foundProduct) ...[
@@ -1221,8 +1236,6 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
               },
             ),
             const SizedBox(height: 16),
-            ..._photoActionButtons(prominent: false),
-            const SizedBox(height: 8),
             FilledButton(
               onPressed: _resetScan,
               style: FilledButton.styleFrom(
@@ -1257,8 +1270,6 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
               isGuest: widget.isGuest,
             ),
             const SizedBox(height: 16),
-            ..._photoActionButtons(prominent: false),
-            const SizedBox(height: 8),
             FilledButton(
               onPressed: _resetScan,
               style: FilledButton.styleFrom(
@@ -1274,64 +1285,37 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     );
   }
 
-  List<Widget> _photoActionButtons({required bool prominent}) {
-    final photo = prominent
-        ? FilledButton.icon(
-            onPressed: _loading
-                ? null
-                : (kIsWeb ? _captureFromLiveCamera : _showPhotoSheet),
-            icon: const Icon(Icons.photo_camera_outlined),
-            label: L10nText(
-              kIsWeb
-                  ? (_isMedicine
-                      ? 'Küpür / prospektüs fotoğrafı'
-                      : 'Etiket fotoğrafı')
-                  : (_isMedicine
-                      ? 'Küpür fotoğrafı çek / galeriden seç'
-                      : 'Etiket fotoğrafı çek / galeriden seç'),
-            ),
-            style: FilledButton.styleFrom(
-              backgroundColor: MetoColors.primary,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              textStyle: GoogleFonts.nunito(fontWeight: FontWeight.w800),
-            ),
-          )
-        : OutlinedButton.icon(
-            onPressed: _loading
-                ? null
-                : (kIsWeb
-                    ? _captureFromLiveCamera
-                    : () => unawaited(_pickLabel(camera: true))),
-            icon: const Icon(Icons.photo_camera_outlined),
-            label: L10nText(
-              _isMedicine
-                  ? 'Daha net için küpür fotoğrafı'
-                  : 'Daha net için etiket fotoğrafı',
-            ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: MetoColors.primary,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              textStyle: GoogleFonts.nunito(fontWeight: FontWeight.w800),
-            ),
-          );
-    final gallery = TextButton.icon(
-      onPressed: _loading ? null : () => unawaited(_pickLabel(camera: false)),
-      icon: const Icon(Icons.photo_library_outlined, size: 18),
-      label: const L10nText('Galeriden seç'),
-    );
-    if (prominent) {
-      return [
-        photo,
-        if (kIsWeb) ...[
-          const SizedBox(height: 4),
-          gallery,
-        ],
-      ];
-    }
+  List<Widget> _photoActionButtons() {
     return [
-      photo,
-      const SizedBox(height: 4),
-      gallery,
+      FilledButton.icon(
+        onPressed: _loading
+            ? null
+            : (kIsWeb ? _captureFromLiveCamera : _showPhotoSheet),
+        icon: const Icon(Icons.photo_camera_outlined),
+        label: L10nText(
+          kIsWeb
+              ? (_isMedicine
+                  ? 'Küpür / prospektüs fotoğrafı'
+                  : 'Etiket fotoğrafı')
+              : (_isMedicine
+                  ? 'Küpür fotoğrafı çek / galeriden seç'
+                  : 'Etiket fotoğrafı çek / galeriden seç'),
+        ),
+        style: FilledButton.styleFrom(
+          backgroundColor: MetoColors.primary,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          textStyle: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+        ),
+      ),
+      if (kIsWeb) ...[
+        const SizedBox(height: 4),
+        TextButton.icon(
+          onPressed:
+              _loading ? null : () => unawaited(_pickLabel(camera: false)),
+          icon: const Icon(Icons.photo_library_outlined, size: 18),
+          label: const L10nText('Galeriden seç'),
+        ),
+      ],
     ];
   }
 
@@ -1998,16 +1982,10 @@ class _NotFoundCard extends StatelessWidget {
   const _NotFoundCard({
     required this.message,
     required this.onRetry,
-    this.askPhoto = false,
-    this.onPhoto,
-    this.photoLabel = 'Daha net için etiket fotoğrafı',
   });
 
   final String message;
   final VoidCallback onRetry;
-  final bool askPhoto;
-  final VoidCallback? onPhoto;
-  final String photoLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -2036,12 +2014,6 @@ class _NotFoundCard extends StatelessWidget {
             onPressed: onRetry,
             child: const L10nText('Tekrar dene'),
           ),
-          if (askPhoto && onPhoto != null)
-            TextButton.icon(
-              onPressed: onPhoto,
-              icon: const Icon(Icons.photo_camera_outlined, size: 18),
-              label: L10nText(photoLabel),
-            ),
         ],
       ),
     );
@@ -2242,11 +2214,20 @@ class _MedicineIdentityHeader extends StatelessWidget {
               width: double.infinity,
               fit: BoxFit.contain,
             );
-      return ClipRRect(
+      return Material(
+        color: MetoColors.selectedBg,
         borderRadius: BorderRadius.circular(14),
-        child: ColoredBox(
-          color: MetoColors.selectedBg,
-          child: child,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => _openLabelPreview(
+            context,
+            url: hasNetworkImage ? imageUrl : null,
+            bytes: hasPreview ? previewBytes : null,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: child,
+          ),
         ),
       );
     }
@@ -2691,11 +2672,20 @@ class _ProductResultCard extends StatelessWidget {
               width: size,
               fit: BoxFit.contain,
             );
-      return ClipRRect(
+      return Material(
+        color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(12),
-        child: ColoredBox(
-          color: const Color(0xFFF8FAFC),
-          child: child,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _openLabelPreview(
+            context,
+            url: hasNetworkImage ? imageUrl : null,
+            bytes: hasPreview ? previewBytes : null,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: child,
+          ),
         ),
       );
     }

@@ -526,6 +526,30 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     }
   }
 
+  static bool _hasPhone(String? raw) {
+    final digits = (raw ?? '').replaceAll(RegExp(r'[^\d+]'), '');
+    return digits.length >= 7;
+  }
+
+  Future<void> _callPhoneNumber(BuildContext context, String phone) async {
+    final digits = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    if (digits.length < 7) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: L10nText('Telefon numarası yok.')),
+      );
+      return;
+    }
+    final uri = Uri.parse('tel:$digits');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: L10nText('Ara: $phone')),
+      );
+    }
+  }
+
   Future<void> _openDirections(MetoCenter center) async {
     final from = _mapCenter;
     final uri = Uri.parse(
@@ -1116,28 +1140,31 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                         child: const L10nText('Yol Tarifi'),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {},
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: MetoColors.primary,
-                          side: const BorderSide(
-                            color: MetoColors.primary,
-                            width: 2,
+                    if (_hasPhone(center.phone)) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () =>
+                              _callPhoneNumber(context, center.phone),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: MetoColors.primary,
+                            side: const BorderSide(
+                              color: MetoColors.primary,
+                              width: 2,
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
+                          child: const L10nText('Randevu Al'),
                         ),
-                        child: const L10nText('Randevu Al'),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ],
@@ -1806,6 +1833,78 @@ class _VendorCard extends StatelessWidget {
     }
   }
 
+  Future<void> _showVendorDetail(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: MetoColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                L10nText(
+                  vendor.name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                L10nText(
+                  '${vendor.city} / ${vendor.district}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: MetoColors.mutedFg,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                L10nText(
+                  vendor.products.join(', '),
+                  style: const TextStyle(fontSize: 14, height: 1.35),
+                ),
+                if (vendor.sgk || vendor.cargo) ...[
+                  const SizedBox(height: 10),
+                  L10nText(
+                    [
+                      if (vendor.sgk) 'SGK',
+                      if (vendor.cargo) 'Kargo',
+                    ].join(' · '),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: MetoColors.primary,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _callPhone(context);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: MetoColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: L10nText('Ara: ${vendor.phone}'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1951,7 +2050,7 @@ class _VendorCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               OutlinedButton(
-                onPressed: () {},
+                onPressed: () => _showVendorDetail(context),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: MetoColors.foreground,
                   side: const BorderSide(color: MetoColors.border),

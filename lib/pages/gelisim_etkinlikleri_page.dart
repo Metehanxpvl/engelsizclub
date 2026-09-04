@@ -479,7 +479,7 @@ class _GelisimCardState extends State<_GelisimCard> {
               ),
             ),
             const SizedBox(height: 12),
-            if (videoId == null)
+            if (videoId == null && widget.isAdmin)
               Container(
                 height: 140,
                 alignment: Alignment.center,
@@ -488,15 +488,13 @@ class _GelisimCardState extends State<_GelisimCard> {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(
-                  widget.isAdmin
-                      ? 'YouTube linki yok — Düzenle ile ekleyin'
-                      : 'Video yakında',
+                  'YouTube linki yok — Düzenle ile ekleyin',
                   style: GoogleFonts.nunito(color: MetoColors.mutedFg),
                 ),
               )
-            else if (_play)
+            else if (videoId != null && _play)
               InfoYoutubePlayer(youtubeUrlOrId: item.youtubeUrl)
-            else
+            else if (videoId != null)
               Material(
                 color: Colors.black,
                 borderRadius: BorderRadius.circular(14),
