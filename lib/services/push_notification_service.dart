@@ -44,10 +44,31 @@ class PushNotificationService {
 
   bool _initialized = false;
   String? fcmToken;
+  RemoteMessage? _pendingOpen;
 
   final StreamController<RemoteMessage> _opens =
       StreamController<RemoteMessage>.broadcast();
   Stream<RemoteMessage> get onNotificationOpened => _opens.stream;
+
+  Map<String, String> _stringData(RemoteMessage message) =>
+      message.data.map((k, v) => MapEntry(k, '$v'));
+
+  /// Shell dinlemeden önce gelen tap (soğuk açılış).
+  Map<String, String>? takePendingOpenData() {
+    final m = _pendingOpen;
+    _pendingOpen = null;
+    if (m == null) return null;
+    return _stringData(m);
+  }
+
+  Stream<Map<String, String>> get onOpenedData =>
+      _opens.stream.map(_stringData);
+
+  void _emitOpen(RemoteMessage message) {
+    debugPrint('FCM açıldı: data=${message.data}');
+    _pendingOpen = message;
+    _opens.add(message);
+  }
 
   Future<void> init() async {
     if (_initialized || kIsWeb) return;
@@ -145,7 +166,7 @@ class PushNotificationService {
             if (payload == null || payload.isEmpty) return;
             try {
               final map = jsonDecode(payload) as Map<String, dynamic>;
-              _opens.add(
+              _emitOpen(
                 RemoteMessage(data: map.map((k, v) => MapEntry(k, '$v'))),
               );
             } catch (_) {}
@@ -270,7 +291,6 @@ class PushNotificationService {
   }
 
   void _handleOpen(RemoteMessage message) {
-    debugPrint('FCM açıldı: data=${message.data}');
-    _opens.add(message);
+    _emitOpen(message);
   }
 }

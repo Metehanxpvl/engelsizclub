@@ -6,7 +6,6 @@ import 'admin_config.dart';
 import 'data/ilanlar_data.dart'
     show
         kIlanCatUzmanAriyorum,
-        chatPeerDisplayName,
         publicContactLabel,
         scrubEmailsInText;
 import 'kredi_store.dart';
@@ -67,6 +66,8 @@ class AppBildirim {
       type == 'diger';
 
   bool get isKredi => type == 'kredi' || type == 'kredi_odeme';
+
+  bool get isEtkinlikOneri => type == 'etkinlik_oneri';
 
   factory AppBildirim.fromJson(Map<String, dynamic> json) => AppBildirim(
         id: (json['id'] as num?)?.toInt() ?? 0,
@@ -150,18 +151,16 @@ Future<bool> notifyIlanSahibiTeklif({
     // RLS / tablo yoksa insert denemesine devam; unique index varsa yine korur.
   }
 
-  final name = chatPeerDisplayName(
-    actorEmail,
-    profileName: actorName,
-  );
+  final name = notificationActorLabel(actorEmail, actorName);
   final key = sohbetKeyFor(actorEmail, owner);
+  final text = 'İlanınıza $name teklif verdi';
 
-  var title = (ilanTitle ?? '').trim();
-  if (title.isEmpty && ilanId != null) {
-    title = (await _fetchIlanTitle(ilanId)) ?? '';
+  var listingTitle = (ilanTitle ?? '').trim();
+  if (listingTitle.isEmpty && ilanId != null) {
+    listingTitle = (await _fetchIlanTitle(ilanId)) ?? '';
   }
-  final forIlan = title.isEmpty ? 'ilanınız' : '$title ilanınız';
-  final notifyBody = '$name, $forIlan için teklif verdi.';
+  final forIlan =
+      listingTitle.isEmpty ? 'ilanınız' : '$listingTitle ilanınız';
   final chatBody =
       'Merhaba, $forIlan için teklif verdim. Görüşmek isterim.';
 
@@ -175,16 +174,31 @@ Future<bool> notifyIlanSahibiTeklif({
       'actor_email': actorEmail,
       'actor_name': name,
       'type': 'teklif',
-      'title': 'Yeni teklif',
-      'body': notifyBody,
+      'title': text,
+      'body': text,
       'ilan_id': ilanId,
       'sohbet_key': key,
       'read': false,
     });
   } on PostgrestException catch (e) {
     if (e.code == '23505') return false;
-    // Bildirim RLS keserse sohbet yine açılsın.
+    // Bildirim RLS keserse sohbet / FCM yine denensin.
   } catch (_) {}
+
+  unawaited(
+    BroadcastPushService.instance.sendToUser(
+      toEmail: owner,
+      title: text,
+      body: text,
+      prefKey: 'mesajlar',
+      data: {
+        'type': 'teklif',
+        if (ilanId != null) 'id': '$ilanId',
+        'sohbet_key': key,
+        'actor_email': actorEmail,
+      },
+    ),
+  );
 
   await sendSohbetMesaj(
     peerEmail: owner,
@@ -208,22 +222,20 @@ Future<void> notifySohbetMesaj({
   if (user == null || actorEmail.isEmpty || owner.isEmpty) return;
   if (owner == actorEmail) return;
 
-  final name = chatPeerDisplayName(
-    actorEmail,
-    profileName: actorName ?? '',
-  );
+  final name = notificationActorLabel(actorEmail, actorName ?? '');
   final raw = scrubEmailsInText(messageBody.trim());
   if (raw.isEmpty) return;
   final preview = raw.length > 90 ? '${raw.substring(0, 90)}…' : raw;
   final key = sohbetKeyFor(actorEmail, owner);
   final nowIso = DateTime.now().toUtc().toIso8601String();
+  final title = 'Mesajınıza $name cevap verdi';
   final payload = <String, dynamic>{
     'owner_email': owner,
     'actor_email': actorEmail,
     'actor_name': name,
     'type': 'mesaj',
-    'title': 'Yeni mesaj',
-    'body': '$name: $preview',
+    'title': title,
+    'body': preview,
     'ilan_id': ilanId,
     'sohbet_key': key,
     'read': false,
@@ -248,21 +260,37 @@ Future<void> notifySohbetMesaj({
           .from('bildirimler')
           .update({
             'actor_name': name,
-            'title': 'Yeni mesaj',
-            'body': '$name: $preview',
+            'title': title,
+            'body': preview,
             'ilan_id': ilanId,
             'sohbet_key': key,
             'read': false,
             'created_at': nowIso,
           })
           .eq('id', (existing['id'] as num).toInt());
-      return;
+    } else {
+      await client.from('bildirimler').insert(payload);
     }
   } catch (_) {
-    // Politika / şema yoksa klasik insert'e düş.
+    try {
+      await client.from('bildirimler').insert(payload);
+    } catch (_) {}
   }
 
-  await client.from('bildirimler').insert(payload);
+  unawaited(
+    BroadcastPushService.instance.sendToUser(
+      toEmail: owner,
+      title: title,
+      body: preview,
+      prefKey: 'mesajlar',
+      data: {
+        'type': 'mesaj',
+        if (ilanId != null) 'id': '$ilanId',
+        'sohbet_key': key,
+        'actor_email': actorEmail,
+      },
+    ),
+  );
 }
 
 /// Aynı kişiden biriken mesaj bildirimlerini tek satıra indir (en son saat kalır).
@@ -422,6 +450,74 @@ Future<void> notifyAdminKrediYukleme({
   await client.from('bildirimler').insert(rows);
 }
 
+String etkinlikOneriRef(int eventId) => 'e:$eventId';
+
+/// Kullanıcı pending etkinlik önerisi → admin zil + FCM (AVM scrape çağırmaz).
+Future<void> notifyAdminEtkinlikOneri({
+  required int eventId,
+  required String title,
+  required String city,
+  String? actorName,
+}) async {
+  if (eventId <= 0) return;
+  final client = Supabase.instance.client;
+  final user = client.auth.currentUser;
+  final actorEmail = (user?.email ?? '').trim().toLowerCase();
+  if (user == null || actorEmail.isEmpty) return;
+
+  final heading = title.trim().isEmpty ? 'Etkinlik' : title.trim();
+  final cityName = city.trim();
+  final body = cityName.isEmpty ? heading : '$heading · $cityName';
+  final name = publicContactLabel(
+    actorEmail,
+    preferredName: actorName ?? '',
+  );
+  final ref = etkinlikOneriRef(eventId);
+  const notifTitle = 'Yeni etkinlik önerisi';
+
+  for (final admin in kAppAdminEmails) {
+    final owner = admin.trim().toLowerCase();
+    if (owner.isEmpty || owner == actorEmail) continue;
+    try {
+      final existing = await client
+          .from('bildirimler')
+          .select('id')
+          .eq('owner_email', owner)
+          .eq('type', 'etkinlik_oneri')
+          .eq('sohbet_key', ref)
+          .limit(1);
+      if (existing.isEmpty) {
+        await client.from('bildirimler').insert({
+          'owner_email': owner,
+          'actor_email': actorEmail,
+          'actor_name': name,
+          'type': 'etkinlik_oneri',
+          'title': notifTitle,
+          'body': body.length > 1800 ? '${body.substring(0, 1800)}…' : body,
+          'ilan_id': eventId,
+          'sohbet_key': ref,
+          'read': false,
+        });
+      }
+    } catch (_) {
+      // RLS / unique: FCM yine denensin.
+    }
+    unawaited(
+      BroadcastPushService.instance.sendToUser(
+        toEmail: owner,
+        title: notifTitle,
+        body: body,
+        prefKey: 'admin',
+        data: {
+          'type': 'etkinlik_oneri',
+          'id': '$eventId',
+          'sohbet_key': ref,
+        },
+      ),
+    );
+  }
+}
+
 Future<List<AppBildirim>> loadBildirimler() async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
@@ -504,6 +600,13 @@ Future<void> deleteAllBildirimler() async {
   await client.from('bildirimler').delete().eq('owner_email', me);
 }
 
+/// Kilit ekranı / push: maskeli kamu adı (tam ad sızmaz).
+String notificationActorLabel(String actorEmail, [String actorName = '']) {
+  final preferred = actorName.trim();
+  if (preferred.toLowerCase() == 'anonim') return 'Anonim';
+  return publicContactLabel(actorEmail, preferredName: preferred);
+}
+
 Future<void> _insertBildirim({
   required String ownerEmail,
   required String actorName,
@@ -519,15 +622,14 @@ Future<void> _insertBildirim({
   final owner = ownerEmail.trim().toLowerCase();
   if (user == null || actorEmail.isEmpty || owner.isEmpty) return;
   if (owner == actorEmail) return;
+  final name = notificationActorLabel(actorEmail, actorName);
   final safeBody =
       body.length > 1800 ? '${body.substring(0, 1800)}…' : body;
   try {
     await client.from('bildirimler').insert({
       'owner_email': owner,
       'actor_email': actorEmail,
-      'actor_name': actorName.trim().isEmpty
-          ? actorEmail.split('@').first
-          : actorName.trim(),
+      'actor_name': name,
       'type': type,
       'title': title,
       'body': safeBody,
@@ -536,7 +638,7 @@ Future<void> _insertBildirim({
       'read': false,
     });
   } catch (_) {
-    return;
+    // Trigger / unique: FCM yine denensin.
   }
 
   // Uygulama içi zil + cihaza FCM (ekran kapalıyken de görünsün)
@@ -555,6 +657,7 @@ Future<void> _insertBildirim({
         'type': type,
         if (ilanId != null) 'id': '$ilanId',
         if (sohbetKey != null) 'sohbet_key': sohbetKey,
+        'actor_email': actorEmail,
       },
     ),
   );
@@ -581,15 +684,15 @@ Future<void> notifyForumPostComment({
   int? postId,
   int? commentId,
 }) async {
-  final title = postTitle.trim().isEmpty ? 'Forum gönderisi' : postTitle.trim();
+  final me = (Supabase.instance.client.auth.currentUser?.email ?? '').trim();
+  final name = notificationActorLabel(me, actorName);
+  final text = 'Mesajınıza $name cevap verdi';
   await _insertBildirim(
     ownerEmail: postOwnerEmail,
-    actorName: actorName,
+    actorName: name,
     type: 'forum_comment',
-    title: 'Yeni yorum: $title',
-    body: commentPreview.trim().isEmpty
-        ? '$actorName gönderinize yorum yaptı.'
-        : commentPreview.trim(),
+    title: text,
+    body: text,
     ilanId: postId,
     sohbetKey: forumCommentRef(commentId),
   );
@@ -603,14 +706,15 @@ Future<void> notifyForumCommentReply({
   int? postId,
   int? commentId,
 }) async {
+  final me = (Supabase.instance.client.auth.currentUser?.email ?? '').trim();
+  final name = notificationActorLabel(me, actorName);
+  final text = 'Mesajınıza $name cevap verdi';
   await _insertBildirim(
     ownerEmail: commentOwnerEmail,
-    actorName: actorName,
+    actorName: name,
     type: 'forum_reply',
-    title: 'Yorumunuza yanıt geldi',
-    body: replyPreview.trim().isEmpty
-        ? '$actorName yorumunuza yanıt yazdı.'
-        : replyPreview.trim(),
+    title: text,
+    body: text,
     ilanId: postId,
     sohbetKey: forumCommentRef(commentId),
   );
@@ -624,13 +728,15 @@ Future<void> notifyForumCommentLike({
   int? postId,
   int? commentId,
 }) async {
-  final preview = commentPreview.trim();
+  final me = (Supabase.instance.client.auth.currentUser?.email ?? '').trim();
+  final name = notificationActorLabel(me, actorName);
+  final text = 'Yorumunuzu $name beğendi';
   await _insertBildirim(
     ownerEmail: commentOwnerEmail,
-    actorName: actorName,
+    actorName: name,
     type: 'forum_like',
-    title: '$actorName yorumunuzu beğendi',
-    body: preview.isEmpty ? 'Yorumunuz beğenildi.' : preview,
+    title: text,
+    body: text,
     ilanId: postId,
     sohbetKey: forumCommentRef(commentId),
   );
@@ -643,13 +749,15 @@ Future<void> notifyForumPostLike({
   required String postTitle,
   int? postId,
 }) async {
-  final title = postTitle.trim().isEmpty ? 'Forum gönderisi' : postTitle.trim();
+  final me = (Supabase.instance.client.auth.currentUser?.email ?? '').trim();
+  final name = notificationActorLabel(me, actorName);
+  final text = 'Yorumunuzu $name beğendi';
   await _insertBildirim(
     ownerEmail: postOwnerEmail,
-    actorName: actorName,
+    actorName: name,
     type: 'forum_like',
-    title: '$actorName gönderinizi beğendi',
-    body: title,
+    title: text,
+    body: text,
     ilanId: postId,
   );
 }

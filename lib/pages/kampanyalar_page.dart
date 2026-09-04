@@ -27,12 +27,14 @@ class KampanyalarPage extends StatefulWidget {
     required this.userEmail,
     this.kind = CityFeedKind.kampanya,
     this.isGuest = false,
+    this.openPending = false,
     this.onRequireLogin,
   });
 
   final String userEmail;
   final CityFeedKind kind;
   final bool isGuest;
+  final bool openPending;
   final VoidCallback? onRequireLogin;
 
   static Future<void> open(
@@ -40,6 +42,7 @@ class KampanyalarPage extends StatefulWidget {
     required String userEmail,
     CityFeedKind kind = CityFeedKind.kampanya,
     bool isGuest = false,
+    bool openPending = false,
     VoidCallback? onRequireLogin,
   }) {
     return Navigator.of(context).push(
@@ -48,6 +51,7 @@ class KampanyalarPage extends StatefulWidget {
           userEmail: userEmail,
           kind: kind,
           isGuest: isGuest,
+          openPending: openPending,
           onRequireLogin: onRequireLogin,
         ),
       ),
@@ -99,7 +103,10 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
       _items = List<KampanyaItem>.from(cached);
       _loading = false;
     }
-    _reload(silent: cached != null);
+    _reload(silent: cached != null).then((_) {
+      if (!mounted || !widget.openPending || !_isAdmin) return;
+      _openPending();
+    });
     if (_isEtkinlik) {
       _loadAvmCovers();
     }
@@ -595,10 +602,20 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
         ),
         actions: [
           if (_isEtkinlik)
-            IconButton(
-              tooltip: S.auto('Etkinlik öner'),
+            TextButton.icon(
               onPressed: () => _openPropose(),
-              icon: const Icon(Icons.event_available_outlined),
+              icon: const Icon(Icons.add, size: 20),
+              label: L10nText(
+                'Etkinlik ekle',
+                style: GoogleFonts.nunito(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+              style: TextButton.styleFrom(
+                foregroundColor: MetoColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
             ),
           if (_isEtkinlik && _isAdmin)
             IconButton(
@@ -632,6 +649,27 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
                   selected: _filter == _KampanyaFilter.all,
                   onTap: _selectAll,
                 ),
+                if (_isEtkinlik)
+                  FilledButton.icon(
+                    onPressed: () => _openPropose(),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: MetoColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: L10nText(
+                      'Etkinlik ekle',
+                      style: GoogleFonts.nunito(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
                 if (!_isEtkinlik)
                   _chip(
                     label: 'Tüm ülkede geçerli',
@@ -948,7 +986,7 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
                   backgroundColor: MetoColors.primary,
                 ),
                 icon: const Icon(Icons.event_available_outlined),
-                label: const L10nText('Etkinlik öner'),
+                label: const L10nText('Etkinlik ekle'),
               ),
             ],
             if (_isAdmin) ...[

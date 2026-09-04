@@ -112,13 +112,21 @@ class _EtkinlikOneriSheetState extends State<EtkinlikOneriSheet> {
     setState(() => _pickedBytes = bytes);
   }
 
+  static const _tr = Locale('tr');
+
   Future<void> _pickDate() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
+      locale: _tr,
       initialDate: _date ?? now,
       firstDate: DateTime(now.year, now.month, now.day),
       lastDate: DateTime(now.year + 3),
+      helpText: 'Tarih seçin',
+      cancelText: 'İptal',
+      confirmText: 'Tamam',
+      fieldHintText: 'gg.aa.yyyy',
+      fieldLabelText: 'Tarih',
     );
     if (picked == null || !mounted) return;
     setState(() => _date = picked);
@@ -128,9 +136,32 @@ class _EtkinlikOneriSheetState extends State<EtkinlikOneriSheet> {
     final picked = await showTimePicker(
       context: context,
       initialTime: _time ?? TimeOfDay.now(),
+      helpText: 'Saat seçin',
+      cancelText: 'İptal',
+      confirmText: 'Tamam',
+      hourLabelText: 'Saat',
+      minuteLabelText: 'Dakika',
+      builder: (context, child) {
+        return Localizations.override(
+          context: context,
+          locale: _tr,
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+            child: child ?? const SizedBox.shrink(),
+          ),
+        );
+      },
     );
     if (picked == null || !mounted) return;
     setState(() => _time = picked);
+  }
+
+  String get _timeLabel {
+    final t = _time;
+    if (t == null) return 'Saat (isteğe bağlı)';
+    final h = t.hour.toString().padLeft(2, '0');
+    final m = t.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 
   String get _whenLabel {
@@ -221,7 +252,7 @@ class _EtkinlikOneriSheetState extends State<EtkinlikOneriSheet> {
               ),
               const SizedBox(height: 14),
               L10nText(
-                'Etkinlik öner',
+                'Etkinlik ekle',
                 style: GoogleFonts.nunito(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -326,9 +357,7 @@ class _EtkinlikOneriSheetState extends State<EtkinlikOneriSheet> {
                     child: OutlinedButton.icon(
                       onPressed: _saving ? null : _pickTime,
                       icon: const Icon(Icons.schedule_outlined, size: 18),
-                      label: L10nText(
-                        _time == null ? 'Saat (isteğe bağlı)' : _time!.format(context),
-                      ),
+                      label: L10nText(_timeLabel),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: MetoColors.primary,
                         side: const BorderSide(color: MetoColors.border),

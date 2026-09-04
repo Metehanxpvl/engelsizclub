@@ -246,6 +246,7 @@ class _MainShellState extends State<MainShell> {
   Timer? _sohbetTimer;
   RealtimeChannel? _inboxChannel;
   Timer? _guestTabTimer;
+  StreamSubscription<Map<String, String>>? _pushOpenSub;
 
   bool get _isGuest => widget.user.isGuest;
 
@@ -431,6 +432,7 @@ class _MainShellState extends State<MainShell> {
       },
     );
     unawaited(_refreshFeedDots());
+    _listenPushOpens();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_maybeShowMedicalWelcome());
     });
@@ -588,6 +590,7 @@ class _MainShellState extends State<MainShell> {
     stopPresenceHeartbeat();
     _sohbetTimer?.cancel();
     _guestTabTimer?.cancel();
+    unawaited(_pushOpenSub?.cancel());
     unawaited(unsubscribeRealtime(_inboxChannel));
     _inboxChannel = null;
     _tabPageController.dispose();
@@ -1689,7 +1692,10 @@ class _MainShellState extends State<MainShell> {
                                                       : b.isForum
                                                           ? const Color(
                                                               0xFF7C3AED)
-                                                          : b.isKredi
+                                                          : b.isEtkinlikOneri
+                                                              ? const Color(
+                                                                  0xFFEA580C)
+                                                              : b.isKredi
                                                               ? const Color(
                                                                   0xFF16A34A)
                                                               : b.isGorus
@@ -1708,7 +1714,10 @@ class _MainShellState extends State<MainShell> {
                                                         : b.isForum
                                                             ? Icons
                                                                 .forum_outlined
-                                                            : b.isKredi
+                                                            : b.isEtkinlikOneri
+                                                                ? Icons
+                                                                    .event_available_outlined
+                                                                : b.isKredi
                                                                 ? Icons
                                                                     .payments_outlined
                                                                 : b.isGorus
@@ -1799,6 +1808,102 @@ class _MainShellState extends State<MainShell> {
     if (mounted) setState(() {});
   }
 
+  void _listenPushOpens() {
+    if (_isGuest) return;
+    final pending = PushNotificationService.instance.takePendingOpenData();
+    if (pending != null && pending.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openPushData(pending);
+      });
+    }
+    _pushOpenSub = PushNotificationService.instance.onOpenedData.listen((data) {
+      if (!mounted || data.isEmpty) return;
+      _openPushData(data);
+    });
+  }
+
+  void _openPushData(Map<String, String> data) {
+    if (_isGuest) return;
+    final type = (data['type'] ?? '').trim().toLowerCase();
+    final id = int.tryParse((data['id'] ?? data['ilan_id'] ?? '').trim());
+    final sohbetKey = (data['sohbet_key'] ?? '').trim();
+    var actorEmail = (data['actor_email'] ?? '').trim().toLowerCase();
+
+    if (type == 'etkinlik_oneri') {
+      unawaited(
+        EtkinliklerPage.open(
+          context,
+          userEmail: widget.user.email,
+          openPending: true,
+        ),
+      );
+      return;
+    }
+
+    if (type.startsWith('forum')) {
+      if (id != null && id > 0) {
+        setState(() {
+          _showMesajlar = false;
+          _showBildirimler = false;
+          _showProfilPanel = false;
+          _openForumPostId = id;
+          _openForumCommentId = parseForumCommentRef(sohbetKey);
+          _openForumToken++;
+        });
+      }
+      _goToTab(MetoTab.forum);
+      return;
+    }
+
+    if (type == 'mesaj' || type == 'teklif') {
+      if (actorEmail.isEmpty && sohbetKey.contains('|')) {
+        final me = widget.user.email.trim().toLowerCase();
+        for (final part in sohbetKey.split('|')) {
+          final e = part.trim().toLowerCase();
+          if (e.isNotEmpty && e != me) {
+            actorEmail = e;
+            break;
+          }
+        }
+      }
+      if (actorEmail.isEmpty) {
+        _openMesajlar();
+        return;
+      }
+      final name = _peerDisplayName(actorEmail);
+      final kisi = SohbetKisi(
+        ad: name,
+        avatar: contactAvatarLetter(name),
+        avatarColor: MetoColors.primary,
+        isOnline: _peerOnline[actorEmail] == true,
+        peerEmail: actorEmail,
+        ilanId: id,
+      );
+      Navigator.of(context)
+          .push(
+        MaterialPageRoute<void>(
+          builder: (_) => SohbetPage(
+            kisi: kisi,
+            myEmail: widget.user.email,
+            myDisplayName: _publicDisplayName,
+            sohbetKey: sohbetKey.isEmpty ? null : sohbetKey,
+          ),
+        ),
+      )
+          .then((_) {
+        if (sohbetKey.isNotEmpty) {
+          markSohbetMesajlariOkundu(sohbetKey);
+        }
+        _loadSohbetOzetleri();
+      });
+      return;
+    }
+
+    if (type == 'ilan' && id != null && id > 0) {
+      _openIlanDetay(kind: (data['kind'] ?? 'uzman').trim(), id: id);
+    }
+  }
+
   Future<void> _openBildirim(AppBildirim b) async {
     if (!b.read) {
       await markBildirimOkundu(b.id);
@@ -1825,6 +1930,16 @@ class _MainShellState extends State<MainShell> {
           ];
         });
       }
+    }
+
+    if (b.isEtkinlikOneri) {
+      if (!mounted) return;
+      await EtkinliklerPage.open(
+        context,
+        userEmail: widget.user.email,
+        openPending: true,
+      );
+      return;
     }
 
     if (b.isGorus || b.isKredi) {
@@ -1923,6 +2038,9 @@ class _MainShellState extends State<MainShell> {
           kisi: kisi,
           myEmail: widget.user.email,
           myDisplayName: _publicDisplayName,
+          sohbetKey: (b.sohbetKey != null && b.sohbetKey!.isNotEmpty)
+              ? b.sohbetKey
+              : null,
         ),
       ),
     )

@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -594,6 +595,18 @@ class _MetoCareAppState extends State<MetoCareApp> {
           debugShowCheckedModeBanner: false,
           scaffoldMessengerKey: _messengerKey,
           locale: lang.locale,
+          supportedLocales: const [
+            Locale('tr'),
+            Locale('en'),
+            Locale('de'),
+            Locale('ar'),
+            Locale('fr'),
+          ],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           theme: ThemeData(
             useMaterial3: true,
             scaffoldBackgroundColor: MetoColors.background,

@@ -62,3 +62,6 @@ kesfet_scoring.sql
 kesfet_seed.sql
 kesfet_admin.sql
 kesfet_seed_videos.sql
+etkinlik_admin_notify.sql
+forum_ilan_social_notify.sql
+ilan_teklif_notify.sql

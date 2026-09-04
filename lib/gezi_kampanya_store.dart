@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'bildirim_store.dart';
 import 'section_editors.dart';
 import 'utils/async_timeout.dart';
 
@@ -1249,7 +1250,9 @@ Future<KampanyaItem> proposeEtkinlik({
         .select()
         .single();
     invalidateEtkinlikCache();
-    return KampanyaItem.fromJson(Map<String, dynamic>.from(row));
+    return _afterProposeEtkinlik(
+      KampanyaItem.fromJson(Map<String, dynamic>.from(row)),
+    );
   } catch (e) {
     final raw = e.toString();
     if (raw.contains('event_date') || raw.contains('rejection_reason')) {
@@ -1265,13 +1268,26 @@ Future<KampanyaItem> proposeEtkinlik({
             .select()
             .single();
         invalidateEtkinlikCache();
-        return KampanyaItem.fromJson(Map<String, dynamic>.from(row));
+        return _afterProposeEtkinlik(
+          KampanyaItem.fromJson(Map<String, dynamic>.from(row)),
+        );
       } catch (e2) {
         throw _etkinlikOneriSchemaError(e2);
       }
     }
     throw _etkinlikOneriSchemaError(e);
   }
+}
+
+Future<KampanyaItem> _afterProposeEtkinlik(KampanyaItem item) async {
+  try {
+    await notifyAdminEtkinlikOneri(
+      eventId: item.id,
+      title: item.title,
+      city: item.city,
+    );
+  } catch (_) {}
+  return item;
 }
 
 Future<void> approveEtkinlik({

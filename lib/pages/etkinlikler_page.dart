@@ -8,6 +8,7 @@ class EtkinliklerPage {
     BuildContext context, {
     required String userEmail,
     bool isGuest = false,
+    bool openPending = false,
     VoidCallback? onRequireLogin,
   }) {
     return KampanyalarPage.open(
@@ -15,6 +16,7 @@ class EtkinliklerPage {
       userEmail: userEmail,
       kind: CityFeedKind.etkinlik,
       isGuest: isGuest,
+      openPending: openPending,
       onRequireLogin: onRequireLogin,
     );
   }

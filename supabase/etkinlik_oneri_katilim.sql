@@ -10,6 +10,7 @@
 --
 -- source='avm_scrape' ve status NULL → onaylı sayılır (scraper değişmez).
 -- Dart: proposeEtkinlik / approveEtkinlik / toggleEtkinlikKatilim
+-- Admin bildirimi (zil): ayrıca etkinlik_admin_notify.sql çalıştırın.
 
 -- ── kolonlar ───────────────────────────────────────────────────────────────
 alter table public.etkinlikler
