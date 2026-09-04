@@ -229,7 +229,9 @@ class TitckSkrsIndex {
     if (all == null || all.isEmpty) return const [];
     final scored = <(int, int, TitckSkrsHit)>[];
     for (final hit in all) {
-      final name = hit.name.toLowerCase();
+      final raw = hit.name.trim();
+      if (raw.length < 2 || RegExp(r'^\d{3,}$').hasMatch(raw)) continue;
+      final name = raw.toLowerCase();
       if (!name.contains(q)) continue;
       scored.add((name.startsWith(q) ? 0 : 1, name.length, hit));
     }

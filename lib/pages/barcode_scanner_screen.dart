@@ -981,15 +981,10 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
       });
       return;
     }
-    final code = (rec?.barcode ?? '').trim();
-    if (code.length >= 4) {
-      await _lookupMedicine(code);
-      return;
-    }
-    final name = rec?.medicineName.trim().isNotEmpty == true
+    final name = rec?.hasUsefulName == true
         ? rec!.medicineName.trim()
         : hit.name.trim();
-    if (name.length < 2) return;
+    if (name.length < 2 && (rec?.barcode ?? '').trim().length < 4) return;
     setState(() {
       _handling = true;
       _loading = true;
@@ -1000,15 +995,40 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     try {
       await _camera?.stop();
     } catch (_) {}
+    final seed = rec ??
+        MedicineRecord(
+          medicineName: name,
+          source: 'titck',
+        );
     try {
-      final result = await MedicineRepository.lookupByName(name);
+      final result = await MedicineRepository.lookupFromHit(
+        name: name,
+        barcode: (rec?.barcode ?? '').trim(),
+        hint: rec,
+      ).timeout(
+        const Duration(seconds: 70),
+        onTimeout: () => MedicineLookupResult(
+          record: seed.isFound ? seed : null,
+          barcode: seed.barcode,
+          error: seed.isFound
+              ? null
+              : GeminiService.modelUnavailableMessage,
+        ),
+      );
       if (!mounted) return;
       setState(() {
-        _medicine = result;
+        _medicine = result.isFound
+            ? result
+            : (seed.isFound
+                ? MedicineLookupResult(
+                    record: seed,
+                    barcode: seed.barcode,
+                  )
+                : result);
         _loading = false;
         _handling = false;
         _status = null;
-        _error = result.isFound ? null : result.error;
+        _error = (result.isFound || seed.isFound) ? null : result.error;
         _nameHits = const [];
         _medicineHits = const [];
         _nameSearchError = null;
@@ -1016,10 +1036,18 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     } catch (e) {
       if (!mounted) return;
       setState(() {
+        if (seed.isFound) {
+          _medicine = MedicineLookupResult(
+            record: seed,
+            barcode: seed.barcode,
+          );
+          _error = null;
+        } else {
+          _error = 'Arama hatası: $e';
+        }
         _loading = false;
         _handling = false;
         _status = null;
-        _error = 'Arama hatası: $e';
       });
     }
   }
@@ -2331,20 +2359,26 @@ class _MedicineProspectusSections extends StatelessWidget {
 
   final MedicineRecord medicine;
 
-  static const _missing = 'Bu başlık için kamuya açık özet henüz yok.';
+  static const _missing = 'Bilinmiyor';
 
   @override
   Widget build(BuildContext context) {
-    final indications = medicine.indications.trim();
-    final usage = medicine.usageText.trim();
-    final warnings = medicine.safetyWarnings.trim();
+    final indications = MedicineRecord.isUnknownText(medicine.indications)
+        ? ''
+        : medicine.indications.trim();
+    final usage = MedicineRecord.isUnknownText(medicine.usageText)
+        ? ''
+        : medicine.usageText.trim();
+    final warnings = MedicineRecord.isUnknownText(medicine.safetyWarnings)
+        ? ''
+        : medicine.safetyWarnings.trim();
     final effects = medicine.sideEffects
         .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
+        .where((e) => e.isNotEmpty && !MedicineRecord.isUnknownText(e))
         .toList();
     final interactions = medicine.drugInteractions
         .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
+        .where((e) => e.isNotEmpty && !MedicineRecord.isUnknownText(e))
         .toList();
 
     return Column(
@@ -2904,10 +2938,9 @@ class _ProductResultCard extends StatelessWidget {
               ),
               if (ingredientsOpen)
                 L10nText(
-                  (product.ingredients == null ||
-                          product.ingredients!.trim().isEmpty)
-                      ? 'İçindekiler henüz net değil. Aşağıdan isteğe bağlı etiket fotoğrafı ekleyebilirsiniz.'
-                      : product.ingredients!,
+                  ProductRecord.isUsableIngredientText(product.ingredients)
+                      ? product.ingredients!
+                      : 'Bilinmiyor. İsterseniz etiket fotoğrafı ekleyerek tamamlayabilirsiniz.',
                   style: const TextStyle(
                     fontSize: 13,
                     height: 1.45,

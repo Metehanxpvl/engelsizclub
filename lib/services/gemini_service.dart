@@ -390,8 +390,8 @@ product_name: kutuda/prospektüste görünen ad veya verilen ad (eski alan medic
 active_ingredient: etken madde. Yoksa "".
 indications: ne için kullanılır; yalnız kamuya açık KT / prospektüs. Yoksa "". Eski alan ingredients de kabul.
 usage: nasıl kullanılır özeti. Doz uydurma yok. Yoksa "".
-side_effects: kısa string dizisi. Yoksa [].
-drug_interactions: prospektüste yer alan etkileşimler / birlikte kullanılmaması gereken etken maddeler veya ilaç grupları. Bilgi amaçlı; "kesinlikle alma" emri yok. Yoksa [].
+side_effects: kısa string dizisi. Bilinmiyorsa []. "Yok" / "Bilinmiyor" yazma.
+drug_interactions: prospektüste yer alan etkileşimler / birlikte dikkat edilmesi gereken etken maddeler veya ilaç grupları. Bilgi amaçlı; "kesinlikle alma" emri yok. Bilinmiyorsa []. "Yok" yazma.
 safety_report.summary: uyarılar / genel bilgilendirme (eski alan safety_warnings de kabul).
 Uydurma ve tıbbi kesinlik yok. prospectus_url uydurma.
 ''';

@@ -371,10 +371,10 @@ class ProductRepository {
     }
   }
 
-  /// Tam önbellek: gerçek içindekiler veya dolu safety_report.
+  /// Tam önbellek: gerçek içindekiler metni şart.
+  /// Yalnız ad / alerjen etiketi / boş rapor → Gemini doldursun (ilaçtaki gibi).
   static bool _isCacheComplete(ProductRecord record) {
-    if (record.hasUsableIngredients) return true;
-    return record.safety.hasUsableContent;
+    return record.hasUsableIngredients;
   }
 
   static Future<ProductLookupResult> _enrichWithGeminiText({

@@ -89,11 +89,16 @@ function padGtin(d) {
   return d;
 }
 
-function pickField(row, names) {
+function pickField(row, names, { rejectKey } = {}) {
   const keys = Object.keys(row);
   for (const want of names) {
     const w = want.toLowerCase();
-    const hit = keys.find((k) => k.toLowerCase().replace(/\s+/g, ' ').includes(w));
+    const hit = keys.find((k) => {
+      const norm = k.toLowerCase().replace(/\s+/g, ' ');
+      if (!norm.includes(w)) return false;
+      if (rejectKey && rejectKey.test(norm)) return false;
+      return true;
+    });
     if (hit && String(row[hit] ?? '').trim()) return String(row[hit]).trim();
   }
   return '';
@@ -103,7 +108,14 @@ function addHit(by, barcode, name, ingredient, sourceCounts, source) {
   const d = digits(barcode);
   if (d.length < 8 || d.length > 14) return;
   const nameClean = String(name ?? '').replace(/\s+/g, ' ').trim();
-  if (nameClean.length < 3) return;
+  const nameIsId = /^\d{3,}$/.test(nameClean);
+  if (nameClean.length < 3 || nameIsId) {
+    const ingOnly = String(ingredient ?? '').replace(/\s+/g, ' ').trim();
+    const keyEarly = d.length === 14 && d.startsWith('0') ? d.slice(1) : d;
+    const prevEarly = by.get(keyEarly);
+    if (prevEarly && ingOnly && !prevEarly[1]) prevEarly[1] = ingOnly;
+    return;
+  }
   const ing = String(ingredient ?? '').replace(/\s+/g, ' ').trim();
   const key = d.length === 14 && d.startsWith('0') ? d.slice(1) : d;
   const prev = by.get(key);
@@ -112,6 +124,7 @@ function addHit(by, barcode, name, ingredient, sourceCounts, source) {
     sourceCounts[source] = (sourceCounts[source] || 0) + 1;
     return;
   }
+  if (/^\d{3,}$/.test(prev[0]) && nameClean) prev[0] = nameClean;
   if (ing && !prev[1]) prev[1] = ing;
 }
 
@@ -155,17 +168,21 @@ function parseWorkbook(XLSX, buf, by, sourceCounts, source) {
           'ürün barkod',
           'urun barkod',
         ]) || digits(line.find((c) => /^\d{8,14}$/.test(digits(c))) || '');
-      const name = pickField(obj, [
-        'ilaç adı',
-        'ilac adi',
-        'ürün adı',
-        'urun adi',
-        'ticari ad',
-        'ilacadi',
-        'ürün',
-        'ilac',
-        'name',
-      ]);
+      const name = pickField(
+        obj,
+        [
+          'ilaç adı',
+          'ilac adi',
+          'ürün adı',
+          'urun adi',
+          'ticari ad',
+          'ilacadi',
+          'ürün adı',
+          'ilac',
+          'name',
+        ],
+        { rejectKey: /\b(no|kod|id|numara|numarası|number)\b/i },
+      );
       const ingredient = pickField(obj, [
         'atc adı',
         'atc adi',

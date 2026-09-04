@@ -39,17 +39,42 @@ class MedicineRecord {
   final bool fromCache;
 
   bool get isFound =>
-      medicineName.trim().isNotEmpty ||
+      hasUsefulName ||
       activeIngredient.trim().isNotEmpty ||
-      usageText.trim().isNotEmpty;
+      !isUnknownText(usageText);
 
+  /// SKRS ürün no (41513) ad değildir; ada aramada / Gemini tohumunda kullanılmaz.
+  bool get hasUsefulName =>
+      medicineName.trim().length >= 2 && !isNumericName(medicineName);
+
+  /// Ne işe yarar veya kullanım doluysa prospektüs var sayılır.
+  /// Tek başına "Yok" listesi / uyarı kartı tam kayıt değildir.
   bool get isComplete =>
-      medicineName.trim().isNotEmpty &&
-      (indications.trim().isNotEmpty ||
-          usageText.trim().isNotEmpty ||
-          sideEffects.isNotEmpty ||
-          drugInteractions.isNotEmpty ||
-          safetyWarnings.trim().isNotEmpty);
+      hasUsefulName &&
+      (!isUnknownText(indications) || !isUnknownText(usageText));
+
+  bool get needsEnrichment => isFound && !isComplete;
+
+  /// Boş, "Yok", "Bilinmiyor", tire — yeşil Yok uydurma.
+  static bool isUnknownText(String raw) {
+    final s = raw.trim();
+    if (s.isEmpty) return true;
+    final compact = s.toLowerCase().replaceAll(RegExp(r'[.!\s]+$'), '');
+    if (compact.isEmpty) return true;
+    return compact == 'yok' ||
+        compact == 'yoktur' ||
+        compact == 'bilinmiyor' ||
+        compact == 'n/a' ||
+        compact == 'na' ||
+        compact == 'none' ||
+        compact == 'null' ||
+        compact == '-' ||
+        compact == '—' ||
+        compact == '–';
+  }
+
+  static bool isNumericName(String raw) =>
+      RegExp(r'^\d{3,}$').hasMatch(raw.trim());
 
   bool get hasOfficialProspectus {
     final u = (prospectusUrl ?? '').trim();
@@ -75,19 +100,23 @@ class MedicineRecord {
             json['activeIngredient'] ??
             json['etken_madde'],
       ),
-      indications: _indicationsFrom(json),
-      usageText: _text(
-        json['usage_text'] ?? json['usage'] ?? json['kullanim'],
+      indications: _realText(_indicationsFrom(json)),
+      usageText: _realText(
+        _text(json['usage_text'] ?? json['usage'] ?? json['kullanim']),
       ),
-      sideEffects: stringList(
-        json['side_effects'] ?? json['sideEffects'] ?? json['yan_etkiler'],
+      sideEffects: _realList(
+        stringList(
+          json['side_effects'] ?? json['sideEffects'] ?? json['yan_etkiler'],
+        ),
       ),
-      drugInteractions: _drugInteractionsFrom(json),
-      safetyWarnings: _text(
-        json['safety_warnings'] ??
-            json['safetyWarnings'] ??
-            json['kritik_uyarilar'] ??
-            _nestedReportField(json, 'summary'),
+      drugInteractions: _realList(_drugInteractionsFrom(json)),
+      safetyWarnings: _realText(
+        _text(
+          json['safety_warnings'] ??
+              json['safetyWarnings'] ??
+              json['kritik_uyarilar'] ??
+              _nestedReportField(json, 'summary'),
+        ),
       ),
       prospectusUrl: _nullableText(
         json['prospectus_url'] ?? json['prospectusUrl'] ?? json['kt_url'],
@@ -127,27 +156,33 @@ class MedicineRecord {
             map['etken_madde'] ??
             map['etkenMadde'],
       ),
-      indications: _indicationsFrom(map),
-      usageText: _text(
-        map['usage'] ??
-            map['usage_text'] ??
-            map['usageText'] ??
-            map['kullanim'] ??
-            map['kullanım'],
+      indications: _realText(_indicationsFrom(map)),
+      usageText: _realText(
+        _text(
+          map['usage'] ??
+              map['usage_text'] ??
+              map['usageText'] ??
+              map['kullanim'] ??
+              map['kullanım'],
+        ),
       ),
-      sideEffects: stringList(
-        map['side_effects'] ??
-            map['sideEffects'] ??
-            map['yan_etkiler'] ??
-            map['yanEtkiler'],
+      sideEffects: _realList(
+        stringList(
+          map['side_effects'] ??
+              map['sideEffects'] ??
+              map['yan_etkiler'] ??
+              map['yanEtkiler'],
+        ),
       ),
-      drugInteractions: _drugInteractionsFrom(map),
-      safetyWarnings: _text(
-        map['safety_warnings'] ??
-            map['safetyWarnings'] ??
-            map['kritik_uyarilar'] ??
-            map['warnings'] ??
-            _nestedReportField(map, 'summary'),
+      drugInteractions: _realList(_drugInteractionsFrom(map)),
+      safetyWarnings: _realText(
+        _text(
+          map['safety_warnings'] ??
+              map['safetyWarnings'] ??
+              map['kritik_uyarilar'] ??
+              map['warnings'] ??
+              _nestedReportField(map, 'summary'),
+        ),
       ),
       imageUrl: imageUrl,
       rawReport: Map<String, dynamic>.from(map),
@@ -301,6 +336,13 @@ class MedicineRecord {
     if (raw == null) return '';
     return raw.toString().trim();
   }
+
+  static String _realText(String raw) => isUnknownText(raw) ? '' : raw.trim();
+
+  static List<String> _realList(List<String> items) => items
+      .map((e) => e.trim())
+      .where((e) => e.isNotEmpty && !isUnknownText(e))
+      .toList();
 
   static String? _nullableText(Object? raw) {
     final s = _text(raw);

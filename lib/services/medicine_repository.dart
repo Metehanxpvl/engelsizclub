@@ -62,6 +62,7 @@ class MedicineRepository {
 
   static Future<MedicineLookupResult> lookup({
     String barcode = '',
+    String medicineName = '',
     Uint8List? imageBytes,
     String imageContentType = 'image/jpeg',
     String? ocrText,
@@ -112,6 +113,17 @@ class MedicineRepository {
 
       final skrs = ean == null ? null : await TitckSkrsIndex.findByBarcode(ean);
       var seed = cached;
+      final typedName = medicineName.trim();
+      if (typedName.length >= 2 && !MedicineRecord.isNumericName(typedName)) {
+        seed = _mergeIdentity(
+          seed,
+          MedicineRecord(
+            barcode: ean,
+            medicineName: typedName,
+            source: 'public_index',
+          ),
+        );
+      }
       if (skrs != null) {
         debugPrint(
           'GTIN lookup used form=${TitckSkrsIndex.lastMatchForm} '
@@ -227,7 +239,7 @@ class MedicineRepository {
         final llm = await GeminiService.analyzeMedicine(
           barcode: ean ?? '',
           ocrText: text,
-          medicineName: seed?.medicineName ?? '',
+          medicineName: _geminiName(seed, typedName),
           imageBytes: photoBytes,
           imageMimeType: imageContentType,
         );
@@ -316,6 +328,31 @@ class MedicineRepository {
     }
   }
 
+  /// Ada göre en iyi önbellek (barkodlu tam satır da sayılır).
+  static Future<MedicineRecord?> findBestByName(String name) async {
+    final n = name.trim();
+    if (n.length < 2) return null;
+    MedicineRecord? best;
+    try {
+      final rows = await withNetworkTimeout(
+        _db.from('medicines').select().ilike('medicine_name', n).limit(8),
+        message: 'İlaç adı önbelleği okunamadı.',
+      );
+      for (final row in rows) {
+        final rec = MedicineRecord.fromJson(
+          Map<String, dynamic>.from(row),
+          fromCache: true,
+        );
+        if (!rec.isFound) continue;
+        if (rec.isComplete) return rec;
+        best ??= rec;
+      }
+    } on PostgrestException catch (e) {
+      debugPrint('medicines best-name SELECT: ${e.message}');
+    }
+    return best;
+  }
+
   /// Aynı ad, barkodsuz kayıt (isteğe bağlı eşleşme).
   static Future<MedicineRecord?> findByNameWithoutBarcode(String name) async {
     final n = name.trim();
@@ -385,7 +422,12 @@ class MedicineRepository {
           fromCache: true,
         );
         final name = rec.medicineName.trim();
-        if (name.isEmpty || !rec.isFound) continue;
+        if (name.isEmpty ||
+            !rec.isFound ||
+            !rec.hasUsefulName ||
+            MedicineRecord.isNumericName(name)) {
+          continue;
+        }
         add(
           MedicineNameHit(
             name: name,
@@ -403,6 +445,10 @@ class MedicineRepository {
       try {
         final skrs = await TitckSkrsIndex.searchByName(q, limit: 8);
         for (final hit in skrs) {
+          if (MedicineRecord.isNumericName(hit.name) ||
+              hit.name.trim().length < 2) {
+            continue;
+          }
           add(
             MedicineNameHit(
               name: hit.name,
@@ -420,6 +466,26 @@ class MedicineRepository {
     return hits;
   }
 
+  /// Arama satırından detay: barkod + bilinen ad. Eksikse Gemini doldurur.
+  static Future<MedicineLookupResult> lookupFromHit({
+    required String name,
+    String barcode = '',
+    MedicineRecord? hint,
+  }) async {
+    final trimmed = name.trim().isNotEmpty
+        ? name.trim()
+        : (hint?.medicineName ?? '').trim();
+    final code = (hint?.barcode ?? barcode).trim();
+    if (code.length >= 4) {
+      final byCode = await lookup(barcode: code, medicineName: trimmed);
+      if (byCode.isFound) return byCode;
+    }
+    if (trimmed.length >= 2) {
+      return lookupByName(trimmed);
+    }
+    return const MedicineLookupResult(error: 'En az 2 karakter yazın.');
+  }
+
   /// Yazılan ad → Gemini metin (fotoğraf yok) → `medicines` INSERT veya aynı ad.
   static Future<MedicineLookupResult> lookupByName(String rawName) async {
     final name = rawName.trim();
@@ -427,9 +493,9 @@ class MedicineRepository {
       return const MedicineLookupResult(error: 'En az 2 karakter yazın.');
     }
 
-    final exact = await findByNameWithoutBarcode(name);
-    if (exact != null && exact.isComplete) {
-      return MedicineLookupResult(record: exact, fromCache: true);
+    final cached = await findBestByName(name);
+    if (cached != null && cached.isComplete) {
+      return MedicineLookupResult(record: cached, fromCache: true);
     }
 
     TitckSkrsHit? skrsHit;
@@ -440,9 +506,15 @@ class MedicineRepository {
       debugPrint('TİTCK SKRS ad: $e\n$st');
     }
 
-    var seed = exact;
+    var seed = cached;
     if (skrsHit != null) {
       seed = _mergeIdentity(seed, _fromSkrs(skrsHit));
+    }
+    if (seed == null || !seed.hasUsefulName) {
+      seed = _mergeIdentity(
+        seed,
+        MedicineRecord(medicineName: name, source: 'public_index'),
+      );
     }
 
     if (!GeminiService.canCall) {
@@ -458,9 +530,7 @@ class MedicineRepository {
 
     try {
       final llm = await GeminiService.analyzeMedicine(
-        medicineName: seed?.medicineName.trim().isNotEmpty == true
-            ? seed!.medicineName.trim()
-            : name,
+        medicineName: _geminiName(seed, name),
         barcode: seed?.barcode ?? '',
       );
       var record = llm.record;
@@ -504,8 +574,30 @@ class MedicineRepository {
       );
     } catch (e, st) {
       debugPrint('İlaç adı Gemini: $e\n$st');
+      if (seed != null && seed.isFound) {
+        return MedicineLookupResult(record: seed, barcode: seed.barcode);
+      }
       return MedicineLookupResult(error: 'Arama hatası: $e');
     }
+  }
+
+  static String _preferName(String a, String b) {
+    final aOk = a.trim().length >= 2 && !MedicineRecord.isNumericName(a);
+    final bOk = b.trim().length >= 2 && !MedicineRecord.isNumericName(b);
+    if (aOk) return a.trim();
+    if (bOk) return b.trim();
+    return a.trim().isNotEmpty ? a.trim() : b.trim();
+  }
+
+  static String _geminiName(MedicineRecord? seed, String fallback) {
+    final fromSeed = (seed?.medicineName ?? '').trim();
+    if (fromSeed.length >= 2 && !MedicineRecord.isNumericName(fromSeed)) {
+      return fromSeed;
+    }
+    final fb = fallback.trim();
+    if (fb.length >= 2 && !MedicineRecord.isNumericName(fb)) return fb;
+    final ing = (seed?.activeIngredient ?? '').trim();
+    return ing;
   }
 
   static MedicineRecord _fromSkrs(
@@ -513,11 +605,13 @@ class MedicineRepository {
     String? barcode,
     String? prospectusUrl,
   }) {
+    final rawName = hit.name.trim();
+    final useful = rawName.length >= 2 && !MedicineRecord.isNumericName(rawName);
     return MedicineRecord(
       barcode: (barcode ?? hit.barcode).trim().isEmpty
           ? null
           : (barcode ?? hit.barcode).trim(),
-      medicineName: hit.name,
+      medicineName: useful ? rawName : '',
       activeIngredient: hit.activeIngredient,
       prospectusUrl: prospectusUrl,
       source: 'titck',
@@ -540,9 +634,7 @@ class MedicineRepository {
       barcode: (existing.barcode ?? '').trim().length >= 4
           ? existing.barcode
           : incoming.barcode,
-      medicineName: existing.medicineName.trim().isNotEmpty
-          ? existing.medicineName
-          : incoming.medicineName,
+      medicineName: _preferName(existing.medicineName, incoming.medicineName),
       activeIngredient: existing.activeIngredient.trim().isNotEmpty
           ? existing.activeIngredient
           : incoming.activeIngredient,
@@ -560,9 +652,7 @@ class MedicineRepository {
     MedicineRecord prospectus,
   ) {
     if (identity == null) return prospectus;
-    final name = identity.medicineName.trim().isNotEmpty
-        ? identity.medicineName
-        : prospectus.medicineName;
+    final name = _preferName(identity.medicineName, prospectus.medicineName);
     final ingredient = prospectus.activeIngredient.trim().isNotEmpty
         ? prospectus.activeIngredient
         : identity.activeIngredient;
@@ -655,7 +745,16 @@ class MedicineRepository {
     final code = (medicine.barcode ?? '').trim();
     if (code.length >= 4) {
       final existing = await findByBarcode(code);
-      if (existing != null) return existing;
+      if (existing != null) {
+        if (existing.isComplete && !medicine.isComplete) return existing;
+        if (existing.id != null) {
+          return _updateById(
+            existing.id!,
+            medicine.copyWith(id: existing.id),
+          );
+        }
+        return existing;
+      }
     }
 
     try {

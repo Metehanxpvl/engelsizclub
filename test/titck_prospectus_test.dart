@@ -88,6 +88,52 @@ void main() {
     );
     expect(rec.isFound, isTrue);
     expect(rec.isComplete, isFalse);
+    expect(rec.needsEnrichment, isTrue);
+  });
+
+  test('Placeholder Yok does not count as prospectus details', () {
+    final rec = MedicineRecord.fromJson({
+      'medicine_name': 'PAROL 500 MG 20 TABLET',
+      'side_effects': ['Yok'],
+      'drug_interactions': ['Bilinmiyor'],
+      'safety_warnings': 'Yoktur',
+    });
+    expect(rec.sideEffects, isEmpty);
+    expect(rec.drugInteractions, isEmpty);
+    expect(rec.safetyWarnings, isEmpty);
+    expect(rec.isComplete, isFalse);
+    expect(MedicineRecord.isUnknownText('Yok'), isTrue);
+    expect(MedicineRecord.isUnknownText('Bilinmiyor.'), isTrue);
+  });
+
+  test('Numeric SKRS product id is not a useful medicine name', () {
+    const rec = MedicineRecord(
+      medicineName: '41513',
+      activeIngredient: 'treprostinil',
+      source: 'titck',
+    );
+    expect(rec.hasUsefulName, isFalse);
+    expect(rec.isComplete, isFalse);
+    expect(rec.isFound, isTrue);
+  });
+
+  test('SKRS name search skips numeric product ids', () async {
+    TitckSkrsIndex.debugSetHits([
+      const TitckSkrsHit(
+        barcode: '1111111100755',
+        name: '41513',
+        activeIngredient: 'treprostinil',
+      ),
+      const TitckSkrsHit(
+        barcode: '8699717010109',
+        name: 'PAROL 500 MG 20 TABLET',
+        activeIngredient: 'paracetamol',
+      ),
+    ]);
+    expect(await TitckSkrsIndex.searchByName('415'), isEmpty);
+    final hits = await TitckSkrsIndex.searchByName('parol');
+    expect(hits, hasLength(1));
+    expect(hits.first.name, 'PAROL 500 MG 20 TABLET');
   });
 
   test('Gemini ingredients maps to indications', () {
