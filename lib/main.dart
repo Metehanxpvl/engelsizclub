@@ -28,6 +28,7 @@ import 'l10n/l10n_text.dart';
 import 'main_shell.dart';
 import 'meto_theme.dart';
 import 'pages/legal_document_page.dart';
+import 'remote/app_screen_config.dart';
 import 'services/app_catalog_service.dart';
 import 'services/force_update_service.dart';
 import 'services/push_notification_service.dart';
@@ -219,6 +220,7 @@ Future<void> main() async {
   } catch (e, st) {
     debugPrint('Supabase init failed: $e\n$st');
   }
+  unawaited(AppScreenConfigStore.instance.load());
 
   try {
     await GoogleAuthService.startMobileDeepLinkListener();

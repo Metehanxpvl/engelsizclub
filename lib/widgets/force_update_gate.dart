@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
+import '../remote/app_screen_config.dart';
 import '../services/force_update_service.dart';
 
 /// Native uygulamada zorunlu güncelleme varsa içeriği kilitler.
@@ -40,6 +43,7 @@ class _ForceUpdateGateState extends State<ForceUpdateGate>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _svc.check();
+      unawaited(AppScreenConfigStore.instance.load());
     }
   }
 

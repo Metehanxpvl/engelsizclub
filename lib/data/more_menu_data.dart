@@ -10,6 +10,7 @@ class MoreMenuItem {
     required this.sortOrder,
     required this.isActive,
     required this.isBuiltin,
+    this.parentId,
   });
 
   /// Uygulama içi route kimlikleri (`link_type: route`).
@@ -27,27 +28,39 @@ class MoreMenuItem {
     'taramalar',
     'puzzle',
     'boyama',
+    'folder',
   };
 
   final int id;
   final String title;
   final String subtitle;
-  /// `route` | `url`
+  /// `route` | `url` | `folder`
   final String linkType;
   final String link;
   final String icon;
   final int sortOrder;
   final bool isActive;
   final bool isBuiltin;
+  /// Aynı tabloda üst grup. `null` = üst seviye.
+  final int? parentId;
 
   /// Normalize edilmiş route kimliği (url değilse).
-  String? get routeKey => normalizeMoreMenuRoute(link);
+  String? get routeKey =>
+      linkType == 'folder' ? 'folder' : normalizeMoreMenuRoute(link);
 
   bool get isKnownRoute => routeKey != null;
 
   bool get isUrl => !isKnownRoute && linkType == 'url';
   bool get isRoute => isKnownRoute || linkType == 'route';
-  bool get isFolder => routeKey == 'taramalar';
+
+  /// Admin grubu veya yerleşik Taramalar klasörü.
+  bool get isFolder {
+    if (linkType == 'folder') return true;
+    final key = routeKey ?? link.trim().toLowerCase();
+    return key == 'taramalar' ||
+        key == 'taramalar_egzersizler_oyun' ||
+        key == 'folder';
+  }
 
   MoreMenuItem copyWith({
     int? id,
@@ -59,6 +72,7 @@ class MoreMenuItem {
     int? sortOrder,
     bool? isActive,
     bool? isBuiltin,
+    Object? parentId = _parentIdSentinel,
   }) {
     return MoreMenuItem(
       id: id ?? this.id,
@@ -70,15 +84,40 @@ class MoreMenuItem {
       sortOrder: sortOrder ?? this.sortOrder,
       isActive: isActive ?? this.isActive,
       isBuiltin: isBuiltin ?? this.isBuiltin,
+      parentId: identical(parentId, _parentIdSentinel)
+          ? this.parentId
+          : parentId as int?,
     );
   }
 
   factory MoreMenuItem.fromJson(Map<String, dynamic> json) {
     final rawLink = json['link']?.toString() ?? '';
-    final route = normalizeMoreMenuRoute(rawLink);
     var linkType =
         (json['link_type']?.toString() ?? 'url').trim().toLowerCase();
-    if (route != null) linkType = 'route';
+    final parentRaw = json['parent_id'];
+    final parentId = parentRaw is num
+        ? parentRaw.toInt()
+        : int.tryParse(parentRaw?.toString() ?? '');
+    final safeParent =
+        (parentId != null && parentId > 0) ? parentId : null;
+
+    if (linkType == 'folder') {
+      return MoreMenuItem(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        title: json['title']?.toString() ?? '',
+        subtitle: json['subtitle']?.toString() ?? '',
+        linkType: 'folder',
+        link: rawLink.trim().isEmpty ? 'folder' : rawLink.trim(),
+        icon: json['icon']?.toString() ?? 'folder',
+        sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
+        isActive: json['is_active'] != false,
+        isBuiltin: json['is_builtin'] == true,
+        parentId: safeParent,
+      );
+    }
+
+    final route = normalizeMoreMenuRoute(rawLink);
+    if (route != null) linkType = route == 'folder' ? 'folder' : 'route';
 
     return MoreMenuItem(
       id: (json['id'] as num?)?.toInt() ?? 0,
@@ -90,6 +129,7 @@ class MoreMenuItem {
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
       isActive: json['is_active'] != false,
       isBuiltin: json['is_builtin'] == true,
+      parentId: safeParent,
     );
   }
 
@@ -98,16 +138,23 @@ class MoreMenuItem {
     return {
       'title': title.trim(),
       'subtitle': subtitle.trim(),
-      'link_type': linkType,
-      'link': link.trim(),
-      'icon': icon.trim().isEmpty ? 'link' : icon.trim(),
+      'link_type': linkType == 'folder' ? 'folder' : linkType,
+      'link': linkType == 'folder'
+          ? (link.trim().isEmpty ? 'folder' : link.trim())
+          : link.trim(),
+      'icon': icon.trim().isEmpty
+          ? (linkType == 'folder' ? 'folder' : 'link')
+          : icon.trim(),
       'sort_order': sortOrder,
       'is_active': isActive,
       'is_builtin': isBuiltin,
+      'parent_id': parentId,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
   }
 }
+
+const Object _parentIdSentinel = Object();
 
 /// `cvi2`, `/cvi2`, `route:cvi2` → `cvi2` (bilinmeyen route ise null).
 /// `boyama.html` / `/boyama` URL’leri in-app `boyama` route’una çevrilir.
@@ -128,6 +175,89 @@ String? normalizeMoreMenuRoute(String raw) {
   if (s.startsWith('/')) s = s.substring(1);
   if (s == 'taramalar_egzersizler_oyun') s = 'taramalar';
   return MoreMenuItem.builtinRoutes.contains(s) ? s : null;
+}
+
+int compareMoreMenuOrder(MoreMenuItem a, MoreMenuItem b) {
+  final bySort = a.sortOrder.compareTo(b.sortOrder);
+  return bySort != 0 ? bySort : a.id.compareTo(b.id);
+}
+
+bool hasMoreMenuNesting(List<MoreMenuItem> items) {
+  return items.any((e) => e.parentId != null && e.parentId! > 0);
+}
+
+/// Üst seviye: parent yok veya parent listede değil (pasif/silinmiş).
+List<MoreMenuItem> moreMenuRoots(List<MoreMenuItem> items) {
+  final ids = items.map((e) => e.id).toSet();
+  final roots = items
+      .where((e) => e.parentId == null || !ids.contains(e.parentId))
+      .toList();
+  roots.sort(compareMoreMenuOrder);
+  return roots;
+}
+
+List<MoreMenuItem> moreMenuChildren(
+  List<MoreMenuItem> items,
+  int parentId,
+) {
+  final children =
+      items.where((e) => e.parentId == parentId).toList();
+  children.sort(compareMoreMenuOrder);
+  return children;
+}
+
+class MoreMenuTreeNode {
+  const MoreMenuTreeNode({required this.item, required this.depth});
+  final MoreMenuItem item;
+  final int depth;
+}
+
+/// Admin listesi: parent_id + sort_order ağacı.
+List<MoreMenuTreeNode> flattenMoreMenuTree(List<MoreMenuItem> items) {
+  final byParent = <int?, List<MoreMenuItem>>{};
+  final ids = items.map((e) => e.id).toSet();
+  for (final e in items) {
+    final key = (e.parentId != null && ids.contains(e.parentId))
+        ? e.parentId
+        : null;
+    byParent.putIfAbsent(key, () => []).add(e);
+  }
+  for (final list in byParent.values) {
+    list.sort(compareMoreMenuOrder);
+  }
+
+  final out = <MoreMenuTreeNode>[];
+  final walking = <int>{};
+
+  void walk(int? parentId, int depth) {
+    for (final e in byParent[parentId] ?? const <MoreMenuItem>[]) {
+      if (!walking.add(e.id)) continue;
+      out.add(MoreMenuTreeNode(item: e, depth: depth));
+      walk(e.id, depth + 1);
+      walking.remove(e.id);
+    }
+  }
+
+  walk(null, 0);
+  return out;
+}
+
+bool wouldCreateMoreMenuCycle(
+  List<MoreMenuItem> items,
+  int id,
+  int? newParentId,
+) {
+  if (newParentId == null) return false;
+  if (newParentId == id) return true;
+  final byId = {for (final e in items) e.id: e};
+  int? current = newParentId;
+  final seen = <int>{};
+  while (current != null) {
+    if (current == id) return true;
+    if (!seen.add(current)) return true;
+    current = byId[current]?.parentId;
+  }
+  return false;
 }
 
 const defaultHaritaMenuItem = MoreMenuItem(
@@ -204,7 +334,7 @@ bool isBoyamaMenuItem(MoreMenuItem e) {
   return raw.contains('boyama') || title.contains('boyama');
 }
 
-/// Üst menüde durmamalı; grup içine taşınan öğeler (Boyama üst düzeyde kalır).
+/// SQL yokken Taramalar altına düşen eski çocuklar (yalnız fallback).
 bool isTaramalarChildItem(MoreMenuItem e) {
   if (isTaramalarGroupItem(e) || isBoyamaMenuItem(e)) return false;
   final key = e.routeKey;
@@ -218,9 +348,8 @@ bool isTaramalarChildItem(MoreMenuItem e) {
   return false;
 }
 
-/// Grup altındaki özellikler (mevcut ekranlar — yeniden yazılmaz).
-/// Boyama bu listede değil; üst Daha Fazlası satırıdır.
-List<MoreMenuItem> taramalarGroupChildren() => const [
+/// parent_id yokken Taramalar sheet’i için varsayılan çocuklar.
+const taramalarFallbackChildren = <MoreMenuItem>[
       MoreMenuItem(
         id: -11,
         title: 'Puzzled oyun',
@@ -231,6 +360,7 @@ List<MoreMenuItem> taramalarGroupChildren() => const [
         sortOrder: 1,
         isActive: true,
         isBuiltin: true,
+        parentId: -10,
       ),
       MoreMenuItem(
         id: -12,
@@ -242,6 +372,7 @@ List<MoreMenuItem> taramalarGroupChildren() => const [
         sortOrder: 3,
         isActive: true,
         isBuiltin: true,
+        parentId: -10,
       ),
       MoreMenuItem(
         id: -13,
@@ -253,6 +384,7 @@ List<MoreMenuItem> taramalarGroupChildren() => const [
         sortOrder: 4,
         isActive: true,
         isBuiltin: true,
+        parentId: -10,
       ),
       MoreMenuItem(
         id: -14,
@@ -264,8 +396,29 @@ List<MoreMenuItem> taramalarGroupChildren() => const [
         sortOrder: 5,
         isActive: true,
         isBuiltin: true,
+        parentId: -10,
       ),
     ];
+
+List<MoreMenuItem> taramalarGroupChildren() => taramalarFallbackChildren;
+
+/// Grup altındaki satırlar: parent_id varsa ondan, yoksa Taramalar fallback.
+List<MoreMenuItem> childrenForMoreMenuGroup(
+  MoreMenuItem parent,
+  List<MoreMenuItem> all,
+) {
+  final nested = parent.id == 0
+      ? const <MoreMenuItem>[]
+      : moreMenuChildren(all, parent.id);
+  if (hasMoreMenuNesting(all)) return nested;
+  if (isTaramalarGroupItem(parent)) {
+    final heuristic = all.where(isTaramalarChildItem).toList()
+      ..sort(compareMoreMenuOrder);
+    if (heuristic.isNotEmpty) return heuristic;
+    return taramalarGroupChildren();
+  }
+  return nested;
+}
 
 /// Bilgi Kütüphanesi’ne taşınan öğeler (üst menü ve grupta tekrar görünmesin).
 bool isMovedToLibraryMenuItem(MoreMenuItem e) {
@@ -283,7 +436,7 @@ List<MoreMenuItem> withoutMovedLibraryItems(List<MoreMenuItem> items) {
 }
 
 /// Grubu Harita’dan hemen sonra gösterir; çocukları üst listeden çeker.
-/// [pinTop] kullanıcı menüsü; admin listesinde sıra korunur, eksik grup eklenir.
+/// Yalnız `parent_id` yokken (SQL çalışmadı) kullanılır.
 List<MoreMenuItem> withTaramalarGroup(
   List<MoreMenuItem> items, {
   bool pinTop = true,
@@ -312,52 +465,34 @@ List<MoreMenuItem> withTaramalarGroup(
   return [group, ...visible];
 }
 
-/// 🎨 engelsiz Boyama üst listede, Taramalar grubunun hemen altında.
-/// Supabase id 13 yok/pasif olsa bile hardcoded satır eklenir.
-List<MoreMenuItem> withTopLevelBoyama(List<MoreMenuItem> items) {
-  final existing = items.where(isBoyamaMenuItem).toList();
-  final rest = items.where((e) => !isBoyamaMenuItem(e)).toList();
-  final boyama = existing.isEmpty ? defaultBoyamaMenuItem : existing.first;
-
-  final groupIdx = rest.indexWhere(isTaramalarGroupItem);
-  if (groupIdx >= 0) {
-    return [
-      ...rest.take(groupIdx + 1),
-      boyama,
-      ...rest.skip(groupIdx + 1),
-    ];
-  }
-  final haritaIdx = rest.indexWhere(isHaritaMenuItem);
-  if (haritaIdx >= 0) {
-    return [
-      ...rest.take(haritaIdx + 1),
-      boyama,
-      ...rest.skip(haritaIdx + 1),
-    ];
-  }
-  return [boyama, ...rest];
-}
-
+/// Kullanıcı Daha Fazlası: parent_id ağacının kökleri.
+/// Sütun yoksa eski Taramalar gruplamasına düşer (çift satır olmasın).
 List<MoreMenuItem> prepareUserMoreMenu(List<MoreMenuItem> items) {
-  return withTopLevelBoyama(
-    withTaramalarGroup(
-      withProminentHarita(withoutMovedLibraryItems(items), pinTop: true),
-      pinTop: true,
-    ),
+  final cleaned = withoutMovedLibraryItems(items);
+  if (hasMoreMenuNesting(cleaned)) {
+    return moreMenuRoots(cleaned);
+  }
+  return withTaramalarGroup(
+    withProminentHarita(cleaned, pinTop: true),
+    pinTop: true,
   );
 }
 
+/// Admin: tüm satırlar (ağaç UI’da indent). parent_id sırası korunur.
 List<MoreMenuItem> prepareAdminMoreMenu(List<MoreMenuItem> items) {
-  return withTopLevelBoyama(
-    withTaramalarGroup(
-      withProminentHarita(withoutMovedLibraryItems(items), pinTop: false),
+  final cleaned = withoutMovedLibraryItems(List<MoreMenuItem>.from(items));
+  if (!hasMoreMenuNesting(cleaned)) {
+    return withTaramalarGroup(
+      withProminentHarita(cleaned, pinTop: false),
       pinTop: false,
-    ),
-  );
+    );
+  }
+  cleaned.sort(compareMoreMenuOrder);
+  return cleaned;
 }
 
 /// DB yoksa / hata olursa kullanılan varsayılan menü.
-List<MoreMenuItem> defaultMoreMenuItems() => const [
+List<MoreMenuItem> defaultMoreMenuItems() => [
       defaultHaritaMenuItem,
       defaultTaramalarGroupItem,
       defaultBoyamaMenuItem,
@@ -416,4 +551,5 @@ List<MoreMenuItem> defaultMoreMenuItems() => const [
         isActive: true,
         isBuiltin: true,
       ),
+      ...taramalarGroupChildren(),
     ];

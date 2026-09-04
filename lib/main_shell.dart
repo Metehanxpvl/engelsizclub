@@ -41,6 +41,7 @@ import 'data/more_menu_data.dart';
 import 'more_menu_store.dart';
 import 'pages/in_app_web_page.dart';
 import 'pages/boyama_page.dart';
+import 'remote/app_screen_config.dart';
 import 'pages/gelisim_etkinlikleri_page.dart';
 import 'pages/barcode_scanner_screen.dart';
 import 'pages/etkinlikler_page.dart';
@@ -652,6 +653,10 @@ class _MainShellState extends State<MainShell> {
                           .where((e) => e.isActive)
                           .toList(),
                     );
+                final allForGroups = cachedMoreMenuAll ??
+                    defaultMoreMenuItems()
+                        .where((e) => e.isActive)
+                        .toList();
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -743,14 +748,25 @@ class _MainShellState extends State<MainShell> {
                                       style: const TextStyle(fontSize: 12),
                                     ),
                               trailing: Icon(
-                                item.isFolder
+                                item.isFolder ||
+                                        childrenForMoreMenuGroup(
+                                          item,
+                                          allForGroups,
+                                        ).isNotEmpty
                                     ? Icons.keyboard_arrow_down
                                     : Icons.chevron_right,
                               ),
                               onTap: () {
-                                if (item.isFolder) {
+                                final kids = childrenForMoreMenuGroup(
+                                  item,
+                                  allForGroups,
+                                );
+                                if (item.isFolder || kids.isNotEmpty) {
                                   unawaited(
-                                    _openTaramalarGroupSheet(parentSheet: ctx),
+                                    _openMoreMenuGroupSheet(
+                                      item,
+                                      parentSheet: ctx,
+                                    ),
                                   );
                                   return;
                                 }
@@ -809,7 +825,8 @@ class _MainShellState extends State<MainShell> {
         icon = Icons.qr_code_scanner;
         color = MetoColors.primary;
       case 'apps':
-        icon = Icons.apps_outlined;
+      case 'folder':
+        icon = Icons.folder_outlined;
         color = MetoColors.primary;
       case 'games':
         icon = Icons.extension_outlined;
@@ -835,7 +852,14 @@ class _MainShellState extends State<MainShell> {
     invalidateMoreMenuCache();
   }
 
-  Future<void> _openTaramalarGroupSheet({BuildContext? parentSheet}) async {
+  Future<void> _openMoreMenuGroupSheet(
+    MoreMenuItem parent, {
+    BuildContext? parentSheet,
+  }) async {
+    final all = cachedMoreMenuAll ??
+        await loadMoreMenuAll(forceRefresh: false);
+    if (!mounted) return;
+    final children = childrenForMoreMenuGroup(parent, all);
     await showModalBottomSheet<void>(
       context: parentSheet ?? context,
       backgroundColor: MetoColors.card,
@@ -844,8 +868,18 @@ class _MainShellState extends State<MainShell> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (nestedCtx) {
-        return TaramalarGroupSheet(
+        return MoreMenuGroupSheet(
+          title: parent.title,
+          items: children,
           onSelect: (child) {
+            final nestedKids = childrenForMoreMenuGroup(child, all);
+            if (child.isFolder || nestedKids.isNotEmpty) {
+              Navigator.pop(nestedCtx);
+              unawaited(
+                _openMoreMenuGroupSheet(child, parentSheet: parentSheet),
+              );
+              return;
+            }
             Navigator.pop(nestedCtx);
             if (parentSheet != null) {
               Navigator.pop(parentSheet);
@@ -971,13 +1005,17 @@ class _MainShellState extends State<MainShell> {
         _goToTab(MetoTab.tarama);
         return;
       case 'taramalar':
-        await _openTaramalarGroupSheet();
+      case 'folder':
+        await _openMoreMenuGroupSheet(item);
         return;
       case 'puzzle':
         await InAppWebPage.open(
           context,
           title: item.title,
-          url: puzzleGameUrl,
+          url: AppScreenConfigStore.instance.urlOrFallback(
+            'puzzle',
+            puzzleGameUrl,
+          ),
           isGuest: _isGuest,
           onRequireLogin: () => _requireLogin(
             'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
@@ -985,6 +1023,19 @@ class _MainShellState extends State<MainShell> {
         );
         return;
       case 'boyama':
+        final boyamaWeb = AppScreenConfigStore.instance.webUrl('boyama');
+        if (boyamaWeb != null) {
+          await InAppWebPage.open(
+            context,
+            title: item.title,
+            url: boyamaWeb,
+            isGuest: _isGuest,
+            onRequireLogin: () => _requireLogin(
+              'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
+            ),
+          );
+          return;
+        }
         await BoyamaPage.open(
           context,
           title: item.title,
