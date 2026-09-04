@@ -27,9 +27,15 @@ create table if not exists public.events (
   event_name text not null,
   event_date text not null,
   description text not null default '',
+  image_url text default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Scraper AVM kapak görselini de yazar (mevcut tablolar için additive).
+-- Ayrıca bkz. supabase/events_image_url.sql
+alter table public.events
+  add column if not exists image_url text default '';
 
 do $$
 begin

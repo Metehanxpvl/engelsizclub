@@ -69,6 +69,16 @@ CHUNK_OVERLAP = 400
 SOURCE_TAG = "avm_scrape"
 SORT_FLOOR = 1000
 
+# PostgREST PGRST204 = kolon şema önbelleğinde yok. Bu kolonlar olmadan da
+# kayıt anlamlı olduğu için tek seferlik düşürüp tekrar denenir; zorunlu
+# kolonlar (city/avm_name/event_name/event_date/title/external_id) asla.
+STRIPPABLE_COLUMNS = frozenset(
+    {"image_url", "created_by", "sort_order", "sort_index", "user_edited"}
+)
+_MISSING_COLUMN_RE = re.compile(
+    r"Could not find the '([^']+)' column of '([^']+)'", re.I
+)
+
 GEMINI_MODELS = (
     "gemini-flash-latest",
     "gemini-3.8-flash",
@@ -953,6 +963,26 @@ def fetch_page(http: httpx.Client, url: str) -> FetchedPage | None:
     return fetch_html(http, url, require_text=True)
 
 
+def _missing_column(res: httpx.Response) -> str:
+    """PGRST204 gövdesinden düşürülebilir kolon adını döndürür ('' = yok)."""
+    if res.status_code != 400:
+        return ""
+    body = res.text[:600]
+    if "PGRST204" not in body:
+        return ""
+    match = _MISSING_COLUMN_RE.search(body)
+    if not match:
+        return ""
+    col = match.group(1)
+    return col if col in STRIPPABLE_COLUMNS else ""
+
+
+def _without_column(
+    rows: list[dict[str, Any]], col: str
+) -> list[dict[str, Any]]:
+    return [{k: v for k, v in row.items() if k != col} for row in rows]
+
+
 class Supabase:
     def __init__(self, url: str, key: str, http: httpx.Client) -> None:
         self._url = url.rstrip("/")
@@ -1001,24 +1031,64 @@ class Supabase:
                 f"HTTP {res.status_code}"
             )
 
+    def _post_rows(
+        self,
+        label: str,
+        path: str,
+        rows: list[dict[str, Any]],
+        *,
+        params: dict[str, str],
+        prefer: str,
+    ) -> int:
+        """POST; kolon şemada yoksa (PGRST204) o kolonu düşürüp tekrar dener.
+
+        Böylece tek eksik opsiyonel kolon (ör. image_url) tüm yazmayı
+        kaybettirmez; eksik kolon açıkça loglanır.
+        """
+        payload: list[dict[str, Any]] = [dict(r) for r in rows]
+        dropped: list[str] = []
+        for _ in range(len(STRIPPABLE_COLUMNS) + 1):
+            res = self._req(
+                "POST",
+                path,
+                params=params,
+                json_body=payload,
+                extra_headers={"Prefer": prefer},
+            )
+            if res.status_code < 400:
+                if dropped:
+                    print(
+                        f"  {label}: eksik kolon(lar) atlanarak yazıldı: "
+                        f"{', '.join(dropped)} — supabase/events_image_url.sql "
+                        "çalıştırılmalı",
+                        file=sys.stderr,
+                    )
+                return len(payload)
+            col = _missing_column(res)
+            if not col or not any(col in row for row in payload):
+                raise RuntimeError(
+                    f"{label} HTTP {res.status_code}: "
+                    f"{_redact_error(res.text[:400])}"
+                )
+            print(
+                f"  {label}: '{col}' kolonu şemada yok; bu alan olmadan "
+                "yeniden deneniyor",
+                file=sys.stderr,
+            )
+            payload = _without_column(payload, col)
+            dropped.append(col)
+        raise RuntimeError(f"{label}: eksik kolonlar giderilemedi")
+
     def upsert_events(self, rows: list[dict[str, str]]) -> int:
         if not rows:
             return 0
-        res = self._req(
-            "POST",
+        return self._post_rows(
+            "events upsert",
             "/rest/v1/events",
+            list(rows),
             params={"on_conflict": "city,avm_name,event_name,event_date"},
-            json_body=rows,
-            extra_headers={
-                "Prefer": "resolution=merge-duplicates,return=minimal",
-            },
+            prefer="resolution=merge-duplicates,return=minimal",
         )
-        if res.status_code >= 400:
-            raise RuntimeError(
-                f"events upsert HTTP {res.status_code}: "
-                f"{_redact_error(res.text[:400])}"
-            )
-        return len(rows)
 
     def deleted_ids(self) -> set[str]:
         res = self._req(
@@ -1083,35 +1153,43 @@ class Supabase:
     def insert_etkinlikler(self, rows: list[dict[str, Any]]) -> int:
         if not rows:
             return 0
-        res = self._req(
-            "POST",
+        return self._post_rows(
+            "etkinlikler insert",
             "/rest/v1/etkinlikler",
+            rows,
             params={"on_conflict": "external_id"},
-            json_body=rows,
-            extra_headers={
-                "Prefer": "resolution=ignore-duplicates,return=minimal",
-            },
+            prefer="resolution=ignore-duplicates,return=minimal",
         )
-        if res.status_code >= 400:
-            raise RuntimeError(
-                f"etkinlikler insert HTTP {res.status_code}: "
-                f"{_redact_error(res.text[:400])}"
-            )
-        return len(rows)
 
     def patch_etkinlik(self, row_id: int, patch: dict[str, Any]) -> None:
-        res = self._req(
-            "PATCH",
-            "/rest/v1/etkinlikler",
-            params={"id": f"eq.{row_id}"},
-            json_body=patch,
-            extra_headers={"Prefer": "return=minimal"},
-        )
-        if res.status_code >= 400:
-            raise RuntimeError(
-                f"etkinlikler patch id={row_id} HTTP {res.status_code}: "
-                f"{_redact_error(res.text[:400])}"
+        body = dict(patch)
+        for _ in range(len(STRIPPABLE_COLUMNS) + 1):
+            res = self._req(
+                "PATCH",
+                "/rest/v1/etkinlikler",
+                params={"id": f"eq.{row_id}"},
+                json_body=body,
+                extra_headers={"Prefer": "return=minimal"},
             )
+            if res.status_code < 400:
+                return
+            col = _missing_column(res)
+            if not col or col not in body:
+                raise RuntimeError(
+                    f"etkinlikler patch id={row_id} HTTP {res.status_code}: "
+                    f"{_redact_error(res.text[:400])}"
+                )
+            print(
+                f"  etkinlikler patch: '{col}' kolonu şemada yok; "
+                "bu alan olmadan yeniden deneniyor",
+                file=sys.stderr,
+            )
+            body.pop(col, None)
+            if not body:
+                return
+        raise RuntimeError(
+            f"etkinlikler patch id={row_id}: eksik kolonlar giderilemedi"
+        )
 
 
 def etkinlik_description(event: dict[str, str]) -> str:

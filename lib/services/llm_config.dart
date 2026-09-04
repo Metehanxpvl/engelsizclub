@@ -36,6 +36,17 @@ class LlmConfig {
     'gemini-flash-lite-latest',
   ];
 
+  /// Fotoğraf → çizgi film (Nano Banana 2). Metin flash modelleri IMAGE üretmez.
+  static const geminiImageModel = String.fromEnvironment(
+    'GEMINI_IMAGE_MODEL',
+    defaultValue: 'gemini-3.1-flash-image',
+  );
+
+  static const geminiImageFallbackModels = <String>[
+    'gemini-3.1-flash-image',
+    'gemini-3.1-flash-lite-image',
+  ];
+
   static const groqModel = String.fromEnvironment(
     'GROQ_MODEL',
     defaultValue: 'llama-3.1-8b-instant',

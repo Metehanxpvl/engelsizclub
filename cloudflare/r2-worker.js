@@ -165,9 +165,28 @@ const GEMINI_FALLBACK_MODELS = [
   "gemini-flash-lite-latest",
   "gemini-3.6-flash",
 ];
+const DEFAULT_GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
+const GEMINI_IMAGE_FALLBACK_MODELS = [
+  "gemini-3.1-flash-image",
+  "gemini-3.1-flash-lite-image",
+];
 const GEMINI_PER_MODEL_MS = 12000;
+const GEMINI_IMAGE_PER_MODEL_MS = 45000;
 const GEMINI_EXHAUSTED_TR =
   "Analiz modeli şu an yanıt vermedi, tekrar deneyin.";
+
+function isGeminiImageModel(model) {
+  const m = String(model || "").toLowerCase();
+  return m.includes("-image") || m.startsWith("imagen");
+}
+
+function wantsGeminiImage(payload) {
+  if (payload.generateImage === true || payload.generate_image === true) return true;
+  const gc = payload.generationConfig || payload.generation_config;
+  const mods = gc && (gc.responseModalities || gc.response_modalities);
+  if (!Array.isArray(mods)) return false;
+  return mods.some((x) => String(x).toUpperCase().includes("IMAGE"));
+}
 
 function isGoogleModel404(status, text) {
   const lower = String(text || "").toLowerCase();
@@ -190,19 +209,26 @@ function isGoogleModel404(status, text) {
 
 function shouldTryNextGemini(status, text) {
   if (isGoogleModel404(status, text)) return true;
-  if (status === 408 || status === 429 || status === 502 || status === 504) {
+  if (
+    status === 400 ||
+    status === 408 ||
+    status === 429 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504
+  ) {
     return true;
   }
   const lower = String(text || "").toLowerCase();
   return lower.includes("timeout") || lower.includes("abort") || lower.includes("timed out");
 }
 
-async function generateGeminiOnce(model, key, body) {
+async function generateGeminiOnce(model, key, body, timeoutMs) {
   const gUrl =
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent` +
     `?key=${encodeURIComponent(key)}`;
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), GEMINI_PER_MODEL_MS);
+  const timer = setTimeout(() => ac.abort(), timeoutMs || GEMINI_PER_MODEL_MS);
   try {
     const upstream = await fetch(gUrl, {
       method: "POST",
@@ -248,23 +274,41 @@ async function handleGemini(request, env) {
       },
     });
   }
+  const imageOut = wantsGeminiImage(payload);
   const requested =
-    String(payload.model || DEFAULT_GEMINI_MODEL).replace(/[^a-zA-Z0-9._-]/g, "") ||
-    DEFAULT_GEMINI_MODEL;
+    String(payload.model || (imageOut ? DEFAULT_GEMINI_IMAGE_MODEL : DEFAULT_GEMINI_MODEL))
+      .replace(/[^a-zA-Z0-9._-]/g, "") ||
+    (imageOut ? DEFAULT_GEMINI_IMAGE_MODEL : DEFAULT_GEMINI_MODEL);
   const contents = buildGeminiContents(payload);
-  const generationConfig = payload.generationConfig || payload.generation_config;
+  let generationConfig = payload.generationConfig || payload.generation_config;
+  if (imageOut) {
+    const given = generationConfig && typeof generationConfig === "object" ? generationConfig : {};
+    generationConfig = {
+      responseModalities: ["IMAGE"],
+      ...given,
+      imageConfig: { imageSize: "1K", ...(given.imageConfig || given.image_config || {}) },
+    };
+  }
   if (!contents) {
     return json(400, {
       error: { message: "prompt veya contents gerekli", status: "INVALID_ARGUMENT" },
     });
   }
   const models = [];
-  for (const m of [...GEMINI_FALLBACK_MODELS, requested]) {
-    if (m && !models.includes(m)) models.push(m);
+  if (imageOut) {
+    if (isGeminiImageModel(requested)) models.push(requested);
+    for (const m of GEMINI_IMAGE_FALLBACK_MODELS) {
+      if (m && !models.includes(m)) models.push(m);
+    }
+  } else {
+    for (const m of [...GEMINI_FALLBACK_MODELS, requested]) {
+      if (m && !models.includes(m)) models.push(m);
+    }
   }
   const googleBody = JSON.stringify({ contents, generationConfig });
+  const timeoutMs = imageOut ? GEMINI_IMAGE_PER_MODEL_MS : GEMINI_PER_MODEL_MS;
   for (const model of models) {
-    const result = await generateGeminiOnce(model, key, googleBody);
+    const result = await generateGeminiOnce(model, key, googleBody, timeoutMs);
     if (result.ok) {
       return new Response(result.text, {
         status: result.status,

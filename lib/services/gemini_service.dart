@@ -514,6 +514,160 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
         preferredModels: preferredModels,
       );
 
+  /// Fotoğraf + metin → üretilmiş görsel (PNG/JPEG bayt).
+  /// `gemini-proxy` `generateImage: true` ile yalnız *-image modellerini dener.
+  static Future<(Uint8List?, String?)> generateImageFromPhoto({
+    required String prompt,
+    required Uint8List imageBytes,
+    String mimeType = 'image/jpeg',
+    String? aspectRatio,
+  }) async {
+    lastError = null;
+    if (prompt.trim().isEmpty) {
+      lastError = 'Görsel istemi boş.';
+      return (null, lastError);
+    }
+    if (imageBytes.isEmpty) {
+      lastError = 'Görsel seçilmedi.';
+      return (null, lastError);
+    }
+    var bytes = imageBytes;
+    var mime = mimeType.trim().toLowerCase().startsWith('image/')
+        ? mimeType.trim()
+        : 'image/jpeg';
+    if (bytes.lengthInBytes > _compressImageBytes) {
+      try {
+        final opt = await ImageOptimizeService.forLabelScan(bytes);
+        bytes = opt.bytes;
+        mime = opt.contentType;
+      } catch (e) {
+        debugPrint('Gemini görsel sıkıştırma atlandı: $e');
+      }
+    }
+    final models = <String>[
+      LlmConfig.geminiImageModel,
+      ...LlmConfig.geminiImageFallbackModels,
+    ];
+    final seen = <String>{};
+    String? lastFail;
+    final imageConfig = <String, Object>{
+      'imageSize': '1K',
+      if (aspectRatio != null && aspectRatio.trim().isNotEmpty)
+        'aspectRatio': aspectRatio.trim(),
+    };
+    final payload = <String, Object>{
+      'generateImage': true,
+      'contents': [
+        {
+          'parts': [
+            {'text': prompt},
+            {
+              'inlineData': {
+                'mimeType': mime,
+                'data': base64Encode(bytes),
+              },
+            },
+          ],
+        },
+      ],
+      'generationConfig': {
+        'responseModalities': ['IMAGE'],
+        'imageConfig': imageConfig,
+      },
+    };
+    final deadline = DateTime.now().add(const Duration(seconds: 95));
+    for (final model in models) {
+      if (model.isEmpty || !seen.add(model)) continue;
+      if (DateTime.now().isAfter(deadline)) break;
+      try {
+        final res = await _postGemini(
+          model: model,
+          payload: payload,
+          timeout: const Duration(seconds: 50),
+          proxyTimeout: const Duration(seconds: 55),
+        );
+        if (res == null) {
+          lastFail ??= lastError ??
+              'Görsel isteği gönderilemedi (proxy veya ağ).';
+          if (_isFatalProxyFail(lastFail)) break;
+          continue;
+        }
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          lastFail = _httpErrorTr(res.statusCode, res.body);
+          debugPrint('Gemini image $model ${res.statusCode}: ${res.body}');
+          if (_isFatalProxyStatus(res.statusCode, res.body)) break;
+          continue;
+        }
+        final decoded = jsonDecode(res.body);
+        if (decoded is! Map) {
+          lastFail = 'Beklenmeyen görsel yanıtı.';
+          continue;
+        }
+        if (decoded['error'] is Map) {
+          lastFail = _googleErrorTr(decoded['error'] as Map);
+          if (_isMissingGeminiSecret(res.body) || _isFatalProxyFail(lastFail)) {
+            break;
+          }
+          continue;
+        }
+        if (decoded['error'] is String) {
+          lastFail = _httpErrorTr(
+            res.statusCode >= 400 ? res.statusCode : 503,
+            res.body,
+          );
+          continue;
+        }
+        final candidates = decoded['candidates'];
+        if (candidates is! List || candidates.isEmpty) {
+          lastFail = 'Çizgi film modeli görsel döndürmedi.';
+          continue;
+        }
+        final first = candidates.first;
+        if (first is Map) {
+          final finish = first['finishReason']?.toString() ?? '';
+          if (finish.contains('SAFETY') ||
+              finish.contains('NO_IMAGE') ||
+              finish.contains('IMAGE_OTHER')) {
+            lastFail =
+                'Bu fotoğraf çizgi filme çevrilemedi. Başka bir kare dene.';
+            continue;
+          }
+        }
+        final png = _firstInlineImage(decoded);
+        if (png != null && png.isNotEmpty) return (png, null);
+        lastFail = 'Çizgi film modeli görsel döndürmedi.';
+      } catch (e, st) {
+        lastFail = _exceptionTr(e);
+        debugPrint('Gemini image hata ($model): $e\n$st');
+      }
+    }
+    lastError = lastFail ?? modelUnavailableMessage;
+    return (null, lastError);
+  }
+
+  static Uint8List? _firstInlineImage(Map decoded) {
+    final candidates = decoded['candidates'];
+    if (candidates is! List) return null;
+    for (final c in candidates) {
+      if (c is! Map) continue;
+      final content = c['content'];
+      if (content is! Map) continue;
+      final parts = content['parts'];
+      if (parts is! List) continue;
+      for (final p in parts) {
+        if (p is! Map) continue;
+        final inline = p['inlineData'] ?? p['inline_data'];
+        if (inline is! Map) continue;
+        final data = inline['data']?.toString().trim() ?? '';
+        if (data.isEmpty) continue;
+        try {
+          return Uint8List.fromList(base64Decode(data));
+        } catch (_) {}
+      }
+    }
+    return null;
+  }
+
   static Future<(String?, String?)> _geminiGenerate({
     required String prompt,
     required List<Map<String, Object>> extraParts,

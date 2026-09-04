@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <meta name="description" content="Engelsiz Boyama — galeriden fotoğrafı siyah-beyaz boyama sayfasına çevir." />
+  <meta name="description" content="Engelsiz Boyama — galeriden fotoğrafı boyama kalıbına çevir." />
   <title>Engelsiz Boyama — Engelsiz Club</title>
   <style>
     :root {
@@ -112,18 +112,32 @@
       background: rgba(255,255,255,.72);
       align-items: center;
       justify-content: center;
+      flex-direction: column;
+      gap: 12px;
       font-weight: 700;
       color: var(--accent);
       z-index: 2;
+      padding: 16px;
+      text-align: center;
     }
     #busy.on { display: flex; }
+    #busy-retry {
+      display: none;
+      padding: 8px 14px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+    }
+    #busy.error #busy-retry { display: inline-block; }
   </style>
 </head>
 <body>
   <header>
     <a href="/">← Engelsiz Club</a>
     <h1>🎨 Engelsiz Boyama</h1>
-    <p class="sub">Galeriden fotoğraf seç; siyah-beyaz boyama sayfasına dönüşür. Sonra boya.</p>
+    <p class="sub">Galeriden fotoğraf seç; boyama kalıbı hazırlanır. Sonra boya.</p>
   </header>
   <div class="tools" id="tools">
     <input type="file" id="photo" accept="image/*" hidden />
@@ -149,11 +163,25 @@
     <div id="stage">
       <canvas id="paint" aria-label="Boyama alanı"></canvas>
       <canvas id="lines" aria-hidden="true"></canvas>
-      <div id="busy">Boyama sayfasına dönüştürülüyor…</div>
+      <div id="busy">
+        <div id="busy-msg">Çizgi filme çevriliyor…</div>
+        <button type="button" id="busy-retry">Tekrar dene</button>
+      </div>
     </div>
   </div>
   <script>
     (function () {
+      var SUPABASE_URL = 'https://qycrkqwqrysypvqaipqn.supabase.co';
+      var SUPABASE_ANON = 'sb_publishable_N7UfnXDF97YsuDTsFTq9zQ_lhnNtMgF';
+      var CARTOON_PROMPT =
+        "Redraw this photograph as a friendly children's cartoon illustration " +
+        'in a 2D animated movie style. Original character, not a known franchise. ' +
+        'Keep the same person, pose, clothing, and setting, but stylize them: ' +
+        'big expressive eyes, clean simple shapes, soft rounded features, ' +
+        'smooth flat colors, warm and kind. Not photorealistic, not horror, ' +
+        'not grotesque, not uncanny, not a pencil sketch of a real face. ' +
+        'No logos, no copyrighted characters, no watermarks, no text overlay.';
+
       var paint = document.getElementById('paint');
       var lines = document.getElementById('lines');
       var pctx = paint.getContext('2d', { willReadFrequently: false });
@@ -163,6 +191,8 @@
       var drawing = false;
       var lineArt = null;
       var busy = false;
+      var lastJpeg = null;
+      var lastAspect = '1:1';
 
       function cssSize(el) {
         var r = el.getBoundingClientRect();
@@ -259,101 +289,29 @@
         resizeCanvas(paint, pctx, true);
       });
 
-      function setBusy(on) {
+      function setBusy(on, msg, isError) {
         busy = on;
-        document.getElementById('busy').classList.toggle('on', on);
-        document.getElementById('pick').disabled = on;
+        var el = document.getElementById('busy');
+        el.classList.toggle('on', on);
+        el.classList.toggle('error', !!isError);
+        if (msg) document.getElementById('busy-msg').textContent = msg;
+        document.getElementById('pick').disabled = on && !isError;
       }
 
-      function invertGray(src) {
-        var out = new Uint8ClampedArray(src.length);
-        for (var i = 0; i < src.length; i++) out[i] = 255 - src[i];
-        return out;
-      }
-
-      function boxBlur(src, w, h, radius) {
-        var r = Math.max(1, radius | 0);
-        var tmp = new Float32Array(w * h);
-        var out = new Uint8ClampedArray(w * h);
-        var i, x, y, acc, count, n;
-        for (y = 0; y < h; y++) {
-          acc = 0; count = 0;
-          for (x = -r; x <= r; x++) {
-            if (x >= 0 && x < w) { acc += src[y * w + x]; count++; }
-          }
-          for (x = 0; x < w; x++) {
-            tmp[y * w + x] = acc / count;
-            var leave = x - r;
-            var enter = x + r + 1;
-            if (leave >= 0) { acc -= src[y * w + leave]; count--; }
-            if (enter < w) { acc += src[y * w + enter]; count++; }
-          }
+      function aspectFor(w, h) {
+        if (!(w > 0) || !(h > 0)) return '1:1';
+        var r = w / h;
+        var opts = [
+          [1, '1:1'], [4 / 3, '4:3'], [3 / 4, '3:4'],
+          [16 / 9, '16:9'], [9 / 16, '9:16'], [3 / 2, '3:2'], [2 / 3, '2:3']
+        ];
+        var best = '1:1';
+        var bestDiff = 999;
+        for (var i = 0; i < opts.length; i++) {
+          var d = Math.abs(r - opts[i][0]);
+          if (d < bestDiff) { bestDiff = d; best = opts[i][1]; }
         }
-        for (x = 0; x < w; x++) {
-          acc = 0; count = 0;
-          for (y = -r; y <= r; y++) {
-            if (y >= 0 && y < h) { acc += tmp[y * w + x]; count++; }
-          }
-          for (y = 0; y < h; y++) {
-            n = Math.round(acc / count);
-            out[y * w + x] = n < 0 ? 0 : n > 255 ? 255 : n;
-            var leave = y - r;
-            var enter = y + r + 1;
-            if (leave >= 0) { acc -= tmp[leave * w + x]; count--; }
-            if (enter < h) { acc += tmp[enter * w + x]; count++; }
-          }
-        }
-        return out;
-      }
-
-      function toLineArt(imageData) {
-        var w = imageData.width;
-        var h = imageData.height;
-        var d = imageData.data;
-        var gray = new Uint8ClampedArray(w * h);
-        var i, x, y, o, gx, gy, mag, dodge, g, b, v, line;
-        for (i = 0; i < w * h; i++) {
-          o = i * 4;
-          gray[i] = (0.299 * d[o] + 0.587 * d[o + 1] + 0.114 * d[o + 2]) | 0;
-        }
-        var blurInv = boxBlur(invertGray(gray), w, h, 4);
-        var soft = boxBlur(gray, w, h, 1);
-        var out = new Uint8ClampedArray(w * h);
-        for (y = 1; y < h - 1; y++) {
-          for (x = 1; x < w - 1; x++) {
-            i = y * w + x;
-            g = gray[i];
-            b = blurInv[i];
-            dodge = b >= 254 ? 255 : Math.min(255, (g * 255) / (255 - b));
-            gx = -soft[i - w - 1] - 2 * soft[i - 1] - soft[i + w - 1]
-              + soft[i - w + 1] + 2 * soft[i + 1] + soft[i + w + 1];
-            gy = -soft[i - w - 1] - 2 * soft[i - w] - soft[i - w + 1]
-              + soft[i + w - 1] + 2 * soft[i + w] + soft[i + w + 1];
-            mag = Math.min(255, Math.hypot(gx, gy));
-            line = dodge < 178 || mag > 40;
-            out[i] = line ? 0 : 255;
-          }
-        }
-        for (x = 0; x < w; x++) { out[x] = 255; out[(h - 1) * w + x] = 255; }
-        for (y = 0; y < h; y++) { out[y * w] = 255; out[y * w + w - 1] = 255; }
-        var thick = new Uint8ClampedArray(out);
-        for (y = 1; y < h - 1; y++) {
-          for (x = 1; x < w - 1; x++) {
-            if (out[y * w + x] > 32) continue;
-            thick[y * w + x - 1] = 0;
-            thick[y * w + x + 1] = 0;
-            thick[(y - 1) * w + x] = 0;
-            thick[(y + 1) * w + x] = 0;
-          }
-        }
-        for (i = 0; i < w * h; i++) {
-          v = thick[i];
-          d[i * 4] = v;
-          d[i * 4 + 1] = v;
-          d[i * 4 + 2] = v;
-          d[i * 4 + 3] = 255;
-        }
-        return imageData;
+        return best;
       }
 
       function loadImageFile(file) {
@@ -372,8 +330,91 @@
         });
       }
 
-      function rasterToLineArt(im) {
-        var maxSide = 960;
+      function loadImageSrc(src) {
+        return new Promise(function (resolve, reject) {
+          var im = new Image();
+          im.onload = function () { resolve(im); };
+          im.onerror = function () { reject(new Error('Görsel okunamadı')); };
+          im.src = src;
+        });
+      }
+
+      function fileToJpeg(file) {
+        return loadImageFile(file).then(function (im) {
+          var maxSide = 768;
+          var scale = Math.min(1, maxSide / Math.max(im.width, im.height));
+          var w = Math.max(2, Math.round(im.width * scale));
+          var h = Math.max(2, Math.round(im.height * scale));
+          var off = document.createElement('canvas');
+          off.width = w;
+          off.height = h;
+          var ox = off.getContext('2d');
+          ox.fillStyle = '#fff';
+          ox.fillRect(0, 0, w, h);
+          ox.drawImage(im, 0, 0, w, h);
+          var dataUrl = off.toDataURL('image/jpeg', 0.78);
+          var comma = dataUrl.indexOf('base64,');
+          return {
+            b64: comma >= 0 ? dataUrl.slice(comma + 7) : dataUrl,
+            aspect: aspectFor(w, h)
+          };
+        });
+      }
+
+      function blurCanvas(srcCanvas, passes) {
+        var w = srcCanvas.width;
+        var h = srcCanvas.height;
+        var a = document.createElement('canvas');
+        a.width = w;
+        a.height = h;
+        var b = document.createElement('canvas');
+        b.width = w;
+        b.height = h;
+        var ax = a.getContext('2d', { willReadFrequently: true });
+        var bx = b.getContext('2d', { willReadFrequently: true });
+        ax.drawImage(srcCanvas, 0, 0);
+        var from = a;
+        var to = b;
+        var fx = ax;
+        var tx = bx;
+        var p, x, y, i, o, r, g, bl, n;
+        for (p = 0; p < passes; p++) {
+          var data = fx.getImageData(0, 0, w, h);
+          var d = data.data;
+          var out = tx.createImageData(w, h);
+          var od = out.data;
+          for (y = 1; y < h - 1; y++) {
+            for (x = 1; x < w - 1; x++) {
+              o = (y * w + x) * 4;
+              r = g = bl = 0;
+              n = 0;
+              for (var dy = -1; dy <= 1; dy++) {
+                for (var dx = -1; dx <= 1; dx++) {
+                  i = ((y + dy) * w + (x + dx)) * 4;
+                  r += d[i];
+                  g += d[i + 1];
+                  bl += d[i + 2];
+                  n++;
+                }
+              }
+              od[o] = (r / n) | 0;
+              od[o + 1] = (g / n) | 0;
+              od[o + 2] = (bl / n) | 0;
+              od[o + 3] = 255;
+            }
+          }
+          tx.putImageData(out, 0, 0);
+          var tmp = from; from = to; to = tmp;
+          tmp = fx; fx = tx; tx = tmp;
+        }
+        return from;
+      }
+
+      function posterizeToColoring(im, opts) {
+        var maxSide = opts.maxSide || 960;
+        var step = opts.step || 36;
+        var fillVeryDark = !!opts.fillVeryDark;
+        var blurPasses = opts.blurPasses || 0;
         var scale = Math.min(1, maxSide / Math.max(im.width, im.height));
         var w = Math.max(2, Math.round(im.width * scale));
         var h = Math.max(2, Math.round(im.height * scale));
@@ -384,32 +425,203 @@
         ox.fillStyle = '#fff';
         ox.fillRect(0, 0, w, h);
         ox.drawImage(im, 0, 0, w, h);
+        if (blurPasses > 0) {
+          var blurred = blurCanvas(off, blurPasses);
+          ox.clearRect(0, 0, w, h);
+          ox.drawImage(blurred, 0, 0);
+        }
         var data = ox.getImageData(0, 0, w, h);
-        toLineArt(data);
+        var d = data.data;
+        function qv(v) { return Math.round(v / step) * step; }
+        function pack(i) {
+          return (qv(d[i]) << 16) | (qv(d[i + 1]) << 8) | qv(d[i + 2]);
+        }
+        var out = new Uint8ClampedArray(w * h);
+        var x, y, i, o, lum, c, edge;
+        for (i = 0; i < w * h; i++) out[i] = 255;
+        for (y = 1; y < h - 1; y++) {
+          for (x = 1; x < w - 1; x++) {
+            o = (y * w + x) * 4;
+            c = pack(o);
+            edge = pack(o + 4) !== c || pack(((y + 1) * w + x) * 4) !== c;
+            if (fillVeryDark) {
+              lum = 0.299 * d[o] + 0.587 * d[o + 1] + 0.114 * d[o + 2];
+              if (lum < 42) edge = true;
+            }
+            if (edge) out[y * w + x] = 0;
+          }
+        }
+        var thick = new Uint8ClampedArray(out);
+        for (y = 1; y < h - 1; y++) {
+          for (x = 1; x < w - 1; x++) {
+            if (out[y * w + x] > 32) continue;
+            thick[y * w + x - 1] = 0;
+            thick[y * w + x + 1] = 0;
+            thick[(y - 1) * w + x] = 0;
+            thick[(y + 1) * w + x] = 0;
+          }
+        }
+        for (i = 0; i < w * h; i++) {
+          var v = thick[i];
+          d[i * 4] = v;
+          d[i * 4 + 1] = v;
+          d[i * 4 + 2] = v;
+          d[i * 4 + 3] = 255;
+        }
         ox.putImageData(data, 0, 0);
         return off;
       }
 
+      function cartoonToColoring(im) {
+        return posterizeToColoring(im, {
+          maxSide: 960,
+          step: 36,
+          fillVeryDark: true,
+          blurPasses: 1
+        });
+      }
+
+      function photoToLocalColoring(im) {
+        return posterizeToColoring(im, {
+          maxSide: 720,
+          step: 48,
+          fillVeryDark: false,
+          blurPasses: 4
+        });
+      }
+
+      function firstInlineImage(json) {
+        var cands = json && json.candidates;
+        if (!Array.isArray(cands)) return null;
+        for (var i = 0; i < cands.length; i++) {
+          var content = cands[i] && cands[i].content;
+          var parts = content && content.parts;
+          if (!Array.isArray(parts)) continue;
+          for (var p = 0; p < parts.length; p++) {
+            var inline = parts[p] && (parts[p].inlineData || parts[p].inline_data);
+            var data = inline && inline.data;
+            if (data) {
+              var mime = (inline.mimeType || inline.mime_type || 'image/png').toString();
+              if (mime.indexOf('image/') !== 0) mime = 'image/png';
+              return 'data:' + mime + ';base64,' + data;
+            }
+          }
+        }
+        return null;
+      }
+
+      function photoToCartoon(jpegB64, aspect) {
+        var ac = new AbortController();
+        var timer = setTimeout(function () { ac.abort(); }, 25000);
+        return fetch(SUPABASE_URL + '/functions/v1/gemini-proxy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON,
+            Authorization: 'Bearer ' + SUPABASE_ANON
+          },
+          body: JSON.stringify({
+            generateImage: true,
+            model: 'gemini-3.1-flash-image',
+            prompt: CARTOON_PROMPT,
+            imageBase64: jpegB64,
+            mimeType: 'image/jpeg',
+            generationConfig: {
+              responseModalities: ['IMAGE'],
+              imageConfig: { imageSize: '1K', aspectRatio: aspect || '1:1' }
+            }
+          }),
+          signal: ac.signal
+        }).then(function (res) {
+          return res.text().then(function (text) {
+            var json = {};
+            try { json = text ? JSON.parse(text) : {}; } catch (_) {}
+            if (!res.ok) {
+              throw new Error('gemini ' + res.status);
+            }
+            var src = firstInlineImage(json);
+            if (!src) throw new Error('no image');
+            return src;
+          });
+        }).finally(function () {
+          clearTimeout(timer);
+        });
+      }
+
+      function applyLineArt(canvasArt, note) {
+        lineArt = canvasArt;
+        resizeCanvas(paint, pctx, true);
+        drawLineArt();
+        if (note) {
+          setBusy(true, note, false);
+          setTimeout(function () { setBusy(false, '', false); }, 3200);
+        } else {
+          setBusy(false, '', false);
+        }
+      }
+
+      function localFromJpegB64(jpegB64) {
+        setBusy(true, 'Basit boyama kalıbı hazırlanıyor…', false);
+        return loadImageSrc('data:image/jpeg;base64,' + jpegB64).then(function (im) {
+          return photoToLocalColoring(im);
+        });
+      }
+
+      function convertJpeg(jpegB64, aspect) {
+        setBusy(true, 'Çizgi filme çevriliyor…', false);
+        return photoToCartoon(jpegB64, aspect)
+          .then(function (src) {
+            setBusy(true, 'Boyama sayfası hazırlanıyor…', false);
+            return loadImageSrc(src).then(function (im) {
+              applyLineArt(cartoonToColoring(im), null);
+            });
+          })
+          .catch(function () {
+            return localFromJpegB64(jpegB64)
+              .then(function (art) {
+                applyLineArt(
+                  art,
+                  'Çizgi film servisi kullanılamadı; basit kalıp hazırlandı.'
+                );
+              })
+              .catch(function () {
+                setBusy(
+                  true,
+                  'Resim eklenemedi. JPEG veya PNG dene.',
+                  true
+                );
+              });
+          });
+      }
+
       document.getElementById('pick').addEventListener('click', function () {
-        if (busy) return;
+        if (busy && !document.getElementById('busy').classList.contains('error')) return;
         document.getElementById('photo').click();
+      });
+
+      document.getElementById('busy-retry').addEventListener('click', function () {
+        if (!lastJpeg) return;
+        convertJpeg(lastJpeg, lastAspect);
       });
 
       document.getElementById('photo').addEventListener('change', function (e) {
         var file = e.target.files && e.target.files[0];
         e.target.value = '';
         if (!file) return;
-        setBusy(true);
-        loadImageFile(file)
-          .then(function (im) {
-            lineArt = rasterToLineArt(im);
-            resizeCanvas(paint, pctx, true);
-            drawLineArt();
+        setBusy(true, 'Fotoğraf okunuyor…', false);
+        fileToJpeg(file)
+          .then(function (prep) {
+            lastJpeg = prep.b64;
+            lastAspect = prep.aspect;
+            return convertJpeg(prep.b64, prep.aspect);
           })
           .catch(function () {
-            alert('Fotoğraf boyama sayfasına çevrilemedi. Başka bir JPEG/PNG deneyin.');
-          })
-          .then(function () { setBusy(false); });
+            setBusy(
+              true,
+              'Resim eklenemedi. JPEG veya PNG dene.',
+              true
+            );
+          });
       });
     })();
   </script>

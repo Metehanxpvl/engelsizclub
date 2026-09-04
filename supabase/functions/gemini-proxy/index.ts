@@ -8,10 +8,12 @@
 // Flutter: supabase.functions.invoke('gemini-proxy')
 // Gövde: { prompt, imageBase64?, mimeType?, model? }
 //    veya Gemini native: { model, contents, generationConfig }
+// Görsel üretim: { generateImage: true, prompt, imageBase64, mimeType? }
+//    → gemini-3.1-flash-image (Nano Banana 2); metin modellerine düşme.
 //
 // Canlı Google (2026-09): gemini-flash-latest → gemini-3.8-flash → lite 200.
 // gemini-3.6-flash asılıyor — zincire alma. Model başına 12s; 503’te sonraki.
-// 2.5 / 2.0 / 1.5-flash emekli 404. Emekli id için 404 dönme: sonraki modeli dene.
+// Görsel: model başına 45s. 2.5 / 2.0 / 1.5-flash emekli 404.
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
@@ -31,7 +33,14 @@ const FALLBACK_MODELS = [
 ];
 const SKIP_HANG_MODELS = new Set(["gemini-3.6-flash"]);
 
+const DEFAULT_IMAGE_MODEL = "gemini-3.1-flash-image";
+const IMAGE_FALLBACK_MODELS = [
+  "gemini-3.1-flash-image",
+  "gemini-3.1-flash-lite-image",
+];
+
 const PER_MODEL_MS = 12_000;
+const IMAGE_PER_MODEL_MS = 45_000;
 const EXHAUSTED_TR = "Analiz modeli şu an yanıt vermedi, tekrar deneyin.";
 
 function json(status: number, body: unknown) {
@@ -46,6 +55,24 @@ function stripDataUrl(raw: string): string {
   const i = s.indexOf("base64,");
   if (s.startsWith("data:") && i >= 0) return s.slice(i + 7).trim();
   return s;
+}
+
+function isImageModel(model: string): boolean {
+  const m = model.toLowerCase();
+  return m.includes("-image") || m.startsWith("imagen");
+}
+
+function wantsImage(payload: Record<string, unknown>): boolean {
+  if (payload.generateImage === true || payload.generate_image === true) {
+    return true;
+  }
+  const gc = (payload.generationConfig ?? payload.generation_config) as
+    | Record<string, unknown>
+    | undefined;
+  if (!gc || typeof gc !== "object") return false;
+  const mods = gc.responseModalities ?? gc.response_modalities;
+  if (!Array.isArray(mods)) return false;
+  return mods.some((m) => String(m).toUpperCase().includes("IMAGE"));
 }
 
 function buildContents(payload: Record<string, unknown>): unknown {
@@ -95,7 +122,11 @@ function isGoogleModel404(status: number, text: string): boolean {
   );
 }
 
-function shouldTryNextModel(status: number, text: string): boolean {
+function shouldTryNextModel(
+  status: number,
+  text: string,
+  imageOut = false,
+): boolean {
   if (isGoogleModel404(status, text)) return true;
   // Google overload 503'ü iletme — sonraki modeli dene (12s skip hang).
   if (
@@ -103,7 +134,8 @@ function shouldTryNextModel(status: number, text: string): boolean {
     status === 429 ||
     status === 502 ||
     status === 503 ||
-    status === 504
+    status === 504 ||
+    (imageOut && status === 400)
   ) {
     return true;
   }
@@ -116,16 +148,47 @@ function shouldTryNextModel(status: number, text: string): boolean {
   );
 }
 
+function imageGenerationConfig(
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  const given = (payload.generationConfig ?? payload.generation_config) as
+    | Record<string, unknown>
+    | undefined;
+  const imageConfig = {
+    imageSize: "1K",
+    ...((given?.imageConfig ?? given?.image_config) as
+      | Record<string, unknown>
+      | undefined),
+  };
+  return {
+    responseModalities: ["IMAGE"],
+    ...given,
+    imageConfig,
+  };
+}
+
+function textGenerationConfig(payload: Record<string, unknown>): unknown {
+  return (
+    payload.generationConfig ??
+    payload.generation_config ?? {
+      temperature: 0.1,
+      maxOutputTokens: 4096,
+      responseMimeType: "application/json",
+    }
+  );
+}
+
 async function generateOnce(
   model: string,
   key: string,
   body: string,
+  timeoutMs: number,
 ): Promise<{ ok: boolean; status: number; text: string }> {
   const gUrl =
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent` +
     `?key=${encodeURIComponent(key)}`;
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), PER_MODEL_MS);
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
     const upstream = await fetch(gUrl, {
       method: "POST",
@@ -179,16 +242,16 @@ serve(async (req) => {
     });
   }
 
-  const modelRaw = String(payload.model || DEFAULT_MODEL);
-  const requested = modelRaw.replace(/[^a-zA-Z0-9._-]/g, "") || DEFAULT_MODEL;
+  const imageOut = wantsImage(payload);
+  const modelRaw = String(
+    payload.model || (imageOut ? DEFAULT_IMAGE_MODEL : DEFAULT_MODEL),
+  );
+  const requested = modelRaw.replace(/[^a-zA-Z0-9._-]/g, "") ||
+    (imageOut ? DEFAULT_IMAGE_MODEL : DEFAULT_MODEL);
   const contents = buildContents(payload);
-  const generationConfig =
-    payload.generationConfig ??
-    payload.generation_config ?? {
-      temperature: 0.1,
-      maxOutputTokens: 4096,
-      responseMimeType: "application/json",
-    };
+  const generationConfig = imageOut
+    ? imageGenerationConfig(payload)
+    : textGenerationConfig(payload);
   if (!contents) {
     return json(400, {
       error: {
@@ -198,19 +261,31 @@ serve(async (req) => {
     });
   }
 
-  // Çalışan modeller önce. 3.6 asılır — istekte gelse bile atla.
   const models: string[] = [];
-  for (const m of [...FALLBACK_MODELS, requested]) {
-    if (!m || SKIP_HANG_MODELS.has(m) || models.includes(m)) continue;
-    models.push(m);
+  if (imageOut) {
+    // Metin flash modelleri IMAGE üretemez (400). Yalnız *-image.
+    if (isImageModel(requested) && !SKIP_HANG_MODELS.has(requested)) {
+      models.push(requested);
+    }
+    for (const m of IMAGE_FALLBACK_MODELS) {
+      if (!m || SKIP_HANG_MODELS.has(m) || models.includes(m)) continue;
+      models.push(m);
+    }
+  } else {
+    // Çalışan modeller önce. 3.6 asılır — istekte gelse bile atla.
+    for (const m of [...FALLBACK_MODELS, requested]) {
+      if (!m || SKIP_HANG_MODELS.has(m) || models.includes(m)) continue;
+      models.push(m);
+    }
   }
 
   const googleBody = JSON.stringify({ contents, generationConfig });
+  const timeoutMs = imageOut ? IMAGE_PER_MODEL_MS : PER_MODEL_MS;
   let lastFailStatus = 0;
   let lastFailText = "";
   try {
     for (const model of models) {
-      const result = await generateOnce(model, key, googleBody);
+      const result = await generateOnce(model, key, googleBody, timeoutMs);
       if (result.ok) {
         return new Response(result.text, {
           status: result.status,
@@ -219,7 +294,7 @@ serve(async (req) => {
       }
       lastFailStatus = result.status;
       lastFailText = result.text;
-      if (!shouldTryNextModel(result.status, result.text)) {
+      if (!shouldTryNextModel(result.status, result.text, imageOut)) {
         return new Response(result.text, {
           status: result.status,
           headers: { ...cors, "Content-Type": "application/json; charset=utf-8" },

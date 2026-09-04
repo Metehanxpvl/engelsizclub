@@ -2,10 +2,30 @@ import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
-/// Fotoğrafı boyama kitabı tarzı siyah-beyaz çizgi görseline çevirir (PNG).
-///
+/// Fotoğrafı çizgi filme çevirirken Gemini’ye giden stil istemi.
+/// Telif: bilinen karakter / logo yok — “Disney çizimi” yalnızca görünüm referansı.
+const kBoyamaCartoonPrompt =
+    'Redraw this photograph as a friendly children\'s cartoon illustration '
+    'in a 2D animated movie style. Original character, not a known franchise. '
+    'Keep the same person, pose, clothing, and setting, but stylize them: '
+    'big expressive eyes, clean simple shapes, soft rounded features, '
+    'smooth flat colors, warm and kind. Not photorealistic, not horror, '
+    'not grotesque, not uncanny, not a pencil sketch of a real face. '
+    'No logos, no copyrighted characters, no watermarks, no text overlay.';
+
+class BoyamaPhotoPrep {
+  const BoyamaPhotoPrep({
+    required this.jpeg,
+    required this.aspectRatio,
+  });
+
+  final Uint8List jpeg;
+  final String aspectRatio;
+}
+
+/// Galeri fotoğrafını Gemini’ye göndermek için küçült (JPEG).
 /// `compute()` ile isolate’ta çalıştırılmak için top-level.
-Uint8List photoBytesToColoringPng(Uint8List bytes) {
+BoyamaPhotoPrep preparePhotoForCartoon(Uint8List bytes) {
   if (bytes.isEmpty) {
     throw StateError('Boş görsel seçildi.');
   }
@@ -15,7 +35,7 @@ Uint8List photoBytesToColoringPng(Uint8List bytes) {
   }
 
   var src = img.bakeOrientation(decoded);
-  const maxSide = 960;
+  const maxSide = 768;
   final longSide = src.width > src.height ? src.width : src.height;
   if (longSide > maxSide) {
     src = img.copyResize(
@@ -25,25 +45,122 @@ Uint8List photoBytesToColoringPng(Uint8List bytes) {
       interpolation: img.Interpolation.cubic,
     );
   }
+  return BoyamaPhotoPrep(
+    jpeg: Uint8List.fromList(img.encodeJpg(src, quality: 78)),
+    aspectRatio: _aspectRatioFor(src.width, src.height),
+  );
+}
 
-  final gray = img.grayscale(img.Image.from(src));
-  final base = img.Image.from(gray);
-  var blurredInv = img.invert(img.Image.from(gray));
-  blurredInv = img.gaussianBlur(blurredInv, radius: 4);
-  final edges = img.sobel(img.gaussianBlur(img.Image.from(gray), radius: 1));
+String _aspectRatioFor(int w, int h) {
+  if (w <= 0 || h <= 0) return '1:1';
+  final r = w / h;
+  const options = <(double, String)>[
+    (1, '1:1'),
+    (4 / 3, '4:3'),
+    (3 / 4, '3:4'),
+    (16 / 9, '16:9'),
+    (9 / 16, '9:16'),
+    (3 / 2, '3:2'),
+    (2 / 3, '2:3'),
+    (4 / 5, '4:5'),
+    (5 / 4, '5:4'),
+  ];
+  var best = '1:1';
+  var bestDiff = 999.0;
+  for (final o in options) {
+    final d = (r - o.$1).abs();
+    if (d < bestDiff) {
+      bestDiff = d;
+      best = o.$2;
+    }
+  }
+  return best;
+}
 
-  final w = base.width;
-  final h = base.height;
+img.Image _decodeOriented(Uint8List bytes, {required int maxSide}) {
+  if (bytes.isEmpty) {
+    throw StateError('Boş görsel seçildi.');
+  }
+  final decoded = img.decodeImage(bytes);
+  if (decoded == null) {
+    throw StateError('Görsel okunamadı. JPEG veya PNG deneyin.');
+  }
+  var src = img.bakeOrientation(decoded);
+  final longSide = src.width > src.height ? src.width : src.height;
+  if (longSide > maxSide) {
+    src = img.copyResize(
+      src,
+      width: src.width >= src.height ? maxSide : null,
+      height: src.height > src.width ? maxSide : null,
+      interpolation: img.Interpolation.cubic,
+    );
+  }
+  return src;
+}
+
+/// Çizgi film illüstrasyonunu boyama kitabı (siyah çizgi, beyaz zemin) PNG’sine çevirir.
+Uint8List cartoonBytesToColoringPng(Uint8List bytes) {
+  final src = _decodeOriented(bytes, maxSide: 960);
+  return _posterizeToColoringPng(
+    src,
+    blurRadius: 1,
+    colors: 18,
+    fillVeryDark: true,
+  );
+}
+
+/// Gemini yok / ülke kısıtı vb. iken yerel yedek.
+/// Ham Sobel değil: güçlü bulanıklaştırma + az renk + bölge kenarları
+/// (yüzlerde “korku” gölge dolgusu yok).
+Uint8List photoBytesToLocalColoringPng(Uint8List bytes) {
+  final src = _decodeOriented(bytes, maxSide: 720);
+  return _posterizeToColoringPng(
+    src,
+    blurRadius: 3,
+    colors: 8,
+    fillVeryDark: false,
+  );
+}
+
+Uint8List _posterizeToColoringPng(
+  img.Image src, {
+  required int blurRadius,
+  required int colors,
+  required bool fillVeryDark,
+}) {
+  var work = img.gaussianBlur(src, radius: blurRadius);
+  if (blurRadius >= 2) {
+    work = img.gaussianBlur(work, radius: 1);
+  }
+  final q = img.quantize(
+    work,
+    numberOfColors: colors,
+    method: img.QuantizeMethod.octree,
+    dither: img.DitherKernel.none,
+  );
+
+  final w = q.width;
+  final h = q.height;
   final out = img.Image(width: w, height: h);
-  for (var y = 0; y < h; y++) {
-    for (var x = 0; x < w; x++) {
-      final g = base.getPixel(x, y).r.toInt();
-      final b = blurredInv.getPixel(x, y).r.toInt();
-      final dodge = b >= 254 ? 255 : ((g * 255) / (255 - b)).round().clamp(0, 255);
-      final mag = edges.getPixel(x, y).r.toInt();
-      final line = dodge < 178 || mag > 40;
-      final v = line ? 0 : 255;
-      out.setPixelRgb(x, y, v, v, v);
+  out.clear(img.ColorRgb8(255, 255, 255));
+
+  int pack(img.Pixel p) =>
+      (p.r.toInt() << 16) | (p.g.toInt() << 8) | p.b.toInt();
+
+  for (var y = 1; y < h - 1; y++) {
+    for (var x = 1; x < w - 1; x++) {
+      final p = q.getPixel(x, y);
+      final c = pack(p);
+      var edge = pack(q.getPixel(x + 1, y)) != c ||
+          pack(q.getPixel(x, y + 1)) != c;
+      if (fillVeryDark) {
+        final lum =
+            0.299 * p.r.toInt() + 0.587 * p.g.toInt() + 0.114 * p.b.toInt();
+        if (lum < 42) edge = true;
+      }
+      if (edge) {
+        out.setPixelRgb(x, y, 0, 0, 0);
+      }
     }
   }
 

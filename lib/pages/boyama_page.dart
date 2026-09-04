@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../meto_theme.dart';
+import '../services/gemini_service.dart';
 import '../widgets/guest_timed_guard.dart';
 import 'boyama_line_art.dart';
 
@@ -91,6 +92,8 @@ class _BoyamaPageState extends State<BoyamaPage> {
   double _width = _kSizes.first.$2;
   ui.Image? _lineArt;
   var _busy = false;
+  var _busyLabel = 'Çizgi filme çevriliyor…';
+  Uint8List? _retryBytes;
 
   @override
   void dispose() {
@@ -138,13 +141,65 @@ class _BoyamaPageState extends State<BoyamaPage> {
         requestFullMetadata: false,
       );
       if (file == null || !mounted) return;
-
-      setState(() => _busy = true);
       final bytes = await file.readAsBytes();
       if (bytes.isEmpty) {
         throw StateError('Boş görsel seçildi.');
       }
-      final png = await compute(photoBytesToColoringPng, bytes);
+      await _convertBytes(bytes);
+    } catch (e, st) {
+      debugPrint('Boyama pick failed: $e\n$st');
+      if (!mounted) return;
+      _showSnack(
+        'Resim eklenemedi. Galeri iznini kontrol et veya JPEG/PNG dene.',
+      );
+    }
+  }
+
+  Future<void> _convertBytes(Uint8List bytes) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _busyLabel = 'Çizgi filme çevriliyor…';
+      _retryBytes = bytes;
+    });
+    String? fallbackNote;
+    try {
+      Uint8List? cartoonPng;
+      try {
+        final prep = preparePhotoForCartoon(bytes);
+        final cartoon = await GeminiService.generateImageFromPhoto(
+          prompt: kBoyamaCartoonPrompt,
+          imageBytes: prep.jpeg,
+          mimeType: 'image/jpeg',
+          aspectRatio: prep.aspectRatio,
+        );
+        final cartoonBytes = cartoon.$1;
+        if (cartoonBytes != null && cartoonBytes.isNotEmpty) {
+          if (!mounted) return;
+          setState(() => _busyLabel = 'Boyama sayfası hazırlanıyor…');
+          cartoonPng = await compute(cartoonBytesToColoringPng, cartoonBytes);
+        } else {
+          debugPrint('Boyama cartoon failed: ${cartoon.$2}');
+          fallbackNote =
+              'Çizgi film servisi kullanılamadı; basit kalıp hazırlandı.';
+        }
+      } catch (e, st) {
+        debugPrint('Boyama cartoon path failed: $e\n$st');
+        fallbackNote =
+            'Çizgi film servisi kullanılamadı; basit kalıp hazırlandı.';
+      }
+
+      final Uint8List png;
+      if (cartoonPng != null) {
+        png = cartoonPng;
+      } else {
+        if (!mounted) return;
+        setState(() => _busyLabel = 'Basit boyama kalıbı hazırlanıyor…');
+        png = await compute(photoBytesToLocalColoringPng, bytes);
+        fallbackNote ??=
+            'Çizim oluşturulamadı, basit kalıp kullanıldı.';
+      }
+
       final codec = await ui.instantiateImageCodec(png);
       final frame = await codec.getNextFrame();
       if (!mounted) {
@@ -158,19 +213,35 @@ class _BoyamaPageState extends State<BoyamaPage> {
         _current = null;
         _busy = false;
       });
+      if (fallbackNote != null) _showSnack(fallbackNote);
     } catch (e, st) {
-      debugPrint('Boyama line-art failed: $e\n$st');
+      debugPrint('Boyama convert failed: $e\n$st');
       if (!mounted) return;
       setState(() => _busy = false);
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Fotoğraf boyama sayfasına çevrilemedi. Başka bir JPEG/PNG deneyin.',
-          ),
-        ),
+      _showSnack(
+        'Resim eklenemedi. JPEG veya PNG dene.',
+        retry: true,
       );
     }
+  }
+
+  void _showSnack(String message, {bool retry = false}) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: !retry || _retryBytes == null
+            ? null
+            : SnackBarAction(
+                label: 'Tekrar dene',
+                onPressed: () {
+                  final again = _retryBytes;
+                  if (again == null) return;
+                  _convertBytes(again);
+                },
+              ),
+      ),
+    );
   }
 
   @override
@@ -212,7 +283,7 @@ class _BoyamaPageState extends State<BoyamaPage> {
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 10, 16, 4),
             child: Text(
-              'Galeriden fotoğraf seç; siyah-beyaz boyama sayfasına dönüşür. Sonra boya.',
+              'Galeriden fotoğraf seç; boyama kalıbı hazırlanır. Sonra boya.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
@@ -281,17 +352,22 @@ class _BoyamaPageState extends State<BoyamaPage> {
                         ),
                       ),
                       if (_busy)
-                        const ColoredBox(
-                          color: Color(0x88FFFFFF),
+                        ColoredBox(
+                          color: const Color(0x88FFFFFF),
                           child: Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                CircularProgressIndicator(color: MetoColors.primary),
-                                SizedBox(height: 12),
+                                const CircularProgressIndicator(
+                                  color: MetoColors.primary,
+                                ),
+                                const SizedBox(height: 12),
                                 Text(
-                                  'Boyama sayfasına dönüştürülüyor…',
-                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                  _busyLabel,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ],
                             ),
