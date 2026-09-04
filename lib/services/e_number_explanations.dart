@@ -98,12 +98,20 @@ class ENumberExplanations {
     }
   }
 
-  /// Rapor + içindekiler metnindeki E-kodlarını birleştir (yerel açıklamayla).
+  /// Rapor + içindekiler: E-kodları ve E’siz yazılmış katkılar (lesitin, aroma…).
   static List<AdditiveHit> forDisplay({
     required List<AdditiveHit> additives,
     String? ingredients,
   }) {
     final map = <String, AdditiveHit>{};
+    void put(AdditiveHit hit) {
+      final key = hit.code.trim().isNotEmpty
+          ? normalizeCode(hit.code)
+          : hit.labelTr.trim().toLowerCase();
+      if (key.isEmpty) return;
+      map.putIfAbsent(key, () => hit);
+    }
+
     for (final a in additives) {
       var raw = a.code.trim();
       if (raw.isEmpty) raw = a.labelTr.trim();
@@ -111,22 +119,110 @@ class ENumberExplanations {
       final normalized = normalizeCode(raw);
       if (normalized.startsWith('e') &&
           RegExp(r'^e\d{3,4}[a-z]{0,3}$').hasMatch(normalized)) {
-        map[normalized] = enrich(
+        put(enrich(
           AdditiveHit(code: normalized, labelTr: a.labelTr, flag: a.flag),
-        );
+        ));
         continue;
       }
-      for (final code in extractECodes('$raw ${a.labelTr}')) {
-        map.putIfAbsent(code, () => enrich(AdditiveHit(code: code, labelTr: '')));
+      final codes = extractECodes('$raw ${a.labelTr}').toList();
+      if (codes.isNotEmpty) {
+        for (final code in codes) {
+          put(enrich(AdditiveHit(code: code, labelTr: '')));
+        }
+        continue;
       }
+      put(AdditiveHit(code: raw, labelTr: a.labelTr, flag: a.flag));
     }
     for (final code in extractECodes(ingredients)) {
-      map.putIfAbsent(
-        code,
-        () => enrich(AdditiveHit(code: code, labelTr: '')),
-      );
+      put(enrich(AdditiveHit(code: code, labelTr: '')));
+    }
+    for (final named in extractNamedAdditives(
+      ingredients,
+      existingCodes: map.keys,
+    )) {
+      put(named);
     }
     return map.values.toList();
+  }
+
+  /// Etikette E-kodu yazılmayan katkılar (Ayçiçek lesitini, aroma…).
+  /// Emülgatör + lesitin = tek katkı; aroma + vanilin = tek aroma.
+  /// Aynı işlevin E-kodu zaten varsa ikinci kez sayılmaz.
+  static List<AdditiveHit> extractNamedAdditives(
+    String? text, {
+    Iterable<String> existingCodes = const [],
+  }) {
+    final folded = _fold(text ?? '');
+    if (folded.isEmpty) return const [];
+    final have = {
+      for (final c in existingCodes) normalizeCode(c),
+    };
+    bool hasPrefix(String prefix) => have.any((c) => c.startsWith(prefix));
+    final out = <AdditiveHit>[];
+
+    if (_hasWord(folded, 'lesitin') || _hasWord(folded, 'lecithin')) {
+      if (!have.contains('e322')) {
+        out.add(enrich(const AdditiveHit(code: 'e322', labelTr: 'lesitin')));
+      }
+    } else if (!hasPrefix('e47') &&
+        !hasPrefix('e322') &&
+        (_hasWord(folded, 'emulgator') || _hasWord(folded, 'emulsifier'))) {
+      out.add(
+        const AdditiveHit(code: 'named:emulgator', labelTr: 'emülgatör'),
+      );
+    }
+
+    if (_hasWord(folded, 'vanilin') || _hasWord(folded, 'vanillin')) {
+      out.add(const AdditiveHit(code: 'named:vanilin', labelTr: 'vanilin'));
+    } else if (_hasWord(folded, 'aroma') ||
+        _hasWord(folded, 'flavour') ||
+        _hasWord(folded, 'flavoring')) {
+      out.add(const AdditiveHit(code: 'named:aroma', labelTr: 'aroma'));
+    }
+
+    if (!hasPrefix('e95') &&
+        (_hasWord(folded, 'tatlandirici') || _hasWord(folded, 'sweetener'))) {
+      out.add(
+        const AdditiveHit(code: 'named:tatlandirici', labelTr: 'tatlandırıcı'),
+      );
+    }
+    if (!hasPrefix('e1') &&
+        (_hasWord(folded, 'renk verici') ||
+            _hasWord(folded, 'renklendirici') ||
+            _hasWord(folded, 'colorant'))) {
+      out.add(
+        const AdditiveHit(code: 'named:renk', labelTr: 'renklendirici'),
+      );
+    }
+    if (!hasPrefix('e40') &&
+        !hasPrefix('e41') &&
+        (_hasWord(folded, 'kivam arttirici') ||
+            _hasWord(folded, 'kivam artirici') ||
+            _hasWord(folded, 'thickener') ||
+            _hasWord(folded, 'stabilizator') ||
+            _hasWord(folded, 'stabilizer'))) {
+      out.add(
+        const AdditiveHit(code: 'named:kivam', labelTr: 'kıvam artırıcı'),
+      );
+    }
+    return out;
+  }
+
+  static bool _hasWord(String folded, String word) {
+    // lesitini / aromasi gibi Türkçe ekleri de tut.
+    return RegExp('(?:^|[^a-z0-9])${RegExp.escape(word)}').hasMatch(folded);
+  }
+
+  static String _fold(String s) {
+    return s
+        .toLowerCase()
+        .replaceAll('ı', 'i')
+        .replaceAll('İ', 'i')
+        .replaceAll('ş', 's')
+        .replaceAll('ğ', 'g')
+        .replaceAll('ü', 'u')
+        .replaceAll('ö', 'o')
+        .replaceAll('ç', 'c');
   }
 
   /// Gösterim için düzey: E-kodları + içindekiler. Alan yoksa da bar üretir.

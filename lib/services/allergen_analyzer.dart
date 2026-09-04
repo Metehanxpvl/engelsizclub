@@ -1,5 +1,6 @@
 import '../models/product_safety.dart';
 import 'e_number_explanations.dart';
+import 'nova_from_ingredients.dart';
 import 'open_food_facts_service.dart';
 import 'product_disclaimer.dart';
 
@@ -154,25 +155,28 @@ class AllergenAnalyzer {
       ingredientsKnown: ingredientsKnown,
     );
 
-    return SafetyReport(
-      allergens: allergens.values.toList(),
-      additives: additiveList,
-      childSuitable: child,
-      warnings: warnings,
-      summaryTr: summary,
-      ingredientsSummary: ingSummary,
-      additiveRiskLevel: risk,
-      additiveDensityScore: risk.densityScore,
-      sugarsPer100g: off?.sugarsPer100g,
-      saltPer100g: off?.saltPer100g,
-      categoryLabel: off?.categoryLabel,
-      nutriScore: off?.nutriScore,
-      nutriScoreSource: off?.nutriScore != null
-          ? LabelScoreSource.openfoodfacts
-          : null,
-      novaGroup: off?.novaGroup,
-      novaGroupSource:
-          off?.novaGroup != null ? LabelScoreSource.openfoodfacts : null,
+    return NovaFromIngredients.applyIfMissing(
+      SafetyReport(
+        allergens: allergens.values.toList(),
+        additives: additiveList,
+        childSuitable: child,
+        warnings: warnings,
+        summaryTr: summary,
+        ingredientsSummary: ingSummary,
+        additiveRiskLevel: risk,
+        additiveDensityScore: risk.densityScore,
+        sugarsPer100g: off?.sugarsPer100g,
+        saltPer100g: off?.saltPer100g,
+        categoryLabel: off?.categoryLabel,
+        nutriScore: off?.nutriScore,
+        nutriScoreSource: off?.nutriScore != null
+            ? LabelScoreSource.openfoodfacts
+            : null,
+        novaGroup: off?.novaGroup,
+        novaGroupSource:
+            off?.novaGroup != null ? LabelScoreSource.openfoodfacts : null,
+      ),
+      ingredients: ing,
     );
   }
 
@@ -208,26 +212,29 @@ class AllergenAnalyzer {
     final category = _shortCategory(
       off?.categoryLabel ?? report.categoryLabel ?? categoryLabel,
     );
-    return SafetyReport(
-      allergens: report.allergens,
-      additives: additiveList,
-      childSuitable: report.childSuitable,
-      warnings: report.warnings,
-      summaryTr: report.summaryTr,
-      ingredientsSummary: report.ingredientsSummary,
-      additiveRiskLevel: risk,
-      additiveDensityScore: risk.densityScore,
-      sugarsPer100g: sugars,
-      saltPer100g: salt,
-      categoryLabel: category,
-      nutriScore: off?.nutriScore ?? report.nutriScore,
-      nutriScoreSource: off?.nutriScore != null
-          ? LabelScoreSource.openfoodfacts
-          : report.nutriScoreSource,
-      novaGroup: off?.novaGroup ?? report.novaGroup,
-      novaGroupSource: off?.novaGroup != null
-          ? LabelScoreSource.openfoodfacts
-          : report.novaGroupSource,
+    return NovaFromIngredients.applyIfMissing(
+      SafetyReport(
+        allergens: report.allergens,
+        additives: additiveList,
+        childSuitable: report.childSuitable,
+        warnings: report.warnings,
+        summaryTr: report.summaryTr,
+        ingredientsSummary: report.ingredientsSummary,
+        additiveRiskLevel: risk,
+        additiveDensityScore: risk.densityScore,
+        sugarsPer100g: sugars,
+        saltPer100g: salt,
+        categoryLabel: category,
+        nutriScore: off?.nutriScore ?? report.nutriScore,
+        nutriScoreSource: off?.nutriScore != null
+            ? LabelScoreSource.openfoodfacts
+            : report.nutriScoreSource,
+        novaGroup: off?.novaGroup ?? report.novaGroup,
+        novaGroupSource: off?.novaGroup != null
+            ? LabelScoreSource.openfoodfacts
+            : report.novaGroupSource,
+      ),
+      ingredients: ingredients ?? blob,
     );
   }
 

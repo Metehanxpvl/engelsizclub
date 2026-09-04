@@ -4,13 +4,20 @@ import 'package:google_fonts/google_fonts.dart';
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
 import '../models/product_safety.dart';
+import '../services/nova_from_ingredients.dart';
 
 /// Nutri-Score ve NOVA bilgi kartları (tıbbi teşhis değil).
 /// Skor yoksa kart gizlenmez; gri **Bilinmiyor** (1/4 veya E uydurulmaz).
 class NutriNovaCards extends StatelessWidget {
-  const NutriNovaCards({super.key, required this.safety});
+  const NutriNovaCards({
+    super.key,
+    required this.safety,
+    this.ingredients,
+  });
 
   final SafetyReport safety;
+  /// Eski önbellekte NOVA yoksa etiket kuralı için içindekiler.
+  final String? ingredients;
 
   static const _unknown = Color(0xFF64748B);
   static const _unknownFill = Color(0xFFCBD5E1);
@@ -33,29 +40,33 @@ class NutriNovaCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final shown = NovaFromIngredients.applyIfMissing(
+      safety,
+      ingredients: ingredients,
+    );
     return Column(
       children: [
         _ScoreCard(
           kicker: 'NUTRI-SCORE',
           title: 'Besleyicilik Düzeyi',
-          subtitle: safety.nutriScore?.subtitleTr ?? NutriScoreGrade.unknownLabelTr,
-          subtitleColor: safety.nutriScore == null
+          subtitle: shown.nutriScore?.subtitleTr ?? NutriScoreGrade.unknownLabelTr,
+          subtitleColor: shown.nutriScore == null
               ? _unknown
-              : _nutriColors[safety.nutriScore!.index],
-          estimate: safety.nutriIsEstimate,
-          scale: _NutriScale(grade: safety.nutriScore),
+              : _nutriColors[shown.nutriScore!.index],
+          estimate: shown.nutriIsEstimate,
+          scale: _NutriScale(grade: shown.nutriScore),
           onTap: () => showInfoSheet(context),
         ),
         const SizedBox(height: 10),
         _ScoreCard(
           kicker: 'NOVA',
           title: 'İşlenmişlik Düzeyi',
-          subtitle: safety.novaGroup?.subtitleTr ?? NovaGroup.unknownLabelTr,
-          subtitleColor: safety.novaGroup == null
+          subtitle: shown.novaGroup?.subtitleTr ?? NovaGroup.unknownLabelTr,
+          subtitleColor: shown.novaGroup == null
               ? _unknown
-              : _novaColors[safety.novaGroup!.index],
-          estimate: safety.novaIsEstimate,
-          scale: _NovaScale(group: safety.novaGroup),
+              : _novaColors[shown.novaGroup!.index],
+          estimate: shown.novaIsEstimate,
+          scale: _NovaScale(group: shown.novaGroup),
           onTap: () => showInfoSheet(context),
         ),
       ],
@@ -110,7 +121,10 @@ class NutriNovaCards extends StatelessWidget {
                 const SizedBox(height: 10),
                 L10nText(
                   'NOVA, gıdaların işlenme düzeyini 1’den 4’e sınıflandırır. '
-                  '1 az işlenmiş veya işlenmemiş; 4 aşırı işlenmiş ürünleri gösterir.',
+                  '1 az işlenmiş veya işlenmemiş; 4 aşırı işlenmiş ürünleri gösterir. '
+                  'Open Food Facts kaydı yoksa içindekiler listesine FAO’nun '
+                  'yayımladığı işaretler uygulanır (aroma, emülgatör, tatlandırıcı…). '
+                  'Liste yoksa veya işaret tanınmazsa Bilinmiyor yazılır; 1 veya 4 uydurulmaz.',
                   style: GoogleFonts.nunito(
                     fontSize: 14,
                     height: 1.45,

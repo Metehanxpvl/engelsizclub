@@ -161,7 +161,7 @@ enum AdditiveRiskLevel {
       case AdditiveRiskLevel.cokAz:
         return 'Bu üründe katkı maddesi yoğunluğu düşük görünüyor';
       case AdditiveRiskLevel.yok:
-        return 'Etiket / açık veri kaynaklarında katkı kodu görünmüyor';
+        return 'Etiket / açık veri kaynaklarında katkı maddesi görünmüyor';
       case AdditiveRiskLevel.bilinmiyor:
         return 'İçerik okunamadı; katkı düzeyi bilinmiyor. Bu bir güvenlik değerlendirmesi değildir.';
     }
