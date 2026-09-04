@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../meto_theme.dart';
-import '../services/gemini_service.dart';
 import '../widgets/guest_timed_guard.dart';
 import 'boyama_line_art.dart';
 
@@ -92,7 +91,6 @@ class _BoyamaPageState extends State<BoyamaPage> {
   double _width = _kSizes.first.$2;
   ui.Image? _lineArt;
   var _busy = false;
-  var _busyLabel = 'Çizgi filme çevriliyor…';
   Uint8List? _retryBytes;
 
   @override
@@ -159,45 +157,10 @@ class _BoyamaPageState extends State<BoyamaPage> {
     if (_busy) return;
     setState(() {
       _busy = true;
-      _busyLabel = 'Çizgi filme çevriliyor…';
       _retryBytes = bytes;
     });
-    var resultNote = '';
     try {
-      Uint8List? cartoonPng;
-      try {
-        final prep = preparePhotoForCartoon(bytes);
-        final cartoon = await GeminiService.generateImageFromPhoto(
-          prompt: kBoyamaCartoonPrompt,
-          imageBytes: prep.jpeg,
-          mimeType: 'image/jpeg',
-          aspectRatio: prep.aspectRatio,
-        );
-        final cartoonBytes = cartoon.$1;
-        if (cartoonBytes != null && cartoonBytes.isNotEmpty) {
-          if (!mounted) return;
-          setState(() => _busyLabel = 'Boyama sayfası hazırlanıyor…');
-          cartoonPng = await compute(cartoonBytesToColoringPng, cartoonBytes);
-          resultNote = 'Çizgi filme çevrildi 🎨';
-        } else {
-          debugPrint('Boyama cartoon failed: ${cartoon.$2}');
-          resultNote = _fallbackNote(cartoon.$2);
-        }
-      } catch (e, st) {
-        debugPrint('Boyama cartoon path failed: $e\n$st');
-        resultNote = _fallbackNote(null);
-      }
-
-      final Uint8List png;
-      if (cartoonPng != null) {
-        png = cartoonPng;
-      } else {
-        if (!mounted) return;
-        setState(() => _busyLabel = 'Basit boyama kalıbı hazırlanıyor…');
-        png = await compute(photoBytesToLocalColoringPng, bytes);
-        if (resultNote.isEmpty) resultNote = _fallbackNote(null);
-      }
-
+      final png = await compute(photoBytesToColoringPng, bytes);
       final codec = await ui.instantiateImageCodec(png);
       final frame = await codec.getNextFrame();
       if (!mounted) {
@@ -211,7 +174,6 @@ class _BoyamaPageState extends State<BoyamaPage> {
         _current = null;
         _busy = false;
       });
-      if (resultNote.isNotEmpty) _showSnack(resultNote);
     } catch (e, st) {
       debugPrint('Boyama convert failed: $e\n$st');
       if (!mounted) return;
@@ -221,14 +183,6 @@ class _BoyamaPageState extends State<BoyamaPage> {
         retry: true,
       );
     }
-  }
-
-  /// Yerel yedek istisna olmalı — kullanıcı hangi yolun çalıştığını görsün.
-  static String _fallbackNote(String? error) {
-    const base = 'Basit kalıp kullanıldı';
-    final reason = (error ?? '').trim();
-    if (reason.isEmpty) return '$base — çizgi film servisi yanıt vermedi.';
-    return '$base — $reason';
   }
 
   void _showSnack(String message, {bool retry = false}) {
@@ -368,10 +322,10 @@ class _BoyamaPageState extends State<BoyamaPage> {
                                   color: MetoColors.primary,
                                 ),
                                 const SizedBox(height: 12),
-                                Text(
-                                  _busyLabel,
+                                const Text(
+                                  'Boyama sayfası hazırlanıyor…',
                                   textAlign: TextAlign.center,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),

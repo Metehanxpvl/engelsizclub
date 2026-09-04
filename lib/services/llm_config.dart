@@ -36,43 +36,6 @@ class LlmConfig {
     'gemini-flash-lite-latest',
   ];
 
-  /// Fotoğraf → çizgi film (Nano Banana 2). Metin flash modelleri IMAGE üretmez.
-  /// GA adlar; `-preview` sürümleri 2026-06-25’te kapandı.
-  static const geminiImageModel = String.fromEnvironment(
-    'GEMINI_IMAGE_MODEL',
-    defaultValue: 'gemini-3.1-flash-image',
-  );
-
-  /// `gemini-3.1-flash-lite-image` diye bir model yok — listeye alma.
-  static const geminiImageFallbackModels = <String>[
-    'gemini-3.1-flash-image',
-    'gemini-3-pro-image',
-  ];
-
-  /// Google görsel üretimi AB/TR IP’lerine kapalı: eu-central-1’den
-  /// 400 FAILED_PRECONDITION “Image generation is not available in your
-  /// country.” döner. Edge Function varsayılan olarak kullanıcıya en yakın
-  /// bölgede koşar (TR → eu-central-1), bu yüzden görsel istekleri ABD
-  /// bölgesine sabitlenir. Metin analizi kısıtlı değil; oraya dokunma.
-  static const geminiImageRegion = String.fromEnvironment(
-    'GEMINI_IMAGE_REGION',
-    defaultValue: 'us-east-1',
-  );
-
-  /// İlk bölge kısıt/kesinti yaşarsa sıradaki ABD bölgesi denenir.
-  static const geminiImageRegionFallbacks = <String>[
-    'us-east-1',
-    'us-west-1',
-  ];
-
-  static List<String> get imageRegions {
-    final first = geminiImageRegion.trim();
-    return <String>[
-      if (first.isNotEmpty) first,
-      ...geminiImageRegionFallbacks,
-    ];
-  }
-
   static const groqModel = String.fromEnvironment(
     'GROQ_MODEL',
     defaultValue: 'llama-3.1-8b-instant',
