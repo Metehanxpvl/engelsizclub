@@ -368,8 +368,51 @@ enum NovaGroup {
 
   static const unknownLabelTr = 'Bilinmiyor';
 
+  /// OFF / Gemini / önbellek: ilk geçerli 1–4. Kelimeden 1/4 uydurulmaz.
+  static NovaGroup? tryParseFirst(Iterable<Object?> values) {
+    for (final v in values) {
+      final g = tryParse(v);
+      if (g != null) return g;
+    }
+    return null;
+  }
+
+  /// Standart alan adları (novaGroup, nova_group, nova-group, tags, nutriments).
+  static NovaGroup? fromLooseJson(Map<String, dynamic>? json) {
+    if (json == null || json.isEmpty) return null;
+    final nutriments = json['nutriments'];
+    return tryParseFirst([
+      json['novaGroup'],
+      json['nova_group'],
+      json['nova_groups'],
+      json['nova_groups_tags'],
+      json['nova-group'],
+      json['nova_group_100g'],
+      json['nova-group_100g'],
+      json['novaGroupNumber'],
+      json['nova'],
+      json['NOVA'],
+      if (nutriments is Map) nutriments['nova-group'],
+      if (nutriments is Map) nutriments['nova_group'],
+      if (nutriments is Map) nutriments['nova-group_100g'],
+      if (nutriments is Map) nutriments['nova_group_100g'],
+    ]);
+  }
+
   static NovaGroup? tryParse(Object? raw) {
     if (raw == null) return null;
+    if (raw is Map) {
+      return tryParseFirst([
+        raw['novaGroup'],
+        raw['nova_group'],
+        raw['nova_groups'],
+        raw['nova_groups_tags'],
+        raw['nova-group'],
+        raw['group'],
+        raw['nova'],
+        raw['value'],
+      ]);
+    }
     if (raw is Iterable && raw is! String) {
       for (final e in raw) {
         final g = tryParse(e);
@@ -401,6 +444,9 @@ enum NovaGroup {
     if (leading != null) return _fromNumber(int.parse(leading.group(1)!));
     final tagged = RegExp(r'(?:nova[_\s-]*groups?[:\s-]*)([1-4])\b').firstMatch(s);
     if (tagged != null) return _fromNumber(int.parse(tagged.group(1)!));
+    // Gemini: "nova: 4", "NOVA 3", "nova-4"
+    final labeled = RegExp(r'(?:^|[^\w])nova[:\s-]*([1-4])\b').firstMatch(s);
+    if (labeled != null) return _fromNumber(int.parse(labeled.group(1)!));
     return null;
   }
 
@@ -674,9 +720,7 @@ class SafetyReport {
       nutriScoreSource: LabelScoreSource.tryParse(
         json['nutriScoreSource'] ?? json['nutri_score_source'],
       ),
-      novaGroup: NovaGroup.tryParse(
-        json['novaGroup'] ?? json['nova_group'] ?? json['nova_groups'],
-      ),
+      novaGroup: NovaGroup.fromLooseJson(json),
       novaGroupSource: LabelScoreSource.tryParse(
         json['novaGroupSource'] ?? json['nova_group_source'],
       ),

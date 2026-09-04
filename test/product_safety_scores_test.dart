@@ -18,6 +18,31 @@ void main() {
       expect(NovaGroup.tryParse(''), isNull);
       expect(NovaGroup.tryParse(null), isNull);
     });
+
+    test('reads Gemini string, nested map, and hyphenated keys', () {
+      expect(NovaGroup.tryParse('nova: 4'), NovaGroup.four);
+      expect(NovaGroup.tryParse('NOVA 3'), NovaGroup.three);
+      expect(NovaGroup.tryParse({'group': '2'}), NovaGroup.two);
+      expect(NovaGroup.tryParse('ultra-processed'), isNull);
+      expect(
+        NovaGroup.fromLooseJson({
+          'nova_groups_tags': ['en:4-ultra-processed-food'],
+        }),
+        NovaGroup.four,
+      );
+      expect(
+        NovaGroup.fromLooseJson({
+          'nutriments': {'nova-group': 1},
+        }),
+        NovaGroup.one,
+      );
+      expect(
+        SafetyReport.fromJson({
+          'nova-group': '4',
+        }).novaGroup,
+        NovaGroup.four,
+      );
+    });
   });
 
   group('AdditiveRiskLevel.fromAdditives', () {

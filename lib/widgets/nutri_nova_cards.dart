@@ -184,7 +184,17 @@ class _ScoreCard extends StatelessWidget {
                   color: MetoColors.mutedFg,
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
+              L10nText(
+                title,
+                style: GoogleFonts.nunito(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                  height: 1.2,
+                  color: MetoColors.foreground,
+                ),
+              ),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   scale,
@@ -194,20 +204,10 @@ class _ScoreCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         L10nText(
-                          title,
-                          style: GoogleFonts.nunito(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15,
-                            height: 1.2,
-                            color: MetoColors.foreground,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        L10nText(
                           subtitle,
                           style: GoogleFonts.nunito(
                             fontWeight: FontWeight.w800,
-                            fontSize: 13,
+                            fontSize: 14,
                             height: 1.25,
                             color: subtitleColor,
                           ),

@@ -451,9 +451,12 @@ class OffProduct {
         if (p['nova_group'] != null && p['nova_group'].toString().trim().isNotEmpty)
           p['nova_group'].toString().trim(),
       ],
-      novaGroup: NovaGroup.tryParse(p['nova_group']) ??
-          NovaGroup.tryParse(p['nova_groups']) ??
-          NovaGroup.tryParse(p['nova_groups_tags']),
+      novaGroup: NovaGroup.fromLooseJson(p) ??
+          NovaGroup.fromLooseJson(
+            nutriments is Map
+                ? Map<String, dynamic>.from(nutriments)
+                : null,
+          ),
     );
   }
 

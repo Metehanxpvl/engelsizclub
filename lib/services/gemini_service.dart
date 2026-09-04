@@ -1345,13 +1345,9 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
           nested['nutriscore_grade'] ??
           report.nutriScore?.letter,
     );
-    final nova = NovaGroup.tryParse(
-      map['novaGroup'] ??
-          map['nova_group'] ??
-          nested['novaGroup'] ??
-          nested['nova_group'] ??
-          report.novaGroup?.number,
-    );
+    final nova = NovaGroup.fromLooseJson(map) ??
+        NovaGroup.fromLooseJson(nested) ??
+        NovaGroup.tryParse(report.novaGroup?.number);
     return report.copyWith(
       nutriScore: nutri ?? report.nutriScore,
       nutriScoreSource: (nutri ?? report.nutriScore) != null

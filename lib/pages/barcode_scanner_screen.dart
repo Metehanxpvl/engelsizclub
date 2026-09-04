@@ -2812,6 +2812,7 @@ class _ProductResultCard extends StatelessWidget {
         const SizedBox(height: 12),
         AdditiveRiskCard(level: risk),
         const SizedBox(height: 10),
+        // NOVA/Nutri yoksa da kart her zaman durur (gri Bilinmiyor).
         NutriNovaCards(safety: safety),
         if (showSugar) ...[
           const SizedBox(height: 10),
