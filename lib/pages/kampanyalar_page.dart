@@ -580,9 +580,14 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
     return GeziKampanyaFeedCard(
       imageUrl: item.imageUrl,
       title: item.title,
-      description: item.description,
+      description: _isEtkinlik ? item.cardDescription : item.description,
       locationLabel:
           _isEtkinlik ? item.avmName.trim() : item.locationLabel,
+      venueLabel: _isEtkinlik ? item.avmName.trim() : '',
+      whenLabel: _isEtkinlik ? item.eventWhenLabel : '',
+      timeLabel: _isEtkinlik ? item.eventTimeLabel : '',
+      brandedCover: _isEtkinlik,
+      coverPlaceholderLabel: _isEtkinlik ? item.avmName.trim() : '',
       isAdmin: _isAdmin,
       onDelete: _isAdmin ? () => _delete(item) : null,
       onEdit: _isAdmin ? () => _openEdit(item) : null,

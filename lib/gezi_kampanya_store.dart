@@ -129,6 +129,117 @@ String kampanyaLocationLabel(String? city) {
   return city!.trim();
 }
 
+const _trMonthNames = <String>[
+  'Ocak',
+  'Şubat',
+  'Mart',
+  'Nisan',
+  'Mayıs',
+  'Haziran',
+  'Temmuz',
+  'Ağustos',
+  'Eylül',
+  'Ekim',
+  'Kasım',
+  'Aralık',
+];
+
+final _trMonthRe = RegExp(
+  r'ocak|şubat|subat|mart|nisan|may[ıi]s|haziran|temmuz|'
+  r'a[gğ]ustos|eyl[uü]l|ekim|kas[ıi]m|aral[ıi]k',
+  caseSensitive: false,
+);
+
+final _clockTimeRe = RegExp(
+  r'\b((?:[01]?\d|2[0-3])[:.][0-5]\d'
+  r'(?:\s*[-–]\s*(?:[01]?\d|2[0-3])[:.][0-5]\d)?)\b',
+);
+
+final _isoDateRe = RegExp(r'^(\d{4})-(\d{2})-(\d{2})');
+
+bool _looksLikeEventWhen(String line) {
+  final t = line.trim();
+  if (t.isEmpty || t.length > 90) return false;
+  final lower = t.toLowerCase();
+  if (_trMonthRe.hasMatch(lower)) return true;
+  if (RegExp(r'\b20\d{2}\b').hasMatch(t)) return true;
+  if (_clockTimeRe.hasMatch(t)) return true;
+  if (_isoDateRe.hasMatch(t)) return true;
+  if (RegExp(r'^\d{1,2}[./]\d{1,2}[./]\d{2,4}$').hasMatch(t)) return true;
+  const phrases = [
+    'devam ediyor',
+    'her hafta',
+    'her gün',
+    'her gun',
+    'bu hafta',
+    'sürekli',
+    'surekli',
+    'vizyonda',
+  ];
+  for (final p in phrases) {
+    if (lower.contains(p)) return true;
+  }
+  return false;
+}
+
+String _prettyEventWhen(String raw) {
+  final t = raw.trim();
+  if (t.isEmpty) return '';
+  final iso = _isoDateRe.firstMatch(t);
+  if (iso != null) {
+    final y = int.tryParse(iso.group(1)!);
+    final m = int.tryParse(iso.group(2)!);
+    final d = int.tryParse(iso.group(3)!);
+    if (y != null && m != null && d != null && m >= 1 && m <= 12) {
+      return '$d ${_trMonthNames[m - 1]} $y';
+    }
+  }
+  return t;
+}
+
+String _normalizeClockTime(String raw) {
+  return raw.trim().replaceAll('.', ':');
+}
+
+({String when, String time, String body}) splitEtkinlikWhen({
+  required String description,
+  String eventDate = '',
+}) {
+  final desc = description.trim();
+  var rawWhen = eventDate.trim();
+  var body = desc;
+  if (rawWhen.isEmpty && desc.isNotEmpty) {
+    final nl = desc.indexOf('\n');
+    final first = (nl < 0 ? desc : desc.substring(0, nl)).trim();
+    if (_looksLikeEventWhen(first)) {
+      rawWhen = first;
+      body = nl < 0 ? '' : desc.substring(nl + 1).trim();
+    }
+  } else if (rawWhen.isNotEmpty && desc.isNotEmpty) {
+    final nl = desc.indexOf('\n');
+    final first = (nl < 0 ? desc : desc.substring(0, nl)).trim();
+    if (first == rawWhen || first == _prettyEventWhen(rawWhen)) {
+      body = nl < 0 ? '' : desc.substring(nl + 1).trim();
+    }
+  }
+  if (rawWhen.isEmpty) {
+    return (when: '', time: '', body: body);
+  }
+  final timeMatch = _clockTimeRe.firstMatch(rawWhen);
+  var time = '';
+  var when = rawWhen;
+  if (timeMatch != null) {
+    time = _normalizeClockTime(timeMatch.group(1)!);
+    when = rawWhen.replaceFirst(timeMatch.group(0)!, '').trim();
+    when = when.replaceAll(RegExp(r'[,;|/]+$'), '').trim();
+    when = when.replaceAll(RegExp(r'^[,;|/]+'), '').trim();
+    when = when.replaceAll(RegExp(r'\s{2,}'), ' ');
+    when = when.replaceAll(RegExp(r'\s*,\s*$'), '').trim();
+  }
+  when = _prettyEventWhen(when);
+  return (when: when, time: time, body: body);
+}
+
 enum GeziKampanyaKind { gezi, kampanya, etkinlik }
 
 bool isCityFeedKind(GeziKampanyaKind kind) =>
@@ -154,6 +265,7 @@ class KampanyaItem {
     this.description = '',
     this.city = '',
     this.avmName = '',
+    this.eventDate = '',
     this.sortOrder = 0,
     this.isActive = true,
     this.createdBy = '',
@@ -168,6 +280,8 @@ class KampanyaItem {
   final String city;
   /// AVM adı (scraper); kampanyalarda boş.
   final String avmName;
+  /// Scraper `event_date` kolonu (yoksa açıklamanın ilk satırından okunur).
+  final String eventDate;
   final int sortOrder;
   final bool isActive;
   final String createdBy;
@@ -176,6 +290,20 @@ class KampanyaItem {
   bool get hasDescription => description.trim().isNotEmpty;
 
   bool get isNationwide => isKampanyaNationwide(city);
+
+  ({String when, String time, String body}) get _whenParts => splitEtkinlikWhen(
+        description: description,
+        eventDate: eventDate,
+      );
+
+  /// Kartta gösterilecek tarih / dönem (saat ayrı).
+  String get eventWhenLabel => _whenParts.when;
+
+  /// Kaynakta varsa saat (ör. 14:00); yoksa boş — uydurulmaz.
+  String get eventTimeLabel => _whenParts.time;
+
+  /// Tarih satırı kart meta’sına alındıysa gövde metni.
+  String get cardDescription => _whenParts.body;
 
   String get locationLabel {
     final loc = kampanyaLocationLabel(city);
@@ -197,6 +325,7 @@ class KampanyaItem {
       description: json['description']?.toString() ?? '',
       city: json['city']?.toString() ?? '',
       avmName: json['avm_name']?.toString() ?? '',
+      eventDate: json['event_date']?.toString() ?? '',
       sortOrder: sortOrder > 0 ? sortOrder : sortIndex,
       isActive: json['is_active'] != false,
       createdBy: json['created_by']?.toString() ?? '',
