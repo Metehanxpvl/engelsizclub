@@ -165,10 +165,11 @@ const GEMINI_FALLBACK_MODELS = [
   "gemini-flash-lite-latest",
   "gemini-3.6-flash",
 ];
+// GA adlar (2026-06-25 sonrası). `gemini-3.1-flash-lite-image` diye model yok.
 const DEFAULT_GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
 const GEMINI_IMAGE_FALLBACK_MODELS = [
   "gemini-3.1-flash-image",
-  "gemini-3.1-flash-lite-image",
+  "gemini-3-pro-image",
 ];
 const GEMINI_PER_MODEL_MS = 12000;
 const GEMINI_IMAGE_PER_MODEL_MS = 45000;
@@ -186,6 +187,20 @@ function wantsGeminiImage(payload) {
   const mods = gc && (gc.responseModalities || gc.response_modalities);
   if (!Array.isArray(mods)) return false;
   return mods.some((x) => String(x).toUpperCase().includes("IMAGE"));
+}
+
+/**
+ * Google ülke kısıtı. Worker'ın çıkış PoP'u garanti değil (TR/AB ise kapalı);
+ * model değiştirmek çözmez. Görsel için Supabase gemini-proxy'yi
+ * `x-region: us-east-1` ile çağırmak gerekir.
+ */
+function isGeminiCountryBlocked(status, text) {
+  if (status !== 400 && status !== 403) return false;
+  const lower = String(text || "").toLowerCase();
+  return (
+    lower.includes("not available in your country") ||
+    lower.includes("user location is not supported")
+  );
 }
 
 function isGoogleModel404(status, text) {
@@ -313,6 +328,16 @@ async function handleGemini(request, env) {
       return new Response(result.text, {
         status: result.status,
         headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+    if (isGeminiCountryBlocked(result.status, result.text)) {
+      return json(451, {
+        error: {
+          message:
+            "Google görsel üretimi bu bölgeden kapalı. Supabase gemini-proxy'yi " +
+            "x-region: us-east-1 ile çağır.",
+          status: "COUNTRY_BLOCKED",
+        },
       });
     }
     if (!shouldTryNextGemini(result.status, result.text)) {

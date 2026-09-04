@@ -162,7 +162,7 @@ class _BoyamaPageState extends State<BoyamaPage> {
       _busyLabel = 'Çizgi filme çevriliyor…';
       _retryBytes = bytes;
     });
-    String? fallbackNote;
+    var resultNote = '';
     try {
       Uint8List? cartoonPng;
       try {
@@ -178,15 +178,14 @@ class _BoyamaPageState extends State<BoyamaPage> {
           if (!mounted) return;
           setState(() => _busyLabel = 'Boyama sayfası hazırlanıyor…');
           cartoonPng = await compute(cartoonBytesToColoringPng, cartoonBytes);
+          resultNote = 'Çizgi filme çevrildi 🎨';
         } else {
           debugPrint('Boyama cartoon failed: ${cartoon.$2}');
-          fallbackNote =
-              'Çizgi film servisi kullanılamadı; basit kalıp hazırlandı.';
+          resultNote = _fallbackNote(cartoon.$2);
         }
       } catch (e, st) {
         debugPrint('Boyama cartoon path failed: $e\n$st');
-        fallbackNote =
-            'Çizgi film servisi kullanılamadı; basit kalıp hazırlandı.';
+        resultNote = _fallbackNote(null);
       }
 
       final Uint8List png;
@@ -196,8 +195,7 @@ class _BoyamaPageState extends State<BoyamaPage> {
         if (!mounted) return;
         setState(() => _busyLabel = 'Basit boyama kalıbı hazırlanıyor…');
         png = await compute(photoBytesToLocalColoringPng, bytes);
-        fallbackNote ??=
-            'Çizim oluşturulamadı, basit kalıp kullanıldı.';
+        if (resultNote.isEmpty) resultNote = _fallbackNote(null);
       }
 
       final codec = await ui.instantiateImageCodec(png);
@@ -213,7 +211,7 @@ class _BoyamaPageState extends State<BoyamaPage> {
         _current = null;
         _busy = false;
       });
-      if (fallbackNote != null) _showSnack(fallbackNote);
+      if (resultNote.isNotEmpty) _showSnack(resultNote);
     } catch (e, st) {
       debugPrint('Boyama convert failed: $e\n$st');
       if (!mounted) return;
@@ -223,6 +221,14 @@ class _BoyamaPageState extends State<BoyamaPage> {
         retry: true,
       );
     }
+  }
+
+  /// Yerel yedek istisna olmalı — kullanıcı hangi yolun çalıştığını görsün.
+  static String _fallbackNote(String? error) {
+    const base = 'Basit kalıp kullanıldı';
+    final reason = (error ?? '').trim();
+    if (reason.isEmpty) return '$base — çizgi film servisi yanıt vermedi.';
+    return '$base — $reason';
   }
 
   void _showSnack(String message, {bool retry = false}) {

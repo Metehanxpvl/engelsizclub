@@ -510,10 +510,30 @@
         return null;
       }
 
-      function photoToCartoon(jpegB64, aspect) {
+      // Google görsel üretimi AB/TR IP'lerine kapalı. Edge Function varsayılan
+      // olarak en yakın bölgede koşar (TR -> eu-central-1) ve 400
+      // "Image generation is not available in your country." alır.
+      // Bu yüzden görsel istekleri ABD bölgesine sabitlenir.
+      var IMAGE_REGIONS = ['us-east-1', 'us-west-1'];
+
+      function isCountryBlocked(status, text) {
+        var lower = String(text || '').toLowerCase();
+        if (status === 451 || lower.indexOf('country_blocked') >= 0) return true;
+        if (status !== 400 && status !== 403) return false;
+        return (
+          lower.indexOf('not available in your country') >= 0 ||
+          lower.indexOf('user location is not supported') >= 0
+        );
+      }
+
+      function cartoonOnce(jpegB64, aspect, region) {
         var ac = new AbortController();
-        var timer = setTimeout(function () { ac.abort(); }, 25000);
-        return fetch(SUPABASE_URL + '/functions/v1/gemini-proxy', {
+        var timer = setTimeout(function () { ac.abort(); }, 75000);
+        // Sorgu parametresi kullan: `x-region` başlığı CORS ön kontrolünde
+        // Access-Control-Allow-Headers listesine bağımlı olur.
+        var url = SUPABASE_URL +
+          '/functions/v1/gemini-proxy?forceFunctionRegion=' + region;
+        return fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -534,11 +554,14 @@
           signal: ac.signal
         }).then(function (res) {
           return res.text().then(function (text) {
+            if (isCountryBlocked(res.status, text)) {
+              var blocked = new Error('country blocked');
+              blocked.countryBlocked = true;
+              throw blocked;
+            }
+            if (!res.ok) throw new Error('gemini ' + res.status);
             var json = {};
             try { json = text ? JSON.parse(text) : {}; } catch (_) {}
-            if (!res.ok) {
-              throw new Error('gemini ' + res.status);
-            }
             var src = firstInlineImage(json);
             if (!src) throw new Error('no image');
             return src;
@@ -546,6 +569,21 @@
         }).finally(function () {
           clearTimeout(timer);
         });
+      }
+
+      // Bölge yalnız ülke kısıtında ilerler; diğer hatalar her bölgede aynıdır.
+      function photoToCartoon(jpegB64, aspect) {
+        function attempt(i) {
+          return cartoonOnce(jpegB64, aspect, IMAGE_REGIONS[i])
+            .catch(function (err) {
+              var next = i + 1;
+              if (err && err.countryBlocked && next < IMAGE_REGIONS.length) {
+                return attempt(next);
+              }
+              throw err;
+            });
+        }
+        return attempt(0);
       }
 
       function applyLineArt(canvasArt, note) {
@@ -573,16 +611,17 @@
           .then(function (src) {
             setBusy(true, 'Boyama sayfası hazırlanıyor…', false);
             return loadImageSrc(src).then(function (im) {
-              applyLineArt(cartoonToColoring(im), null);
+              applyLineArt(cartoonToColoring(im), 'Çizgi filme çevrildi 🎨');
             });
           })
-          .catch(function () {
+          .catch(function (err) {
+            // Yerel yedek istisna olmalı — hangi yolun çalıştığını söyle.
+            var why = err && err.countryBlocked
+              ? 'çizgi film servisi bu bölgeden kapalı'
+              : 'çizgi film servisi yanıt vermedi';
             return localFromJpegB64(jpegB64)
               .then(function (art) {
-                applyLineArt(
-                  art,
-                  'Çizgi film servisi kullanılamadı; basit kalıp hazırlandı.'
-                );
+                applyLineArt(art, 'Basit kalıp kullanıldı — ' + why + '.');
               })
               .catch(function () {
                 setBusy(

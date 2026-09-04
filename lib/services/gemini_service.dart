@@ -514,8 +514,16 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
         preferredModels: preferredModels,
       );
 
+  /// Son başarılı çizgi film isteğinde kullanılan model (tanı / UI için).
+  static String? lastImageModel;
+
   /// Fotoğraf + metin → üretilmiş görsel (PNG/JPEG bayt).
   /// `gemini-proxy` `generateImage: true` ile yalnız *-image modellerini dener.
+  ///
+  /// Bölge: Google görsel üretimi AB/TR IP’lerine kapalı. Edge Function
+  /// varsayılan olarak kullanıcıya en yakın bölgede (TR → eu-central-1) koşar
+  /// ve 400 “Image generation is not available in your country.” alır.
+  /// Bu yüzden istek ABD bölgesine sabitlenir; kısıt sürerse sıradaki bölge.
   static Future<(Uint8List?, String?)> generateImageFromPhoto({
     required String prompt,
     required Uint8List imageBytes,
@@ -523,6 +531,7 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
     String? aspectRatio,
   }) async {
     lastError = null;
+    lastImageModel = null;
     if (prompt.trim().isEmpty) {
       lastError = 'Görsel istemi boş.';
       return (null, lastError);
@@ -575,74 +584,102 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
         'imageConfig': imageConfig,
       },
     };
-    final deadline = DateTime.now().add(const Duration(seconds: 95));
-    for (final model in models) {
-      if (model.isEmpty || !seen.add(model)) continue;
+    final deadline = DateTime.now().add(const Duration(seconds: 170));
+    // Bölge yalnız ülke kısıtında ilerler; kota/ağ hatası her bölgede aynıdır.
+    for (final region in LlmConfig.imageRegions) {
       if (DateTime.now().isAfter(deadline)) break;
-      try {
-        final res = await _postGemini(
-          model: model,
-          payload: payload,
-          timeout: const Duration(seconds: 50),
-          proxyTimeout: const Duration(seconds: 55),
-        );
-        if (res == null) {
-          lastFail ??= lastError ??
-              'Görsel isteği gönderilemedi (proxy veya ağ).';
-          if (_isFatalProxyFail(lastFail)) break;
-          continue;
-        }
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          lastFail = _httpErrorTr(res.statusCode, res.body);
-          debugPrint('Gemini image $model ${res.statusCode}: ${res.body}');
-          if (_isFatalProxyStatus(res.statusCode, res.body)) break;
-          continue;
-        }
-        final decoded = jsonDecode(res.body);
-        if (decoded is! Map) {
-          lastFail = 'Beklenmeyen görsel yanıtı.';
-          continue;
-        }
-        if (decoded['error'] is Map) {
-          lastFail = _googleErrorTr(decoded['error'] as Map);
-          if (_isMissingGeminiSecret(res.body) || _isFatalProxyFail(lastFail)) {
-            break;
-          }
-          continue;
-        }
-        if (decoded['error'] is String) {
-          lastFail = _httpErrorTr(
-            res.statusCode >= 400 ? res.statusCode : 503,
-            res.body,
+      seen.clear();
+      var countryBlocked = false;
+      for (final model in models) {
+        if (model.isEmpty || !seen.add(model)) continue;
+        if (DateTime.now().isAfter(deadline)) break;
+        try {
+          final res = await _postGemini(
+            model: model,
+            payload: payload,
+            timeout: const Duration(seconds: 55),
+            proxyTimeout: const Duration(seconds: 60),
+            region: region,
           );
-          continue;
-        }
-        final candidates = decoded['candidates'];
-        if (candidates is! List || candidates.isEmpty) {
-          lastFail = 'Çizgi film modeli görsel döndürmedi.';
-          continue;
-        }
-        final first = candidates.first;
-        if (first is Map) {
-          final finish = first['finishReason']?.toString() ?? '';
-          if (finish.contains('SAFETY') ||
-              finish.contains('NO_IMAGE') ||
-              finish.contains('IMAGE_OTHER')) {
-            lastFail =
-                'Bu fotoğraf çizgi filme çevrilemedi. Başka bir kare dene.';
+          if (res == null) {
+            lastFail ??= lastError ??
+                'Görsel isteği gönderilemedi (proxy veya ağ).';
+            if (_isFatalProxyFail(lastFail)) break;
             continue;
           }
+          if (_isCountryBlocked(res.statusCode, res.body)) {
+            countryBlocked = true;
+            lastFail = _countryBlockedMessage;
+            debugPrint(
+              'Gemini image $model bölge=$region ülke kısıtı — sıradaki bölge',
+            );
+            break;
+          }
+          if (res.statusCode < 200 || res.statusCode >= 300) {
+            lastFail = _httpErrorTr(res.statusCode, res.body);
+            debugPrint('Gemini image $model ${res.statusCode}: ${res.body}');
+            if (_isFatalProxyStatus(res.statusCode, res.body)) break;
+            continue;
+          }
+          final decoded = jsonDecode(res.body);
+          if (decoded is! Map) {
+            lastFail = 'Beklenmeyen görsel yanıtı.';
+            continue;
+          }
+          if (decoded['error'] is Map) {
+            lastFail = _googleErrorTr(decoded['error'] as Map);
+            if (_isMissingGeminiSecret(res.body) ||
+                _isFatalProxyFail(lastFail)) {
+              break;
+            }
+            continue;
+          }
+          if (decoded['error'] is String) {
+            lastFail = _httpErrorTr(
+              res.statusCode >= 400 ? res.statusCode : 503,
+              res.body,
+            );
+            continue;
+          }
+          final png = _firstInlineImage(decoded);
+          if (png != null && png.isNotEmpty) {
+            lastImageModel = model;
+            debugPrint('Gemini image OK model=$model bölge=$region');
+            return (png, null);
+          }
+          // 200 ama görsel yok: metin modeli (eski proxy) veya NO_IMAGE/SAFETY.
+          final candidates = decoded['candidates'];
+          final first = candidates is List && candidates.isNotEmpty
+              ? candidates.first
+              : null;
+          final finish =
+              first is Map ? first['finishReason']?.toString() ?? '' : '';
+          lastFail = finish.contains('SAFETY')
+              ? 'Bu fotoğraf çizgi filme çevrilemedi. Başka bir kare dene.'
+              : 'Çizgi film modeli görsel döndürmedi ($model'
+                  '${finish.isEmpty ? '' : ' / $finish'}).';
+          debugPrint('Gemini image $model görselsiz 200: finish=$finish');
+        } catch (e, st) {
+          lastFail = _exceptionTr(e);
+          debugPrint('Gemini image hata ($model/$region): $e\n$st');
         }
-        final png = _firstInlineImage(decoded);
-        if (png != null && png.isNotEmpty) return (png, null);
-        lastFail = 'Çizgi film modeli görsel döndürmedi.';
-      } catch (e, st) {
-        lastFail = _exceptionTr(e);
-        debugPrint('Gemini image hata ($model): $e\n$st');
       }
+      if (!countryBlocked) break;
     }
     lastError = lastFail ?? modelUnavailableMessage;
     return (null, lastError);
+  }
+
+  static const _countryBlockedMessage =
+      'Google çizgi film servisi bu bölgeden kapalı (ülke kısıtı).';
+
+  /// Google 400/403 ülke kısıtı ya da gemini-proxy 451 COUNTRY_BLOCKED.
+  static bool _isCountryBlocked(int status, String body) {
+    final lower = body.toLowerCase();
+    if (status == 451 || lower.contains('country_blocked')) return true;
+    if (status != 400 && status != 403) return false;
+    return lower.contains('not available in your country') ||
+        lower.contains('user location is not supported');
   }
 
   static Uint8List? _firstInlineImage(Map decoded) {
@@ -854,12 +891,14 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
     required Map<String, Object> payload,
     required Duration timeout,
     Duration? proxyTimeout,
+    String? region,
   }) async {
     final wait = proxyTimeout ?? timeout;
     final invoked = await _postViaSupabaseInvoke(
       model: model,
       payload: payload,
       timeout: wait,
+      region: region,
     );
     if (invoked != null && !_isSupabaseGatewayAuthFail(invoked)) {
       return invoked;
@@ -874,6 +913,7 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
       model: model,
       payload: payload,
       timeout: wait,
+      region: region,
     );
     if (proxied != null) return proxied;
     debugPrint(
@@ -959,12 +999,17 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
     required String model,
     required Map<String, Object> payload,
     required Duration timeout,
+    String? region,
   }) async {
     try {
       final client = Supabase.instance.client;
       final anon = _supabaseAnonKey();
       if (anon.isEmpty) return null;
-      debugPrint('Gemini invoke gemini-proxy model=$model auth=anon');
+      final pinned = (region ?? '').trim();
+      debugPrint(
+        'Gemini invoke gemini-proxy model=$model auth=anon '
+        'region=${pinned.isEmpty ? 'auto' : pinned}',
+      );
       final res = await withNetworkTimeout(
         client.functions.invoke(
           'gemini-proxy',
@@ -973,6 +1018,10 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
             'Authorization': 'Bearer $anon',
             'apikey': anon,
           },
+          // `region:` yerine sorgu parametresi: `x-region` başlığı web’de CORS
+          // ön kontrolü tetikler ve eski dağıtımlarda reddedilir.
+          queryParameters:
+              pinned.isEmpty ? null : {'forceFunctionRegion': pinned},
         ),
         timeout: timeout,
         message: 'Analiz yanıt vermedi. Lütfen tekrar deneyin.',
@@ -1025,6 +1074,7 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
     required String model,
     required Map<String, Object> payload,
     required Duration timeout,
+    String? region,
   }) async {
     final urls = <String>[
       if (LlmConfig.hasProxyUrl) LlmConfig.trimmedGeminiProxyUrl,
@@ -1032,16 +1082,17 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
       _supabaseProxy,
     ];
     final body = jsonEncode(_proxyBody(model, payload));
+    final pinned = (region ?? '').trim();
     String? lastFail;
     for (final url in urls) {
       try {
-        debugPrint('Gemini proxy POST $url model=$model');
+        debugPrint('Gemini proxy POST $url model=$model region=$pinned');
         final headers = <String, String>{
           'Content-Type': 'application/json',
           ..._supabaseHeaders(url),
         };
         final res = await withNetworkTimeout(
-          http.post(Uri.parse(url), headers: headers, body: body),
+          http.post(_proxyUri(url, pinned), headers: headers, body: body),
           timeout: timeout,
           message: 'Analiz yanıt vermedi. Lütfen tekrar deneyin.',
         );
@@ -1058,6 +1109,18 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
     }
     if (lastFail != null) lastError = lastFail;
     return null;
+  }
+
+  /// Supabase Edge Function bölgesini sabitler (Cloudflare Worker’ı etkilemez).
+  static Uri _proxyUri(String url, String region) {
+    final uri = Uri.parse(url);
+    if (region.isEmpty || !url.contains('supabase.co/functions')) return uri;
+    return uri.replace(
+      queryParameters: {
+        ...uri.queryParameters,
+        'forceFunctionRegion': region,
+      },
+    );
   }
 
   /// Yalnız Supabase “Requested function was not found”. Google model 404 değil.
@@ -1165,6 +1228,7 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
   static String _httpErrorTr(int status, String body) {
     final lower = body.toLowerCase();
     final clip = _clipBody(body);
+    if (_isCountryBlocked(status, body)) return _countryBlockedMessage;
     if (status == 401) {
       if (_isGoogleAuthError(body)) {
         return 'Gemini anahtarı geçersiz (secret GEMINI_API_KEY).';
