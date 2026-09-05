@@ -96,13 +96,9 @@ class MedicineRepository {
               scannedUrl.trim().isNotEmpty &&
               (cached.prospectusUrl ?? '').trim().isEmpty) {
             withUrl = cached.copyWith(prospectusUrl: scannedUrl.trim());
-            if (cached.id != null) {
-              withUrl = await _updateById(
-                cached.id!,
-                withUrl.copyWith(id: cached.id),
-              );
-            }
           }
+          // Özet tam olsa bile resmi KT yoksa TİTCK KÜB/KT dene.
+          withUrl = await attachOfficialProspectus(withUrl);
           return MedicineLookupResult(
             record: withUrl,
             barcode: ean,
@@ -148,24 +144,17 @@ class MedicineRepository {
         }
       }
 
-      if (seed != null &&
-          seed.medicineName.trim().isNotEmpty &&
-          (seed.prospectusUrl == null || seed.prospectusUrl!.trim().isEmpty)) {
+      if (seed != null && seed.needsLeaflet) {
         seed = await _attachLeaflet(seed);
       }
 
       // GTIN / SKRS kimliği bulundu. Özet tam ise Gemini’ye gitme;
-      // eksikse aşağıdaki yol ne işe yarar / etkileşim kartlarını doldurur.
+      // resmi KT yoksa yukarıda KÜB/KT bağlandı.
       if (seed != null &&
           seed.isFound &&
           seed.isComplete &&
           !hasPhoto &&
           text.isEmpty) {
-        if ((seed.prospectusUrl == null ||
-                seed.prospectusUrl!.trim().isEmpty) &&
-            seed.medicineName.trim().isNotEmpty) {
-          seed = await _attachLeaflet(seed);
-        }
         final stored = await save(seed);
         return MedicineLookupResult(
           record: stored,
@@ -284,9 +273,7 @@ class MedicineRepository {
               record.prospectusUrl!.trim().isEmpty)) {
         record = record.copyWith(prospectusUrl: scannedUrl);
       }
-      if ((record.prospectusUrl == null ||
-              record.prospectusUrl!.trim().isEmpty) &&
-          record.medicineName.trim().isNotEmpty) {
+      if (record.needsLeaflet) {
         record = await _attachLeaflet(record);
       }
 
@@ -495,7 +482,8 @@ class MedicineRepository {
 
     final cached = await findBestByName(name);
     if (cached != null && cached.isComplete) {
-      return MedicineLookupResult(record: cached, fromCache: true);
+      final rec = await attachOfficialProspectus(cached);
+      return MedicineLookupResult(record: rec, fromCache: true);
     }
 
     TitckSkrsHit? skrsHit;
@@ -519,7 +507,7 @@ class MedicineRepository {
 
     if (!GeminiService.canCall) {
       if (seed != null && seed.isFound) {
-        final stored = await save(seed);
+        final stored = await save(await attachOfficialProspectus(seed));
         return MedicineLookupResult(record: stored, fromCache: false);
       }
       return const MedicineLookupResult(
@@ -561,9 +549,7 @@ class MedicineRepository {
         record = record.copyWith(medicineName: name);
       }
       record = _mergeProspectus(seed, record);
-      if ((record.prospectusUrl == null ||
-              record.prospectusUrl!.trim().isEmpty) &&
-          record.medicineName.trim().isNotEmpty) {
+      if (record.needsLeaflet) {
         record = await _attachLeaflet(record);
       }
       final stored = await save(record);
@@ -695,7 +681,7 @@ class MedicineRepository {
   }
 
   static Future<MedicineRecord> _attachLeaflet(MedicineRecord record) async {
-    if ((record.prospectusUrl ?? '').trim().isNotEmpty) return record;
+    if (record.hasOfficialProspectus) return record;
     final name = record.medicineName.trim();
     if (name.length < 3) return record;
     final leaflet = await TitckKubktService.findLeaflet(name);
@@ -710,12 +696,43 @@ class MedicineRepository {
     );
   }
 
+  /// Resmi KT / KÜB URL yoksa TİTCK’den dene ve önbelleğe yaz.
+  /// Özet (`isComplete`) tam olsa bile URL atılmaz.
+  static Future<MedicineRecord> attachOfficialProspectus(
+    MedicineRecord record,
+  ) async {
+    if (!record.needsLeaflet) return record;
+    final withUrl = await _attachLeaflet(record);
+    if (!withUrl.hasOfficialProspectus) return withUrl;
+    try {
+      return await save(withUrl);
+    } catch (e, st) {
+      debugPrint('prospektüs URL kaydı atlandı: $e\n$st');
+      return withUrl;
+    }
+  }
+
+  /// Tam önbellek satırına yeni KT URL yaz; diğer alanları ezme.
+  static Future<MedicineRecord> _mergeLeafletIntoCached(
+    MedicineRecord cached,
+    MedicineRecord incoming,
+  ) async {
+    if (!incoming.hasOfficialProspectus || cached.hasOfficialProspectus) {
+      return cached;
+    }
+    final merged = cached.copyWith(prospectusUrl: incoming.prospectusUrl);
+    if (cached.id != null) {
+      return _updateById(cached.id!, merged);
+    }
+    return merged;
+  }
+
   static Future<MedicineRecord> save(MedicineRecord medicine) async {
     final code = (medicine.barcode ?? '').trim();
     if (code.length >= 4) {
       final byCode = await findByBarcode(code);
       if (byCode != null && byCode.isComplete) {
-        return byCode;
+        return _mergeLeafletIntoCached(byCode, medicine);
       }
       if (byCode != null && byCode.id != null) {
         return _updateById(byCode.id!, medicine.copyWith(id: byCode.id));
@@ -726,7 +743,7 @@ class MedicineRepository {
     if (nameHit != null && nameHit.id != null) {
       final incomingHasImage = (medicine.imageUrl ?? '').trim().isNotEmpty;
       if (nameHit.isComplete && !incomingHasImage) {
-        return nameHit;
+        return _mergeLeafletIntoCached(nameHit, medicine);
       }
       return _updateById(
         nameHit.id!,
@@ -746,7 +763,9 @@ class MedicineRepository {
     if (code.length >= 4) {
       final existing = await findByBarcode(code);
       if (existing != null) {
-        if (existing.isComplete && !medicine.isComplete) return existing;
+        if (existing.isComplete && !medicine.isComplete) {
+          return _mergeLeafletIntoCached(existing, medicine);
+        }
         if (existing.id != null) {
           return _updateById(
             existing.id!,

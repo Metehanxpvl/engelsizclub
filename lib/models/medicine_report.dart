@@ -47,13 +47,18 @@ class MedicineRecord {
   bool get hasUsefulName =>
       medicineName.trim().length >= 2 && !isNumericName(medicineName);
 
-  /// Ne işe yarar veya kullanım doluysa prospektüs var sayılır.
-  /// Tek başına "Yok" listesi / uyarı kartı tam kayıt değildir.
-  bool get isComplete =>
-      hasUsefulName &&
-      (!isUnknownText(indications) || !isUnknownText(usageText));
+  /// Gemini özeti: ne işe yarar veya kullanım doluysa tam sayılır.
+  /// Resmi KT / KÜB URL ayrı; tek başına ad veya "Yok" kartı yetmez.
+  bool get isComplete => hasUsefulName && hasProspectusDetails;
 
   bool get needsEnrichment => isFound && !isComplete;
+
+  /// In-app prospektüs özeti (ne işe yarar / kullanım / liste).
+  bool get hasProspectusDetails =>
+      !isUnknownText(indications) || !isUnknownText(usageText);
+
+  /// Ad var, resmi KT yok — TİTCK KÜB/KT hâlâ aranmalı (özet tam olsa bile).
+  bool get needsLeaflet => hasUsefulName && !hasOfficialProspectus;
 
   /// Boş, "Yok", "Bilinmiyor", tire — yeşil Yok uydurma.
   static bool isUnknownText(String raw) {

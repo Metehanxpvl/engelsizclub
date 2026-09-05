@@ -56,6 +56,15 @@ void main() {
     expect(hits.first.name, 'PAROL PLUS 30 TABLET');
   });
 
+  test('TİTCK leaflet prefers KT URL over KÜB', () {
+    const hit = TitckLeafletHit(
+      name: 'PAROL',
+      ktUrl: 'https://www.titck.gov.tr/kt.pdf',
+      kubUrl: 'https://www.titck.gov.tr/kub.pdf',
+    );
+    expect(hit.prospectusUrl, 'https://www.titck.gov.tr/kt.pdf');
+  });
+
   test('TİTCK leaflet search query uses first tokens', () {
     expect(
       TitckKubktService.searchQuery(
@@ -88,7 +97,30 @@ void main() {
     );
     expect(rec.isFound, isTrue);
     expect(rec.isComplete, isFalse);
+    expect(rec.hasProspectusDetails, isFalse);
+    expect(rec.needsLeaflet, isTrue);
     expect(rec.needsEnrichment, isTrue);
+  });
+
+  test('Gemini summary without KT URL still needs leaflet', () {
+    const rec = MedicineRecord(
+      medicineName: 'PAROL 500 MG 20 TABLET',
+      indications: 'Ağrı ve ateş',
+      source: 'llm',
+    );
+    expect(rec.isComplete, isTrue);
+    expect(rec.hasProspectusDetails, isTrue);
+    expect(rec.hasOfficialProspectus, isFalse);
+    expect(rec.needsLeaflet, isTrue);
+  });
+
+  test('Official KT URL is enough to open prospectus', () {
+    const rec = MedicineRecord(
+      medicineName: 'PAROL 500 MG 20 TABLET',
+      prospectusUrl: 'https://www.titck.gov.tr/storage/kt.pdf',
+    );
+    expect(rec.hasOfficialProspectus, isTrue);
+    expect(rec.needsLeaflet, isFalse);
   });
 
   test('Placeholder Yok does not count as prospectus details', () {

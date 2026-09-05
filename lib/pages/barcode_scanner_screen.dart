@@ -425,6 +425,37 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     }
   }
 
+  bool _isSameMedicineRecord(MedicineRecord a, MedicineRecord b) {
+    if (a.id != null && b.id != null && a.id == b.id) return true;
+    final ac = (a.barcode ?? '').trim();
+    final bc = (b.barcode ?? '').trim();
+    if (ac.length >= 4 && ac == bc) return true;
+    final an = a.medicineName.trim().toLowerCase();
+    final bn = b.medicineName.trim().toLowerCase();
+    return an.length >= 2 && an == bn;
+  }
+
+  /// Ad geldi, resmi KT yoksa TİTCK KÜB/KT’yi kartı bozmadan bağla.
+  Future<void> _enrichMedicineLeaflet() async {
+    final current = _medicine;
+    final rec = current?.record;
+    if (rec == null || !rec.needsLeaflet) return;
+    final updated = await MedicineRepository.attachOfficialProspectus(rec);
+    if (!mounted || !updated.hasOfficialProspectus) return;
+    final shown = _medicine?.record;
+    if (shown == null || !_isSameMedicineRecord(shown, rec)) return;
+    setState(() {
+      _medicine = MedicineLookupResult(
+        record: updated,
+        barcode: current?.barcode ?? updated.barcode,
+        fromCache: current?.fromCache ?? false,
+        error: current?.error,
+        needsPhoto: current?.needsPhoto ?? false,
+        needsKey: current?.needsKey ?? false,
+      );
+    });
+  }
+
   Future<void> _lookupMedicine(
     String raw, {
     Uint8List? labelBytes,
@@ -482,6 +513,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                     ? MedicineRepository.needsKeyMessage
                     : MedicineRepository.needsPhotoMessage));
       });
+      if (result.isFound) unawaited(_enrichMedicineLeaflet());
       if (!result.isFound && widget.isTabActive) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && widget.isTabActive && _medicine?.isFound != true) {
@@ -1001,6 +1033,8 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
         _nameSearchError = null;
         _nameSearching = false;
       });
+      // Özet tam olsa bile resmi KT yoksa TİTCK’yi arka planda dene.
+      unawaited(_enrichMedicineLeaflet());
       return;
     }
     final name = rec?.hasUsefulName == true
@@ -1055,6 +1089,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
         _medicineHits = const [];
         _nameSearchError = null;
       });
+      if (_medicine?.isFound == true) unawaited(_enrichMedicineLeaflet());
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -1071,6 +1106,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
         _handling = false;
         _status = null;
       });
+      if (seed.isFound) unawaited(_enrichMedicineLeaflet());
     }
   }
 
@@ -2044,53 +2080,37 @@ class _MedicineResultCard extends StatelessWidget {
           previewBytes: previewBytes,
         ),
         const SizedBox(height: 14),
-        FilledButton.icon(
-          onPressed: () => _MedicineProspectusPage.open(
-            context,
-            medicine: medicine,
-            previewBytes: previewBytes,
-            isGuest: isGuest,
-          ),
-          icon: const Icon(Icons.menu_book_rounded),
-          label: const L10nText('Prospektüs görüntüle'),
-          style: FilledButton.styleFrom(
-            backgroundColor: MetoColors.primary,
-            foregroundColor: Colors.white,
-            minimumSize: const Size.fromHeight(50),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            textStyle: GoogleFonts.nunito(
-              fontWeight: FontWeight.w800,
-              fontSize: 15,
-            ),
-          ),
-        ),
-        if (medicine.hasOfficialProspectus) ...[
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () => ProspectusViewer.open(
+        if (medicine.hasProspectusDetails) ...[
+          FilledButton.icon(
+            onPressed: () => _MedicineProspectusPage.open(
               context,
-              url: medicine.prospectusUrl!.trim(),
-              title: 'Resmi kullanma talimatı (TİTCK)',
+              medicine: medicine,
+              previewBytes: previewBytes,
               isGuest: isGuest,
             ),
-            icon: const Icon(Icons.open_in_new_rounded, size: 18),
-            label: const L10nText('Resmi kullanma talimatı (TİTCK)'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: MetoColors.primaryDark,
-              side: const BorderSide(color: MetoColors.border),
-              minimumSize: const Size.fromHeight(46),
+            icon: const Icon(Icons.menu_book_rounded),
+            label: const L10nText('Prospektüs görüntüle'),
+            style: FilledButton.styleFrom(
+              backgroundColor: MetoColors.primary,
+              foregroundColor: Colors.white,
+              minimumSize: const Size.fromHeight(50),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
               textStyle: GoogleFonts.nunito(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
               ),
             ),
           ),
+          const SizedBox(height: 8),
         ],
+        if (medicine.hasOfficialProspectus || medicine.hasUsefulName)
+          _OfficialProspectusButton(
+            medicine: medicine,
+            isGuest: isGuest,
+            prominent: !medicine.hasProspectusDetails,
+          ),
         const SizedBox(height: 16),
         _MedicineProspectusSections(medicine: medicine),
       ],
@@ -2098,7 +2118,127 @@ class _MedicineResultCard extends StatelessWidget {
   }
 }
 
-class _MedicineProspectusPage extends StatelessWidget {
+class _OfficialProspectusButton extends StatefulWidget {
+  const _OfficialProspectusButton({
+    required this.medicine,
+    this.isGuest = false,
+    this.prominent = false,
+  });
+
+  final MedicineRecord medicine;
+  final bool isGuest;
+  final bool prominent;
+
+  @override
+  State<_OfficialProspectusButton> createState() =>
+      _OfficialProspectusButtonState();
+}
+
+class _OfficialProspectusButtonState extends State<_OfficialProspectusButton> {
+  late MedicineRecord _medicine;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _medicine = widget.medicine;
+  }
+
+  @override
+  void didUpdateWidget(_OfficialProspectusButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.medicine.prospectusUrl != oldWidget.medicine.prospectusUrl ||
+        widget.medicine.medicineName != oldWidget.medicine.medicineName) {
+      _medicine = widget.medicine;
+    }
+  }
+
+  Future<void> _open() async {
+    if (_busy) return;
+    var rec = _medicine;
+    if (!rec.hasOfficialProspectus && rec.needsLeaflet) {
+      setState(() => _busy = true);
+      rec = await MedicineRepository.attachOfficialProspectus(rec);
+      if (!mounted) return;
+      setState(() {
+        _medicine = rec;
+        _busy = false;
+      });
+    }
+    if (!mounted) return;
+    if (rec.hasOfficialProspectus) {
+      await ProspectusViewer.open(
+        context,
+        url: rec.prospectusUrl!.trim(),
+        title: 'Resmi kullanma talimatı (TİTCK)',
+        isGuest: widget.isGuest,
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Prospektüs bulunamadı')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = _busy
+        ? 'Resmi kullanma talimatı aranıyor…'
+        : 'Resmi kullanma talimatı (TİTCK)';
+    if (widget.prominent) {
+      return FilledButton.icon(
+        onPressed: _busy ? null : _open,
+        icon: _busy
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.menu_book_rounded),
+        label: L10nText(label),
+        style: FilledButton.styleFrom(
+          backgroundColor: MetoColors.primary,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: MetoColors.primary.withValues(alpha: 0.7),
+          disabledForegroundColor: Colors.white,
+          minimumSize: const Size.fromHeight(50),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: GoogleFonts.nunito(
+            fontWeight: FontWeight.w800,
+            fontSize: 15,
+          ),
+        ),
+      );
+    }
+    return OutlinedButton.icon(
+      onPressed: _busy ? null : _open,
+      icon: _busy
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.open_in_new_rounded, size: 18),
+      label: L10nText(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: MetoColors.primaryDark,
+        side: const BorderSide(color: MetoColors.border),
+        minimumSize: const Size.fromHeight(46),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        textStyle: GoogleFonts.nunito(
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+        ),
+      ),
+    );
+  }
+}
+
+class _MedicineProspectusPage extends StatefulWidget {
   const _MedicineProspectusPage({
     required this.medicine,
     this.previewBytes,
@@ -2127,6 +2267,33 @@ class _MedicineProspectusPage extends StatelessWidget {
   }
 
   @override
+  State<_MedicineProspectusPage> createState() => _MedicineProspectusPageState();
+}
+
+class _MedicineProspectusPageState extends State<_MedicineProspectusPage> {
+  late MedicineRecord _medicine;
+  bool _leafletLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _medicine = widget.medicine;
+    if (_medicine.needsLeaflet) {
+      _leafletLoading = true;
+      unawaited(_fetchLeaflet());
+    }
+  }
+
+  Future<void> _fetchLeaflet() async {
+    final updated = await MedicineRepository.attachOfficialProspectus(_medicine);
+    if (!mounted) return;
+    setState(() {
+      _medicine = updated;
+      _leafletLoading = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: MetoColors.background,
@@ -2143,23 +2310,29 @@ class _MedicineProspectusPage extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
           _MedicineIdentityHeader(
-            medicine: medicine,
-            fromCache: medicine.fromCache,
-            previewBytes: previewBytes,
+            medicine: _medicine,
+            fromCache: _medicine.fromCache,
+            previewBytes: widget.previewBytes,
           ),
           const SizedBox(height: 16),
-          _MedicineProspectusSections(medicine: medicine),
-          if (medicine.hasOfficialProspectus) ...[
+          if (_leafletLoading) ...[
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: L10nText('Resmi kullanma talimatı aranıyor…'),
+            ),
+          ] else if (!_medicine.hasProspectusDetails &&
+              !_medicine.hasOfficialProspectus) ...[
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: L10nText('Prospektüs bulunamadı'),
+            ),
+          ],
+          _MedicineProspectusSections(medicine: _medicine),
+          if (_medicine.hasOfficialProspectus || _medicine.hasUsefulName) ...[
             const SizedBox(height: 16),
-            TextButton.icon(
-              onPressed: () => ProspectusViewer.open(
-                context,
-                url: medicine.prospectusUrl!.trim(),
-                title: 'Resmi kullanma talimatı (TİTCK)',
-                isGuest: isGuest,
-              ),
-              icon: const Icon(Icons.open_in_new_rounded, size: 18),
-              label: const L10nText('Resmi kullanma talimatı (TİTCK)'),
+            _OfficialProspectusButton(
+              medicine: _medicine,
+              isGuest: widget.isGuest,
             ),
           ],
         ],
