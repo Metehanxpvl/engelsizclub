@@ -55,8 +55,7 @@ class MedicineRepository {
   static const notInIndexMessage =
       'Bu karekod indeksde yok, etiket/küpür fotoğrafı deneyin.';
 
-  static const needsKeyMessage =
-      'Analiz anahtarı tanımlı değil (GEMINI_API_KEY veya proxy).';
+  static const needsKeyMessage = 'Analiz servisi yanıt vermedi';
 
   static SupabaseClient get _db => Supabase.instance.client;
 

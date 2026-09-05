@@ -75,8 +75,7 @@ class ProductRepository {
   static const retakeIngredientsPhotoMessage =
       'İçindekiler belirsiz. Daha net için isteğe bağlı etiket fotoğrafı çekebilirsiniz.';
 
-  static const needsKeyMessage =
-      'Analiz anahtarı tanımlı değil (GEMINI_API_KEY veya proxy).';
+  static const needsKeyMessage = 'Analiz servisi yanıt vermedi';
 
   static SupabaseClient get _db => Supabase.instance.client;
 

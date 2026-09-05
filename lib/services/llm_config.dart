@@ -1,10 +1,7 @@
-/// LLM anahtarları — yalnız compile-time dart-define; kaynak/SQL/asset yok.
+/// LLM — istemcide API anahtarı yok. Analiz genel `gemini-proxy` URL’sine gider.
 ///
-///   flutter run --dart-define=GEMINI_API_KEY=your_key
-///
-/// Web CORS: tarayıcı Google’a gidemez. Önce
-/// `gemini-proxy` anon Bearer (oturum JWT yok) — aynı Supabase HTTPS.
-/// Yedek: GEMINI_PROXY_URL veya R2_WORKER_URL POST /gemini.
+/// GEMINI_API_KEY / GROQ_API_KEY isteğe bağlı dart-define (AAB’ye konmaz).
+/// Boşsa web ve native aynı public proxy’yi kullanır (Supabase Edge Function).
 ///
 /// Etiket görsel analizi: Gemini (flash-latest → 3.8-flash → lite).
 /// gemini-3.6-flash asılıyor; zincire alınmaz. 1.5 / 2.0 / 2.5-flash emekli 404.
@@ -41,10 +38,14 @@ class LlmConfig {
     defaultValue: 'llama-3.1-8b-instant',
   );
 
-  /// Tam proxy URL (…/gemini). Boşsa [R2Config.workerUrl] + /gemini.
+  /// Public Edge Function — anahtar değil. dart-define boşsa bu varsayılan.
+  static const _defaultGeminiProxyUrl =
+      'https://qycrkqwqrysypvqaipqn.supabase.co/functions/v1/gemini-proxy';
+
+  /// Tam proxy URL. Boş dart-define → [_defaultGeminiProxyUrl].
   static const geminiProxyUrl = String.fromEnvironment(
     'GEMINI_PROXY_URL',
-    defaultValue: '',
+    defaultValue: _defaultGeminiProxyUrl,
   );
 
   static String get geminiKey => geminiApiKey.trim();
@@ -57,7 +58,8 @@ class LlmConfig {
   static bool get hasGroq => groqKey.isNotEmpty;
   static bool get hasProxyUrl => trimmedGeminiProxyUrl.startsWith('http');
 
-  static bool get hasVision => hasGemini;
+  /// Native AAB dahil: varsayılan proxy URL yeterli; dart-define anahtar gerekmez.
+  static bool get hasVision => hasGemini || hasProxyUrl;
 
-  static bool get isConfigured => hasGemini || hasGroq;
+  static bool get isConfigured => hasGemini || hasGroq || hasProxyUrl;
 }

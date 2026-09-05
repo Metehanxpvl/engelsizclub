@@ -32,11 +32,9 @@ class GeminiMedicineResult {
 }
 
 /// Etiket görseli veya barkod+ad metin → safety_report.
-/// Anahtar sunucuda: Edge Function `gemini-proxy` (GEMINI_API_KEY).
-/// Web: tarayıcı Google’a POST etmez (CORS). Sıra:
-/// `gemini-proxy` **anon** Bearer (oturum JWT yok — misafir / süresi dolmuş
-/// oturum 401 olmasın), sonra GEMINI_PROXY_URL / R2 Worker POST /gemini.
-/// Native: dart-define anahtar yedek.
+/// Anahtar sunucuda: Edge Function `gemini-proxy` (istemciye gömülmez).
+/// Web ve native aynı: public proxy URL (LlmConfig varsayılanı veya
+/// [_supabaseProxy]), anon Bearer. dart-define GEMINI_API_KEY zorunlu değil.
 class GeminiService {
   GeminiService._();
 
@@ -59,17 +57,20 @@ class GeminiService {
 
   static String? lastError;
 
+  static const _serviceUnavailable = 'Analiz servisi yanıt vermedi';
+
   static String get _key => _apiKey.trim();
   static bool get isConfigured => _key.isNotEmpty;
 
-  /// Proxy (Supabase gemini-proxy) web ve native’de aynı. dart-define zorunlu değil.
+  /// Proxy URL derlemede varsayılan; web/native aynı. dart-define / kIsWeb gerekmez.
   static bool get canCall =>
-      isConfigured || kIsWeb || LlmConfig.hasGroq || _hasProxyKey;
+      isConfigured || LlmConfig.hasGroq || _hasProxyUrl;
 
-  /// Görsel analiz: dart-define veya gemini-proxy (native AAB dahil).
-  static bool get hasVision => isConfigured || kIsWeb || _hasProxyKey;
+  /// Görsel analiz: gömülü anahtar veya public gemini-proxy URL.
+  static bool get hasVision => isConfigured || _hasProxyUrl;
 
-  static bool get _hasProxyKey => _supabaseAnonKey().isNotEmpty;
+  static bool get _hasProxyUrl =>
+      LlmConfig.hasProxyUrl || _supabaseProxy.startsWith('http');
 
   static Future<ProductRecord?> analyze({
     String barcode = '',
@@ -111,8 +112,8 @@ class GeminiService {
       return GeminiAnalyzeResult(error: lastError);
     }
     if (!canCall) {
-      lastError = 'Analiz anahtarı tanımlı değil.';
-      debugPrint('Gemini: $lastError');
+      lastError = _serviceUnavailable;
+      debugPrint('Gemini: proxy URL yok');
       return GeminiAnalyzeResult(error: lastError);
     }
 
@@ -269,8 +270,8 @@ class GeminiService {
       return GeminiMedicineResult(error: lastError);
     }
     if (!canCall) {
-      lastError = 'Analiz anahtarı tanımlı değil.';
-      debugPrint('Gemini ilaç: $lastError');
+      lastError = _serviceUnavailable;
+      debugPrint('Gemini ilaç: proxy URL yok');
       return GeminiMedicineResult(error: lastError);
     }
 
@@ -685,8 +686,9 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
     }
     if (lastFail != null &&
         (lastFail.contains('503') ||
+            lastFail.contains(_serviceUnavailable) ||
             lastFail.toLowerCase().contains('gemini anahtarı'))) {
-      return (null, lastFail);
+      return (null, _userFacingProxyError(lastFail));
     }
     if (lastWasModel404 ||
         (lastFail != null &&
@@ -1014,6 +1016,17 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
   static const _countryBlockedMessage =
       'Google servisi bu bölgeden kapalı (ülke kısıtı).';
 
+  static String _userFacingProxyError(String raw) {
+    final e = raw.toLowerCase();
+    if (e.contains('gemini_api_key') ||
+        e.contains('api_key') ||
+        e.contains('api key') ||
+        e.contains('anahtar')) {
+      return _serviceUnavailable;
+    }
+    return raw;
+  }
+
   /// Google 400/403 ülke kısıtı ya da gemini-proxy 451 COUNTRY_BLOCKED.
   static bool _isCountryBlocked(int status, String body) {
     final lower = body.toLowerCase();
@@ -1028,23 +1041,14 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
     final clip = _clipBody(body);
     if (_isCountryBlocked(status, body)) return _countryBlockedMessage;
     if (status == 401) {
-      if (_isGoogleAuthError(body)) {
-        return 'Gemini anahtarı geçersiz (secret GEMINI_API_KEY).';
-      }
-      return 'Oturum/yetki: gemini-proxy JWT. '
-          'Dashboard’da Verify JWT kapalı olmalı.';
+      return _serviceUnavailable;
     }
     if (status == 400 && lower.contains('api key')) {
-      return 'Analiz anahtarı geçersiz (400).';
+      return _serviceUnavailable;
     }
     if (status == 403 ||
         (lower.contains('permission') && lower.contains('api_key'))) {
-      if (_isGoogleAuthError(body) ||
-          lower.contains('api key') ||
-          lower.contains('api_key')) {
-        return 'Gemini anahtarı geçersiz (secret GEMINI_API_KEY).';
-      }
-      return 'Analiz anahtarı yetkisiz veya kısıtlı (403).';
+      return _serviceUnavailable;
     }
     if (status == 404) {
       if (_isMissingFunctionBody(body)) {
@@ -1056,18 +1060,8 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
     if (status == 429) {
       return 'Analiz kotası doldu (429). Biraz sonra tekrar deneyin.';
     }
-    if (status == 503 && _isMissingGeminiSecret(body)) {
-      return 'Gemini anahtarı tanımlı değil (Dashboard Secrets)';
-    }
-    if (status == 503) {
-      return clip.isEmpty
-          ? 'Analiz servisi yanıt vermiyor (503).'
-          : 'Analiz servisi yanıt vermiyor (503). $clip';
-    }
     if (status >= 500) {
-      return clip.isEmpty
-          ? 'Analiz servisi yanıt vermiyor ($status).'
-          : 'Analiz servisi yanıt vermiyor ($status). $clip';
+      return _serviceUnavailable;
     }
     return 'Analiz hatası ($status). $clip';
   }
@@ -1106,7 +1100,7 @@ Bu gıda ve içecek etiket analizidir (ayran, kola, su, süt, meyve suyu, soda, 
     if (lower.contains('api key') ||
         lower.contains('api_key') ||
         lower.contains('unauthenticated')) {
-      return 'Gemini anahtarı geçersiz (secret GEMINI_API_KEY).';
+      return _serviceUnavailable;
     }
     if (lower.contains('not found') || lower.contains('not_found')) {
       return modelUnavailableMessage;
