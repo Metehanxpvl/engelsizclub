@@ -1,4 +1,5 @@
 -- Forum yanıt / beğeni + ilan sohbeti → uygulama içi bildirim (bildirimler).
+-- Fix 42702: notif_public_actor_name used PL/pgSQL var "email" vs auth.users.email.
 -- Kilit ekranı adı maskeli (Ş**** Ç******). FCM istemci `broadcast-push` ile gider.
 -- Dashboard: https://supabase.com/dashboard/project/qycrkqwqrysypvqaipqn/sql/new
 -- CLI token yok — yalnızca SQL Editor. Idempotent; etkinlik admin bildirimine dokunmaz.
@@ -49,7 +50,7 @@ security definer
 set search_path = public
 as $$
 declare
-  email text;
+  v_email text;
   pref text;
   resolved text;
 begin
@@ -61,8 +62,9 @@ begin
     return public.mask_person_display_name(pref);
   end if;
 
-  email := lower(btrim(coalesce(actor_email, '')));
-  if email = '' then
+  -- v_email (not "email"): PL/pgSQL var + auth.users.email = 42702 ambiguous.
+  v_email := lower(btrim(coalesce(actor_email, '')));
+  if v_email = '' then
     return 'Üye';
   end if;
 
@@ -75,8 +77,8 @@ begin
   from public.user_profiles p
   left join auth.users au
     on au.id = p.owner_id
-    or lower(au.email) = email
-  where lower(p.owner_email) = email
+    or lower(au.email) = v_email
+  where lower(p.owner_email) = v_email
   limit 1;
 
   if resolved is null then
@@ -86,7 +88,7 @@ begin
     )
     into resolved
     from auth.users au
-    where lower(au.email) = email
+    where lower(au.email) = v_email
     limit 1;
   end if;
 

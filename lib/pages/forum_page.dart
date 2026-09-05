@@ -681,6 +681,7 @@ class ForumPageState extends State<ForumPage> {
         _commentLikeBusy = false;
       });
     } catch (e) {
+      debugPrint('Forum yorum beğeni: $e');
       if (!mounted) return;
       setState(() => _commentLikeBusy = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -690,7 +691,7 @@ class ForumPageState extends State<ForumPage> {
                     e.toString().contains('PGRST') ||
                     e.toString().contains('42P01')
                 ? 'Yorum beğenisi için forum_comment_replies_likes.sql çalıştırın.'
-                : 'Beğenilemedi: $e',
+                : 'Beğenilemedi. Biraz sonra tekrar dene.',
           ),
         ),
       );
@@ -716,6 +717,7 @@ class ForumPageState extends State<ForumPage> {
         _likeBusy = false;
       });
     } catch (e) {
+      debugPrint('Forum gönderi beğeni: $e');
       if (!mounted) return;
       setState(() => _likeBusy = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -724,7 +726,7 @@ class ForumPageState extends State<ForumPage> {
             e.toString().contains('forum_likes') ||
                     e.toString().contains('PGRST')
                 ? 'Beğeni tablosu yok. forum_interact.sql çalıştırın.'
-                : 'Beğenilemedi: $e',
+                : 'Beğenilemedi. Biraz sonra tekrar dene.',
           ),
         ),
       );
