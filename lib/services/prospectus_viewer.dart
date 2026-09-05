@@ -4,8 +4,10 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../pages/in_app_web_page.dart';
 
-/// Resmi KT PDF / e-KT: web'de yeni sekme (TİTCK iframe'i engeller),
-/// mobilde uygulama içi WebView.
+/// Resmi KT PDF / e-KT.
+/// Web: yeni sekme (TİTCK iframe'i engeller).
+/// Native: Android WebView PDF gösteremez — Chrome Custom Tabs / Safari.
+/// HTML sayfalar WebView’de kalabilir; TITCK / PDF her zaman harici görüntüleyici.
 class ProspectusViewer {
   ProspectusViewer._();
 
@@ -37,6 +39,16 @@ class ProspectusViewer {
       return;
     }
 
+    if (_needsExternalViewer(uri)) {
+      final opened = await _openExternal(uri);
+      if (!opened && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Prospektüs açılamadı')),
+        );
+      }
+      return;
+    }
+
     if (!context.mounted) return;
     await InAppWebPage.open(
       context,
@@ -45,5 +57,30 @@ class ProspectusViewer {
       isGuest: isGuest,
       guestTab: 'tarama',
     );
+  }
+
+  static bool _needsExternalViewer(Uri uri) {
+    final host = uri.host.toLowerCase();
+    final path = uri.path.toLowerCase();
+    if (path.endsWith('.pdf')) return true;
+    if (uri.query.toLowerCase().contains('pdf')) return true;
+    if (host.contains('titck.gov.tr')) return true;
+    return false;
+  }
+
+  static Future<bool> _openExternal(Uri uri) async {
+    try {
+      if (await launchUrl(uri, mode: LaunchMode.inAppBrowserView)) {
+        return true;
+      }
+    } catch (e) {
+      debugPrint('ProspectusViewer inAppBrowserView: $e');
+    }
+    try {
+      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      debugPrint('ProspectusViewer external: $e');
+      return false;
+    }
   }
 }

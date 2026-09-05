@@ -62,11 +62,14 @@ class GeminiService {
   static String get _key => _apiKey.trim();
   static bool get isConfigured => _key.isNotEmpty;
 
-  /// Web: proxy; native: dart-define anahtar veya Groq.
-  static bool get canCall => isConfigured || kIsWeb || LlmConfig.hasGroq;
+  /// Proxy (Supabase gemini-proxy) web ve native’de aynı. dart-define zorunlu değil.
+  static bool get canCall =>
+      isConfigured || kIsWeb || LlmConfig.hasGroq || _hasProxyKey;
 
-  /// Web’de proxy olduğu için istemci anahtarı olmasa da görsel analiz denenir.
-  static bool get hasVision => isConfigured || kIsWeb;
+  /// Görsel analiz: dart-define veya gemini-proxy (native AAB dahil).
+  static bool get hasVision => isConfigured || kIsWeb || _hasProxyKey;
+
+  static bool get _hasProxyKey => _supabaseAnonKey().isNotEmpty;
 
   static Future<ProductRecord?> analyze({
     String barcode = '',

@@ -2080,7 +2080,9 @@ class _MedicineResultCard extends StatelessWidget {
           previewBytes: previewBytes,
         ),
         const SizedBox(height: 14),
-        if (medicine.hasProspectusDetails) ...[
+        if (medicine.hasProspectusDetails ||
+            medicine.hasOfficialProspectus ||
+            medicine.hasUsefulName) ...[
           FilledButton.icon(
             onPressed: () => _MedicineProspectusPage.open(
               context,
@@ -2148,7 +2150,8 @@ class _OfficialProspectusButtonState extends State<_OfficialProspectusButton> {
   void didUpdateWidget(_OfficialProspectusButton oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.medicine.prospectusUrl != oldWidget.medicine.prospectusUrl ||
-        widget.medicine.medicineName != oldWidget.medicine.medicineName) {
+        widget.medicine.medicineName != oldWidget.medicine.medicineName ||
+        widget.medicine.id != oldWidget.medicine.id) {
       _medicine = widget.medicine;
     }
   }

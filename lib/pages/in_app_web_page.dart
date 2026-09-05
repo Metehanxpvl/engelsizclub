@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
@@ -45,6 +46,21 @@ class InAppWebPage extends StatefulWidget {
     }
 
     if (!context.mounted) return;
+    if (_isPdfUrl(uri)) {
+      try {
+        final ok = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+        if (ok) return;
+      } catch (e) {
+        debugPrint('InAppWebPage PDF inAppBrowserView: $e');
+      }
+      try {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      } catch (e) {
+        debugPrint('InAppWebPage PDF external: $e');
+      }
+    }
+    if (!context.mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => InAppWebPage(
@@ -56,6 +72,11 @@ class InAppWebPage extends StatefulWidget {
         ),
       ),
     );
+  }
+
+  static bool _isPdfUrl(Uri uri) {
+    final path = uri.path.toLowerCase();
+    return path.endsWith('.pdf') || uri.query.toLowerCase().contains('pdf');
   }
 
   static Uri? _resolveUri(String raw) {

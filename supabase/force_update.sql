@@ -1,7 +1,6 @@
--- android_min_build = Play'de YAYINDA olan en düşük zorunlu versionCode.
--- Yüklü sürüm >= bu sayıysa kilit ÇIKMAZ.
--- Yeni AAB (ör. +69) yayına girdikten sonra bu sayıyı 69 yapın; 68'liler kilitlenir.
--- 69 yüklüyken burayı 69 yaparsanız güncel kullanıcıya kilit çıkmaz (69 < 69 false).
+-- Android artık Play In-App Update kullanır; min_build ile kilit YOK.
+-- Play'de henüz olmayan versionCode yazmayın (sonsuz "güncelle" döngüsü).
+-- iOS: App Store lookup; kapatılabilir sayfa. Bu satır yedek URL içindir.
 
 insert into public.app_settings (key, value, description)
 values (

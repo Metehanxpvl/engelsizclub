@@ -31,7 +31,6 @@ import 'meto_theme.dart';
 import 'pages/legal_document_page.dart';
 import 'remote/app_screen_config.dart';
 import 'services/app_catalog_service.dart';
-import 'services/force_update_service.dart';
 import 'services/push_notification_service.dart';
 import 'utils/async_timeout.dart';
 import 'widgets/force_update_gate.dart';
@@ -283,10 +282,6 @@ class _MetoCareAppState extends State<MetoCareApp> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(bootstrapAileKocuReminders());
-      unawaited(ForceUpdateService.instance.check());
-      Future<void>.delayed(const Duration(seconds: 2), () {
-        unawaited(ForceUpdateService.instance.check());
-      });
     });
     try {
       unawaited(LocaleController.instance.ensureLoaded());

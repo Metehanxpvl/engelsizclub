@@ -1,39 +1,52 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:in_app_update/in_app_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'app_catalog_service.dart';
 import '../utils/async_timeout.dart';
 
 /// pubspec `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
-const kAppBuildNumber = 103;
+const kAppBuildNumber = 108;
 
-/// Mağazadaki zorunlu / yeni sürüm. Web'de kapalı.
+/// Otomatik güncelleme — ilk kareden sonra, asla boot kilidi yok.
+///
+/// Android: yalnız Play In-App Update. Play daha yeni sürüm yoksa hiçbir şey.
+/// iOS: App Store lookup; varsa kapatılabilir sayfa. Fail-open.
+/// Web: kapalı.
 class ForceUpdateService extends ChangeNotifier {
   ForceUpdateService._();
   static final ForceUpdateService instance = ForceUpdateService._();
 
   static const androidPackage = 'com.sakircaykara.engelsizclub';
+  static const iosBundleId = 'com.sakircaykara.engelsizclub';
   static const defaultPlayUrl =
       'https://play.google.com/store/apps/details?id=$androidPackage';
   static const defaultMarketUrl = 'market://details?id=$androidPackage';
+  static const defaultIosSearchUrl =
+      'https://apps.apple.com/tr/search?term=Engelsiz%20Club';
 
+  /// Eski kilit alanı — her zaman false. İlk kare asla bloklanmaz.
   bool blocked = false;
+
+  bool iosUpdateAvailable = false;
   String message =
-      'Yeni bir sürüm yayınlandı. Devam etmek için uygulamayı güncelleyin.';
+      'Yeni bir sürüm yayınlandı. İsterseniz uygulamayı güncelleyebilirsiniz.';
   String storeUrl = defaultPlayUrl;
   int localBuild = 0;
-  int requiredBuild = 0;
+  String localVersion = '';
+  String storeVersion = '';
 
   bool _checking = false;
+  bool _androidPrompted = false;
+  bool _iosDismissed = false;
 
   Future<void> check() async {
     if (kIsWeb) {
-      if (blocked) {
-        blocked = false;
+      if (iosUpdateAvailable) {
+        iosUpdateAvailable = false;
         notifyListeners();
       }
       return;
@@ -41,7 +54,12 @@ class ForceUpdateService extends ChangeNotifier {
     if (_checking) return;
     _checking = true;
     try {
-      await _checkOnce();
+      await _loadPackageInfo();
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        await _checkPlayInAppUpdate();
+      } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+        await _checkAppStore();
+      }
     } catch (e) {
       debugPrint('ForceUpdateService: $e');
     } finally {
@@ -49,58 +67,24 @@ class ForceUpdateService extends ChangeNotifier {
     }
   }
 
-  Future<void> _checkOnce() async {
+  /// Arka plandan dönüş: indirilmiş esnek güncellemeyi kur. Yeniden sorma.
+  Future<void> onResumed() async {
+    if (kIsWeb) return;
+    if (defaultTargetPlatform != TargetPlatform.android) return;
     try {
-      final info = await PackageInfo.fromPlatform();
-      localBuild = int.tryParse(info.buildNumber.trim()) ?? 0;
+      final info = await InAppUpdate.checkForUpdate();
+      if (info.installStatus == InstallStatus.downloaded) {
+        await InAppUpdate.completeFlexibleUpdate();
+      }
     } catch (e) {
-      debugPrint('ForceUpdateService PackageInfo: $e');
+      debugPrint('ForceUpdate resume: $e');
     }
-    if (localBuild <= 0) localBuild = kAppBuildNumber;
+  }
 
-    final cfg = await _fetchConfig();
-    final ios = defaultTargetPlatform == TargetPlatform.iOS;
-    final minBuild = _asInt(
-      cfg == null
-          ? null
-          : (ios ? cfg['ios_min_build'] : cfg['android_min_build']),
-    );
-    final latestBuild = _asInt(
-      cfg == null
-          ? null
-          : (ios ? cfg['ios_latest_build'] : cfg['android_latest_build']),
-    );
-    // latest_build yalnızca bilgi; kilit YALNIZ min_build.
-    // latest'i kilit eşiği yapmak, uzak "son sürüm" yazılınca herkesi kilitler.
-    requiredBuild = minBuild;
-    if (latestBuild > requiredBuild) {
-      debugPrint('ForceUpdate latest=$latestBuild (info only, lock uses min)');
-    }
-
-    final msg = (cfg == null ? '' : (cfg['message']?.toString() ?? '')).trim();
-    if (msg.isNotEmpty) message = msg;
-    final urlKey = ios ? 'ios_url' : 'android_url';
-    final url = (cfg == null ? '' : (cfg[urlKey]?.toString() ?? '')).trim();
-    storeUrl = url.isNotEmpty
-        ? url
-        : (ios
-            ? 'https://apps.apple.com/tr/search?term=Engelsiz%20Club'
-            : defaultPlayUrl);
-
-    // Fail-open: config yok / min bu derlemeden büyükse (yanlış SQL) kilit yok.
-    final must = cfg != null &&
-        minBuild > 0 &&
-        minBuild <= kAppBuildNumber &&
-        localBuild > 0 &&
-        localBuild < minBuild;
-    debugPrint(
-      'ForceUpdate: local=$localBuild required=$requiredBuild blocked=$must',
-    );
-
-    if (blocked != must) {
-      blocked = must;
-      notifyListeners();
-    } else if (must) {
+  void dismissIosPrompt() {
+    _iosDismissed = true;
+    if (iosUpdateAvailable) {
+      iosUpdateAvailable = false;
       notifyListeners();
     }
   }
@@ -123,45 +107,115 @@ class ForceUpdateService extends ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>?> _fetchConfig() async {
+  Future<void> _loadPackageInfo() async {
     try {
-      final row = await withNetworkTimeout(
-        Supabase.instance.client
-            .from('app_settings')
-            .select('value')
-            .eq('key', 'force_update')
-            .maybeSingle(),
-      );
-      final parsed = _asMap(row?['value']);
-      if (parsed != null) return parsed;
+      final info = await PackageInfo.fromPlatform();
+      localBuild = int.tryParse(info.buildNumber.trim()) ?? 0;
+      localVersion = info.version.trim();
     } catch (e) {
-      debugPrint('ForceUpdateService fetch: $e');
+      debugPrint('ForceUpdateService PackageInfo: $e');
     }
+    if (localBuild <= 0) localBuild = kAppBuildNumber;
+  }
+
+  Future<void> _checkPlayInAppUpdate() async {
+    if (_androidPrompted) return;
+    AppUpdateInfo info;
     try {
-      return _asMap(AppCatalogService.instance.setting('force_update'));
-    } catch (_) {
-      return null;
+      info = await InAppUpdate.checkForUpdate();
+    } catch (e) {
+      // Sideload / emülatör / Play yok — fail-open.
+      debugPrint('ForceUpdate Play check skipped: $e');
+      return;
+    }
+
+    final available = info.availableVersionCode ?? 0;
+    final hasNewer = info.updateAvailability ==
+            UpdateAvailability.updateAvailable &&
+        available > 0 &&
+        available > localBuild;
+    debugPrint(
+      'ForceUpdate Play: local=$localBuild store=$available '
+      'avail=${info.updateAvailability} flex=${info.flexibleUpdateAllowed} '
+      'imm=${info.immediateUpdateAllowed}',
+    );
+    if (!hasNewer) return;
+
+    _androidPrompted = true;
+    try {
+      if (info.flexibleUpdateAllowed) {
+        final result = await InAppUpdate.startFlexibleUpdate();
+        if (result == AppUpdateResult.success) {
+          await InAppUpdate.completeFlexibleUpdate();
+        }
+        return;
+      }
+      if (info.immediateUpdateAllowed) {
+        await InAppUpdate.performImmediateUpdate();
+      }
+    } catch (e) {
+      debugPrint('ForceUpdate Play start: $e');
+      _androidPrompted = false;
     }
   }
 
-  static int _asInt(dynamic v) {
-    if (v is int) return v;
-    if (v is num) return v.toInt();
-    return int.tryParse(v?.toString() ?? '') ?? 0;
+  Future<void> _checkAppStore() async {
+    if (_iosDismissed) return;
+    try {
+      final uri = Uri.https('itunes.apple.com', '/lookup', {
+        'bundleId': iosBundleId,
+        'country': 'tr',
+      });
+      final res = await withNetworkTimeout(
+        http.get(uri).timeout(const Duration(seconds: 8)),
+        timeout: const Duration(seconds: 10),
+        message: 'App Store sürüm bilgisi alınamadı.',
+      );
+      if (res.statusCode != 200) return;
+      final decoded = jsonDecode(res.body);
+      if (decoded is! Map) return;
+      final results = decoded['results'];
+      if (results is! List || results.isEmpty) return;
+      final first = results.first;
+      if (first is! Map) return;
+      final version = (first['version'] ?? '').toString().trim();
+      final trackUrl = (first['trackViewUrl'] ?? '').toString().trim();
+      if (version.isEmpty) return;
+      storeVersion = version;
+      if (trackUrl.startsWith('http')) storeUrl = trackUrl;
+
+      final newer = _isStoreVersionNewer(storeVersion, localVersion);
+      debugPrint(
+        'ForceUpdate iOS: local=$localVersion store=$storeVersion newer=$newer',
+      );
+      if (!newer) {
+        if (iosUpdateAvailable) {
+          iosUpdateAvailable = false;
+          notifyListeners();
+        }
+        return;
+      }
+      if (!iosUpdateAvailable) {
+        iosUpdateAvailable = true;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('ForceUpdate App Store: $e');
+    }
   }
 
-  static Map<String, dynamic>? _asMap(dynamic raw) {
-    if (raw == null) return null;
-    if (raw is Map<String, dynamic>) return raw;
-    if (raw is Map) return Map<String, dynamic>.from(raw);
-    if (raw is String) {
-      final s = raw.trim();
-      if (s.isEmpty) return null;
-      try {
-        final decoded = jsonDecode(s);
-        if (decoded is Map) return Map<String, dynamic>.from(decoded);
-      } catch (_) {}
+  /// `1.0.100` > `1.0.99`. Eşit veya parse edilemezse false (fail-open).
+  static bool _isStoreVersionNewer(String store, String local) {
+    if (store.isEmpty || local.isEmpty) return false;
+    final a = store.split('.').map((p) => int.tryParse(p.trim()) ?? 0).toList();
+    final b = local.split('.').map((p) => int.tryParse(p.trim()) ?? 0).toList();
+    final n = a.length > b.length ? a.length : b.length;
+    for (var i = 0; i < n; i++) {
+      final av = i < a.length ? a[i] : 0;
+      final bv = i < b.length ? b[i] : 0;
+      if (av > bv) return true;
+      if (av < bv) return false;
     }
-    return null;
+    return false;
   }
 }
