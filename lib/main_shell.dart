@@ -182,7 +182,6 @@ class _MainShellState extends State<MainShell> {
   late final PageController _tabPageController;
   bool _showProfilPanel = false;
   bool _krediSatin = false;
-  bool _storeLoadingOpen = false;
   bool _showCocukProfil = false;
   bool _showIlanlarim = false;
   bool _showKullaniciProfil = false;
@@ -435,6 +434,7 @@ class _MainShellState extends State<MainShell> {
     _listenPushOpens();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_maybeShowMedicalWelcome());
+      unawaited(_initStoreBilling());
     });
   }
 
@@ -504,59 +504,6 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
-  Future<void> _showCenteredLoading(String message) async {
-    if (!mounted) return;
-    _storeLoadingOpen = true;
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.black45,
-      useRootNavigator: true,
-      builder: (ctx) => PopScope(
-        canPop: false,
-        child: Center(
-          child: Material(
-            color: MetoColors.card,
-            elevation: 8,
-            borderRadius: BorderRadius.circular(20),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 3,
-                      color: MetoColors.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    message,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: MetoColors.foreground,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    _storeLoadingOpen = false;
-  }
-
-  void _hideCenteredLoading() {
-    if (!_storeLoadingOpen || !mounted) return;
-    Navigator.of(context, rootNavigator: true).pop();
-  }
-
   Future<void> _initStoreBilling() async {
     try {
       await StoreBillingService.instance.init(
@@ -572,10 +519,13 @@ class _MainShellState extends State<MainShell> {
             _krediStep = _KrediStep.paket;
             _krediSatin = false;
             _seciliPaket = null;
+            _showProfilPanel = false;
           });
         },
         onError: (msg) {
           debugPrint('Store billing: $msg');
+          if (!mounted) return;
+          _showCenteredNotice(msg);
         },
       );
     } catch (e) {
@@ -2596,6 +2546,19 @@ class _MainShellState extends State<MainShell> {
     _odemeYukleniyor = false;
   }
 
+  bool get _isTabletLayout =>
+      MediaQuery.sizeOf(context).shortestSide >= 600;
+
+  void _openKrediYukle() {
+    _resetKredi();
+    unawaited(_initStoreBilling());
+    setState(() {
+      _krediStep = _KrediStep.paket;
+      _krediSatin = true;
+      _showProfilPanel = true;
+    });
+  }
+
   String get _publicDisplayName {
     final ad = _kullaniciProfil.adSoyad.trim();
     if (ad.isNotEmpty && !ad.contains('@')) return ad;
@@ -2642,11 +2605,7 @@ class _MainShellState extends State<MainShell> {
             if (_ilanlarUnread == n) return;
             setState(() => _ilanlarUnread = n);
           },
-          onOpenKrediYukle: () => setState(() {
-            _resetKredi();
-            _showProfilPanel = true;
-            _krediSatin = true;
-          }),
+          onOpenKrediYukle: _openKrediYukle,
           onIlanlarChanged: _persistIlanlar,
           openIlanKind: _openIlanKind,
           openIlanId: _openIlanId,
@@ -2938,7 +2897,10 @@ class _MainShellState extends State<MainShell> {
                     ),
                 ],
               ),
-              if (_showProfilPanel) _buildProfilOverlay(),
+              if (_showProfilPanel)
+                (_krediSatin && _isTabletLayout)
+                    ? _buildKrediCenteredOverlay()
+                    : _buildProfilOverlay(),
             ],
           ),
         );
@@ -2947,8 +2909,47 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
+  Widget _buildKrediCenteredOverlay() {
+    final size = MediaQuery.sizeOf(context);
+    final pad = MediaQuery.paddingOf(context);
+    return Positioned.fill(
+      child: Material(
+        color: Colors.transparent,
+        child: Stack(
+          children: [
+            GestureDetector(
+              onTap: _closeProfilPanel,
+              child: Container(color: Colors.black.withValues(alpha: 0.45)),
+            ),
+            Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 520,
+                  maxHeight: (size.height - pad.top - pad.bottom) * 0.88,
+                ),
+                child: Material(
+                  color: MetoColors.card,
+                  elevation: 12,
+                  borderRadius: BorderRadius.circular(28),
+                  clipBehavior: Clip.antiAlias,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(20, 8, 20, 16 + pad.bottom),
+                    child: SingleChildScrollView(
+                      child: _buildKrediSatin(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildProfilOverlay() {
     final screenH = MediaQuery.sizeOf(context).height;
+    final isTablet = _isTabletLayout;
     final dragProgress = (_profilDragY / 280).clamp(0.0, 1.0);
     final scrimAlpha = 0.4 * (1 - dragProgress);
 
@@ -2981,7 +2982,11 @@ class _MainShellState extends State<MainShell> {
               child: Transform.translate(
                 offset: Offset(0, _profilDragY),
                 child: Container(
-                  constraints: BoxConstraints(maxHeight: screenH * 0.9),
+                  width: isTablet ? 560 : null,
+                  constraints: BoxConstraints(
+                    maxHeight: screenH * 0.9,
+                    maxWidth: isTablet ? 560 : double.infinity,
+                  ),
                   decoration: const BoxDecoration(
                     color: MetoColors.card,
                     borderRadius:
@@ -4322,14 +4327,12 @@ class _MainShellState extends State<MainShell> {
           ),
           const SizedBox(height: 12),
           FilledButton.icon(
-            onPressed: () => setState(() {
-              _krediStep = _KrediStep.paket;
-              _krediSatin = true;
-            }),
+            onPressed: _openKrediYukle,
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFF59E0B),
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              minimumSize: const Size.fromHeight(52),
+              padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -5127,6 +5130,31 @@ class _MainShellState extends State<MainShell> {
           ),
         ),
         const SizedBox(height: 12),
+        if (StoreBillingService.instance.isSupported &&
+            StoreBillingService.instance.isReady &&
+            !StoreBillingService.instance.hasAnyProduct)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFF59E0B)),
+              ),
+              child: L10nText(
+                StoreBillingService.instance.isIos
+                    ? 'App Store bu paketleri henüz listelemedi. Sandbox’ta Paid Apps Agreement aktif olmalı; App Store Connect’te ${StoreProductIds.configuredIdsHint} Consumable ürünleri bu sürümle incelemeye eklenmeli. Sahte ödeme yapılmaz.'
+                    : 'Mağaza ürünleri yüklenemedi. Play Console’da ${StoreProductIds.configuredIdsHint} tanımlı ve etkin olmalı.',
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.35,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF92400E),
+                ),
+              ),
+            ),
+          ),
         ..._krediPaketleri.map((p) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
@@ -5145,10 +5173,12 @@ class _MainShellState extends State<MainShell> {
                   _seciliPaket = p;
                   _krediStep = _KrediStep.odeme;
                 }),
-                child: Padding(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 72),
+                  child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
-                    vertical: 14,
+                    vertical: 16,
                   ),
                   child: Row(
                     children: [
@@ -5222,6 +5252,7 @@ class _MainShellState extends State<MainShell> {
                       ),
                     ],
                   ),
+                ),
                 ),
               ),
             ),
@@ -5318,14 +5349,10 @@ class _MainShellState extends State<MainShell> {
       return;
     }
     setState(() => _odemeYukleniyor = true);
-    unawaited(
-      _showCenteredLoading('${store.storeName} açılıyor…'),
-    );
     try {
       if (store.isAndroid) {
         final playOk = await isGooglePlayAvailable();
         if (!playOk) {
-          _hideCenteredLoading();
           if (mounted) {
             _showCenteredNotice(
               'Google Play şu an kullanılamıyor. Play Store ve Google Play '
@@ -5337,17 +5364,29 @@ class _MainShellState extends State<MainShell> {
         }
       }
       await _initStoreBilling();
-      final ok = await store.buyKrediPaket(paket.adet);
-      _hideCenteredLoading();
-        if (!ok && mounted) {
+      final result = await store.buyKrediPaket(paket.adet);
+      if (!mounted) return;
+      switch (result) {
+        case StoreBuyResult.started:
+          break;
+        case StoreBuyResult.productNotFound:
           _showCenteredNotice(
             store.isIos
-                ? 'Satın alma ürünü App Store’da bulunamadı. App Store Connect’te iyilik puanı (Consumable) ürünlerini oluşturup bu sürümle birlikte incelemeye gönderin; Paid Apps Agreement kabul edilmiş olmalı.'
+                ? 'Satın alma ürünü App Store’da bulunamadı (${StoreProductIds.configuredIdsHint}). App Store Connect’te Consumable oluşturup bu sürümle incelemeye ekleyin; Paid Apps Agreement Active olmalı. Uygulama sahte ödeme yapmaz.'
                 : 'Ürün bulunamadı. ${store.storeName}’da ${StoreProductIds.configuredIdsHint} ürünleri tanımlı ve etkin mi kontrol edin.',
           );
-        }
+        case StoreBuyResult.storeUnavailable:
+          _showCenteredNotice(
+            store.lastError ??
+                '${store.storeName} şu an kullanılamıyor. Sandbox hesabı ve mağaza bağlantısını kontrol edin.',
+          );
+        case StoreBuyResult.failed:
+          _showCenteredNotice(
+            store.lastError ??
+                '${store.storeName} satın alma penceresi açılamadı. İptal ettiyseniz tekrar deneyin.',
+          );
+      }
     } catch (e) {
-      _hideCenteredLoading();
       if (mounted) {
         _showCenteredNotice('${store.storeName} ödeme başlatılamadı: $e');
       }
@@ -5366,7 +5405,9 @@ class _MainShellState extends State<MainShell> {
           style: FilledButton.styleFrom(
             backgroundColor: MetoColors.primary,
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 14),
+            minimumSize: const Size.fromHeight(56),
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+            tapTargetSize: MaterialTapTargetSize.padded,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),

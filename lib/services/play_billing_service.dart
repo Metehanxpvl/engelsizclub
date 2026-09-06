@@ -5,6 +5,14 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 
 import 'google_play_availability.dart';
 
+/// Satın alma başlatma sonucu — sahte başarı yok; yalnızca StoreKit/Play yanıtı.
+enum StoreBuyResult {
+  started,
+  productNotFound,
+  storeUnavailable,
+  failed,
+}
+
 /// Google Play: `point_*` · App Store Connect: `puan_*` (eski: `point_*` / `kredi_*`)
 abstract final class StoreProductIds {
   static const androidPoint1 = 'point_1';
@@ -112,7 +120,7 @@ abstract final class StoreProductIds {
       : 'point_1, point_5, point_10, point_30, point_50, point_100';
 }
 
-/// Android: Google Play Billing · iOS: App Store In-App Purchase.
+/// Android: Google Play Billing · iOS: App Store In-App Purchase (StoreKit 2).
 class StoreBillingService {
   StoreBillingService._();
   static final StoreBillingService instance = StoreBillingService._();
@@ -121,12 +129,19 @@ class StoreBillingService {
   StreamSubscription<List<PurchaseDetails>>? _sub;
   bool _ready = false;
   final Map<String, ProductDetails> _products = {};
+  Future<void> Function(PurchaseDetails purchase, int krediAdet)? _onPurchased;
+  void Function(String message)? _onError;
+
+  /// Son `queryProductDetails` ile gelmeyen kimlikler (inceleme / kurulum).
+  List<String> lastNotFoundIds = const [];
+  String? lastError;
 
   bool get isAndroid =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   bool get isIos => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
   bool get isSupported => isAndroid || isIos;
   bool get isReady => _ready;
+  bool get hasAnyProduct => _products.isNotEmpty;
 
   String get storeName {
     if (isIos) return 'App Store';
@@ -158,128 +173,229 @@ class StoreBillingService {
         onPurchased,
     void Function(String message)? onError,
   }) async {
+    _onPurchased = onPurchased;
+    _onError = onError;
     if (!isSupported) return;
-    if (_ready && _sub != null) return;
+    if (_ready && _sub != null && _products.isNotEmpty) return;
     try {
       if (isAndroid) {
         final playOk = await isGooglePlayAvailable();
         if (!playOk) {
           debugPrint('IAP: Google Play kullanılamıyor, atlanıyor.');
+          lastError = 'Google Play kullanılamıyor';
           return;
         }
       }
 
       var available = false;
-      try {
-        available = await _iap
-            .isAvailable()
-            .timeout(const Duration(seconds: 5), onTimeout: () => false);
-      } catch (e) {
-        debugPrint('IAP isAvailable: $e');
+      for (var attempt = 0; attempt < 3 && !available; attempt++) {
+        try {
+          available = await _iap
+              .isAvailable()
+              .timeout(const Duration(seconds: 8), onTimeout: () => false);
+        } catch (e) {
+          debugPrint('IAP isAvailable: $e');
+          lastError = e.toString();
+        }
+        if (!available && attempt < 2) {
+          await Future<void>.delayed(Duration(milliseconds: 400 * (attempt + 1)));
+        }
+      }
+      if (!available) {
+        lastError = lastError ?? 'Mağaza şu an kullanılamıyor';
         return;
       }
-      if (!available) return;
 
-      await _sub?.cancel();
-      _sub = _iap.purchaseStream.listen(
-        (purchases) async {
-          for (final p in purchases) {
-            if (p.status == PurchaseStatus.pending) continue;
-            if (p.status == PurchaseStatus.error) {
-              onError?.call(p.error?.message ?? 'Ödeme hatası');
-              if (p.pendingCompletePurchase) {
-                try {
-                  await _iap.completePurchase(p);
-                } catch (e) {
-                  debugPrint('IAP completePurchase: $e');
-                }
+      await _ensurePurchaseStream();
+      await _refreshProducts();
+      _ready = true;
+    } catch (e) {
+      debugPrint('IAP init: $e');
+      lastError = e.toString();
+      _ready = false;
+    }
+  }
+
+  Future<void> _ensurePurchaseStream() async {
+    if (_sub != null) return;
+    _sub = _iap.purchaseStream.listen(
+      (purchases) async {
+        for (final p in purchases) {
+          if (p.status == PurchaseStatus.pending) continue;
+          if (p.status == PurchaseStatus.canceled) {
+            if (p.pendingCompletePurchase) {
+              try {
+                await _iap.completePurchase(p);
+              } catch (e) {
+                debugPrint('IAP completePurchase: $e');
               }
-              continue;
             }
-            if (p.status == PurchaseStatus.purchased ||
-                p.status == PurchaseStatus.restored) {
-              final adet = StoreProductIds.adetForProduct(p.productID);
-              if (adet != null) {
-                await onPurchased(p, adet);
+            continue;
+          }
+          if (p.status == PurchaseStatus.error) {
+            final msg = p.error?.message ?? 'Ödeme hatası';
+            lastError = msg;
+            _onError?.call(msg);
+            if (p.pendingCompletePurchase) {
+              try {
+                await _iap.completePurchase(p);
+              } catch (e) {
+                debugPrint('IAP completePurchase: $e');
               }
-              if (p.pendingCompletePurchase) {
-                try {
-                  await _iap.completePurchase(p);
-                } catch (e) {
-                  debugPrint('IAP completePurchase: $e');
-                }
+            }
+            continue;
+          }
+          if (p.status == PurchaseStatus.purchased ||
+              p.status == PurchaseStatus.restored) {
+            final adet = StoreProductIds.adetForProduct(p.productID);
+            if (adet != null) {
+              await _onPurchased?.call(p, adet);
+            }
+            if (p.pendingCompletePurchase) {
+              try {
+                await _iap.completePurchase(p);
+              } catch (e) {
+                debugPrint('IAP completePurchase: $e');
               }
             }
           }
-        },
-        onError: (e) => debugPrint('IAP purchaseStream: $e'),
-      );
+        }
+      },
+      onError: (e) {
+        lastError = e.toString();
+        debugPrint('IAP purchaseStream: $e');
+        _onError?.call(e.toString());
+      },
+    );
+  }
 
-      try {
-        final resp = await _iap.queryProductDetails(StoreProductIds.all);
+  Future<void> _refreshProducts() async {
+    try {
+      final resp = await _iap
+          .queryProductDetails(StoreProductIds.all)
+          .timeout(const Duration(seconds: 12));
+      lastNotFoundIds = List<String>.from(resp.notFoundIDs);
+      if (resp.error != null) {
+        lastError = resp.error!.message;
+        debugPrint('IAP queryProductDetails error: ${resp.error}');
+      }
+      if (resp.productDetails.isNotEmpty) {
         _products
           ..clear()
           ..addEntries(
             resp.productDetails.map((e) => MapEntry(e.id, e)),
           );
-      } catch (e) {
-        debugPrint('IAP queryProductDetails: $e');
+      } else if (_products.isEmpty) {
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        final retry = await _iap
+            .queryProductDetails(StoreProductIds.all)
+            .timeout(const Duration(seconds: 12));
+        lastNotFoundIds = List<String>.from(retry.notFoundIDs);
+        _products
+          ..clear()
+          ..addEntries(
+            retry.productDetails.map((e) => MapEntry(e.id, e)),
+          );
       }
-      _ready = true;
+      debugPrint(
+        'IAP products: ${_products.keys.toList()} notFound: $lastNotFoundIds',
+      );
     } catch (e) {
-      debugPrint('IAP init: $e');
-      _ready = false;
+      debugPrint('IAP queryProductDetails: $e');
+      lastError = e.toString();
     }
   }
 
   Future<void> dispose() async {
     await _sub?.cancel();
     _sub = null;
+    _ready = false;
   }
 
-  Future<bool> buyKrediPaket(int adet) async {
-    if (!isSupported) return false;
+  ProductDetails? _productForAdet(int adet) {
+    for (final id in StoreProductIds.candidatesForAdet(adet)) {
+      final found = _products[id];
+      if (found != null) return found;
+    }
+    return null;
+  }
+
+  bool productAvailableForAdet(int adet) => _productForAdet(adet) != null;
+
+  Future<StoreBuyResult> buyKrediPaket(int adet) async {
+    lastError = null;
+    if (!isSupported) {
+      lastError = 'Bu platformda mağaza ödemesi yok';
+      return StoreBuyResult.storeUnavailable;
+    }
     if (isAndroid) {
       final playOk = await isGooglePlayAvailable();
-      if (!playOk) return false;
+      if (!playOk) {
+        lastError = 'Google Play kullanılamıyor';
+        return StoreBuyResult.storeUnavailable;
+      }
     }
     try {
-      final candidates = StoreProductIds.candidatesForAdet(adet);
-      if (candidates.isEmpty) return false;
-      ProductDetails? product;
-      for (final id in candidates) {
-        product = _products[id];
-        if (product != null) break;
+      var available = false;
+      try {
+        available = await _iap
+            .isAvailable()
+            .timeout(const Duration(seconds: 8), onTimeout: () => false);
+      } catch (e) {
+        lastError = e.toString();
       }
+      if (!available) {
+        lastError = lastError ?? 'Mağaza şu an kullanılamıyor';
+        return StoreBuyResult.storeUnavailable;
+      }
+
+      await _ensurePurchaseStream();
+
+      final candidates = StoreProductIds.candidatesForAdet(adet);
+      if (candidates.isEmpty) {
+        lastError = 'Bu paket için ürün kimliği yok';
+        return StoreBuyResult.productNotFound;
+      }
+
+      var product = _productForAdet(adet);
       if (product == null) {
-        final resp = await _iap.queryProductDetails(candidates.toSet());
-        if (resp.productDetails.isEmpty) return false;
+        final resp = await _iap
+            .queryProductDetails(candidates.toSet())
+            .timeout(const Duration(seconds: 12));
+        lastNotFoundIds = List<String>.from(resp.notFoundIDs);
         for (final p in resp.productDetails) {
           _products[p.id] = p;
         }
-        for (final id in candidates) {
-          product = _products[id];
-          if (product != null) break;
-        }
-        product ??= resp.productDetails.first;
+        product = _productForAdet(adet) ??
+            (resp.productDetails.isEmpty ? null : resp.productDetails.first);
       }
+      if (product == null) {
+        lastError =
+            'Ürün mağazada yok (${candidates.join(', ')}). App Store Connect’te Consumable oluşturup bu sürümle incelemeye ekleyin.';
+        return StoreBuyResult.productNotFound;
+      }
+
       final param = PurchaseParam(productDetails: product);
-      return _iap.buyConsumable(
+      final started = await _iap.buyConsumable(
         purchaseParam: param,
         autoConsume: true,
       );
+      if (!started) {
+        lastError = 'Satın alma penceresi açılamadı';
+        return StoreBuyResult.failed;
+      }
+      return StoreBuyResult.started;
     } catch (e) {
       debugPrint('IAP buyKrediPaket: $e');
-      return false;
+      lastError = e.toString();
+      return StoreBuyResult.failed;
     }
   }
 
   /// Play / App Store’dan gelen güncel fiyat metni (yoksa null).
   String? storePriceForAdet(int adet) {
-    for (final id in StoreProductIds.candidatesForAdet(adet)) {
-      final price = _products[id]?.price;
-      if (price != null && price.isNotEmpty) return price;
-    }
+    final price = _productForAdet(adet)?.price;
+    if (price != null && price.isNotEmpty) return price;
     return null;
   }
 }

@@ -135,10 +135,14 @@ Apple’ın istediği gibi fiziksel cihazda kısa ekran kaydı ekleyin:
 
 ---
 
+## In-App Purchase (Guideline 2.1b)
+
+Puan paketleri App Store Consumable’dır. **Paid Apps Agreement Active**, ürünler sürüme ekli ve her IAP için Review screenshot şart. Adımlar: [APP_STORE_IAP.md](APP_STORE_IAP.md).
+
 ## Sürüm numarası
 
-`pubspec.yaml` → `version: 1.0.66+71`  
-Her yeni yüklemede **+build** artmalı (örn. `1.0.67+72`).
+`pubspec.yaml` → `version: 1.0.102+110`  
+Her yeni yüklemede **+build** artmalı (örn. `1.0.103+111`). Codemagic IPA dalı: `release/ios-1.0.66-71`.
 
 ---
 
