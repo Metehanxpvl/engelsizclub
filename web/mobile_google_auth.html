@@ -15,126 +15,104 @@
     .card { max-width: 360px; }
     h1 { font-size: 1.25rem; margin: 0 0 8px; }
     p { opacity: .85; font-size: .95rem; line-height: 1.4; }
-    .spin {
-      width: 36px; height: 36px; margin: 20px auto;
-      border: 3px solid rgba(255,255,255,.25);
-      border-top-color: #fff; border-radius: 50%;
-      animation: r 0.8s linear infinite;
-    }
-    @keyframes r { to { transform: rotate(360deg); } }
-    button {
+    #gis { display: flex; justify-content: center; margin-top: 18px; min-height: 44px; }
+    button.cancel {
       margin-top: 16px; padding: 12px 20px; border: 0; border-radius: 12px;
-      background: #fff; color: #0f3d2e; font-weight: 700; font-size: 15px;
+      background: transparent; color: #fff; font-weight: 600; font-size: 14px;
+      text-decoration: underline; cursor: pointer;
     }
   </style>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <div class="card">
     <h1>Google ile giriş</h1>
-    <p id="msg">Hesabınız seçiliyor…</p>
-    <div class="spin" id="spin"></div>
-    <button id="btn" style="display:none" type="button">Google ile devam et</button>
+    <p id="msg">Hesabınızı seçin</p>
+    <div id="gis"></div>
+    <button class="cancel" id="btn" type="button">Vazgeç</button>
   </div>
 
-  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-auth-compat.js"></script>
   <script>
     var APP_SCHEME = 'io.supabase.engelsizclub://login-callback';
-
-    firebase.initializeApp({
-      apiKey: 'AIzaSyDbcRvVaEQSDQJ2y-0kHZUsxtW_O2Xb_bQ',
-      authDomain: 'engelsizclub.com',
-      projectId: 'engelsizclub-e5842',
-      storageBucket: 'engelsizclub-e5842.firebasestorage.app',
-      messagingSenderId: '59695056324',
-      appId: '1:59695056324:web:ea6c93f11bd19d395b9091',
-      measurementId: 'G-8YPB15NZPJ'
-    });
-
-    var auth = firebase.auth();
-    var provider = new firebase.auth.GoogleAuthProvider();
-    provider.addScope('openid');
-    provider.addScope('email');
-    provider.addScope('profile');
-    provider.setCustomParameters({ prompt: 'select_account' });
+    var CLIENT_ID =
+      '59695056324-3dk4r1lsht7n5agn811vjj9777l0qdce.apps.googleusercontent.com';
+    var done = false;
 
     function setMsg(t) { document.getElementById('msg').textContent = t; }
 
     function goApp(params) {
+      if (done) return;
+      done = true;
       var q = [];
       Object.keys(params).forEach(function (k) {
         if (params[k] != null && params[k] !== '') {
           q.push(encodeURIComponent(k) + '=' + encodeURIComponent(String(params[k])));
         }
       });
-      // Fragment: uzun token sunucu loglarına düşmesin
       window.location.href = APP_SCHEME + '#' + q.join('&');
     }
 
-    function extractTokens(result) {
-      var idToken = null, accessToken = null;
-      try {
-        var oauth = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
-        if (oauth) {
-          idToken = oauth.idToken || null;
-          accessToken = oauth.accessToken || null;
-        }
-      } catch (_) {}
-      if (!idToken && result.credential) {
-        idToken = result.credential.idToken || idToken;
-        accessToken = result.credential.accessToken || accessToken;
-      }
-      var tr = result._tokenResponse || {};
-      if (!idToken) idToken = tr.oauthIdToken || tr.idToken || null;
-      if (!accessToken) accessToken = tr.oauthAccessToken || accessToken;
-      return { idToken: idToken, accessToken: accessToken };
-    }
-
-    function finishWithResult(result) {
-      var t = extractTokens(result);
-      if (!t.idToken) {
+    function finishWithIdToken(idToken) {
+      if (!idToken) {
         setMsg('Kimlik jetonu alınamadı. Tekrar deneyin.');
-        document.getElementById('btn').style.display = 'inline-block';
-        document.getElementById('spin').style.display = 'none';
         return;
       }
       setMsg('Uygulamaya dönülüyor…');
-      goApp({ id_token: t.idToken, access_token: t.accessToken || '' });
+      goApp({ id_token: idToken });
     }
 
-    async function startRedirect() {
-      try {
-        await auth.signOut();
-      } catch (_) {}
-      await auth.signInWithRedirect(provider);
+    function waitGoogle(ms) {
+      return new Promise(function (resolve, reject) {
+        function ready() {
+          return window.google && google.accounts && google.accounts.id;
+        }
+        if (ready()) { resolve(); return; }
+        var started = Date.now();
+        var id = setInterval(function () {
+          if (ready()) { clearInterval(id); resolve(); }
+          else if (Date.now() - started > (ms || 8000)) {
+            clearInterval(id);
+            reject(new Error('Google giriş kütüphanesi yüklenemedi.'));
+          }
+        }, 40);
+      });
     }
 
     document.getElementById('btn').onclick = function () {
-      document.getElementById('spin').style.display = 'block';
-      document.getElementById('btn').style.display = 'none';
-      setMsg('Hesabınız seçiliyor…');
-      startRedirect();
+      goApp({ cancelled: '1' });
     };
 
-    auth.getRedirectResult()
-      .then(function (result) {
-        if (result && result.user) {
-          finishWithResult(result);
-          return;
-        }
-        // İlk açılış — Google’a yönlendir
-        startRedirect();
-      })
-      .catch(function (e) {
-        var code = (e && e.code) ? String(e.code) : '';
-        if (code.indexOf('popup-closed') >= 0 || code.indexOf('cancelled') >= 0) {
-          goApp({ cancelled: '1' });
-          return;
-        }
-        setMsg((e && e.message) ? e.message : 'Giriş başarısız.');
-        document.getElementById('spin').style.display = 'none';
-        document.getElementById('btn').style.display = 'inline-block';
+    waitGoogle(8000).then(function () {
+      google.accounts.id.initialize({
+        client_id: CLIENT_ID,
+        callback: function (response) {
+          if (response && response.credential) {
+            finishWithIdToken(response.credential);
+          } else {
+            setMsg('Google kimlik jetonu alınamadı. Tekrar deneyin.');
+          }
+        },
+        auto_select: false,
+        context: 'signin',
+        ux_mode: 'popup',
+        itp_support: true,
+        use_fedcm_for_prompt: true
       });
+      google.accounts.id.renderButton(document.getElementById('gis'), {
+        type: 'standard',
+        theme: 'outline',
+        size: 'large',
+        text: 'signin_with',
+        shape: 'pill',
+        locale: 'tr',
+        width: 280
+      });
+      try {
+        google.accounts.id.prompt();
+      } catch (_) {}
+    }).catch(function (e) {
+      setMsg((e && e.message) ? e.message : 'Google yüklenemedi. Sayfayı yenileyin.');
+    });
   </script>
 </body>
 </html>

@@ -204,6 +204,8 @@ $staticRoots = @(
   "web\daha-fazlasi",
   "web\fotografli-puzzle.html",
   "web\boyama.html",
+  "web\google_oauth_callback.html",
+  "web\mobile_google_auth.html",
   "web\admin"
 )
 foreach ($src in $staticRoots) {

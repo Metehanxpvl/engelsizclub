@@ -199,6 +199,11 @@ Future<void> _bootstrapPlatformServices() async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Safari ITP / Private Relay fonts.gstatic.com'u kesince google_fonts ilk kareyi
+  // bekletebiliyor veya boş ekran bırakabiliyor. Web'de sistem/Roboto yedek.
+  if (kIsWeb) {
+    GoogleFonts.config.allowRuntimeFetching = false;
+  }
   // Theme Nunito (same family as İlanlar/Keşfet) — full TTF, not a latin-only subset.
 
   try {
@@ -258,6 +263,7 @@ class _MetoCareAppState extends State<MetoCareApp> {
   bool _booting = false;
   bool _bootTimedOut = false;
   bool _needsPasswordReset = false;
+  bool _authOpenOnSignup = false;
   StreamSubscription<AuthState>? _authSub;
   Timer? _bootWatchdog;
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -496,9 +502,17 @@ class _MetoCareAppState extends State<MetoCareApp> {
     final session = Supabase.instance.client.auth.currentSession;
     if (session == null) {
       if (mounted) {
+        var stayGuest = _user?.isGuest == true;
+        if (stayGuest && !await GuestLimitStore.sessionAllowed()) {
+          stayGuest = false;
+        }
         setState(() {
           _booting = false;
           _bootTimedOut = false;
+          if (!stayGuest && (_user == null || _user!.isGuest)) {
+            _user = null;
+            _authOpenOnSignup = true;
+          }
         });
       }
       return;
@@ -645,13 +659,27 @@ class _MetoCareAppState extends State<MetoCareApp> {
                       ? AuthScreen(
                           bootTimedOut: _bootTimedOut,
                           onRetryBootstrap: _retryBootstrap,
+                          initialAuthTab:
+                              _authOpenOnSignup ? 'kayit' : 'giris',
+                          openOnSignIn: _authOpenOnSignup,
+                          allowGuestExplore: !_authOpenOnSignup,
                           onLogin: (u) async {
                             if (!mounted) return;
+                            if (u.isGuest &&
+                                !await GuestLimitStore.sessionAllowed()) {
+                              if (!mounted) return;
+                              setState(() {
+                                _user = null;
+                                _authOpenOnSignup = true;
+                              });
+                              return;
+                            }
                             // Safari'de SharedPreferences takılırsa giriş hiç olmasın diye
                             // önce misafir/üye ekranına geç, limitleri arka planda yaz.
                             setState(() {
                               _user = u;
                               _bootTimedOut = false;
+                              _authOpenOnSignup = false;
                             });
                             try {
                               if (u.isGuest) {
@@ -668,7 +696,14 @@ class _MetoCareAppState extends State<MetoCareApp> {
                           user: _user!,
                           onLogout: _logout,
                           onUserChanged: (u) => setState(() => _user = u),
-                          onRequireLogin: () => setState(() => _user = null),
+                          onRequireLogin: () => setState(() {
+                            _user = null;
+                            _authOpenOnSignup = false;
+                          }),
+                          onRequireSignup: () => setState(() {
+                            _user = null;
+                            _authOpenOnSignup = true;
+                          }),
                         ),
         );
       },
@@ -854,11 +889,17 @@ class AuthScreen extends StatefulWidget {
     this.onLogin,
     this.bootTimedOut = false,
     this.onRetryBootstrap,
+    this.initialAuthTab = 'giris',
+    this.openOnSignIn = false,
+    this.allowGuestExplore = true,
   });
 
   final void Function(AuthUser user)? onLogin;
   final bool bootTimedOut;
   final VoidCallback? onRetryBootstrap;
+  final String initialAuthTab;
+  final bool openOnSignIn;
+  final bool allowGuestExplore;
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -897,6 +938,15 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _verifyLoading = false;
   bool _resendLoading = false;
 
+  @override
+  void initState() {
+    super.initState();
+    if (widget.openOnSignIn) {
+      _step = 'signin';
+      _authTab = widget.initialAuthTab == 'kayit' ? 'kayit' : 'giris';
+    }
+  }
+
   void _snack(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -906,6 +956,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _maybeStartAuthTour() async {
     if (!mounted || _authTourStarted || _step != 'signin') return;
+    if (widget.openOnSignIn) return;
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool(_authTourDoneKey) == true) return;
     _authTourStarted = true;
@@ -933,6 +984,20 @@ class _AuthScreenState extends State<AuthScreen> {
   void _skipAuthTour() {
     ShowcaseView.get().dismiss();
     unawaited(_finishAuthTour());
+  }
+
+  Future<void> _continueAsGuest() async {
+    if (!widget.allowGuestExplore ||
+        !await GuestLimitStore.sessionAllowed()) {
+      if (!mounted) return;
+      _snack(GuestLimitStore.sessionExpiredMessage);
+      setState(() {
+        _step = 'signin';
+        _authTab = 'kayit';
+      });
+      return;
+    }
+    widget.onLogin?.call(AuthUser.guest);
   }
 
   void _goToSignIn() {
@@ -1628,8 +1693,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                       ),
                                     const Spacer(),
                                     FilledButton(
-                                      onPressed: () =>
-                                          widget.onLogin?.call(AuthUser.guest),
+                                      onPressed: _continueAsGuest,
                                       child: const L10nText('Misafir devam'),
                                     ),
                                   ],
@@ -1643,8 +1707,8 @@ class _AuthScreenState extends State<AuthScreen> {
                       child: switch (_step) {
                         'splash' => _SplashStep(
                             onStart: _goToSignIn,
-                            onGuest: () =>
-                                widget.onLogin?.call(AuthUser.guest),
+                            onGuest: _continueAsGuest,
+                            showGuest: widget.allowGuestExplore,
                           ),
                         'loading' => _LoadingStep(
                             onCancel: () {
@@ -1682,8 +1746,8 @@ class _AuthScreenState extends State<AuthScreen> {
                             onForgotPassword: _forgotPassword,
                             onGoogleSignIn: _signInWithGoogle,
                             onAppleSignIn: _signInWithApple,
-                            onGuest: () =>
-                                widget.onLogin?.call(AuthUser.guest),
+                            onGuest: _continueAsGuest,
+                            showGuest: widget.allowGuestExplore,
                             roleTourKey: _roleTourKey,
                             googleTourKey: _googleTourKey,
                             showTourFinger: _authTourActive,
@@ -1889,10 +1953,15 @@ class _VerifyEmailStep extends StatelessWidget {
 // ─── Splash (Başlayalım) ─────────────────────────────────────────────────────
 
 class _SplashStep extends StatelessWidget {
-  const _SplashStep({required this.onStart, required this.onGuest});
+  const _SplashStep({
+    required this.onStart,
+    required this.onGuest,
+    this.showGuest = true,
+  });
 
   final VoidCallback onStart;
   final VoidCallback onGuest;
+  final bool showGuest;
 
   static const _features = [
     ('📚', 'Bilgi Kütüphanesi', 'Aileler için bilgilendirme içerikleri'),
@@ -1979,28 +2048,30 @@ class _SplashStep extends StatelessWidget {
                   child: const L10nText('Başlayalım'),
                 ),
               ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: OutlinedButton(
-                  onPressed: onGuest,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: MetoColors.primary,
-                    backgroundColor: MetoColors.card,
-                    side: const BorderSide(color: MetoColors.primary, width: 1.5),
-                    tapTargetSize: MaterialTapTargetSize.padded,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+              if (showGuest) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: OutlinedButton(
+                    onPressed: onGuest,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: MetoColors.primary,
+                      backgroundColor: MetoColors.card,
+                      side: const BorderSide(color: MetoColors.primary, width: 1.5),
+                      tapTargetSize: MaterialTapTargetSize.padded,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      textStyle: GoogleFonts.nunito(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                    textStyle: GoogleFonts.nunito(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    child: const L10nText('Üye olmadan keşfet'),
                   ),
-                  child: const L10nText('Üye olmadan keşfet'),
                 ),
-              ),
+              ],
             ],
           ),
         ),
@@ -2027,6 +2098,7 @@ class _SignInStep extends StatelessWidget {
     required this.onGoogleSignIn,
     required this.onAppleSignIn,
     required this.onGuest,
+    this.showGuest = true,
     required this.roleTourKey,
     required this.googleTourKey,
     required this.showTourFinger,
@@ -2063,6 +2135,7 @@ class _SignInStep extends StatelessWidget {
   final ValueChanged<String?> onGoogleSignIn;
   final ValueChanged<String?> onAppleSignIn;
   final VoidCallback onGuest;
+  final bool showGuest;
   final GlobalKey roleTourKey;
   final GlobalKey googleTourKey;
   final bool showTourFinger;
@@ -2099,7 +2172,7 @@ class _SignInStep extends StatelessWidget {
         const Padding(
           padding: EdgeInsets.only(bottom: 4),
           child: L10nText(
-            'v1.0.21',
+            'v1.0.102',
             style: TextStyle(
               fontSize: 11,
               color: MetoColors.mutedFg,
@@ -2355,29 +2428,30 @@ class _SignInStep extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: OutlinedButton(
-              onPressed: onGuest,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: MetoColors.primary,
-                backgroundColor: MetoColors.card,
-                side: const BorderSide(color: MetoColors.primary),
-                tapTargetSize: MaterialTapTargetSize.padded,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+          if (showGuest)
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton(
+                onPressed: onGuest,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: MetoColors.primary,
+                  backgroundColor: MetoColors.card,
+                  side: const BorderSide(color: MetoColors.primary),
+                  tapTargetSize: MaterialTapTargetSize.padded,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
-              ),
-              child: const L10nText(
-                'Üye olmadan keşfet',
-                style: TextStyle(
-                  color: MetoColors.primary,
-                  fontWeight: FontWeight.w800,
+                child: const L10nText(
+                  'Üye olmadan keşfet',
+                  style: TextStyle(
+                    color: MetoColors.primary,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ],
     );

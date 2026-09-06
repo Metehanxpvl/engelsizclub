@@ -162,6 +162,7 @@ class MainShell extends StatefulWidget {
     required this.onLogout,
     this.onUserChanged,
     this.onRequireLogin,
+    this.onRequireSignup,
   });
 
   final AuthUser user;
@@ -169,12 +170,14 @@ class MainShell extends StatefulWidget {
   final ValueChanged<AuthUser>? onUserChanged;
   /// Misafir kısıtında Giriş/Üye Ol ekranına dön.
   final VoidCallback? onRequireLogin;
+  /// Misafir 2 dk doldu → Üye Ol sekmesi.
+  final VoidCallback? onRequireSignup;
 
   @override
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   MetoTab _activeTab = MetoTab.home;
   /// Alt menüden hedef sekmeye giderken ara sayfaların (ör. Mesajlar) guest
   /// kilidini tetiklememesi için.
@@ -245,6 +248,9 @@ class _MainShellState extends State<MainShell> {
   Timer? _sohbetTimer;
   RealtimeChannel? _inboxChannel;
   Timer? _guestTabTimer;
+  Timer? _guestSessionTimer;
+  DateTime? _guestSessionTickAt;
+  bool _guestSessionExpired = false;
   StreamSubscription<Map<String, String>>? _pushOpenSub;
 
   bool get _isGuest => widget.user.isGuest;
@@ -258,6 +264,54 @@ class _MainShellState extends State<MainShell> {
       SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
     );
     widget.onRequireLogin?.call();
+  }
+
+  void _requireSignup([String? message]) {
+    if (!_isGuest || _guestSessionExpired) return;
+    _guestSessionExpired = true;
+    _guestSessionTimer?.cancel();
+    _guestSessionTimer = null;
+    final msg = message ?? GuestLimitStore.sessionExpiredMessage;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), duration: const Duration(seconds: 3)),
+    );
+    (widget.onRequireSignup ?? widget.onRequireLogin)?.call();
+  }
+
+  Future<void> _flushGuestSession({bool restart = true, bool notify = true}) async {
+    if (!_isGuest || _guestSessionExpired) return;
+    final start = _guestSessionTickAt;
+    if (restart) {
+      _guestSessionTickAt = DateTime.now();
+    } else {
+      _guestSessionTickAt = null;
+    }
+    if (start == null) return;
+    final ms = DateTime.now().difference(start).inMilliseconds;
+    final used = await GuestLimitStore.addSessionUsedMs(ms);
+    if (!mounted || _guestSessionExpired) return;
+    if (notify && used >= GuestLimitStore.sessionTimedAccess.inMilliseconds) {
+      _requireSignup();
+    }
+  }
+
+  void _armGuestSessionWatch() {
+    _guestSessionTimer?.cancel();
+    if (!_isGuest || _guestSessionExpired) return;
+    _guestSessionTickAt ??= DateTime.now();
+    _guestSessionTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      unawaited(_flushGuestSession());
+    });
+  }
+
+  Future<void> _enforceGuestSession() async {
+    if (!_isGuest || _guestSessionExpired) return;
+    if (await GuestLimitStore.sessionAllowed()) {
+      if (mounted) _armGuestSessionWatch();
+      return;
+    }
+    if (mounted) _requireSignup();
   }
 
   Future<bool> _gateTimedTab(MetoTab t) async {
@@ -389,6 +443,34 @@ class _MainShellState extends State<MainShell> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_isGuest || _guestSessionExpired) return;
+    if (state == AppLifecycleState.resumed) {
+      _guestSessionTickAt = DateTime.now();
+      _armGuestSessionWatch();
+      return;
+    }
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _guestSessionTimer?.cancel();
+      unawaited(_flushGuestSession(restart: false));
+    }
+  }
+
+  @override
+  void didUpdateWidget(MainShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.user.isGuest && !widget.user.isGuest) {
+      _guestSessionTimer?.cancel();
+      _guestSessionTimer = null;
+      _guestSessionTickAt = null;
+      WidgetsBinding.instance.removeObserver(this);
+      unawaited(GuestLimitStore.clearAll());
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
     LocaleController.instance.addListener(_onLocaleChanged);
@@ -401,8 +483,10 @@ class _MainShellState extends State<MainShell> {
     _tabPageController = PageController(initialPage: swipe >= 0 ? swipe : 0);
     if (_isGuest) {
       _userKredi = 0;
+      WidgetsBinding.instance.addObserver(this);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         unawaited(_maybeShowMedicalWelcome());
+        unawaited(_enforceGuestSession());
       });
       return;
     }
@@ -536,10 +620,13 @@ class _MainShellState extends State<MainShell> {
   @override
   void dispose() {
     LocaleController.instance.removeListener(_onLocaleChanged);
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(StoreBillingService.instance.dispose());
     stopPresenceHeartbeat();
     _sohbetTimer?.cancel();
     _guestTabTimer?.cancel();
+    _guestSessionTimer?.cancel();
+    unawaited(_flushGuestSession(restart: false, notify: false));
     unawaited(_pushOpenSub?.cancel());
     unawaited(unsubscribeRealtime(_inboxChannel));
     _inboxChannel = null;

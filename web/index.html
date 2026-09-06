@@ -21,6 +21,10 @@
 
   <title>Engelsiz Club</title>
   <link rel="manifest" href="manifest.json">
+  <!-- Safari: CanvasKit + main.dart.js indirmesini erken başlat (wasm MIME = application/wasm). -->
+  <link rel="preload" href="main.dart.js" as="script">
+  <link rel="preload" href="canvaskit/canvaskit.js" as="script">
+  <link rel="preload" href="canvaskit/canvaskit.wasm" as="fetch" crossorigin>
 
   <style>
     html, body {
@@ -92,17 +96,48 @@
   </div>
 
   <script>
-    // iPhone Safari: 100vh araç çubuğunu kapsar, dokunuşlar kayar.
+    // iPhone Safari: 100vh araç çubuğunu kapsar; Flutter canvas ~0.33px'e çökebilir.
     (function () {
+      function flutterCanvases() {
+        var out = [];
+        function walk(root) {
+          if (!root || !root.querySelectorAll) return;
+          var list = root.querySelectorAll('canvas');
+          for (var i = 0; i < list.length; i++) out.push(list[i]);
+          var all = root.querySelectorAll('*');
+          for (var j = 0; j < all.length; j++) {
+            if (all[j].shadowRoot) walk(all[j].shadowRoot);
+          }
+        }
+        walk(document);
+        return out;
+      }
       function applyViewportHeight() {
         var vv = window.visualViewport;
         var h = (vv && vv.height) ? vv.height : window.innerHeight;
-        if (!h) return;
+        var w = (vv && vv.width) ? vv.width : window.innerWidth;
+        if (!h || !w) return;
         document.documentElement.style.height = h + 'px';
         document.body.style.height = h + 'px';
+        document.documentElement.style.width = w + 'px';
+        document.body.style.width = w + 'px';
         var pane = document.querySelector('flutter-view') ||
           document.querySelector('flt-glass-pane');
-        if (pane) pane.style.height = h + 'px';
+        if (pane) {
+          pane.style.height = h + 'px';
+          pane.style.width = w + 'px';
+          pane.style.minHeight = h + 'px';
+          pane.style.minWidth = w + 'px';
+        }
+        var canvases = flutterCanvases();
+        for (var i = 0; i < canvases.length; i++) {
+          var c = canvases[i];
+          var rect = c.getBoundingClientRect();
+          if (rect.width < 8 || rect.height < 8) {
+            c.style.width = w + 'px';
+            c.style.height = h + 'px';
+          }
+        }
       }
       applyViewportHeight();
       window.addEventListener('resize', applyViewportHeight);
@@ -110,7 +145,25 @@
         window.visualViewport.addEventListener('resize', applyViewportHeight);
         window.visualViewport.addEventListener('scroll', applyViewportHeight);
       }
+      var mo = null;
+      var moTimer = null;
+      if (window.MutationObserver) {
+        mo = new MutationObserver(function () {
+          if (moTimer) return;
+          moTimer = setTimeout(function () {
+            moTimer = null;
+            applyViewportHeight();
+          }, 80);
+        });
+        mo.observe(document.documentElement, { childList: true, subtree: true });
+      }
       window.__engelsizFitViewport = applyViewportHeight;
+      window.__engelsizStopFitObserver = function () {
+        if (mo) {
+          mo.disconnect();
+          mo = null;
+        }
+      };
     })();
 
     function __engelsizHideLoading() {
@@ -119,6 +172,19 @@
       el.classList.add('hidden');
       el.style.pointerEvents = 'none';
       setTimeout(function () { if (el && el.parentNode) el.remove(); }, 300);
+    }
+
+    function __engelsizShowLoadHint(text, showRetry) {
+      var el = document.getElementById('loading');
+      if (!el || el.classList.contains('hidden')) return;
+      var hint = el.querySelector('.hint');
+      if (!hint) return;
+      if (showRetry) {
+        hint.innerHTML = text +
+          ' <a href="' + location.href + '" style="color:#fff;text-decoration:underline">Yenile</a>';
+      } else {
+        hint.textContent = text;
+      }
     }
 
     // Eski / bozuk service worker mobil boş ekranına yol açabiliyor.
@@ -134,12 +200,22 @@
     }
     window.addEventListener('flutter-first-frame', function () {
       if (window.__engelsizFitViewport) window.__engelsizFitViewport();
+      if (window.__engelsizStopFitObserver) window.__engelsizStopFitObserver();
       __engelsizHideLoading();
     });
-    // Safari'de first-frame kaçarsa overlay tıklamayı kilitlemesin.
-    setTimeout(__engelsizHideLoading, 8000);
+    // Overlay'i 8 sn'de kaldırma: Safari'de 7 MB CanvasKit bitmeden yeşil boş sayfa kalır.
+    setTimeout(function () {
+      __engelsizShowLoadHint('Hâlâ yükleniyor… yavaş ağda biraz sürebilir.', false);
+    }, 8000);
+    setTimeout(function () {
+      __engelsizShowLoadHint(
+        'Açılmazsa Safari’de Geçmiş ve Website Verilerini Silin, sonra yenileyin.',
+        true
+      );
+    }, 25000);
   </script>
-  <!-- Firebase JS — FlutterFire pigeon kanalı için önce yüklenir -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Firebase JS — FCM / diğer web yardımcıları -->
   <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-auth-compat.js"></script>
   <script>
@@ -154,101 +230,179 @@
         measurementId: 'G-8YPB15NZPJ'
       });
     }
-    function __engelsizExtractGoogleTokens(result) {
-      var idToken = null;
-      var accessToken = null;
-      try {
-        var oauth = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
-        if (oauth) {
-          idToken = oauth.idToken || null;
-          accessToken = oauth.accessToken || null;
-        }
-      } catch (_) {}
-      if (!idToken && result && result.credential) {
-        idToken = result.credential.idToken || idToken;
-        accessToken = result.credential.accessToken || accessToken;
-      }
-      var tr = (result && result._tokenResponse) || {};
-      if (!idToken) idToken = tr.oauthIdToken || tr.idToken || null;
-      if (!accessToken) accessToken = tr.oauthAccessToken || accessToken;
-      return { idToken: idToken, accessToken: accessToken };
+    // Google Identity Services — Firebase userinfo 401’i atlanır, id_token doğrudan Supabase’e gider.
+    var ENGELSIZ_GOOGLE_CLIENT_ID =
+      '59695056324-3dk4r1lsht7n5agn811vjj9777l0qdce.apps.googleusercontent.com';
+
+    function __engelsizPackTokens(idToken, accessToken) {
+      if (!idToken) return null;
+      return {
+        idToken: String(idToken),
+        accessToken: accessToken ? String(accessToken) : null
+      };
     }
 
-    // Popup engellenince redirect dönüşünü Flutter yakalar
-    window.__engelsizGoogleRedirectResult = async function () {
-      if (typeof firebase === 'undefined' || !firebase.apps.length) {
-        return { empty: true };
-      }
+    function __engelsizReadStoredGoogleTokens() {
       try {
-        var result = await firebase.auth().getRedirectResult();
-        if (!result || !result.user) return { empty: true };
-        var t = __engelsizExtractGoogleTokens(result);
-        if (!t.idToken) {
-          return { error: 'Google kimlik jetonu alınamadı (redirect).' };
+        var raw = sessionStorage.getItem('engelsiz_google_tokens');
+        if (!raw) return null;
+        sessionStorage.removeItem('engelsiz_google_tokens');
+        var t = JSON.parse(raw);
+        if (t && t.idToken) return __engelsizPackTokens(t.idToken, t.accessToken);
+        if (t && t.error) return { error: String(t.error) };
+      } catch (_) {}
+      return null;
+    }
+
+    function __engelsizWaitGoogle(ms) {
+      ms = ms || 8000;
+      return new Promise(function (resolve, reject) {
+        function ready() {
+          return window.google && google.accounts && google.accounts.id;
         }
-        return {
-          idToken: String(t.idToken),
-          accessToken: t.accessToken ? String(t.accessToken) : null
-        };
+        if (ready()) {
+          resolve();
+          return;
+        }
+        var started = Date.now();
+        var id = setInterval(function () {
+          if (ready()) {
+            clearInterval(id);
+            resolve();
+          } else if (Date.now() - started > ms) {
+            clearInterval(id);
+            reject(new Error('Google giriş kütüphanesi yüklenemedi. Sayfayı yenileyin.'));
+          }
+        }, 40);
+      });
+    }
+
+    function __engelsizRemoveGoogleOverlay() {
+      var el = document.getElementById('engelsiz-google-overlay');
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+    }
+
+    function __engelsizShowGoogleOverlay(onCancel) {
+      __engelsizRemoveGoogleOverlay();
+      var overlay = document.createElement('div');
+      overlay.id = 'engelsiz-google-overlay';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-label', 'Google ile giriş');
+      overlay.style.cssText =
+        'position:fixed;inset:0;z-index:2147483646;background:rgba(15,61,46,.78);' +
+        'display:flex;align-items:center;justify-content:center;padding:24px;';
+      overlay.innerHTML =
+        '<div style="background:#fff;color:#0f3d2e;border-radius:16px;padding:24px 22px 20px;' +
+        'max-width:360px;width:100%;text-align:center;box-shadow:0 16px 40px rgba(0,0,0,.28);' +
+        'font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">' +
+        '<div style="font-weight:800;font-size:18px;margin-bottom:6px">Google ile giriş</div>' +
+        '<div style="opacity:.75;font-size:14px;margin-bottom:18px;line-height:1.4">' +
+        'Google hesabınızı seçerek devam edin.</div>' +
+        '<div id="engelsiz-gis-btn" style="display:flex;justify-content:center"></div>' +
+        '<button type="button" id="engelsiz-gis-cancel" style="margin-top:16px;background:transparent;' +
+        'border:0;color:#0f3d2e;opacity:.7;font-size:14px;cursor:pointer;text-decoration:underline">' +
+        'Vazgeç</button></div>';
+      overlay.addEventListener('click', function (ev) {
+        if (ev.target === overlay && onCancel) onCancel();
+      });
+      document.body.appendChild(overlay);
+      var cancel = document.getElementById('engelsiz-gis-cancel');
+      if (cancel) cancel.onclick = function () { if (onCancel) onCancel(); };
+      try {
+        google.accounts.id.renderButton(document.getElementById('engelsiz-gis-btn'), {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          text: 'signin_with',
+          shape: 'pill',
+          logo_alignment: 'left',
+          locale: 'tr',
+          width: 280
+        });
       } catch (e) {
-        return { error: (e && e.message) ? String(e.message) : String(e) };
+        var host = document.getElementById('engelsiz-gis-btn');
+        if (host) host.textContent = 'Google butonu yüklenemedi. Sayfayı yenileyin.';
       }
+    }
+
+    window.__engelsizGoogleRedirectResult = async function () {
+      var stored = __engelsizReadStoredGoogleTokens();
+      if (stored) return stored;
+      return { empty: true };
     };
 
-    // Flutter → Google popup (supabase.co yok)
     window.__engelsizGoogleSignIn = async function () {
-      if (typeof firebase === 'undefined' || !firebase.apps.length) {
-        return { error: 'Firebase yüklenemedi. Sayfayı yenileyin.' };
-      }
-      var auth = firebase.auth();
-      var provider = new firebase.auth.GoogleAuthProvider();
-      provider.addScope('openid');
-      provider.addScope('email');
-      provider.addScope('profile');
-      provider.setCustomParameters({ prompt: 'select_account' });
+      var stored = __engelsizReadStoredGoogleTokens();
+      if (stored && stored.idToken) return stored;
+
       try {
-        // Eski oturum credential’ı boş bırakabiliyor — önce çıkış
-        try { await auth.signOut(); } catch (_) {}
-
-        var result = await auth.signInWithPopup(provider);
-        var t = __engelsizExtractGoogleTokens(result);
-
-        if (!t.idToken) {
-          return {
-            error: 'Google kimlik jetonu boş geldi. Firebase Console → Authentication → Sign-in method → Google’ı Enable yapın ve kaydedin.'
-          };
-        }
-        return {
-          idToken: String(t.idToken),
-          accessToken: t.accessToken ? String(t.accessToken) : null
-        };
+        await __engelsizWaitGoogle(8000);
       } catch (e) {
-        var code = (e && e.code) ? String(e.code) : '';
-        var msg = (e && e.message) ? String(e.message) : String(e);
-        if (code.indexOf('popup-closed') >= 0 || code.indexOf('cancelled') >= 0) {
-          return { cancelled: true };
-        }
-        if (code.indexOf('popup-blocked') >= 0) {
-          await auth.signInWithRedirect(provider);
-          return { redirecting: true };
-        }
-        if (code.indexOf('operation-not-allowed') >= 0 || code.indexOf('auth/operation-not-allowed') >= 0) {
-          return {
-            error: 'Firebase’de Google girişi kapalı. Console → Authentication → Sign-in method → Google → Enable.'
-          };
-        }
-        if (code.indexOf('unauthorized-domain') >= 0) {
-          return {
-            error: 'Domain yetkisiz. Firebase → Authentication → Settings → Authorized domains: engelsizclub.com ve engelsizclub-e5842.web.app ekleyin.'
-          };
-        }
-        if (msg.toLowerCase().indexOf('redirect_uri') >= 0 || code.indexOf('invalid-login') >= 0) {
-          return {
-            error: 'Google redirect URI uyuşmuyor. Web client’a ekleyin: https://engelsizclub.com/__/auth/handler'
-          };
-        }
-        return { error: msg };
+        return { error: (e && e.message) ? e.message : String(e) };
       }
+
+      return new Promise(function (resolve) {
+        var settled = false;
+        function finish(v) {
+          if (settled) return;
+          settled = true;
+          __engelsizRemoveGoogleOverlay();
+          resolve(v);
+        }
+
+        try { google.accounts.id.cancel(); } catch (_) {}
+
+        google.accounts.id.initialize({
+          client_id: ENGELSIZ_GOOGLE_CLIENT_ID,
+          callback: function (response) {
+            if (response && response.credential) {
+              finish(__engelsizPackTokens(response.credential, null));
+            } else {
+              finish({ error: 'Google kimlik jetonu alınamadı.' });
+            }
+          },
+          auto_select: false,
+          cancel_on_tap_outside: true,
+          context: 'signin',
+          ux_mode: 'popup',
+          itp_support: true,
+          use_fedcm_for_prompt: true
+        });
+
+        var promptVisible = false;
+        function showChooser() {
+          if (settled || promptVisible || document.getElementById('engelsiz-google-overlay')) return;
+          __engelsizShowGoogleOverlay(function () {
+            finish({ cancelled: true });
+          });
+        }
+
+        try {
+          google.accounts.id.prompt(function (notification) {
+            if (settled) return;
+            try {
+              if (notification.isDisplayMoment && notification.isDisplayMoment()) {
+                promptVisible = true;
+                return;
+              }
+              promptVisible = false;
+              if (notification.isNotDisplayed() ||
+                  notification.isSkippedMoment() ||
+                  notification.isDismissedMoment()) {
+                showChooser();
+              }
+            } catch (_) {
+              showChooser();
+            }
+          });
+        } catch (_) {
+          showChooser();
+        }
+
+        setTimeout(function () {
+          if (!promptVisible) showChooser();
+        }, 1200);
+      });
     };
   </script>
   <!-- Google Maps JavaScript API (Merkezler haritası) -->

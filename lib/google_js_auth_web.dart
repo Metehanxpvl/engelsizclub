@@ -18,7 +18,7 @@ Map<String, String?> _mapFromJs(dynamic raw) {
 }
 
 /// index.html içindeki `window.__engelsizGoogleSignIn` köprüsü.
-/// Firebase JS popup → idToken (supabase.co URL yok; authDomain=engelsizclub.com).
+/// Google Identity Services → idToken (Firebase userinfo 401 yok).
 Future<Map<String, String?>?> firebaseGooglePopupJs() async {
   final bridge =
       js_util.getProperty(js_util.globalThis, '__engelsizGoogleSignIn');

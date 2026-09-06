@@ -93,6 +93,14 @@
         "destination": "/daha-fazlasi/ozel/index.html"
       },
       {
+        "source": "/google_oauth_callback.html",
+        "destination": "/google_oauth_callback.html"
+      },
+      {
+        "source": "/mobile_google_auth.html",
+        "destination": "/mobile_google_auth.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
@@ -214,6 +222,10 @@
           {
             "key": "Permissions-Policy",
             "value": "camera=(self), microphone=()"
+          },
+          {
+            "key": "Cross-Origin-Opener-Policy",
+            "value": "same-origin-allow-popups"
           }
         ]
       },
@@ -322,6 +334,15 @@
         ]
       },
       {
+        "source": "/google_oauth_callback.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
         "source": "/",
         "headers": [
           {
@@ -331,6 +352,10 @@
           {
             "key": "Permissions-Policy",
             "value": "camera=(self), microphone=()"
+          },
+          {
+            "key": "Cross-Origin-Opener-Policy",
+            "value": "same-origin-allow-popups"
           }
         ]
       },

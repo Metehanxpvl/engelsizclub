@@ -6,6 +6,10 @@ class GuestLimitStore {
 
   static const maxSearches = 2;
   static const timedAccess = Duration(minutes: 2);
+  /// Üye olmadan tüm uygulama: ön planda geçirilen süre.
+  static const sessionTimedAccess = Duration(minutes: 2);
+  static const sessionExpiredMessage =
+      'Misafir süresi doldu (2 dk). Üye olun veya giriş yapın.';
   /// Otizm tarama (M-CHAT) misafir süresi.
   static const mchatTimedAccess = Duration(minutes: 1);
   /// Keşfet: yalnızca sekmede geçirilen gerçek süre (duvar saati değil).
@@ -13,6 +17,7 @@ class GuestLimitStore {
 
   static const _searchCountKey = 'guest_search_count_v1';
   static const _kesfetUsedMsKey = 'guest_kesfet_used_ms_v1';
+  static const _sessionUsedMsKey = 'guest_app_used_ms_v1';
   // v2: eski (süresi dolmuş) deneme kayıtlarını sıfırlamak için
   static const _haklarStartKey = 'guest_tab_start_haklar_v2';
   static const _kartlarStartKey = 'guest_tab_start_kartlar_v2';
@@ -116,6 +121,34 @@ class GuestLimitStore {
     return (await kesfetRemainingMs()) > 0;
   }
 
+  /// Üye olmadan uygulamada birikmiş kullanım (ms). Yenilemede korunur.
+  static Future<int> sessionUsedMs() async {
+    final prefs = await _prefs();
+    if (prefs == null) return 0;
+    return prefs.getInt(_sessionUsedMsKey) ?? 0;
+  }
+
+  static Future<int> sessionRemainingMs() async {
+    final used = await sessionUsedMs();
+    final left = sessionTimedAccess.inMilliseconds - used;
+    return left < 0 ? 0 : left;
+  }
+
+  static Future<bool> sessionAllowed() async {
+    return (await sessionRemainingMs()) > 0;
+  }
+
+  static Future<int> addSessionUsedMs(int ms) async {
+    if (ms <= 0) return sessionUsedMs();
+    final prefs = await _prefs();
+    if (prefs == null) return 0;
+    final cap = sessionTimedAccess.inMilliseconds;
+    final next =
+        ((prefs.getInt(_sessionUsedMsKey) ?? 0) + ms).clamp(0, cap).toInt();
+    await prefs.setInt(_sessionUsedMsKey, next);
+    return next;
+  }
+
   /// Keşfet’te gerçekten geçirilen süreyi ekler; yeni toplam ms döner.
   static Future<int> addKesfetUsedMs(int ms) async {
     if (ms <= 0) return kesfetUsedMs();
@@ -128,7 +161,7 @@ class GuestLimitStore {
   }
 
   /// Yeni misafir oturumu: Haklar/Kartlar/M-CHAT süresini sıfırla.
-  /// Keşfet kotası sıfırlanmaz (yenileme / tekrar misafir girişinde korunur).
+  /// Keşfet ve uygulama geneli 2 dk kotası sıfırlanmaz.
   static Future<void> resetTimedTabsForGuestSession() async {
     final prefs = await _prefs();
     if (prefs == null) return;
@@ -149,6 +182,7 @@ class GuestLimitStore {
     if (prefs == null) return;
     await prefs.remove(_searchCountKey);
     await prefs.remove(_kesfetUsedMsKey);
+    await prefs.remove(_sessionUsedMsKey);
     await prefs.remove(_haklarStartKey);
     await prefs.remove(_kartlarStartKey);
     await prefs.remove(_mchatStartKey);

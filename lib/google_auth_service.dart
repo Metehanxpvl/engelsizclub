@@ -12,8 +12,8 @@ import 'google_js_auth_stub.dart'
 
 /// Google → Supabase oturumu.
 ///
-/// Web: Firebase JS popup (engelsizclub.com).
-/// Android/iOS: Hosted Firebase Google page → deep link + idToken
+/// Web: Google Identity Services (id_token) → Supabase signInWithIdToken.
+/// Android/iOS: Hosted GIS page → deep link + idToken
 /// (Play SHA-1 / Supabase→Google redirect_uri gerekmez).
 class GoogleAuthService {
   GoogleAuthService._();
@@ -24,7 +24,7 @@ class GoogleAuthService {
 
   static const mobileRedirect = 'io.supabase.engelsizclub://login-callback';
 
-  /// Web’de çalışan Firebase Google akışını mobil tarayıcıda açar.
+  /// Web’deki Google Identity Services sayfasını mobil tarayıcıda açar.
   static const mobileAuthPage =
       'https://engelsizclub.com/mobile_google_auth.html';
 
@@ -42,6 +42,11 @@ class GoogleAuthService {
       );
     }
     return firebase_auth.FirebaseAuth.instance;
+  }
+
+  static String? _nonEmptyToken(String? value) {
+    if (value == null || value.isEmpty || value == 'null') return null;
+    return value;
   }
 
   static firebase_auth.GoogleAuthProvider get _provider {
@@ -90,10 +95,10 @@ class GoogleAuthService {
     final js = await google_js.firebaseGooglePopupJs();
     if (js == null) return null;
     if (js['cancelled'] == 'true') return null;
-      if (js['redirecting'] == 'true') {
-        // Sayfa Google’a gidiyor — oturum dönüşte completeRedirectIfAny ile kurulur.
-        throw const GoogleAuthRedirecting();
-      }
+    if (js['redirecting'] == 'true') {
+      // Sayfa Google’a gidiyor — oturum dönüşte completeRedirectIfAny ile kurulur.
+      throw const GoogleAuthRedirecting();
+    }
     final err = js['error'];
     if (err != null && err.isNotEmpty) {
       throw StateError(err);
@@ -106,7 +111,7 @@ class GoogleAuthService {
       return await Supabase.instance.client.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
-        accessToken: js['accessToken'],
+        accessToken: _nonEmptyToken(js['accessToken']),
       );
     } on AuthException catch (e) {
       final m = e.message.toLowerCase();
@@ -263,7 +268,7 @@ class GoogleAuthService {
   static Future<AuthResponse?> completeRedirectIfAny() async {
     if (!kIsWeb) return null;
 
-    // Web’de FlutterFire init edilmiyor — Firebase JS redirect sonucunu kullan.
+    // Web’de FlutterFire init edilmiyor — GIS / sessionStorage redirect sonucunu kullan.
     try {
       final js = await google_js.firebaseGoogleRedirectResultJs();
       if (js == null) return null;
@@ -277,7 +282,7 @@ class GoogleAuthService {
       return await Supabase.instance.client.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
-        accessToken: js['accessToken'],
+        accessToken: _nonEmptyToken(js['accessToken']),
       );
     } catch (e) {
       // Redirect yoksa veya hata — çağıran normal oturuma düşer

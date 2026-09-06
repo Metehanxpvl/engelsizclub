@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Engelsiz Club — Google</title>
+  <style>
+    html, body {
+      margin: 0; height: 100%;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: #0f3d2e; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      text-align: center; padding: 24px;
+    }
+  </style>
+</head>
+<body>
+  <p id="msg">Google girişi tamamlanıyor…</p>
+  <script>
+    (function () {
+      function paramsFrom(raw) {
+        var p = new URLSearchParams(raw || '');
+        return {
+          idToken: p.get('id_token'),
+          accessToken: p.get('access_token'),
+          error: p.get('error_description') || p.get('error')
+        };
+      }
+      var fromHash = paramsFrom(location.hash.replace(/^#/, ''));
+      var fromQuery = paramsFrom(location.search.replace(/^\?/, ''));
+      var idToken = fromHash.idToken || fromQuery.idToken;
+      var accessToken = fromHash.accessToken || fromQuery.accessToken;
+      var error = fromHash.error || fromQuery.error;
+      var payload = { type: 'engelsiz-google-oauth' };
+      if (error) payload.error = error;
+      else if (idToken) {
+        payload.idToken = idToken;
+        payload.accessToken = accessToken || null;
+      } else {
+        payload.cancelled = true;
+      }
+
+      if (window.opener && window.opener !== window) {
+        try {
+          window.opener.postMessage(payload, location.origin);
+        } catch (_) {}
+        window.close();
+        return;
+      }
+
+      try {
+        if (payload.idToken) {
+          sessionStorage.setItem('engelsiz_google_tokens', JSON.stringify({
+            idToken: payload.idToken,
+            accessToken: payload.accessToken || null
+          }));
+        } else if (payload.error) {
+          sessionStorage.setItem('engelsiz_google_tokens', JSON.stringify({
+            error: payload.error
+          }));
+        }
+      } catch (_) {}
+      location.replace('/');
+    })();
+  </script>
+</body>
+</html>
