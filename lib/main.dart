@@ -2172,7 +2172,7 @@ class _SignInStep extends StatelessWidget {
         const Padding(
           padding: EdgeInsets.only(bottom: 4),
           child: L10nText(
-            'v1.0.102',
+            'v1.0.103',
             style: TextStyle(
               fontSize: 11,
               color: MetoColors.mutedFg,
