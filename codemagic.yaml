@@ -121,9 +121,10 @@ workflows:
           BUILD_NAME=$(echo "$VERSION_LINE" | cut -d+ -f1)
           BUILD_NUMBER=$(echo "$VERSION_LINE" | cut -d+ -f2)
           echo "==== pubspec version: $VERSION_LINE (name=$BUILD_NAME number=$BUILD_NUMBER) ===="
-          if [ -z "$BUILD_NUMBER" ] || [ "$BUILD_NUMBER" -le 61 ]; then
-            echo "ERROR: iOS build number must be > 61."
-            echo "Select branch release/ios-1.0.66-71 (main is still +61)."
+          if [ -z "$BUILD_NUMBER" ] || [ "$BUILD_NUMBER" -le 110 ]; then
+            echo "ERROR: iOS CFBundleVersion must be > 110."
+            echo "App Store Connect already has build 110. Use branch main (1.1.1+113+)."
+            echo "Do not build release/ios-1.0.66-71 — that branch is still +110."
             exit 1
           fi
           echo "==== Code signing identities in keychain ===="
@@ -209,9 +210,10 @@ workflows:
           BUILD_NAME=$(echo "$VERSION_LINE" | cut -d+ -f1)
           BUILD_NUMBER=$(echo "$VERSION_LINE" | cut -d+ -f2)
           echo "==== pubspec version: $VERSION_LINE (name=$BUILD_NAME number=$BUILD_NUMBER) ===="
-          if [ -z "$BUILD_NUMBER" ] || [ "$BUILD_NUMBER" -le 61 ]; then
-            echo "ERROR: iOS build number must be > 61."
-            echo "Select branch release/ios-1.0.66-71 (main is still +61)."
+          if [ -z "$BUILD_NUMBER" ] || [ "$BUILD_NUMBER" -le 110 ]; then
+            echo "ERROR: iOS CFBundleVersion must be > 110."
+            echo "App Store Connect already has build 110. Use branch main (1.1.1+113+)."
+            echo "Do not build release/ios-1.0.66-71 — that branch is still +110."
             exit 1
           fi
           flutter build ipa --release \
