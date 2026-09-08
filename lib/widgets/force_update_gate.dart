@@ -11,7 +11,7 @@ import '../services/force_update_service.dart';
 
 /// İlk kareyi asla geciktirmez / kilitlemez.
 /// Android: Play In-App Update (yalnız mağazada daha yeni varsa).
-/// iOS: kapatılabilir alt kart. Web: no-op.
+/// iOS: güncelleme kartı yok (App Store 1.1 vs 1.0.x döngüsü). Web: no-op.
 class ForceUpdateGate extends StatefulWidget {
   const ForceUpdateGate({super.key, required this.child});
 

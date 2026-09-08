@@ -1,32 +1,24 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:in_app_update/in_app_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../utils/async_timeout.dart';
-
 /// pubspec `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
-const kAppBuildNumber = 108;
+const kAppBuildNumber = 112;
 
 /// Otomatik güncelleme — ilk kareden sonra, asla boot kilidi yok.
 ///
 /// Android: yalnız Play In-App Update. Play daha yeni sürüm yoksa hiçbir şey.
-/// iOS: App Store lookup; varsa kapatılabilir sayfa. Fail-open.
+/// iOS: App Store lookup kapatıldı (1.1 vs 1.0.x kısır döngü).
 /// Web: kapalı.
 class ForceUpdateService extends ChangeNotifier {
   ForceUpdateService._();
   static final ForceUpdateService instance = ForceUpdateService._();
 
   static const androidPackage = 'com.sakircaykara.engelsizclub';
-  static const iosBundleId = 'com.sakircaykara.engelsizclub';
   static const defaultPlayUrl =
       'https://play.google.com/store/apps/details?id=$androidPackage';
   static const defaultMarketUrl = 'market://details?id=$androidPackage';
-  static const defaultIosSearchUrl =
-      'https://apps.apple.com/tr/search?term=Engelsiz%20Club';
 
   /// Eski kilit alanı — her zaman false. İlk kare asla bloklanmaz.
   bool blocked = false;
@@ -90,6 +82,8 @@ class ForceUpdateService extends ChangeNotifier {
   }
 
   Future<void> openStore() async {
+    // Mağazaya giderken kartı kapat — dönünce aynı ekran tekrar açılmasın.
+    dismissIosPrompt();
     try {
       if (defaultTargetPlatform == TargetPlatform.android) {
         final market = Uri.parse(defaultMarketUrl);
@@ -160,62 +154,13 @@ class ForceUpdateService extends ChangeNotifier {
   }
 
   Future<void> _checkAppStore() async {
-    if (_iosDismissed) return;
-    try {
-      final uri = Uri.https('itunes.apple.com', '/lookup', {
-        'bundleId': iosBundleId,
-        'country': 'tr',
-      });
-      final res = await withNetworkTimeout(
-        http.get(uri).timeout(const Duration(seconds: 8)),
-        timeout: const Duration(seconds: 10),
-        message: 'App Store sürüm bilgisi alınamadı.',
-      );
-      if (res.statusCode != 200) return;
-      final decoded = jsonDecode(res.body);
-      if (decoded is! Map) return;
-      final results = decoded['results'];
-      if (results is! List || results.isEmpty) return;
-      final first = results.first;
-      if (first is! Map) return;
-      final version = (first['version'] ?? '').toString().trim();
-      final trackUrl = (first['trackViewUrl'] ?? '').toString().trim();
-      if (version.isEmpty) return;
-      storeVersion = version;
-      if (trackUrl.startsWith('http')) storeUrl = trackUrl;
-
-      final newer = _isStoreVersionNewer(storeVersion, localVersion);
-      debugPrint(
-        'ForceUpdate iOS: local=$localVersion store=$storeVersion newer=$newer',
-      );
-      if (!newer) {
-        if (iosUpdateAvailable) {
-          iosUpdateAvailable = false;
-          notifyListeners();
-        }
-        return;
-      }
-      if (!iosUpdateAvailable) {
-        iosUpdateAvailable = true;
-        notifyListeners();
-      }
-    } catch (e) {
-      debugPrint('ForceUpdate App Store: $e');
+    // App Store lookup "1.1", Flutter "1.0.103" → 1.1 daha yeni sanılıyor.
+    // Güncelle → mağazada zaten son sürüm / Open → uygulama açılınca kart
+    // yine geliyor (kısır döngü). iOS güncellemeyi App Store'a bırak.
+    _iosDismissed = true;
+    if (iosUpdateAvailable) {
+      iosUpdateAvailable = false;
+      notifyListeners();
     }
-  }
-
-  /// `1.0.100` > `1.0.99`. Eşit veya parse edilemezse false (fail-open).
-  static bool _isStoreVersionNewer(String store, String local) {
-    if (store.isEmpty || local.isEmpty) return false;
-    final a = store.split('.').map((p) => int.tryParse(p.trim()) ?? 0).toList();
-    final b = local.split('.').map((p) => int.tryParse(p.trim()) ?? 0).toList();
-    final n = a.length > b.length ? a.length : b.length;
-    for (var i = 0; i < n; i++) {
-      final av = i < a.length ? a[i] : 0;
-      final bv = i < b.length ? b[i] : 0;
-      if (av > bv) return true;
-      if (av < bv) return false;
-    }
-    return false;
   }
 }
