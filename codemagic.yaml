@@ -53,6 +53,35 @@ workflows:
         certificates:
           - "EngelsizClub Apple Distribution"
     scripts:
+      - name: Set date BUILD_NUMBER (CM_ENV)
+        script: |
+          #!/usr/bin/env sh
+          set -e
+          # Each Codemagic script is a new shell. export is lost unless written to $CM_ENV.
+          BUILD_NAME=1.1.4
+          DATE_BN=$(date -u +%Y%m%d%H%M)
+          OFFSET="${PROJECT_BUILD_NUMBER:-}"
+          case "$OFFSET" in
+            ''|*[!0-9]*) OFFSET="${CM_BUILD_NUMBER:-}" ;;
+          esac
+          case "$OFFSET" in
+            ''|*[!0-9]*) OFFSET=1 ;;
+          esac
+          if [ "$OFFSET" -le 0 ]; then
+            OFFSET=1
+          fi
+          BUILD_NUMBER=$((DATE_BN + OFFSET))
+          echo "==== CM_ENV persist BUILD_NUMBER=$BUILD_NUMBER date=$DATE_BN offset=$OFFSET BUILD_NAME=$BUILD_NAME ===="
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
+          echo "BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
+          echo "FLUTTER_BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
+          echo "FLUTTER_BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
+          case "$BUILD_NUMBER" in
+            200001|140|150|130)
+              echo "ERROR: BUILD_NUMBER=$BUILD_NUMBER is a known-used pubspec/TestFlight number."
+              exit 1
+              ;;
+          esac
       - name: Get Flutter packages
         script: |
           flutter pub get
@@ -118,66 +147,67 @@ workflows:
         script: |
           #!/usr/bin/env sh
           set -e
-          VERSION_LINE=$(grep '^version:' pubspec.yaml | head -n 1 | awk '{print $2}')
-          BUILD_NAME=$(echo "$VERSION_LINE" | cut -d+ -f1)
-          PUBSPEC_NUMBER=$(echo "$VERSION_LINE" | cut -d+ -f2)
-          PUBSPEC_NUMBER=$(printf '%s' "$PUBSPEC_NUMBER" | grep -Eo '[0-9]+' | head -n 1 || true)
-          PUBSPEC_NUMBER=${PUBSPEC_NUMBER:-0}
-          HARD_FLOOR=200000
-
-          only_positive_int() {
-            case "$1" in
-              ''|*[!0-9]*) echo 0 ;;
-              *) echo "$1" ;;
-            esac
-          }
-
+          # Recompute in THIS shell (do not trust env BUILD_NUMBER: Codemagic
+          # already exports that name as a small workflow counter).
+          BUILD_NAME=1.1.4
           DATE_BN=$(date -u +%Y%m%d%H%M)
-          OFFSET=$(only_positive_int "${PROJECT_BUILD_NUMBER:-}")
-          if [ "$OFFSET" -le 0 ]; then
-            OFFSET=$(only_positive_int "${CM_BUILD_NUMBER:-}")
-          fi
+          OFFSET="${PROJECT_BUILD_NUMBER:-}"
+          case "$OFFSET" in
+            ''|*[!0-9]*) OFFSET="${CM_BUILD_NUMBER:-}" ;;
+          esac
+          case "$OFFSET" in
+            ''|*[!0-9]*) OFFSET=1 ;;
+          esac
           if [ "$OFFSET" -le 0 ]; then
             OFFSET=1
           fi
+          BUILD_NUMBER=$((DATE_BN + OFFSET))
+          echo "==== same-script BUILD_NUMBER=$BUILD_NUMBER date=$DATE_BN offset=$OFFSET BUILD_NAME=$BUILD_NAME ===="
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
+          echo "BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
+          echo "FLUTTER_BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
+          echo "FLUTTER_BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
 
-          MAX=$HARD_FLOOR
-          echo "==== CFBundleVersion sources (date-based; Apple CLI is NOT the increment source) ===="
-          for _pair in \
-            "hard-floor:$HARD_FLOOR" \
-            "pubspec:$PUBSPEC_NUMBER" \
-            "CM_BUILD_NUMBER:$(only_positive_int "${CM_BUILD_NUMBER:-}")" \
-            "PROJECT_BUILD_NUMBER:$(only_positive_int "${PROJECT_BUILD_NUMBER:-}")" \
-            "date-utc:$DATE_BN"
-          do
-            _name=${_pair%%:*}
-            _val=${_pair#*:}
-            echo "  source: $_name -> $_val"
-            if [ "$_val" -gt "$MAX" ] 2>/dev/null; then
-              MAX=$_val
+          case "$BUILD_NUMBER" in
+            200001|140|150|130)
+              echo "ERROR: BUILD_NUMBER=$BUILD_NUMBER is a known-used pubspec/TestFlight number. Refusing to build."
+              exit 1
+              ;;
+          esac
+
+          # flutter pub get writes pubspec +200001 into Generated.xcconfig.
+          GENERATED="ios/Flutter/Generated.xcconfig"
+          if [ -f "$GENERATED" ]; then
+            if grep -q '^FLUTTER_BUILD_NUMBER=' "$GENERATED"; then
+              sed -i '' "s/^FLUTTER_BUILD_NUMBER=.*/FLUTTER_BUILD_NUMBER=$BUILD_NUMBER/" "$GENERATED"
+            else
+              echo "FLUTTER_BUILD_NUMBER=$BUILD_NUMBER" >> "$GENERATED"
             fi
-          done
-
-          BUILD_NUMBER=$((MAX + OFFSET))
-          echo "==== CFBundleVersion BUILD_NUMBER=$BUILD_NUMBER ===="
-          echo "==== date=$DATE_BN offset=$OFFSET max=$MAX pubspec=$VERSION_LINE name=$BUILD_NAME ===="
-          echo "==== flutter will be called with --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER ===="
-
-          if [ -n "${CM_ENV:-}" ]; then
-            echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
-            echo "FLUTTER_BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
-            echo "FLUTTER_BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
+            if grep -q '^FLUTTER_BUILD_NAME=' "$GENERATED"; then
+              sed -i '' "s/^FLUTTER_BUILD_NAME=.*/FLUTTER_BUILD_NAME=$BUILD_NAME/" "$GENERATED"
+            else
+              echo "FLUTTER_BUILD_NAME=$BUILD_NAME" >> "$GENERATED"
+            fi
+            echo "==== ios/Flutter/Generated.xcconfig after override ===="
+            grep -E 'FLUTTER_BUILD_' "$GENERATED" || true
           fi
+
+          export FLUTTER_BUILD_NUMBER="$BUILD_NUMBER"
+          export FLUTTER_BUILD_NAME="$BUILD_NAME"
 
           echo "==== Code signing identities in keychain ===="
           security find-identity -v -p codesigning || true
           echo "==== export_options.plist ===="
           plutil -p /Users/builder/export_options.plist || true
+          echo "==== flutter build ipa --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER CURRENT_PROJECT_VERSION=$BUILD_NUMBER ===="
 
           flutter build ipa --release \
             --build-name="$BUILD_NAME" \
             --build-number="$BUILD_NUMBER" \
-            --export-options-plist=/Users/builder/export_options.plist
+            --export-options-plist=/Users/builder/export_options.plist \
+            -- \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            MARKETING_VERSION="$BUILD_NAME"
 
           ls -la build/ios/ipa/
           test -n "$(ls -A build/ios/ipa/*.ipa 2>/dev/null)"
@@ -192,11 +222,13 @@ workflows:
             echo "ERROR: IPA CFBundleVersion=$IPA_VER does not match BUILD_NUMBER=$BUILD_NUMBER. Refusing to publish."
             exit 1
           fi
-          if [ "$IPA_VER" -lt "$HARD_FLOOR" ]; then
-            echo "ERROR: IPA CFBundleVersion=$IPA_VER is below hard floor $HARD_FLOOR. Refusing to publish."
-            exit 1
-          fi
-          echo "==== IPA CFBundleVersion verified: $IPA_VER (will publish this, not pubspec +build) ===="
+          case "$IPA_VER" in
+            200001|140|150|130)
+              echo "ERROR: IPA CFBundleVersion=$IPA_VER is a known-used pubspec/TestFlight number. Refusing to publish."
+              exit 1
+              ;;
+          esac
+          echo "==== IPA CFBundleVersion verified: $IPA_VER (date-like, not pubspec +200001) ===="
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
@@ -230,6 +262,35 @@ workflows:
         certificates:
           - "EngelsizClub Apple Distribution"
     scripts:
+      - name: Set date BUILD_NUMBER (CM_ENV)
+        script: |
+          #!/usr/bin/env sh
+          set -e
+          # Each Codemagic script is a new shell. export is lost unless written to $CM_ENV.
+          BUILD_NAME=1.1.4
+          DATE_BN=$(date -u +%Y%m%d%H%M)
+          OFFSET="${PROJECT_BUILD_NUMBER:-}"
+          case "$OFFSET" in
+            ''|*[!0-9]*) OFFSET="${CM_BUILD_NUMBER:-}" ;;
+          esac
+          case "$OFFSET" in
+            ''|*[!0-9]*) OFFSET=1 ;;
+          esac
+          if [ "$OFFSET" -le 0 ]; then
+            OFFSET=1
+          fi
+          BUILD_NUMBER=$((DATE_BN + OFFSET))
+          echo "==== CM_ENV persist BUILD_NUMBER=$BUILD_NUMBER date=$DATE_BN offset=$OFFSET BUILD_NAME=$BUILD_NAME ===="
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
+          echo "BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
+          echo "FLUTTER_BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
+          echo "FLUTTER_BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
+          case "$BUILD_NUMBER" in
+            200001|140|150|130)
+              echo "ERROR: BUILD_NUMBER=$BUILD_NUMBER is a known-used pubspec/TestFlight number."
+              exit 1
+              ;;
+          esac
       - name: Get Flutter packages
         script: |
           flutter pub get
@@ -263,66 +324,67 @@ workflows:
         script: |
           #!/usr/bin/env sh
           set -e
-          VERSION_LINE=$(grep '^version:' pubspec.yaml | head -n 1 | awk '{print $2}')
-          BUILD_NAME=$(echo "$VERSION_LINE" | cut -d+ -f1)
-          PUBSPEC_NUMBER=$(echo "$VERSION_LINE" | cut -d+ -f2)
-          PUBSPEC_NUMBER=$(printf '%s' "$PUBSPEC_NUMBER" | grep -Eo '[0-9]+' | head -n 1 || true)
-          PUBSPEC_NUMBER=${PUBSPEC_NUMBER:-0}
-          HARD_FLOOR=200000
-
-          only_positive_int() {
-            case "$1" in
-              ''|*[!0-9]*) echo 0 ;;
-              *) echo "$1" ;;
-            esac
-          }
-
+          # Recompute in THIS shell (do not trust env BUILD_NUMBER: Codemagic
+          # already exports that name as a small workflow counter).
+          BUILD_NAME=1.1.4
           DATE_BN=$(date -u +%Y%m%d%H%M)
-          OFFSET=$(only_positive_int "${PROJECT_BUILD_NUMBER:-}")
-          if [ "$OFFSET" -le 0 ]; then
-            OFFSET=$(only_positive_int "${CM_BUILD_NUMBER:-}")
-          fi
+          OFFSET="${PROJECT_BUILD_NUMBER:-}"
+          case "$OFFSET" in
+            ''|*[!0-9]*) OFFSET="${CM_BUILD_NUMBER:-}" ;;
+          esac
+          case "$OFFSET" in
+            ''|*[!0-9]*) OFFSET=1 ;;
+          esac
           if [ "$OFFSET" -le 0 ]; then
             OFFSET=1
           fi
+          BUILD_NUMBER=$((DATE_BN + OFFSET))
+          echo "==== same-script BUILD_NUMBER=$BUILD_NUMBER date=$DATE_BN offset=$OFFSET BUILD_NAME=$BUILD_NAME ===="
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
+          echo "BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
+          echo "FLUTTER_BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
+          echo "FLUTTER_BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
 
-          MAX=$HARD_FLOOR
-          echo "==== CFBundleVersion sources (date-based; Apple CLI is NOT the increment source) ===="
-          for _pair in \
-            "hard-floor:$HARD_FLOOR" \
-            "pubspec:$PUBSPEC_NUMBER" \
-            "CM_BUILD_NUMBER:$(only_positive_int "${CM_BUILD_NUMBER:-}")" \
-            "PROJECT_BUILD_NUMBER:$(only_positive_int "${PROJECT_BUILD_NUMBER:-}")" \
-            "date-utc:$DATE_BN"
-          do
-            _name=${_pair%%:*}
-            _val=${_pair#*:}
-            echo "  source: $_name -> $_val"
-            if [ "$_val" -gt "$MAX" ] 2>/dev/null; then
-              MAX=$_val
+          case "$BUILD_NUMBER" in
+            200001|140|150|130)
+              echo "ERROR: BUILD_NUMBER=$BUILD_NUMBER is a known-used pubspec/TestFlight number. Refusing to build."
+              exit 1
+              ;;
+          esac
+
+          # flutter pub get writes pubspec +200001 into Generated.xcconfig.
+          GENERATED="ios/Flutter/Generated.xcconfig"
+          if [ -f "$GENERATED" ]; then
+            if grep -q '^FLUTTER_BUILD_NUMBER=' "$GENERATED"; then
+              sed -i '' "s/^FLUTTER_BUILD_NUMBER=.*/FLUTTER_BUILD_NUMBER=$BUILD_NUMBER/" "$GENERATED"
+            else
+              echo "FLUTTER_BUILD_NUMBER=$BUILD_NUMBER" >> "$GENERATED"
             fi
-          done
-
-          BUILD_NUMBER=$((MAX + OFFSET))
-          echo "==== CFBundleVersion BUILD_NUMBER=$BUILD_NUMBER ===="
-          echo "==== date=$DATE_BN offset=$OFFSET max=$MAX pubspec=$VERSION_LINE name=$BUILD_NAME ===="
-          echo "==== flutter will be called with --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER ===="
-
-          if [ -n "${CM_ENV:-}" ]; then
-            echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
-            echo "FLUTTER_BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
-            echo "FLUTTER_BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
+            if grep -q '^FLUTTER_BUILD_NAME=' "$GENERATED"; then
+              sed -i '' "s/^FLUTTER_BUILD_NAME=.*/FLUTTER_BUILD_NAME=$BUILD_NAME/" "$GENERATED"
+            else
+              echo "FLUTTER_BUILD_NAME=$BUILD_NAME" >> "$GENERATED"
+            fi
+            echo "==== ios/Flutter/Generated.xcconfig after override ===="
+            grep -E 'FLUTTER_BUILD_' "$GENERATED" || true
           fi
+
+          export FLUTTER_BUILD_NUMBER="$BUILD_NUMBER"
+          export FLUTTER_BUILD_NAME="$BUILD_NAME"
 
           echo "==== Code signing identities in keychain ===="
           security find-identity -v -p codesigning || true
           echo "==== export_options.plist ===="
           plutil -p /Users/builder/export_options.plist || true
+          echo "==== flutter build ipa --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER CURRENT_PROJECT_VERSION=$BUILD_NUMBER ===="
 
           flutter build ipa --release \
             --build-name="$BUILD_NAME" \
             --build-number="$BUILD_NUMBER" \
-            --export-options-plist=/Users/builder/export_options.plist
+            --export-options-plist=/Users/builder/export_options.plist \
+            -- \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            MARKETING_VERSION="$BUILD_NAME"
 
           ls -la build/ios/ipa/
           test -n "$(ls -A build/ios/ipa/*.ipa 2>/dev/null)"
@@ -337,11 +399,13 @@ workflows:
             echo "ERROR: IPA CFBundleVersion=$IPA_VER does not match BUILD_NUMBER=$BUILD_NUMBER. Refusing to publish."
             exit 1
           fi
-          if [ "$IPA_VER" -lt "$HARD_FLOOR" ]; then
-            echo "ERROR: IPA CFBundleVersion=$IPA_VER is below hard floor $HARD_FLOOR. Refusing to publish."
-            exit 1
-          fi
-          echo "==== IPA CFBundleVersion verified: $IPA_VER (will publish this, not pubspec +build) ===="
+          case "$IPA_VER" in
+            200001|140|150|130)
+              echo "ERROR: IPA CFBundleVersion=$IPA_VER is a known-used pubspec/TestFlight number. Refusing to publish."
+              exit 1
+              ;;
+          esac
+          echo "==== IPA CFBundleVersion verified: $IPA_VER (date-like, not pubspec +200001) ===="
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
