@@ -43,6 +43,7 @@ workflows:
       xcode: latest
       cocoapods: default
       vars:
+        APP_STORE_APPLE_ID: 6799422264
         APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: "--use-old-altool --apple-id 6799422264"
       # Use only the profile uploaded in Codemagic (reference: engelsiz_club).
       # distribution_type auto-fetch also pulls stale EngelsizClub_AppStore. from Apple.
@@ -119,12 +120,30 @@ workflows:
           set -e
           VERSION_LINE=$(grep '^version:' pubspec.yaml | head -n 1 | awk '{print $2}')
           BUILD_NAME=$(echo "$VERSION_LINE" | cut -d+ -f1)
-          BUILD_NUMBER=$(echo "$VERSION_LINE" | cut -d+ -f2)
-          echo "==== pubspec version: $VERSION_LINE (name=$BUILD_NAME number=$BUILD_NUMBER) ===="
-          if [ -z "$BUILD_NUMBER" ] || [ "$BUILD_NUMBER" -le 110 ]; then
-            echo "ERROR: iOS CFBundleVersion must be > 110."
-            echo "App Store Connect already has build 110. Use branch main (1.1.1+113+)."
-            echo "Do not build release/ios-1.0.66-71 — that branch is still +110."
+          PUBSPEC_NUMBER=$(echo "$VERSION_LINE" | cut -d+ -f2)
+          APP_ID="${APP_STORE_APPLE_ID:-6799422264}"
+          only_int() { echo "$1" | grep -Eo '[0-9]+' | tail -n 1 || true; }
+          TF_RAW=$(app-store-connect get-latest-testflight-build-number --platform IOS "$APP_ID" || true)
+          AS_RAW=$(app-store-connect get-latest-app-store-build-number --platform IOS "$APP_ID" || true)
+          LB_RAW=$(app-store-connect get-latest-build-number --platform IOS "$APP_ID" || true)
+          echo "==== ASC raw: tf=[$TF_RAW] as=[$AS_RAW] latest=[$LB_RAW] cm=[$PROJECT_BUILD_NUMBER] ===="
+          TF=$(only_int "$TF_RAW"); AS=$(only_int "$AS_RAW"); LB=$(only_int "$LB_RAW")
+          CM=$(only_int "$PROJECT_BUILD_NUMBER")
+          echo "$TF" | grep -Eq '^[0-9]+$' || TF=0
+          echo "$AS" | grep -Eq '^[0-9]+$' || AS=0
+          echo "$LB" | grep -Eq '^[0-9]+$' || LB=0
+          echo "$CM" | grep -Eq '^[0-9]+$' || CM=0
+          echo "$PUBSPEC_NUMBER" | grep -Eq '^[0-9]+$' || PUBSPEC_NUMBER=0
+          MAX=$PUBSPEC_NUMBER
+          if [ "$TF" -gt "$MAX" ]; then MAX=$TF; fi
+          if [ "$AS" -gt "$MAX" ]; then MAX=$AS; fi
+          if [ "$LB" -gt "$MAX" ]; then MAX=$LB; fi
+          if [ "$CM" -gt "$MAX" ]; then MAX=$CM; fi
+          BUILD_NUMBER=$((MAX + 1))
+          echo "==== pubspec version: $VERSION_LINE (name=$BUILD_NAME pubspec=$PUBSPEC_NUMBER) ===="
+          echo "==== App Store Connect latest: testflight=$TF appstore=$AS latest=$LB cm=$CM -> CFBundleVersion=$BUILD_NUMBER ===="
+          if [ "$BUILD_NUMBER" -le 129 ]; then
+            echo "ERROR: iOS CFBundleVersion must be > 129 (got $BUILD_NUMBER). Do not build release/ios-1.0.66-71."
             exit 1
           fi
           echo "==== Code signing identities in keychain ===="
@@ -166,6 +185,7 @@ workflows:
       xcode: latest
       cocoapods: default
       vars:
+        APP_STORE_APPLE_ID: 6799422264
         APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: "--use-old-altool --apple-id 6799422264"
       ios_signing:
         provisioning_profiles:
@@ -208,12 +228,30 @@ workflows:
           set -e
           VERSION_LINE=$(grep '^version:' pubspec.yaml | head -n 1 | awk '{print $2}')
           BUILD_NAME=$(echo "$VERSION_LINE" | cut -d+ -f1)
-          BUILD_NUMBER=$(echo "$VERSION_LINE" | cut -d+ -f2)
-          echo "==== pubspec version: $VERSION_LINE (name=$BUILD_NAME number=$BUILD_NUMBER) ===="
-          if [ -z "$BUILD_NUMBER" ] || [ "$BUILD_NUMBER" -le 110 ]; then
-            echo "ERROR: iOS CFBundleVersion must be > 110."
-            echo "App Store Connect already has build 110. Use branch main (1.1.1+113+)."
-            echo "Do not build release/ios-1.0.66-71 — that branch is still +110."
+          PUBSPEC_NUMBER=$(echo "$VERSION_LINE" | cut -d+ -f2)
+          APP_ID="${APP_STORE_APPLE_ID:-6799422264}"
+          only_int() { echo "$1" | grep -Eo '[0-9]+' | tail -n 1 || true; }
+          TF_RAW=$(app-store-connect get-latest-testflight-build-number --platform IOS "$APP_ID" || true)
+          AS_RAW=$(app-store-connect get-latest-app-store-build-number --platform IOS "$APP_ID" || true)
+          LB_RAW=$(app-store-connect get-latest-build-number --platform IOS "$APP_ID" || true)
+          echo "==== ASC raw: tf=[$TF_RAW] as=[$AS_RAW] latest=[$LB_RAW] cm=[$PROJECT_BUILD_NUMBER] ===="
+          TF=$(only_int "$TF_RAW"); AS=$(only_int "$AS_RAW"); LB=$(only_int "$LB_RAW")
+          CM=$(only_int "$PROJECT_BUILD_NUMBER")
+          echo "$TF" | grep -Eq '^[0-9]+$' || TF=0
+          echo "$AS" | grep -Eq '^[0-9]+$' || AS=0
+          echo "$LB" | grep -Eq '^[0-9]+$' || LB=0
+          echo "$CM" | grep -Eq '^[0-9]+$' || CM=0
+          echo "$PUBSPEC_NUMBER" | grep -Eq '^[0-9]+$' || PUBSPEC_NUMBER=0
+          MAX=$PUBSPEC_NUMBER
+          if [ "$TF" -gt "$MAX" ]; then MAX=$TF; fi
+          if [ "$AS" -gt "$MAX" ]; then MAX=$AS; fi
+          if [ "$LB" -gt "$MAX" ]; then MAX=$LB; fi
+          if [ "$CM" -gt "$MAX" ]; then MAX=$CM; fi
+          BUILD_NUMBER=$((MAX + 1))
+          echo "==== pubspec version: $VERSION_LINE (name=$BUILD_NAME pubspec=$PUBSPEC_NUMBER) ===="
+          echo "==== App Store Connect latest: testflight=$TF appstore=$AS latest=$LB cm=$CM -> CFBundleVersion=$BUILD_NUMBER ===="
+          if [ "$BUILD_NUMBER" -le 129 ]; then
+            echo "ERROR: iOS CFBundleVersion must be > 129 (got $BUILD_NUMBER). Do not build release/ios-1.0.66-71."
             exit 1
           fi
           flutter build ipa --release \
