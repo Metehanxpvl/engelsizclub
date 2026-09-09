@@ -74,8 +74,6 @@ workflows:
           echo "==== CM_ENV persist BUILD_NUMBER=$BUILD_NUMBER date=$DATE_BN offset=$OFFSET BUILD_NAME=$BUILD_NAME ===="
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
           echo "BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
-          echo "FLUTTER_BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
-          echo "FLUTTER_BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
           case "$BUILD_NUMBER" in
             200001|140|150|130)
               echo "ERROR: BUILD_NUMBER=$BUILD_NUMBER is a known-used pubspec/TestFlight number."
@@ -165,8 +163,6 @@ workflows:
           echo "==== same-script BUILD_NUMBER=$BUILD_NUMBER date=$DATE_BN offset=$OFFSET BUILD_NAME=$BUILD_NAME ===="
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
           echo "BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
-          echo "FLUTTER_BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
-          echo "FLUTTER_BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
 
           case "$BUILD_NUMBER" in
             200001|140|150|130)
@@ -174,26 +170,6 @@ workflows:
               exit 1
               ;;
           esac
-
-          # flutter pub get writes pubspec +200001 into Generated.xcconfig.
-          GENERATED="ios/Flutter/Generated.xcconfig"
-          if [ -f "$GENERATED" ]; then
-            if grep -q '^FLUTTER_BUILD_NUMBER=' "$GENERATED"; then
-              sed -i '' "s/^FLUTTER_BUILD_NUMBER=.*/FLUTTER_BUILD_NUMBER=$BUILD_NUMBER/" "$GENERATED"
-            else
-              echo "FLUTTER_BUILD_NUMBER=$BUILD_NUMBER" >> "$GENERATED"
-            fi
-            if grep -q '^FLUTTER_BUILD_NAME=' "$GENERATED"; then
-              sed -i '' "s/^FLUTTER_BUILD_NAME=.*/FLUTTER_BUILD_NAME=$BUILD_NAME/" "$GENERATED"
-            else
-              echo "FLUTTER_BUILD_NAME=$BUILD_NAME" >> "$GENERATED"
-            fi
-            echo "==== ios/Flutter/Generated.xcconfig after override ===="
-            grep -E 'FLUTTER_BUILD_' "$GENERATED" || true
-          fi
-
-          export FLUTTER_BUILD_NUMBER="$BUILD_NUMBER"
-          export FLUTTER_BUILD_NAME="$BUILD_NAME"
 
           echo "==== Code signing identities in keychain ===="
           security find-identity -v -p codesigning || true
@@ -280,8 +256,6 @@ workflows:
           echo "==== CM_ENV persist BUILD_NUMBER=$BUILD_NUMBER date=$DATE_BN offset=$OFFSET BUILD_NAME=$BUILD_NAME ===="
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
           echo "BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
-          echo "FLUTTER_BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
-          echo "FLUTTER_BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
           case "$BUILD_NUMBER" in
             200001|140|150|130)
               echo "ERROR: BUILD_NUMBER=$BUILD_NUMBER is a known-used pubspec/TestFlight number."
@@ -339,8 +313,6 @@ workflows:
           echo "==== same-script BUILD_NUMBER=$BUILD_NUMBER date=$DATE_BN offset=$OFFSET BUILD_NAME=$BUILD_NAME ===="
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
           echo "BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
-          echo "FLUTTER_BUILD_NUMBER=$BUILD_NUMBER" >> "$CM_ENV"
-          echo "FLUTTER_BUILD_NAME=$BUILD_NAME" >> "$CM_ENV"
 
           case "$BUILD_NUMBER" in
             200001|140|150|130)
@@ -348,26 +320,6 @@ workflows:
               exit 1
               ;;
           esac
-
-          # flutter pub get writes pubspec +200001 into Generated.xcconfig.
-          GENERATED="ios/Flutter/Generated.xcconfig"
-          if [ -f "$GENERATED" ]; then
-            if grep -q '^FLUTTER_BUILD_NUMBER=' "$GENERATED"; then
-              sed -i '' "s/^FLUTTER_BUILD_NUMBER=.*/FLUTTER_BUILD_NUMBER=$BUILD_NUMBER/" "$GENERATED"
-            else
-              echo "FLUTTER_BUILD_NUMBER=$BUILD_NUMBER" >> "$GENERATED"
-            fi
-            if grep -q '^FLUTTER_BUILD_NAME=' "$GENERATED"; then
-              sed -i '' "s/^FLUTTER_BUILD_NAME=.*/FLUTTER_BUILD_NAME=$BUILD_NAME/" "$GENERATED"
-            else
-              echo "FLUTTER_BUILD_NAME=$BUILD_NAME" >> "$GENERATED"
-            fi
-            echo "==== ios/Flutter/Generated.xcconfig after override ===="
-            grep -E 'FLUTTER_BUILD_' "$GENERATED" || true
-          fi
-
-          export FLUTTER_BUILD_NUMBER="$BUILD_NUMBER"
-          export FLUTTER_BUILD_NAME="$BUILD_NAME"
 
           echo "==== Code signing identities in keychain ===="
           security find-identity -v -p codesigning || true
