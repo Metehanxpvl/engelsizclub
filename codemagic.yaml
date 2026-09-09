@@ -199,15 +199,12 @@ workflows:
           security find-identity -v -p codesigning || true
           echo "==== export_options.plist ===="
           plutil -p /Users/builder/export_options.plist || true
-          echo "==== flutter build ipa --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER CURRENT_PROJECT_VERSION=$BUILD_NUMBER ===="
+          echo "==== flutter build ipa --release --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER ===="
 
           flutter build ipa --release \
             --build-name="$BUILD_NAME" \
             --build-number="$BUILD_NUMBER" \
-            --export-options-plist=/Users/builder/export_options.plist \
-            -- \
-            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-            MARKETING_VERSION="$BUILD_NAME"
+            --export-options-plist=/Users/builder/export_options.plist
 
           ls -la build/ios/ipa/
           test -n "$(ls -A build/ios/ipa/*.ipa 2>/dev/null)"
@@ -376,15 +373,12 @@ workflows:
           security find-identity -v -p codesigning || true
           echo "==== export_options.plist ===="
           plutil -p /Users/builder/export_options.plist || true
-          echo "==== flutter build ipa --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER CURRENT_PROJECT_VERSION=$BUILD_NUMBER ===="
+          echo "==== flutter build ipa --release --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER ===="
 
           flutter build ipa --release \
             --build-name="$BUILD_NAME" \
             --build-number="$BUILD_NUMBER" \
-            --export-options-plist=/Users/builder/export_options.plist \
-            -- \
-            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-            MARKETING_VERSION="$BUILD_NAME"
+            --export-options-plist=/Users/builder/export_options.plist
 
           ls -la build/ios/ipa/
           test -n "$(ls -A build/ios/ipa/*.ipa 2>/dev/null)"
