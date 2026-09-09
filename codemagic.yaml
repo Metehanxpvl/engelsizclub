@@ -121,79 +121,46 @@ workflows:
           VERSION_LINE=$(grep '^version:' pubspec.yaml | head -n 1 | awk '{print $2}')
           BUILD_NAME=$(echo "$VERSION_LINE" | cut -d+ -f1)
           PUBSPEC_NUMBER=$(echo "$VERSION_LINE" | cut -d+ -f2)
-          APP_ID="${APP_STORE_APPLE_ID:-6799422264}"
-          BUNDLE_ID="com.sakircaykara.engelsizclub"
-          HARD_FLOOR=150
+          PUBSPEC_NUMBER=$(printf '%s' "$PUBSPEC_NUMBER" | grep -Eo '[0-9]+' | head -n 1 || true)
+          PUBSPEC_NUMBER=${PUBSPEC_NUMBER:-0}
+          HARD_FLOOR=200000
 
-          # Parse ONLY integers. Ignore Apple ID / huge IDs. Take MAX, not last token.
-          max_int_from() {
-            _best=0
-            for _n in $(printf '%s' "$1" | grep -Eo '[0-9]+' || true); do
-              if [ "$_n" = "$APP_ID" ]; then
-                continue
-              fi
-              if [ "$_n" -ge 1000000 ] 2>/dev/null; then
-                continue
-              fi
-              if [ "$_n" -gt "$_best" ] 2>/dev/null; then
-                _best=$_n
-              fi
-            done
-            echo "$_best"
+          only_positive_int() {
+            case "$1" in
+              ''|*[!0-9]*) echo 0 ;;
+              *) echo "$1" ;;
+            esac
           }
 
-          consider() {
-            _v=$(max_int_from "$1")
-            echo "  ASC source: $2 -> parsed=$_v raw=[$1]"
-            if [ "$_v" -gt "$MAX" ]; then
-              MAX=$_v
-            fi
-          }
-
-          echo "==== Fetching latest CFBundleVersion from App Store Connect ===="
-          echo "APP_STORE_APPLE_ID=$APP_ID BUNDLE_ID=$BUNDLE_ID HARD_FLOOR=$HARD_FLOOR"
-          MAX=0
-
-          TF_RAW=$(app-store-connect get-latest-testflight-build-number --platform IOS "$APP_ID" 2>&1 || true)
-          consider "$TF_RAW" "testflight-apple-id"
-          TF_RAW_B=$(app-store-connect get-latest-testflight-build-number --platform IOS "$BUNDLE_ID" 2>&1 || true)
-          consider "$TF_RAW_B" "testflight-bundle-id"
-
-          AS_RAW=$(app-store-connect get-latest-app-store-build-number --platform IOS "$APP_ID" 2>&1 || true)
-          consider "$AS_RAW" "appstore-apple-id"
-          AS_RAW_B=$(app-store-connect get-latest-app-store-build-number --platform IOS "$BUNDLE_ID" 2>&1 || true)
-          consider "$AS_RAW_B" "appstore-bundle-id"
-
-          LB_RAW=$(app-store-connect get-latest-build-number --platform IOS "$APP_ID" 2>&1 || true)
-          consider "$LB_RAW" "latest-apple-id"
-          LB_RAW_B=$(app-store-connect get-latest-build-number --platform IOS "$BUNDLE_ID" 2>&1 || true)
-          consider "$LB_RAW_B" "latest-bundle-id"
-
-          TF_UN=$(app-store-connect get-latest-testflight-build-number "$APP_ID" 2>&1 || true)
-          consider "$TF_UN" "testflight-unscoped"
-          AS_UN=$(app-store-connect get-latest-app-store-build-number "$APP_ID" 2>&1 || true)
-          consider "$AS_UN" "appstore-unscoped"
-          LB_UN=$(app-store-connect get-latest-build-number "$APP_ID" 2>&1 || true)
-          consider "$LB_UN" "latest-unscoped"
-
-          LIST_RAW=$(app-store-connect builds --app-id "$APP_ID" 2>&1 || true)
-          consider "$LIST_RAW" "builds-app-id"
-          LIST_RAW2=$(app-store-connect list-builds "$APP_ID" 2>&1 || true)
-          consider "$LIST_RAW2" "list-builds"
-
-          consider "$PUBSPEC_NUMBER" "pubspec"
-          consider "${CM_BUILD_NUMBER:-}" "CM_BUILD_NUMBER"
-          consider "${PROJECT_BUILD_NUMBER:-}" "PROJECT_BUILD_NUMBER"
-
-          BUILD_NUMBER=$((MAX + 1))
-          if [ "$BUILD_NUMBER" -lt "$HARD_FLOOR" ]; then
-            echo "==== Raising CFBundleVersion from $BUILD_NUMBER to hard floor $HARD_FLOOR ===="
-            BUILD_NUMBER=$HARD_FLOOR
+          DATE_BN=$(date -u +%Y%m%d%H%M)
+          OFFSET=$(only_positive_int "${PROJECT_BUILD_NUMBER:-}")
+          if [ "$OFFSET" -le 0 ]; then
+            OFFSET=$(only_positive_int "${CM_BUILD_NUMBER:-}")
+          fi
+          if [ "$OFFSET" -le 0 ]; then
+            OFFSET=1
           fi
 
-          echo "==== pubspec version: $VERSION_LINE (name=$BUILD_NAME pubspec=$PUBSPEC_NUMBER) ===="
-          echo "==== CFBundleVersion BUILD_NUMBER=$BUILD_NUMBER (max_seen=$MAX floor=$HARD_FLOOR) ===="
-          echo "==== CFBundleShortVersionString BUILD_NAME=$BUILD_NAME ===="
+          MAX=$HARD_FLOOR
+          echo "==== CFBundleVersion sources (date-based; Apple CLI is NOT the increment source) ===="
+          for _pair in \
+            "hard-floor:$HARD_FLOOR" \
+            "pubspec:$PUBSPEC_NUMBER" \
+            "CM_BUILD_NUMBER:$(only_positive_int "${CM_BUILD_NUMBER:-}")" \
+            "PROJECT_BUILD_NUMBER:$(only_positive_int "${PROJECT_BUILD_NUMBER:-}")" \
+            "date-utc:$DATE_BN"
+          do
+            _name=${_pair%%:*}
+            _val=${_pair#*:}
+            echo "  source: $_name -> $_val"
+            if [ "$_val" -gt "$MAX" ] 2>/dev/null; then
+              MAX=$_val
+            fi
+          done
+
+          BUILD_NUMBER=$((MAX + OFFSET))
+          echo "==== CFBundleVersion BUILD_NUMBER=$BUILD_NUMBER ===="
+          echo "==== date=$DATE_BN offset=$OFFSET max=$MAX pubspec=$VERSION_LINE name=$BUILD_NAME ===="
           echo "==== flutter will be called with --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER ===="
 
           if [ -n "${CM_ENV:-}" ]; then
@@ -220,17 +187,16 @@ workflows:
           unzip -qo "$IPA" "Payload/Runner.app/Info.plist" -d "$PLIST_DIR"
           IPA_VER=$(plutil -extract CFBundleVersion raw "$PLIST_DIR/Payload/Runner.app/Info.plist")
           IPA_NAME=$(plutil -extract CFBundleShortVersionString raw "$PLIST_DIR/Payload/Runner.app/Info.plist")
-          IPA_VER_INT=$(printf '%s' "$IPA_VER" | grep -Eo '[0-9]+' | head -n 1 || true)
           echo "==== IPA CFBundleShortVersionString=$IPA_NAME CFBundleVersion=$IPA_VER (expected BUILD_NUMBER=$BUILD_NUMBER) ===="
-          if [ -z "$IPA_VER_INT" ] || [ "$IPA_VER_INT" != "$BUILD_NUMBER" ]; then
+          if [ -z "$IPA_VER" ] || [ "$IPA_VER" != "$BUILD_NUMBER" ]; then
             echo "ERROR: IPA CFBundleVersion=$IPA_VER does not match BUILD_NUMBER=$BUILD_NUMBER. Refusing to publish."
             exit 1
           fi
-          if [ "$IPA_VER_INT" -lt "$HARD_FLOOR" ]; then
-            echo "ERROR: IPA CFBundleVersion=$IPA_VER_INT is below hard floor $HARD_FLOOR. Refusing to publish."
+          if [ "$IPA_VER" -lt "$HARD_FLOOR" ]; then
+            echo "ERROR: IPA CFBundleVersion=$IPA_VER is below hard floor $HARD_FLOOR. Refusing to publish."
             exit 1
           fi
-          echo "==== IPA CFBundleVersion verified: $IPA_VER_INT (will publish this, not pubspec +build) ===="
+          echo "==== IPA CFBundleVersion verified: $IPA_VER (will publish this, not pubspec +build) ===="
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
@@ -300,79 +266,46 @@ workflows:
           VERSION_LINE=$(grep '^version:' pubspec.yaml | head -n 1 | awk '{print $2}')
           BUILD_NAME=$(echo "$VERSION_LINE" | cut -d+ -f1)
           PUBSPEC_NUMBER=$(echo "$VERSION_LINE" | cut -d+ -f2)
-          APP_ID="${APP_STORE_APPLE_ID:-6799422264}"
-          BUNDLE_ID="com.sakircaykara.engelsizclub"
-          HARD_FLOOR=150
+          PUBSPEC_NUMBER=$(printf '%s' "$PUBSPEC_NUMBER" | grep -Eo '[0-9]+' | head -n 1 || true)
+          PUBSPEC_NUMBER=${PUBSPEC_NUMBER:-0}
+          HARD_FLOOR=200000
 
-          # Parse ONLY integers. Ignore Apple ID / huge IDs. Take MAX, not last token.
-          max_int_from() {
-            _best=0
-            for _n in $(printf '%s' "$1" | grep -Eo '[0-9]+' || true); do
-              if [ "$_n" = "$APP_ID" ]; then
-                continue
-              fi
-              if [ "$_n" -ge 1000000 ] 2>/dev/null; then
-                continue
-              fi
-              if [ "$_n" -gt "$_best" ] 2>/dev/null; then
-                _best=$_n
-              fi
-            done
-            echo "$_best"
+          only_positive_int() {
+            case "$1" in
+              ''|*[!0-9]*) echo 0 ;;
+              *) echo "$1" ;;
+            esac
           }
 
-          consider() {
-            _v=$(max_int_from "$1")
-            echo "  ASC source: $2 -> parsed=$_v raw=[$1]"
-            if [ "$_v" -gt "$MAX" ]; then
-              MAX=$_v
-            fi
-          }
-
-          echo "==== Fetching latest CFBundleVersion from App Store Connect ===="
-          echo "APP_STORE_APPLE_ID=$APP_ID BUNDLE_ID=$BUNDLE_ID HARD_FLOOR=$HARD_FLOOR"
-          MAX=0
-
-          TF_RAW=$(app-store-connect get-latest-testflight-build-number --platform IOS "$APP_ID" 2>&1 || true)
-          consider "$TF_RAW" "testflight-apple-id"
-          TF_RAW_B=$(app-store-connect get-latest-testflight-build-number --platform IOS "$BUNDLE_ID" 2>&1 || true)
-          consider "$TF_RAW_B" "testflight-bundle-id"
-
-          AS_RAW=$(app-store-connect get-latest-app-store-build-number --platform IOS "$APP_ID" 2>&1 || true)
-          consider "$AS_RAW" "appstore-apple-id"
-          AS_RAW_B=$(app-store-connect get-latest-app-store-build-number --platform IOS "$BUNDLE_ID" 2>&1 || true)
-          consider "$AS_RAW_B" "appstore-bundle-id"
-
-          LB_RAW=$(app-store-connect get-latest-build-number --platform IOS "$APP_ID" 2>&1 || true)
-          consider "$LB_RAW" "latest-apple-id"
-          LB_RAW_B=$(app-store-connect get-latest-build-number --platform IOS "$BUNDLE_ID" 2>&1 || true)
-          consider "$LB_RAW_B" "latest-bundle-id"
-
-          TF_UN=$(app-store-connect get-latest-testflight-build-number "$APP_ID" 2>&1 || true)
-          consider "$TF_UN" "testflight-unscoped"
-          AS_UN=$(app-store-connect get-latest-app-store-build-number "$APP_ID" 2>&1 || true)
-          consider "$AS_UN" "appstore-unscoped"
-          LB_UN=$(app-store-connect get-latest-build-number "$APP_ID" 2>&1 || true)
-          consider "$LB_UN" "latest-unscoped"
-
-          LIST_RAW=$(app-store-connect builds --app-id "$APP_ID" 2>&1 || true)
-          consider "$LIST_RAW" "builds-app-id"
-          LIST_RAW2=$(app-store-connect list-builds "$APP_ID" 2>&1 || true)
-          consider "$LIST_RAW2" "list-builds"
-
-          consider "$PUBSPEC_NUMBER" "pubspec"
-          consider "${CM_BUILD_NUMBER:-}" "CM_BUILD_NUMBER"
-          consider "${PROJECT_BUILD_NUMBER:-}" "PROJECT_BUILD_NUMBER"
-
-          BUILD_NUMBER=$((MAX + 1))
-          if [ "$BUILD_NUMBER" -lt "$HARD_FLOOR" ]; then
-            echo "==== Raising CFBundleVersion from $BUILD_NUMBER to hard floor $HARD_FLOOR ===="
-            BUILD_NUMBER=$HARD_FLOOR
+          DATE_BN=$(date -u +%Y%m%d%H%M)
+          OFFSET=$(only_positive_int "${PROJECT_BUILD_NUMBER:-}")
+          if [ "$OFFSET" -le 0 ]; then
+            OFFSET=$(only_positive_int "${CM_BUILD_NUMBER:-}")
+          fi
+          if [ "$OFFSET" -le 0 ]; then
+            OFFSET=1
           fi
 
-          echo "==== pubspec version: $VERSION_LINE (name=$BUILD_NAME pubspec=$PUBSPEC_NUMBER) ===="
-          echo "==== CFBundleVersion BUILD_NUMBER=$BUILD_NUMBER (max_seen=$MAX floor=$HARD_FLOOR) ===="
-          echo "==== CFBundleShortVersionString BUILD_NAME=$BUILD_NAME ===="
+          MAX=$HARD_FLOOR
+          echo "==== CFBundleVersion sources (date-based; Apple CLI is NOT the increment source) ===="
+          for _pair in \
+            "hard-floor:$HARD_FLOOR" \
+            "pubspec:$PUBSPEC_NUMBER" \
+            "CM_BUILD_NUMBER:$(only_positive_int "${CM_BUILD_NUMBER:-}")" \
+            "PROJECT_BUILD_NUMBER:$(only_positive_int "${PROJECT_BUILD_NUMBER:-}")" \
+            "date-utc:$DATE_BN"
+          do
+            _name=${_pair%%:*}
+            _val=${_pair#*:}
+            echo "  source: $_name -> $_val"
+            if [ "$_val" -gt "$MAX" ] 2>/dev/null; then
+              MAX=$_val
+            fi
+          done
+
+          BUILD_NUMBER=$((MAX + OFFSET))
+          echo "==== CFBundleVersion BUILD_NUMBER=$BUILD_NUMBER ===="
+          echo "==== date=$DATE_BN offset=$OFFSET max=$MAX pubspec=$VERSION_LINE name=$BUILD_NAME ===="
           echo "==== flutter will be called with --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER ===="
 
           if [ -n "${CM_ENV:-}" ]; then
@@ -399,17 +332,16 @@ workflows:
           unzip -qo "$IPA" "Payload/Runner.app/Info.plist" -d "$PLIST_DIR"
           IPA_VER=$(plutil -extract CFBundleVersion raw "$PLIST_DIR/Payload/Runner.app/Info.plist")
           IPA_NAME=$(plutil -extract CFBundleShortVersionString raw "$PLIST_DIR/Payload/Runner.app/Info.plist")
-          IPA_VER_INT=$(printf '%s' "$IPA_VER" | grep -Eo '[0-9]+' | head -n 1 || true)
           echo "==== IPA CFBundleShortVersionString=$IPA_NAME CFBundleVersion=$IPA_VER (expected BUILD_NUMBER=$BUILD_NUMBER) ===="
-          if [ -z "$IPA_VER_INT" ] || [ "$IPA_VER_INT" != "$BUILD_NUMBER" ]; then
+          if [ -z "$IPA_VER" ] || [ "$IPA_VER" != "$BUILD_NUMBER" ]; then
             echo "ERROR: IPA CFBundleVersion=$IPA_VER does not match BUILD_NUMBER=$BUILD_NUMBER. Refusing to publish."
             exit 1
           fi
-          if [ "$IPA_VER_INT" -lt "$HARD_FLOOR" ]; then
-            echo "ERROR: IPA CFBundleVersion=$IPA_VER_INT is below hard floor $HARD_FLOOR. Refusing to publish."
+          if [ "$IPA_VER" -lt "$HARD_FLOOR" ]; then
+            echo "ERROR: IPA CFBundleVersion=$IPA_VER is below hard floor $HARD_FLOOR. Refusing to publish."
             exit 1
           fi
-          echo "==== IPA CFBundleVersion verified: $IPA_VER_INT (will publish this, not pubspec +build) ===="
+          echo "==== IPA CFBundleVersion verified: $IPA_VER (will publish this, not pubspec +build) ===="
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
