@@ -1,8 +1,8 @@
 # İŞKUR mid=79417 → web/engelsiz-kariyer.json (katalog; Supabase'e yazılmaz)
 #
 # Cron yalnızca default branch'te çalışır. Elle: Actions → Fetch Engelsiz Kariyer.
-# Sayfa 2 ASP.NET POST bazen oturum ister; ilk sayfa GET ile gelir.
-# 0 ilan / blokta mevcut JSON korunur — elle web/engelsiz-kariyer.json güncellenebilir.
+# Repo Settings → Actions → General → Workflow permissions → Read and write.
+# Secret gerekmez.
 name: Fetch Engelsiz Kariyer
 
 on:
@@ -17,12 +17,18 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: fetch-engelsiz-kariyer
+  cancel-in-progress: true
+
 jobs:
   fetch:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
