@@ -60,6 +60,37 @@ String pushUpdateDedupeKey({
   return 'upd:${type.trim()}:${ownerEmail.trim().toLowerCase()}:${actorEmail.trim().toLowerCase()}:${pushRef(sohbetKey: sohbetKey, ilanId: ilanId)}:$epochSec';
 }
 
+/// `sohbet_key` `c:123` → yorum id (notify-push ile aynı).
+String? pushCommentIdFromKey(String? sohbetKey) {
+  final k = (sohbetKey ?? '').trim();
+  if (!k.startsWith('c:')) return null;
+  final id = k.substring(2).trim();
+  return id.isEmpty ? null : id;
+}
+
+/// FCM data (kapalı Android tıklanınca deep link). Title/body FCM
+/// `notification` alanından gelir; burası yalnızca data.
+Map<String, String> pushClientData({
+  required String type,
+  required String event,
+  int? ilanId,
+  String? sohbetKey,
+  String? actorEmail,
+}) {
+  final commentId = pushCommentIdFromKey(sohbetKey);
+  final actor = (actorEmail ?? '').trim().toLowerCase();
+  final sk = (sohbetKey ?? '').trim();
+  return {
+    'type': type,
+    'event': event,
+    if (ilanId != null) 'id': '$ilanId',
+    if (ilanId != null) 'postId': '$ilanId',
+    if (commentId != null) 'commentId': commentId,
+    if (sk.isNotEmpty) 'sohbet_key': sk,
+    if (actor.isNotEmpty) 'actor_email': actor,
+  };
+}
+
 /// Kilit ekranı: mesaj gövdesi sızmasın (notify-push ile aynı kopya).
 ({String title, String body}) pushOsCopy({
   required String type,

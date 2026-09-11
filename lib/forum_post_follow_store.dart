@@ -167,29 +167,29 @@ class ForumPostFollowStore {
     } catch (_) {
       // Unique: FCM yine denensin (dedupe çiftleri keser).
     }
+    const type = 'forum_follow';
+    final event = pushEventForType(type) ?? 'COMMENT_CREATED';
     unawaited(
       BroadcastPushService.instance.sendToUser(
         toEmail: owner,
         title: pushTitle,
         body: pushBody,
-        prefKey: pushPrefKeyForType('forum_follow'),
-        event: pushEventForType('forum_follow'),
+        prefKey: pushPrefKeyForType(type),
+        event: event,
         dedupeKey: pushInsertDedupeKey(
-          type: 'forum_follow',
+          type: type,
           ownerEmail: owner,
           actorEmail: actorEmail,
           sohbetKey: _commentRef(commentId),
           ilanId: postId,
         ),
-        data: {
-          'type': 'forum_follow',
-          'event': pushEventForType('forum_follow') ?? 'COMMENT_CREATED',
-          'id': '$postId',
-          'postId': '$postId',
-          if (_commentRef(commentId) != null)
-            'sohbet_key': _commentRef(commentId)!,
-          'actor_email': actorEmail,
-        },
+        data: pushClientData(
+          type: type,
+          event: event,
+          ilanId: postId,
+          sohbetKey: _commentRef(commentId),
+          actorEmail: actorEmail,
+        ),
       ),
     );
   }

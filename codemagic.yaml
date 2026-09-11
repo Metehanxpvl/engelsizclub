@@ -58,7 +58,7 @@ workflows:
           #!/usr/bin/env sh
           set -e
           # Each Codemagic script is a new shell. export is lost unless written to $CM_ENV.
-          BUILD_NAME=1.1.6
+          BUILD_NAME=1.1.7
           DATE_BN=$(date -u +%Y%m%d%H%M)
           OFFSET="${PROJECT_BUILD_NUMBER:-}"
           case "$OFFSET" in
@@ -147,7 +147,7 @@ workflows:
           set -e
           # Recompute in THIS shell (do not trust env BUILD_NUMBER: Codemagic
           # already exports that name as a small workflow counter).
-          BUILD_NAME=1.1.6
+          BUILD_NAME=1.1.7
           DATE_BN=$(date -u +%Y%m%d%H%M)
           OFFSET="${PROJECT_BUILD_NUMBER:-}"
           case "$OFFSET" in
@@ -240,7 +240,7 @@ workflows:
           #!/usr/bin/env sh
           set -e
           # Each Codemagic script is a new shell. export is lost unless written to $CM_ENV.
-          BUILD_NAME=1.1.6
+          BUILD_NAME=1.1.7
           DATE_BN=$(date -u +%Y%m%d%H%M)
           OFFSET="${PROJECT_BUILD_NUMBER:-}"
           case "$OFFSET" in
@@ -297,7 +297,7 @@ workflows:
           set -e
           # Recompute in THIS shell (do not trust env BUILD_NUMBER: Codemagic
           # already exports that name as a small workflow counter).
-          BUILD_NAME=1.1.6
+          BUILD_NAME=1.1.7
           DATE_BN=$(date -u +%Y%m%d%H%M)
           OFFSET="${PROJECT_BUILD_NUMBER:-}"
           case "$OFFSET" in

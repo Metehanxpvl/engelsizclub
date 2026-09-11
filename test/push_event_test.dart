@@ -42,4 +42,19 @@ void main() {
     expect(copy.title, 'Yeni mesaj');
     expect(copy.body.contains('özel'), isFalse);
   });
+
+  test('yorum sohbet_key → commentId', () {
+    expect(pushCommentIdFromKey('c:42'), '42');
+    expect(pushCommentIdFromKey('ab'), isNull);
+    final data = pushClientData(
+      type: 'forum_like',
+      event: 'COMMENT_LIKED',
+      ilanId: 9,
+      sohbetKey: 'c:42',
+      actorEmail: 'A@X.com',
+    );
+    expect(data['commentId'], '42');
+    expect(data['postId'], '9');
+    expect(data['actor_email'], 'a@x.com');
+  });
 }

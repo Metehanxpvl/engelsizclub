@@ -317,7 +317,8 @@ class _MetoCareAppState extends State<MetoCareApp> {
           }
           return;
         }
-        if (data.event == AuthChangeEvent.signedIn) {
+        if (data.event == AuthChangeEvent.signedIn ||
+            data.event == AuthChangeEvent.initialSession) {
           unawaited(PushNotificationService.instance.registerTokenWithServer());
         }
         if (_needsPasswordReset) return;
@@ -546,6 +547,11 @@ class _MetoCareAppState extends State<MetoCareApp> {
         if (notice != null && notice.isNotEmpty) {
           _messengerKey.currentState
               ?.showSnackBar(SnackBar(content: Text(notice)));
+        }
+        if (safe != null && !safe.isGuest) {
+          unawaited(
+            PushNotificationService.instance.registerTokenWithServer(),
+          );
         }
       }
     } catch (_) {

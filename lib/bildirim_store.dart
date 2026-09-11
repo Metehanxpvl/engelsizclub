@@ -677,14 +677,13 @@ Future<void> _pushOsTray({
     event: event,
     bildirimId: bildirimId,
     dedupeKey: key,
-    data: {
-      'type': type,
-      'event': event,
-      if (ilanId != null) 'id': '$ilanId',
-      if (ilanId != null) 'postId': '$ilanId',
-      if (sohbetKey != null && sohbetKey.isNotEmpty) 'sohbet_key': sohbetKey,
-      if (actor.isNotEmpty) 'actor_email': actor,
-    },
+    data: pushClientData(
+      type: type,
+      event: event,
+      ilanId: ilanId,
+      sohbetKey: sohbetKey,
+      actorEmail: actor,
+    ),
   );
 }
 
@@ -750,9 +749,7 @@ String? forumCommentRef(int? commentId) {
 }
 
 int? parseForumCommentRef(String? key) {
-  final k = (key ?? '').trim();
-  if (!k.startsWith('c:')) return null;
-  return int.tryParse(k.substring(2));
+  return int.tryParse(pushCommentIdFromKey(key) ?? '');
 }
 
 /// Forum gönderisine yorum → gönderi sahibine.

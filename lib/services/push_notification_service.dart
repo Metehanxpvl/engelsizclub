@@ -111,6 +111,7 @@ class PushNotificationService {
   bool _initialized = false;
   String? fcmToken;
   RemoteMessage? _pendingOpen;
+  int _emptyTokenRetries = 0;
 
   final StreamController<RemoteMessage> _opens =
       StreamController<RemoteMessage>.broadcast();
@@ -153,7 +154,11 @@ class PushNotificationService {
     }
 
     // iOS izin diyaloğu ilk kareyi bekletmesin / asılı kalmasın.
-    unawaited(_requestPermission());
+    // APNs / izin sonrası token alınır; oturum varsa Supabase’e yazılır.
+    unawaited(() async {
+      await _requestPermission();
+      await _refreshToken();
+    }());
 
     try {
       await _messaging
@@ -167,7 +172,6 @@ class PushNotificationService {
       debugPrint('FCM presentation options: $e');
     }
 
-    unawaited(_refreshToken());
     try {
       _messaging.onTokenRefresh.listen((token) {
         fcmToken = token;
@@ -197,22 +201,50 @@ class PushNotificationService {
     }
   }
 
-  /// Giriş sonrası / token yenilenince Supabase’e kaydet (kişisel push).
+  String get _platformLabel {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.iOS:
+        return 'ios';
+      case TargetPlatform.android:
+        return 'android';
+      default:
+        return defaultTargetPlatform.name.toLowerCase();
+    }
+  }
+
+  /// Giriş sonrası / token yenilenince Supabase `user_push_tokens` upsert.
+  /// Oturum yoksa no-op. Token boşsa (iOS APNs gecikmesi) birkaç kez dener.
   Future<void> registerTokenWithServer([String? token]) async {
     if (kIsWeb) return;
-    final t = (token ?? fcmToken ?? '').trim();
-    if (t.isEmpty) return;
+    var t = (token ?? fcmToken ?? '').trim();
+    if (t.isEmpty) {
+      t = ((await _obtainFcmToken()) ?? '').trim();
+    }
     final client = Supabase.instance.client;
     final user = client.auth.currentUser;
     final email = (user?.email ?? '').trim().toLowerCase();
     if (user == null || email.isEmpty) return;
+    if (t.isEmpty) {
+      if (_emptyTokenRetries < 3) {
+        _emptyTokenRetries++;
+        unawaited(
+          Future<void>.delayed(
+            Duration(seconds: 2 * _emptyTokenRetries),
+            () => registerTokenWithServer(),
+          ),
+        );
+      }
+      return;
+    }
+    _emptyTokenRetries = 0;
+    fcmToken = t;
     try {
       await client.from('user_push_tokens').upsert(
         {
           'token': t,
           'owner_email': email,
           'owner_id': user.id,
-          'platform': defaultTargetPlatform.name,
+          'platform': _platformLabel,
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         },
         onConflict: 'token',
@@ -242,6 +274,7 @@ class PushNotificationService {
       debugPrint('FCM deleteToken: $e');
     }
     fcmToken = null;
+    _emptyTokenRetries = 0;
   }
 
   /// Bildirim tercihlerine göre FCM topic abonelikleri.
@@ -337,13 +370,39 @@ class PushNotificationService {
     }
   }
 
-  Future<void> _refreshToken() async {
+  Future<void> _waitForApnsIfNeeded() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
     try {
-      fcmToken = await _messaging.getToken().timeout(const Duration(seconds: 8));
-      debugPrint('FCM token: $fcmToken');
-      await registerTokenWithServer(fcmToken);
+      for (var i = 0; i < 10; i++) {
+        final apns = await _messaging.getAPNSToken();
+        if (apns != null && apns.isNotEmpty) return;
+        await Future<void>.delayed(Duration(milliseconds: 200 * (i + 1)));
+      }
+      debugPrint('FCM: APNs token henüz yok');
+    } catch (e) {
+      debugPrint('FCM APNs: $e');
+    }
+  }
+
+  Future<String?> _obtainFcmToken() async {
+    try {
+      await _waitForApnsIfNeeded();
+      final t = await _messaging.getToken().timeout(const Duration(seconds: 8));
+      if (t != null && t.isNotEmpty) {
+        fcmToken = t;
+        debugPrint('FCM token: $t');
+      }
+      return t;
     } catch (e) {
       debugPrint('FCM token alınamadı: $e');
+      return fcmToken;
+    }
+  }
+
+  Future<void> _refreshToken() async {
+    final t = await _obtainFcmToken();
+    if (t != null && t.isNotEmpty) {
+      await registerTokenWithServer(t);
     }
   }
 
