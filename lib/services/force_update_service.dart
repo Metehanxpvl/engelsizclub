@@ -11,8 +11,9 @@ import 'force_update_logic.dart';
 
 export 'force_update_logic.dart';
 
-/// pubspec `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
-const kAppBuildNumber = 200003;
+/// pubspec marketing / `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
+const kAppVersionName = '1.1.8';
+const kAppBuildNumber = 200006;
 
 /// Açılışta (ForceUpdateGate) semver kontrolü. Splash kilidi yok.
 ///
@@ -61,6 +62,11 @@ class ForceUpdateService extends ChangeNotifier {
       final remote = await _fetchRemote();
       if (remote == null) {
         // Fail-open: mevcut kartı kapatma (zaten gösteriliyorsa kalsın).
+        if (kDebugMode) {
+          debugPrint(
+            'ForceUpdate: remote yok/hata (fail-open) current=$localVersion',
+          );
+        }
         return;
       }
       final ios = defaultTargetPlatform == TargetPlatform.iOS;
@@ -81,6 +87,12 @@ class ForceUpdateService extends ChangeNotifier {
         latest: latestVersion,
         skippedLatest: skipped,
       );
+      if (kDebugMode) {
+        debugPrint(
+          'ForceUpdate: current=$localVersion min=$minVersion '
+          'latest=$latestVersion skipped=$skipped → $next',
+        );
+      }
       if (next != promptKind) {
         promptKind = next;
         notifyListeners();
@@ -195,6 +207,7 @@ class ForceUpdateService extends ChangeNotifier {
       debugPrint('ForceUpdateService PackageInfo: $e');
     }
     if (localBuild <= 0) localBuild = kAppBuildNumber;
+    if (localVersion.isEmpty) localVersion = kAppVersionName;
   }
 
   Future<String?> _readSkipped(String latest) async {

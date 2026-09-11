@@ -1,7 +1,26 @@
 # Codemagic CI/CD - Engelsiz Club
 # Use codemagic.yaml (not Workflow Editor).
-# Start build -> workflow: ios-testflight (name: iOS TestFlight)
-# ASC integration name in Codemagic UI must match below exactly (currently: engelsizclub)
+#
+# TestFlight (manual): Start new build
+#   workflow: ios-testflight  (UI name: iOS TestFlight)
+#   branch:   fix/ios-build-113
+#   Do not use the old branch release/ios-1.0.66-71.
+# App Store review: ios-app-store (UI name: iOS App Store Review)
+#
+# Bundle ID: com.sakircaykara.engelsizclub
+# Apple team: 8532CL4BMS
+# App Store ID: 6799422264
+#
+# ASC integration name in Codemagic UI must match below exactly (currently: engelsizclub).
+# That key stores Issuer ID / Key ID / .p8 (APP_STORE_CONNECT_ISSUER_ID,
+# APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_PRIVATE_KEY).
+#
+# Apple App ID must have Push Notifications enabled, and the App Store profile
+# (EngelsizClub_AppStore_v2, Codemagic reference: engelsiz_club) must include
+# aps-environment. Do not strip ios/Runner/Runner.entitlements.
+#
+# iOS BUILD_NUMBER is date-based (not pubspec +20000x). Do not pass
+# FLUTTER_BUILD_NUMBER env or CURRENT_PROJECT_VERSION as Flutter argv.
 #
 # Android: google-services.json is in the repository (no firebase_credentials group).
 # iOS: Dart Firebase options are in firebase_options.dart.
@@ -34,6 +53,15 @@ workflows:
 
   ios-testflight:
     name: iOS TestFlight
+    # Manual start in Codemagic UI (workflow_dispatch equivalent).
+    # Optional: uncomment triggering to also run on pushes to the iOS branch.
+    # triggering:
+    #   events:
+    #     - push
+    #   branch_patterns:
+    #     - pattern: 'fix/ios-build-113'
+    #       include: true
+    #       source: true
     max_build_duration: 90
     instance_type: mac_mini_m2
     integrations:
@@ -47,6 +75,7 @@ workflows:
         APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: "--use-old-altool --apple-id 6799422264"
       # Use only the profile uploaded in Codemagic (reference: engelsiz_club).
       # distribution_type auto-fetch also pulls stale EngelsizClub_AppStore. from Apple.
+      # Profile must include Push (aps-environment); App ID Push must stay enabled.
       ios_signing:
         provisioning_profiles:
           - engelsiz_club
@@ -58,7 +87,9 @@ workflows:
           #!/usr/bin/env sh
           set -e
           # Each Codemagic script is a new shell. export is lost unless written to $CM_ENV.
-          BUILD_NAME=1.1.7
+          # Marketing version from pubspec (e.g. 1.1.8). BUILD_NUMBER is date-based.
+          BUILD_NAME=$(awk -F'[ +]' '/^version:/{gsub(/\r/,""); print $2; exit}' pubspec.yaml)
+          [ -n "$BUILD_NAME" ] || BUILD_NAME=1.1.8
           DATE_BN=$(date -u +%Y%m%d%H%M)
           OFFSET="${PROJECT_BUILD_NUMBER:-}"
           case "$OFFSET" in
@@ -147,7 +178,9 @@ workflows:
           set -e
           # Recompute in THIS shell (do not trust env BUILD_NUMBER: Codemagic
           # already exports that name as a small workflow counter).
-          BUILD_NAME=1.1.7
+          # Do not pass FLUTTER_BUILD_NUMBER / CURRENT_PROJECT_VERSION as Flutter argv.
+          BUILD_NAME=$(awk -F'[ +]' '/^version:/{gsub(/\r/,""); print $2; exit}' pubspec.yaml)
+          [ -n "$BUILD_NAME" ] || BUILD_NAME=1.1.8
           DATE_BN=$(date -u +%Y%m%d%H%M)
           OFFSET="${PROJECT_BUILD_NUMBER:-}"
           case "$OFFSET" in
@@ -212,6 +245,7 @@ workflows:
         notify:
           success: true
           failure: true
+      # Uploads the signed IPA to App Store Connect; TestFlight processing starts.
       app_store_connect:
         auth: integration
         submit_to_testflight: true
@@ -240,7 +274,9 @@ workflows:
           #!/usr/bin/env sh
           set -e
           # Each Codemagic script is a new shell. export is lost unless written to $CM_ENV.
-          BUILD_NAME=1.1.7
+          # Marketing version from pubspec (e.g. 1.1.8). BUILD_NUMBER is date-based.
+          BUILD_NAME=$(awk -F'[ +]' '/^version:/{gsub(/\r/,""); print $2; exit}' pubspec.yaml)
+          [ -n "$BUILD_NAME" ] || BUILD_NAME=1.1.8
           DATE_BN=$(date -u +%Y%m%d%H%M)
           OFFSET="${PROJECT_BUILD_NUMBER:-}"
           case "$OFFSET" in
@@ -297,7 +333,9 @@ workflows:
           set -e
           # Recompute in THIS shell (do not trust env BUILD_NUMBER: Codemagic
           # already exports that name as a small workflow counter).
-          BUILD_NAME=1.1.7
+          # Do not pass FLUTTER_BUILD_NUMBER / CURRENT_PROJECT_VERSION as Flutter argv.
+          BUILD_NAME=$(awk -F'[ +]' '/^version:/{gsub(/\r/,""); print $2; exit}' pubspec.yaml)
+          [ -n "$BUILD_NAME" ] || BUILD_NAME=1.1.8
           DATE_BN=$(date -u +%Y%m%d%H%M)
           OFFSET="${PROJECT_BUILD_NUMBER:-}"
           case "$OFFSET" in

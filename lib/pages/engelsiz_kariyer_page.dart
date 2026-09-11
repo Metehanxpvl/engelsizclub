@@ -173,21 +173,6 @@ class _EngelsizKariyerPageState extends State<EngelsizKariyerPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: L10nText(
-              'İŞKUR açık iş ilanları (Engelli kotası, tüm meslekler). '
-              'Kamu / özel ayrı çekilir; listedeki çipler aynı filtredir. '
-              'Tümü’nde her iki sektör birden görünür. '
-              'Başvuru İŞKUR sayfasında yapılır. Liste GitHub JSON önbelleğidir; '
-              'ana sayfa veritabanına sormaz.',
-              style: GoogleFonts.nunito(
-                fontSize: 13,
-                height: 1.35,
-                color: MetoColors.mutedFg,
-              ),
-            ),
-          ),
-          Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
             child: Wrap(
               spacing: 8,

@@ -1,14 +1,27 @@
 -- Engelsiz Club — zorunlu / opsiyonel uygulama güncellemesi
--- Supabase Dashboard → SQL Editor → Run
+-- Supabase Dashboard → SQL Editor → Run (RLS + seed)
 --
 -- Flutter `app_settings.force_update` okur (Firebase Remote Config YOK).
 -- Semver: current < minimumSupportedVersion → zorunlu
 --         min ≤ current < latestVersion*   → opsiyonel
---         current >= latest                → ekran yok
+--         current >= latest                → ekran yok (1.1.8 yüklü testçi görmez)
+-- Web (engelsizclub.com) ekranı GÖSTERMEZ — yalnız iOS/Android mağaza.
 --
--- latestVersionAndroid / latestVersionIOS alanlarına mağazada GERÇEKTEN
--- yayınlanan sürümü yazın. Uydurma yüksek sürüm "Güncelle" döngüsü yapar.
--- Yeni kurulumda 1.0.0 = henüz uyarı yok (yayın sonrası Dashboard'dan yükseltin).
+-- Seed 1.0.0 = henüz uyarı yok. Mağaza sürümü yayınlandıktan sonra Table Editor'dan
+-- `value` JSON'unu güncelleyin. Bu dosyayı tekrar çalıştırmak mevcut latest'ı EZMEZ.
+--
+-- Table Editor → app_settings → key = force_update → value örneği:
+--   a) 1.1.8 altı opsiyonel:  min 1.0.0, latest* 1.1.8
+--   b) 1.1.8 altı zorunlu:    min 1.1.8, latest* 1.1.8
+-- Sahte yüksek latest "Güncelle" döngüsü yapar; yalnız gerçek mağaza sürümü yazın.
+
+alter table if exists public.app_settings enable row level security;
+
+drop policy if exists "catalog_settings_select" on public.app_settings;
+create policy "catalog_settings_select"
+  on public.app_settings for select to anon, authenticated using (true);
+
+grant select on public.app_settings to anon, authenticated;
 
 insert into public.app_settings (key, value, description)
 values (
