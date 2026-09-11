@@ -103,11 +103,15 @@ class BroadcastPushService {
       );
 
   /// Belirli kullanıcıya FCM (token tablosu + edge function).
+  /// [dedupeKey] / [bildirimId]: notify-push ile aynı anda çalışırsa tek FCM.
   Future<bool> sendToUser({
     required String toEmail,
     required String title,
     required String body,
     String prefKey = 'forum',
+    String? event,
+    int? bildirimId,
+    String? dedupeKey,
     Map<String, String>? data,
   }) async {
     final user = Supabase.instance.client.auth.currentUser;
@@ -125,6 +129,9 @@ class BroadcastPushService {
           'title': title,
           'body': body,
           'prefKey': prefKey,
+          if (event != null && event.isNotEmpty) 'event': event,
+          if (bildirimId != null && bildirimId > 0) 'bildirimId': bildirimId,
+          if (dedupeKey != null && dedupeKey.isNotEmpty) 'dedupeKey': dedupeKey,
           if (data != null) 'data': data,
         },
       );

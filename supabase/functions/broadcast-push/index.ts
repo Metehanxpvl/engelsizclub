@@ -13,6 +13,7 @@ import {
   sendFcmToTokens,
   sendFcmToTopic,
 } from "../_shared/fcm.ts";
+import { claimPushSend } from "../_shared/push_claim.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -112,6 +113,20 @@ serve(async (req) => {
         .filter((t: string) => t.length > 20);
       if (tokens.length === 0) {
         return json(200, { ok: true, skipped: "no_token" });
+      }
+
+      const dedupeKey = String(payload.dedupeKey ?? "").trim();
+      const bildirimId = Number(payload.bildirimId ?? 0);
+      const event = String(payload.event ?? data.event ?? "").trim();
+      if (dedupeKey || bildirimId > 0) {
+        const claimed = await claimPushSend(admin, {
+          bildirimId,
+          event,
+          dedupeKey,
+        });
+        if (claimed === "duplicate") {
+          return json(200, { ok: true, skipped: "duplicate" });
+        }
       }
 
       const result = await sendFcmToTokens({ tokens, title, body, data });

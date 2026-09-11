@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'data/ilanlar_data.dart' show publicContactLabel;
+import 'push_event.dart';
+import 'services/broadcast_push_service.dart';
 
 /// Tek bir forum gönderisini takip (yorum / etkileşim bildirimi).
 class ForumPostFollowStore {
@@ -161,8 +165,33 @@ class ForumPostFollowStore {
         'read': false,
       });
     } catch (_) {
-      return;
+      // Unique: FCM yine denensin (dedupe çiftleri keser).
     }
+    unawaited(
+      BroadcastPushService.instance.sendToUser(
+        toEmail: owner,
+        title: pushTitle,
+        body: pushBody,
+        prefKey: pushPrefKeyForType('forum_follow'),
+        event: pushEventForType('forum_follow'),
+        dedupeKey: pushInsertDedupeKey(
+          type: 'forum_follow',
+          ownerEmail: owner,
+          actorEmail: actorEmail,
+          sohbetKey: _commentRef(commentId),
+          ilanId: postId,
+        ),
+        data: {
+          'type': 'forum_follow',
+          'event': pushEventForType('forum_follow') ?? 'COMMENT_CREATED',
+          'id': '$postId',
+          'postId': '$postId',
+          if (_commentRef(commentId) != null)
+            'sohbet_key': _commentRef(commentId)!,
+          'actor_email': actorEmail,
+        },
+      ),
+    );
   }
 
   /// Gönderiye yeni yorum → takipçiler + daha önce yorum yazanlar.

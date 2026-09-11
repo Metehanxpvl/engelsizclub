@@ -12,10 +12,10 @@
 -- Vault (pg_net tetikleyici için — service role SQL'e gömmeyin):
 --   select vault.create_secret('AYNI_NOTIFY_PUSH_SECRET', 'notify_push_secret');
 --
--- Alternatif: Dashboard → Database → Webhooks → bildirimler INSERT
+-- Alternatif: Dashboard → Database → Webhooks → bildirimler INSERT (ve mesaj collapse için UPDATE)
 --   URL: https://qycrkqwqrysypvqaipqn.supabase.co/functions/v1/notify-push
 --   HTTP Header Authorization: Bearer <NOTIFY_PUSH_SECRET>
--- Webhook + bu tetikleyiciyi birlikte açmayın (push_dispatch yine de tekiller).
+-- Webhook + bu tetikleyiciyi birlikte açmayın (push_dedupe / push_dispatch tekiller).
 
 create extension if not exists pg_net;
 
@@ -25,7 +25,13 @@ create table if not exists public.push_dispatch (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.push_dedupe (
+  dedupe_key text primary key,
+  created_at timestamptz not null default now()
+);
+
 alter table public.push_dispatch enable row level security;
+alter table public.push_dedupe enable row level security;
 
 -- Servis rolü RLS'i bypass eder; istemci yazamaz.
 
@@ -39,6 +45,10 @@ declare
   v_url text := 'https://qycrkqwqrysypvqaipqn.supabase.co/functions/v1/notify-push';
   v_secret text;
   v_type text;
+  v_ref text;
+  v_dedupe text;
+  v_owner text;
+  v_actor text;
 begin
   v_type := btrim(coalesce(new.type, ''));
   if v_type not in (
@@ -50,9 +60,29 @@ begin
   ) then
     return new;
   end if;
-  if lower(btrim(coalesce(new.owner_email, '')))
-     = lower(btrim(coalesce(new.actor_email, ''))) then
+  if tg_op = 'UPDATE' and v_type <> 'mesaj' then
     return new;
+  end if;
+  if tg_op = 'UPDATE'
+     and new.body is not distinct from old.body
+     and new.created_at is not distinct from old.created_at then
+    return new;
+  end if;
+  v_owner := lower(btrim(coalesce(new.owner_email, '')));
+  v_actor := lower(btrim(coalesce(new.actor_email, '')));
+  if v_owner = v_actor then
+    return new;
+  end if;
+  v_ref := nullif(btrim(coalesce(new.sohbet_key, '')), '');
+  if v_ref is null then
+    v_ref := 'i:' || coalesce(new.ilan_id, 0)::text;
+  end if;
+  if tg_op = 'UPDATE' then
+    v_dedupe := 'upd:' || v_type || ':' || v_owner || ':' || v_actor || ':' ||
+      v_ref || ':' || floor(extract(epoch from new.created_at))::bigint;
+  else
+    v_dedupe := 'ins:' || v_type || ':' || v_owner || ':' || v_actor || ':' ||
+      v_ref;
   end if;
 
   begin
@@ -80,8 +110,9 @@ begin
       ),
       body := jsonb_build_object(
         'id', new.id,
-        'type', 'INSERT',
+        'type', tg_op,
         'table', 'bildirimler',
+        'dedupeKey', v_dedupe,
         'record', to_jsonb(new)
       ),
       timeout_milliseconds := 5000
@@ -97,6 +128,12 @@ $$;
 drop trigger if exists bildirimler_os_push on public.bildirimler;
 create trigger bildirimler_os_push
   after insert on public.bildirimler
+  for each row
+  execute function public.enqueue_bildirim_os_push();
+
+drop trigger if exists bildirimler_os_push_upd on public.bildirimler;
+create trigger bildirimler_os_push_upd
+  after update of body, created_at, title on public.bildirimler
   for each row
   execute function public.enqueue_bildirim_os_push();
 

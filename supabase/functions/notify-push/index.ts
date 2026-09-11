@@ -10,6 +10,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { deleteInvalidTokens, sendFcmToTokens } from "../_shared/fcm.ts";
+import { claimPushSend, insertDedupeKey } from "../_shared/push_claim.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -141,17 +142,15 @@ serve(async (req) => {
     }
 
     const bildirimId = Number(row.id ?? id ?? 0);
-    if (bildirimId > 0) {
-      const { error: dupErr } = await admin.from("push_dispatch").insert({
-        bildirim_id: bildirimId,
-        event,
-      });
-      if (dupErr) {
-        if (dupErr.code === "23505") {
-          return json(200, { ok: true, skipped: "duplicate" });
-        }
-        console.error("push_dispatch", dupErr);
-      }
+    const dedupeKey = String(payload.dedupeKey ?? "").trim() ||
+      insertDedupeKey(row);
+    const claimed = await claimPushSend(admin, {
+      bildirimId,
+      event,
+      dedupeKey,
+    });
+    if (claimed === "duplicate") {
+      return json(200, { ok: true, skipped: "duplicate" });
     }
 
     const prefKey = prefKeyFor(type);

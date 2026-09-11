@@ -9,6 +9,7 @@ import 'data/ilanlar_data.dart'
         publicContactLabel,
         scrubEmailsInText;
 import 'kredi_store.dart';
+import 'push_event.dart';
 import 'services/broadcast_push_service.dart';
 import 'sohbet_store.dart';
 
@@ -186,17 +187,14 @@ Future<bool> notifyIlanSahibiTeklif({
   } catch (_) {}
 
   unawaited(
-    BroadcastPushService.instance.sendToUser(
+    _pushOsTray(
       toEmail: owner,
+      type: 'teklif',
       title: text,
       body: text,
-      prefKey: 'mesajlar',
-      data: {
-        'type': 'teklif',
-        if (ilanId != null) 'id': '$ilanId',
-        'sohbet_key': key,
-        'actor_email': actorEmail,
-      },
+      actorEmail: actorEmail,
+      ilanId: ilanId,
+      sohbetKey: key,
     ),
   );
 
@@ -242,11 +240,13 @@ Future<void> notifySohbetMesaj({
     'created_at': nowIso,
   };
 
+  var bildirimId = 0;
+  var collapsedUpdate = false;
   try {
     // Aynı sohbetten okunmamış mesaj bildirimi varsa güncelle (üst üste ekleme).
     final existing = await client
         .from('bildirimler')
-        .select('id')
+        .select('id, created_at')
         .eq('owner_email', owner)
         .eq('actor_email', actorEmail)
         .eq('type', 'mesaj')
@@ -256,6 +256,15 @@ Future<void> notifySohbetMesaj({
         .maybeSingle();
 
     if (existing != null && (existing['id'] as num?) != null) {
+      bildirimId = (existing['id'] as num).toInt();
+      final existingAt = DateTime.tryParse(
+        existing['created_at']?.toString() ?? '',
+      );
+      final ageSec = existingAt == null
+          ? 99
+          : DateTime.now().difference(existingAt).inSeconds.abs();
+      // SQL tetikleyicisi bu mesaj için az önce INSERT ettiyse ins: anahtarı kullan.
+      collapsedUpdate = ageSec > 8;
       await client
           .from('bildirimler')
           .update({
@@ -267,15 +276,58 @@ Future<void> notifySohbetMesaj({
             'read': false,
             'created_at': nowIso,
           })
-          .eq('id', (existing['id'] as num).toInt());
+          .eq('id', bildirimId);
     } else {
-      await client.from('bildirimler').insert(payload);
+      final inserted = await client
+          .from('bildirimler')
+          .insert(payload)
+          .select('id')
+          .maybeSingle();
+      bildirimId = (inserted?['id'] as num?)?.toInt() ?? 0;
     }
   } catch (_) {
     try {
-      await client.from('bildirimler').insert(payload);
+      final inserted = await client
+          .from('bildirimler')
+          .insert(payload)
+          .select('id')
+          .maybeSingle();
+      bildirimId = (inserted?['id'] as num?)?.toInt() ?? 0;
     } catch (_) {}
   }
+
+  // Kapalı uygulamada zil yetmez; FCM yedek (webhook yoksa da gider).
+  final epochSec =
+      (DateTime.tryParse(nowIso) ?? DateTime.now()).toUtc().millisecondsSinceEpoch ~/
+          1000;
+  unawaited(
+    _pushOsTray(
+      toEmail: owner,
+      type: 'mesaj',
+      title: title,
+      body: preview,
+      actorEmail: actorEmail,
+      ilanId: ilanId,
+      sohbetKey: key,
+      bildirimId: collapsedUpdate ? null : (bildirimId > 0 ? bildirimId : null),
+      dedupeKey: collapsedUpdate
+          ? pushUpdateDedupeKey(
+              type: 'mesaj',
+              ownerEmail: owner,
+              actorEmail: actorEmail,
+              sohbetKey: key,
+              ilanId: ilanId,
+              epochSec: epochSec,
+            )
+          : pushInsertDedupeKey(
+              type: 'mesaj',
+              ownerEmail: owner,
+              actorEmail: actorEmail,
+              sohbetKey: key,
+              ilanId: ilanId,
+            ),
+    ),
+  );
 }
 
 /// Aynı kişiden biriken mesaj bildirimlerini tek satıra indir (en son saat kalır).
@@ -592,6 +644,50 @@ String notificationActorLabel(String actorEmail, [String actorName = '']) {
   return publicContactLabel(actorEmail, preferredName: preferred);
 }
 
+Future<void> _pushOsTray({
+  required String toEmail,
+  required String type,
+  required String title,
+  required String body,
+  String? actorEmail,
+  int? ilanId,
+  String? sohbetKey,
+  int? bildirimId,
+  String? dedupeKey,
+}) async {
+  final event = pushEventForType(type);
+  if (event == null) return;
+  final owner = toEmail.trim().toLowerCase();
+  final actor = (actorEmail ?? '').trim().toLowerCase();
+  final copy = pushOsCopy(type: type, title: title, body: body);
+  final key = (dedupeKey ?? '').trim().isNotEmpty
+      ? dedupeKey!.trim()
+      : pushInsertDedupeKey(
+          type: type,
+          ownerEmail: owner,
+          actorEmail: actor,
+          sohbetKey: sohbetKey,
+          ilanId: ilanId,
+        );
+  await BroadcastPushService.instance.sendToUser(
+    toEmail: owner,
+    title: copy.title,
+    body: copy.body,
+    prefKey: pushPrefKeyForType(type),
+    event: event,
+    bildirimId: bildirimId,
+    dedupeKey: key,
+    data: {
+      'type': type,
+      'event': event,
+      if (ilanId != null) 'id': '$ilanId',
+      if (ilanId != null) 'postId': '$ilanId',
+      if (sohbetKey != null && sohbetKey.isNotEmpty) 'sohbet_key': sohbetKey,
+      if (actor.isNotEmpty) 'actor_email': actor,
+    },
+  );
+}
+
 Future<void> _insertBildirim({
   required String ownerEmail,
   required String actorName,
@@ -610,23 +706,41 @@ Future<void> _insertBildirim({
   final name = notificationActorLabel(actorEmail, actorName);
   final safeBody =
       body.length > 1800 ? '${body.substring(0, 1800)}…' : body;
+  int? bildirimId;
   try {
-    await client.from('bildirimler').insert({
-      'owner_email': owner,
-      'actor_email': actorEmail,
-      'actor_name': name,
-      'type': type,
-      'title': title,
-      'body': safeBody,
-      'ilan_id': ilanId,
-      'sohbet_key': sohbetKey,
-      'read': false,
-    });
+    final inserted = await client
+        .from('bildirimler')
+        .insert({
+          'owner_email': owner,
+          'actor_email': actorEmail,
+          'actor_name': name,
+          'type': type,
+          'title': title,
+          'body': safeBody,
+          'ilan_id': ilanId,
+          'sohbet_key': sohbetKey,
+          'read': false,
+        })
+        .select('id')
+        .maybeSingle();
+    bildirimId = (inserted?['id'] as num?)?.toInt();
   } catch (_) {
     // Unique / RLS: satır zaten tetikleyicide olabilir.
   }
 
-  // OS tray: notify-push (bildirimler INSERT). İstemci FCM çift bildirim yapmasın.
+  // Uygulama içi zil (satır) + kapalı cihaz FCM yedeği (webhook yoksa da gider).
+  unawaited(
+    _pushOsTray(
+      toEmail: owner,
+      type: type,
+      title: title,
+      body: safeBody,
+      actorEmail: actorEmail,
+      ilanId: ilanId,
+      sohbetKey: sohbetKey,
+      bildirimId: bildirimId,
+    ),
+  );
 }
 
 /// Forum yorum referansı (bildirim → deep link).
