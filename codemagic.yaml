@@ -16,8 +16,9 @@
 # APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_PRIVATE_KEY).
 #
 # Apple App ID must have Push Notifications enabled, and the App Store profile
-# (EngelsizClub_AppStore_v2, Codemagic reference: engelsiz_club) must include
-# aps-environment. Do not strip ios/Runner/Runner.entitlements.
+# (Codemagic reference: engelsiz_club; name is versioned, e.g. v2/v3/v4 — do
+# not hard-code it) must include aps-environment. Do not strip
+# ios/Runner/Runner.entitlements.
 #
 # iOS BUILD_NUMBER is date-based (not pubspec +20000x). Do not pass
 # FLUTTER_BUILD_NUMBER env or CURRENT_PROJECT_VERSION as Flutter argv.
@@ -155,17 +156,12 @@ workflows:
             EngelsizClub_AppStore|EngelsizClub_AppStore.)
               echo "ERROR: Eski provisioning profile hâlâ seçili: '${PROF}'"
               echo "Codemagic → Settings → Code signing identities → engelsiz_club profilini sil,"
-              echo "Fetch profiles → EngelsizClub_AppStore_v2 → reference: engelsiz_club"
-              echo "Apple Developer → Profiles → EngelsizClub_AppStore.* sil"
+              echo "Fetch profiles → current App Store profile → reference: engelsiz_club"
+              echo "Apple Developer → Profiles → EngelsizClub_AppStore / EngelsizClub_AppStore. sil"
               exit 1
-              ;;
-            EngelsizClub_AppStore_v2)
-              echo "OK: doğru profil"
               ;;
             *)
-              echo "ERROR: Beklenmeyen profil: '${PROF:-<empty>}'"
-              echo "EngelsizClub_AppStore_v2 olmalı (Sign In with Apple)."
-              exit 1
+              echo "OK: using Codemagic-selected profile '${PROF:-<empty>}'"
               ;;
           esac
           if [ -z "${TEAM}" ] || [ -z "${PROF}" ]; then
@@ -323,10 +319,19 @@ workflows:
           fi
           xcode-project use-profiles
           PROF="$(xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings 2>/dev/null | awk -F' = ' '/PROVISIONING_PROFILE_SPECIFIER/ {print $2; exit}')"
-          if [ "$PROF" != "EngelsizClub_AppStore_v2" ]; then
-            echo "ERROR: Yanlış provisioning profile: '${PROF:-<empty>}' — EngelsizClub_AppStore_v2 bekleniyor."
-            exit 1
-          fi
+          case "$PROF" in
+            EngelsizClub_AppStore|EngelsizClub_AppStore.)
+              echo "ERROR: Eski provisioning profile hâlâ seçili: '${PROF}'"
+              exit 1
+              ;;
+            "")
+              echo "ERROR: use-profiles did not apply PROVISIONING_PROFILE_SPECIFIER."
+              exit 1
+              ;;
+            *)
+              echo "OK: using Codemagic-selected profile '${PROF}'"
+              ;;
+          esac
       - name: Flutter build IPA
         script: |
           #!/usr/bin/env sh
