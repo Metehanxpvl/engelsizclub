@@ -175,8 +175,9 @@ class _EngelsizKariyerPageState extends State<EngelsizKariyerPage> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: L10nText(
-              'İŞKUR açık iş ilanları (meslek mid=79417, Engelli kutusu işaretli). '
+              'İŞKUR açık iş ilanları (Engelli kotası, tüm meslekler). '
               'Kamu / özel ayrı çekilir; listedeki çipler aynı filtredir. '
+              'Tümü’nde her iki sektör birden görünür. '
               'Başvuru İŞKUR sayfasında yapılır. Liste GitHub JSON önbelleğidir; '
               'ana sayfa veritabanına sormaz.',
               style: GoogleFonts.nunito(
@@ -260,7 +261,7 @@ class _EngelsizKariyerPageState extends State<EngelsizKariyerPage> {
                           child: L10nText(
                             lastKariyerLoadError ??
                                 (_sektor == kKariyerSektorKamu
-                                    ? 'Şu an kamu ilanı yok. İŞKUR’da bu meslek için kamu kaydı açılınca burada görünür.'
+                                    ? 'Şu an kamu ilanı yok.'
                                     : _sektor == kKariyerSektorOzel
                                         ? 'Şu an özel sektör ilanı yok.'
                                         : 'Şu an listelenecek ilan yok.'),
