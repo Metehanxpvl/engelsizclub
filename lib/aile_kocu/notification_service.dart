@@ -3,6 +3,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'aile_kocu_schedule.dart';
+
 /// Aile Koçu — tamamen yerel bildirimler (FCM yok).
 /// Sessiz saatler: 22:00–08:00 (o aralıkta planlananlar 08:00'e kaydırılır).
 class AileKocuNotificationService {
@@ -230,14 +232,19 @@ class AileKocuNotificationService {
       Object.hash('med', medicineId, time, 'wd', weekday) & 0x7fffffff;
 
   static bool _bootstrapRunning = false;
+  static bool _bootstrapRerun = false;
   final Set<String> _medicineRescheduleLocks = {};
+  final Set<String> _lessonRescheduleLocks = {};
 
   int _noteNotifId(String noteId) =>
       Object.hash('note', noteId) & 0x7fffffff;
 
-  /// Bootstrap eşzamanlı çağrıları birleştirir.
+  /// Bootstrap eşzamanlı çağrıları birleştirir; bitince bir kez daha çalıştır.
   static bool get bootstrapRunning => _bootstrapRunning;
   static set bootstrapRunning(bool v) => _bootstrapRunning = v;
+  static bool get bootstrapRerunRequested => _bootstrapRerun;
+  static void requestBootstrapRerun() => _bootstrapRerun = true;
+  static void clearBootstrapRerun() => _bootstrapRerun = false;
 
   /// Android AlarmManager extra’sına büyük fotoğraf koymak planlamayı düşürür.
   /// iOS’ta da ek gerekmez; başlık/gövde yeter.
@@ -251,6 +258,8 @@ class AileKocuNotificationService {
     required String title,
     required String body,
   }) async {
+    // Aynı id ile ikinci PendingIntent kalmasın (Android bazen iptalsiz yenilemez).
+    await cancel(id);
     Future<void> go(AndroidScheduleMode m, {bool withIcon = true}) {
       return _plugin.zonedSchedule(
         id: id,
@@ -312,6 +321,7 @@ class AileKocuNotificationService {
     when = respectQuietHours(when);
     if (!when.isAfter(tz.TZDateTime.now(tz.local))) return;
 
+    await cancel(notificationId);
     await _zonedSchedule(
       id: notificationId,
       when: when,
@@ -415,8 +425,12 @@ class AileKocuNotificationService {
     final id = _noteNotifId(noteId);
     var when = _wallClock(scheduledTime);
     when = respectQuietHours(when);
-    if (!when.isAfter(tz.TZDateTime.now(tz.local))) return;
+    if (!when.isAfter(tz.TZDateTime.now(tz.local))) {
+      await cancelPersonalNote(noteId);
+      return;
+    }
 
+    await cancelPersonalNote(noteId);
     await _zonedSchedule(
       id: id,
       when: when,
@@ -558,27 +572,34 @@ class AileKocuNotificationService {
 
   Future<void> cancelLesson(String lessonId) async {
     if (kIsWeb || !_ready) return;
-    await Future.wait([
-      for (var add = 0; add < _horizonDays; add++)
-        cancel(_lessonNotifId(lessonId, add)),
-    ]);
+    await _cancelPendingWhere(
+      (p) => isAileKocuPayloadFor(
+        payload: p.payload,
+        kind: 'lesson',
+        itemId: lessonId,
+      ),
+    );
+    final cancelIds = <int>{};
+    for (var add = 0; add < _horizonDays; add++) {
+      cancelIds.add(_lessonNotifId(lessonId, add));
+    }
+    for (var wd = 1; wd <= 7; wd++) {
+      cancelIds.add(Object.hash('lesson', lessonId, wd) & 0x7fffffff);
+      cancelIds.add(Object.hash('lesson', lessonId, 'wd', wd) & 0x7fffffff);
+    }
+    await Future.wait(cancelIds.map(cancel));
   }
 
   Future<void> cancelMedicine(String medicineId, {List<String>? times}) async {
     if (kIsWeb || !_ready) return;
 
-    // Payload ile eşleşen tüm bekleyen ilaç bildirimlerini iptal et.
-    try {
-      final pending = await _plugin.pendingNotificationRequests();
-      for (final p in pending) {
-        final payload = p.payload ?? '';
-        if (payload.startsWith('med|$medicineId|')) {
-          await cancel(p.id);
-        }
-      }
-    } catch (e) {
-      debugPrint('AileKoçu cancelMedicine pending: $e');
-    }
+    await _cancelPendingWhere(
+      (p) => isAileKocuPayloadFor(
+        payload: p.payload,
+        kind: 'med',
+        itemId: medicineId,
+      ),
+    );
 
     final tlist = times ?? const <String>[];
     final now = DateTime.now();
@@ -599,7 +620,36 @@ class AileKocuNotificationService {
 
   Future<void> cancelPersonalNote(String noteId) async {
     if (kIsWeb || !_ready) return;
+    await _cancelPendingWhere(
+      (p) => isAileKocuPayloadFor(
+        payload: p.payload,
+        kind: 'pnote',
+        itemId: noteId,
+      ),
+    );
     await cancel(_noteNotifId(noteId));
+  }
+
+  Future<void> _cancelPendingWhere(
+    bool Function(PendingNotificationRequest p) match,
+  ) async {
+    if (kIsWeb || !_ready) return;
+    try {
+      final pending = await _plugin.pendingNotificationRequests();
+      for (final p in pending) {
+        if (match(p)) await cancel(p.id);
+      }
+    } catch (e) {
+      debugPrint('AileKoçu cancel pending: $e');
+    }
+  }
+
+  /// FCM / diğer yerel bildirimlere dokunmadan Aile Koçu alarmlarını sil.
+  Future<void> cancelAllAileKocuSchedules() async {
+    if (kIsWeb || !_ready) return;
+    await _cancelPendingWhere(
+      (p) => isAileKocuScheduledPayload(p.payload),
+    );
   }
 
   /// Ders: bugünden itibaren önümüzdeki günler için 2 saat önce planla.
@@ -613,34 +663,43 @@ class AileKocuNotificationService {
   }) async {
     if (!_ready && !kIsWeb) await init();
     if (!_ready || kIsWeb) return;
-    await cancelLesson(lessonId);
-    final parts = timeHhmm.split(':');
-    if (parts.length < 2) return;
-    final hh = int.tryParse(parts[0]) ?? 0;
-    final mm = int.tryParse(parts[1]) ?? 0;
-    final now = DateTime.now();
-    for (var add = 0; add < _horizonDays; add++) {
-      final day = DateTime(now.year, now.month, now.day)
-          .add(Duration(days: add));
-      if (weekdays.isNotEmpty && !weekdays.contains(day.weekday)) continue;
-      final lessonAt = DateTime(day.year, day.month, day.day, hh, mm);
-      var notifyAt = lessonAt.subtract(const Duration(hours: 2));
-      if (!notifyAt.isAfter(now)) {
-        if (lessonAt.isAfter(now)) {
-          notifyAt = lessonAt;
-        } else {
-          continue;
+    if (_lessonRescheduleLocks.contains(lessonId)) return;
+    _lessonRescheduleLocks.add(lessonId);
+    try {
+      await cancelLesson(lessonId);
+      final parts = timeHhmm.split(':');
+      if (parts.length < 2) return;
+      final hh = int.tryParse(parts[0]) ?? 0;
+      final mm = int.tryParse(parts[1]) ?? 0;
+      final now = DateTime.now();
+      final scheduledDays = <String>{};
+      for (var add = 0; add < _horizonDays; add++) {
+        final day = DateTime(now.year, now.month, now.day)
+            .add(Duration(days: add));
+        if (weekdays.isNotEmpty && !weekdays.contains(day.weekday)) continue;
+        final dayKey = '${day.year}-${day.month}-${day.day}';
+        if (!scheduledDays.add(dayKey)) continue;
+        final lessonAt = DateTime(day.year, day.month, day.day, hh, mm);
+        var notifyAt = lessonAt.subtract(const Duration(hours: 2));
+        if (!notifyAt.isAfter(now)) {
+          if (lessonAt.isAfter(now)) {
+            notifyAt = lessonAt;
+          } else {
+            continue;
+          }
         }
+        await showLessonNotification(
+          childName: childName,
+          title: title,
+          time: timeHhmm,
+          photoPath: photoPath,
+          scheduledAt: notifyAt,
+          notificationId: _lessonNotifId(lessonId, add),
+          payloadLessonId: lessonId,
+        );
       }
-      await showLessonNotification(
-        childName: childName,
-        title: title,
-        time: timeHhmm,
-        photoPath: photoPath,
-        scheduledAt: notifyAt,
-        notificationId: _lessonNotifId(lessonId, add),
-        payloadLessonId: lessonId,
-      );
+    } finally {
+      _lessonRescheduleLocks.remove(lessonId);
     }
   }
 
@@ -656,12 +715,13 @@ class AileKocuNotificationService {
   }) async {
     if (!_ready && !kIsWeb) await init();
     if (!_ready || kIsWeb) return;
-    if (times.isEmpty) return;
+    final uniqueTimes = uniqueHhmmTimes(times);
+    if (uniqueTimes.isEmpty) return;
 
     if (_medicineRescheduleLocks.contains(medicineId)) return;
     _medicineRescheduleLocks.add(medicineId);
     try {
-      await cancelMedicine(medicineId, times: times);
+      await cancelMedicine(medicineId, times: uniqueTimes);
       final now = DateTime.now();
       final everyDay = weekdays.isEmpty;
       final scheduledKeys = <String>{};
@@ -673,7 +733,7 @@ class AileKocuNotificationService {
           if (day.isAfter(end)) break;
         }
         if (!everyDay && !weekdays.contains(day.weekday)) continue;
-        for (final t in times) {
+        for (final t in uniqueTimes) {
           final parts = t.split(':');
           if (parts.length < 2) continue;
           final hh = int.tryParse(parts[0]) ?? 0;

@@ -83,61 +83,73 @@ class _AileKocuHubPageState extends State<AileKocuHubPage> {
 
 /// Uygulama açılışında / Aile Koçu girişinde: Hive + (mobilde) alarm yeniden planla.
 Future<void> bootstrapAileKocuReminders() async {
-  if (AileKocuNotificationService.bootstrapRunning) return;
+  if (AileKocuNotificationService.bootstrapRunning) {
+    AileKocuNotificationService.requestBootstrapRerun();
+    return;
+  }
   AileKocuNotificationService.bootstrapRunning = true;
   try {
-    try {
-      await initAileKocuHive();
-    } catch (e, st) {
-      debugPrint('AileKoçu Hive init: $e\n$st');
-      return;
-    }
-    // Bildirimler yalnızca mobil
-    if (kIsWeb) return;
-    try {
-      await AileKocuNotificationService.instance
-          .init()
-          .timeout(const Duration(seconds: 3));
-      // Do not prompt for iOS notification permission at cold start —
-      // requestAuthorization can hang the platform channel behind the boot UI.
-      final s = loadSettings();
-      for (final m in medicinesBox.values) {
-        await AileKocuNotificationService.instance.rescheduleMedicine(
-          medicineId: m.id,
-          childName: s.childName,
-          title: m.name,
-          dosage: m.dosage,
-          times: m.times,
-          weekdays: m.days,
-          photoPath: s.photoPath,
-          endDate: m.endDate,
-        );
-      }
-      for (final l in lessonsBox.values) {
-        await AileKocuNotificationService.instance.rescheduleLesson(
-          lessonId: l.id,
-          childName: s.childName,
-          title: l.name,
-          timeHhmm: l.time,
-          weekdays: l.days,
-          photoPath: s.photoPath,
-        );
-      }
-      for (final n in personalNotesBox.values) {
-        final when = n.reminderDateTime;
-        if (when == null) continue;
-        await AileKocuNotificationService.instance.showPersonalNoteNotification(
-          title: n.title,
-          body: n.detail,
-          scheduledTime: when,
-          noteId: n.id,
-        );
-      }
-    } catch (e, st) {
-      debugPrint('AileKoçu hatırlatıcı bootstrap: $e\n$st');
-    }
+    do {
+      AileKocuNotificationService.clearBootstrapRerun();
+      await _bootstrapAileKocuRemindersOnce();
+    } while (AileKocuNotificationService.bootstrapRerunRequested);
   } finally {
     AileKocuNotificationService.bootstrapRunning = false;
+  }
+}
+
+Future<void> _bootstrapAileKocuRemindersOnce() async {
+  try {
+    await initAileKocuHive();
+  } catch (e, st) {
+    debugPrint('AileKoçu Hive init: $e\n$st');
+    return;
+  }
+  // Bildirimler yalnızca mobil
+  if (kIsWeb) return;
+  try {
+    final n = AileKocuNotificationService.instance;
+    await n.init().timeout(const Duration(seconds: 3));
+    if (!n.isReady) return;
+    // Eski / mükerrer AlarmManager kayıtları (açılışta yeniden kurulum).
+    await n.cancelAllAileKocuSchedules();
+    // Do not prompt for iOS notification permission at cold start —
+    // requestAuthorization can hang the platform channel behind the boot UI.
+    final s = loadSettings();
+    for (final m in medicinesBox.values) {
+      await n.rescheduleMedicine(
+        medicineId: m.id,
+        childName: s.childName,
+        title: m.name,
+        dosage: m.dosage,
+        times: m.times,
+        weekdays: m.days,
+        photoPath: s.photoPath,
+        endDate: m.endDate,
+      );
+    }
+    for (final l in lessonsBox.values) {
+      await n.rescheduleLesson(
+        lessonId: l.id,
+        childName: s.childName,
+        title: l.name,
+        timeHhmm: l.time,
+        weekdays: l.days,
+        photoPath: s.photoPath,
+      );
+    }
+    for (final note in personalNotesBox.values) {
+      final when = note.reminderDateTime;
+      if (when == null) continue;
+      await n.showPersonalNoteNotification(
+        title: note.title,
+        body: note.detail,
+        scheduledTime: when,
+        noteId: note.id,
+      );
+    }
+  } catch (e, st) {
+    debugPrint('AileKoçu hatırlatıcı bootstrap: $e\n$st');
   }
 }
 

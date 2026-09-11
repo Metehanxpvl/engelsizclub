@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../meto_theme.dart';
+import '../aile_kocu_schedule.dart';
 import '../aile_kocu_store.dart';
 import '../models/aile_kocu_models.dart';
 import '../time_picker_24h.dart';
@@ -80,7 +81,7 @@ class _IlacEkleScreenState extends State<IlacEkleScreen> {
       id: id,
       name: name,
       dosage: dose,
-      times: _times.map(_fmt).toList(),
+      times: uniqueHhmmTimes(_times.map(_fmt)),
       days: _everyDay ? <int>[] : (_days.toList()..sort()),
       endDate: _end,
       takenDatesMap: widget.existing?.takenDatesMap ?? {},
