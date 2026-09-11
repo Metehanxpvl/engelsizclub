@@ -1,12 +1,12 @@
 /**
- * İŞKUR açık iş ilanları (mid=79417) → web/ + assets JSON.
+ * İŞKUR mid=79417 + Engelli kutusu → web/ + assets JSON.
  * Katalog Supabase'e yazılmaz.
  *
- * Engelli filtresi (Ara postback, her sayfada):
+ * GET: AcikIsIlanAra.aspx?mid=79417 (meslek sayfada kalır).
+ * Ara postback (her sektör, her sayfa): yalnız Engelli işaretlenir.
  *   özel: ctl04$ctlEngelli=on
  *   kamu: ctl04$ctlKisiselDurum=10 (İlan Türü = Engelli)
  * İşyeri türü: ctl04$IsyeriTuruRadios = ozelSektorRadio | kamuRadio
- * Querystring meslek (mid=79417) bakım elemanı kilitler; kullanılmaz.
  * Node fetch POST WAF’ta elenir; curl geçer. 0 ilan / blokta mevcut JSON korunur.
  */
 import {
@@ -23,7 +23,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const SOURCE =
-  'https://esube.iskur.gov.tr/istihdam/AcikIsIlanAra.aspx';
+  'https://esube.iskur.gov.tr/istihdam/AcikIsIlanAra.aspx?mid=79417';
 const DETAIL =
   'https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=';
 const UA =

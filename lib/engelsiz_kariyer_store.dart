@@ -10,7 +10,7 @@ import 'utils/async_timeout.dart';
 
 const kKariyerAssetPath = 'assets/engelsiz_kariyer/engelsiz-kariyer.json';
 const kKariyerSourceUrl =
-    'https://esube.iskur.gov.tr/istihdam/AcikIsIlanAra.aspx';
+    'https://esube.iskur.gov.tr/istihdam/AcikIsIlanAra.aspx?mid=79417';
 
 const _githubCatalog = <String>[
   'https://raw.githubusercontent.com/Metehanxpvl/engelsizclub/main/web/engelsiz-kariyer.json',
