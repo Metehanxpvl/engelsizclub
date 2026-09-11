@@ -31,12 +31,12 @@ Future<List<DestekSorguUrun>> loadDestekSorguUrunler() async {
           .order('category_sort')
           .order('sort_order'),
     );
-    if (rows is! List || rows.isEmpty) return kDestekSorguFallback;
-    final items = rows
-        .whereType<Map>()
-        .map((r) => DestekSorguUrun.fromJson(Map<String, dynamic>.from(r)))
-        .where((e) => e.id.isNotEmpty)
-        .toList();
+    if (rows.isEmpty) return kDestekSorguFallback;
+    final items = <DestekSorguUrun>[];
+    for (final raw in rows) {
+      final item = DestekSorguUrun.fromJson(Map<String, dynamic>.from(raw));
+      if (item.id.isNotEmpty) items.add(item);
+    }
     final cpapOk = items.any((e) => e.id == 'cpap' && e.sutPrice == 3265.92);
     final bezOk = items.any((e) => e.id == 'bez-yetiskin' && e.sutPrice == 6.31);
     if (!cpapOk || !bezOk) return kDestekSorguFallback;
@@ -50,7 +50,7 @@ Future<DestekSorguKayit?> loadDestekSorguKayit(String productId) async {
   final uid = _db.auth.currentUser?.id;
   if (uid == null || productId.isEmpty) return null;
   try {
-    final row = await withNetworkTimeout(
+    final row = await withNetworkTimeout<Map<String, dynamic>?>(
       _db
           .from('destek_sorgu_kayitlar')
           .select()
@@ -58,7 +58,7 @@ Future<DestekSorguKayit?> loadDestekSorguKayit(String productId) async {
           .eq('product_id', productId)
           .maybeSingle(),
     );
-    if (row is! Map) return null;
+    if (row == null) return null;
     final end = DateTime.tryParse(row['report_end_date']?.toString() ?? '');
     if (end == null) return null;
     return DestekSorguKayit(

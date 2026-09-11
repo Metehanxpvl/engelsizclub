@@ -1,4 +1,4 @@
--- Kullanıcı cihaz FCM token’ları (kişisel push: forum yanıtı, mesaj vb.)
+-- Token’lar: girişte upsert, çıkışta DELETE (istemci unregisterCurrentToken).
 -- Supabase SQL Editor’da bir kez çalıştırın.
 
 create table if not exists public.user_push_tokens (

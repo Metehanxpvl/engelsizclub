@@ -1876,9 +1876,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   void _openPushData(Map<String, String> data) {
     if (_isGuest) return;
     final type = (data['type'] ?? '').trim().toLowerCase();
-    final id = int.tryParse((data['id'] ?? data['ilan_id'] ?? '').trim());
+    final event = (data['event'] ?? '').trim().toUpperCase();
+    final id = int.tryParse(
+      (data['postId'] ?? data['id'] ?? data['ilan_id'] ?? '').trim(),
+    );
     final sohbetKey = (data['sohbet_key'] ?? '').trim();
     var actorEmail = (data['actor_email'] ?? '').trim().toLowerCase();
+    final commentId = int.tryParse((data['commentId'] ?? '').trim()) ??
+        parseForumCommentRef(sohbetKey);
 
     if (type == 'etkinlik_oneri') {
       unawaited(
@@ -1891,14 +1896,19 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       return;
     }
 
-    if (type.startsWith('forum')) {
+    final isForum = type.startsWith('forum') ||
+        event == 'COMMENT_LIKED' ||
+        event == 'COMMENT_CREATED' ||
+        event == 'POST_COMMENTED' ||
+        event == 'REPLY_RECEIVED';
+    if (isForum) {
       if (id != null && id > 0) {
         setState(() {
           _showMesajlar = false;
           _showBildirimler = false;
           _showProfilPanel = false;
           _openForumPostId = id;
-          _openForumCommentId = parseForumCommentRef(sohbetKey);
+          _openForumCommentId = commentId;
           _openForumToken++;
         });
       }
@@ -1906,7 +1916,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       return;
     }
 
-    if (type == 'mesaj' || type == 'teklif') {
+    if (type == 'mesaj' ||
+        type == 'teklif' ||
+        event == 'MESSAGE_RECEIVED') {
       if (actorEmail.isEmpty && sohbetKey.contains('|')) {
         final me = widget.user.email.trim().toLowerCase();
         for (final part in sohbetKey.split('|')) {

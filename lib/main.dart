@@ -317,6 +317,9 @@ class _MetoCareAppState extends State<MetoCareApp> {
           }
           return;
         }
+        if (data.event == AuthChangeEvent.signedIn) {
+          unawaited(PushNotificationService.instance.registerTokenWithServer());
+        }
         if (_needsPasswordReset) return;
         // Token yenileme / metadata güncellemesi sırasında tekrar finalize
         // yarışına girme — zaten oturum açıksa kullanıcıyı düşürme.
@@ -564,6 +567,7 @@ class _MetoCareAppState extends State<MetoCareApp> {
   }
 
   Future<void> _logout() async {
+    await PushNotificationService.instance.unregisterCurrentToken();
     await Supabase.instance.client.auth.signOut();
     if (mounted) setState(() => _user = null);
   }
@@ -647,6 +651,8 @@ class _MetoCareAppState extends State<MetoCareApp> {
                         });
                       },
                       onCancel: () async {
+                        await PushNotificationService.instance
+                            .unregisterCurrentToken();
                         await Supabase.instance.client.auth.signOut();
                         if (!mounted) return;
                         setState(() {

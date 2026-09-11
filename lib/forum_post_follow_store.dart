@@ -1,9 +1,6 @@
-import 'dart:async';
-
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'data/ilanlar_data.dart' show publicContactLabel;
-import 'services/broadcast_push_service.dart';
 
 /// Tek bir forum gönderisini takip (yorum / etkileşim bildirimi).
 class ForumPostFollowStore {
@@ -166,19 +163,6 @@ class ForumPostFollowStore {
     } catch (_) {
       return;
     }
-    unawaited(
-      BroadcastPushService.instance.sendToUser(
-        toEmail: owner,
-        title: pushTitle,
-        body: pushBody,
-        prefKey: 'forum',
-        data: {
-          'type': 'forum_follow',
-          'id': '$postId',
-          if (commentId != null) 'sohbet_key': 'c:$commentId',
-        },
-      ),
-    );
   }
 
   /// Gönderiye yeni yorum → takipçiler + daha önce yorum yazanlar.

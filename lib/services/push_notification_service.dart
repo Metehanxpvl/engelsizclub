@@ -28,6 +28,70 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     'FCM background: id=${message.messageId} '
     'title=${message.notification?.title} data=${message.data}',
   );
+  // notification payload varsa OS gösterir; data-only ise yerel bildirim.
+  if (message.notification != null) return;
+  try {
+    await showRemoteMessageAsLocal(message);
+  } catch (e) {
+    debugPrint('FCM background local: $e');
+  }
+}
+
+Future<void> showRemoteMessageAsLocal(RemoteMessage message) async {
+  final n = message.notification;
+  final title = n?.title ?? message.data['title']?.toString() ?? '';
+  final body = n?.body ?? message.data['body']?.toString() ?? '';
+  if (title.isEmpty && body.isEmpty) return;
+
+  final plugin = FlutterLocalNotificationsPlugin();
+  const iosInit = DarwinInitializationSettings(
+    requestAlertPermission: false,
+    requestBadgePermission: false,
+    requestSoundPermission: false,
+  );
+  try {
+    await plugin.initialize(
+      settings: InitializationSettings(
+        android: const AndroidInitializationSettings('ic_stat_notify'),
+        iOS: iosInit,
+      ),
+    );
+  } catch (e) {
+    debugPrint('FCM local init (bg): $e');
+    try {
+      await plugin.initialize(
+        settings: InitializationSettings(
+          android: const AndroidInitializationSettings('ic_launcher'),
+          iOS: iosInit,
+        ),
+      );
+    } catch (e2) {
+      debugPrint('FCM local init fallback: $e2');
+      return;
+    }
+  }
+
+  await plugin.show(
+    id: message.hashCode,
+    title: title,
+    body: body,
+    notificationDetails: const NotificationDetails(
+      android: AndroidNotificationDetails(
+        PushNotificationService.androidChannelId,
+        PushNotificationService.androidChannelName,
+        channelDescription: 'Genel uygulama bildirimleri',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: 'ic_stat_notify',
+      ),
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    ),
+    payload: message.data.isEmpty ? null : jsonEncode(message.data),
+  );
 }
 
 /// FCM + yerel bildirim (ön planda BigPicture destekli).
@@ -35,8 +99,10 @@ class PushNotificationService {
   PushNotificationService._();
   static final PushNotificationService instance = PushNotificationService._();
 
-  static const _androidChannelId = 'engelsizclub_default';
-  static const _androidChannelName = 'Engelsiz Club';
+  static const androidChannelId = 'engelsizclub_default';
+  static const androidChannelName = 'Engelsiz Club';
+  static const _androidChannelId = androidChannelId;
+  static const _androidChannelName = androidChannelName;
 
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _local =
@@ -133,7 +199,7 @@ class PushNotificationService {
 
   /// Giriş sonrası / token yenilenince Supabase’e kaydet (kişisel push).
   Future<void> registerTokenWithServer([String? token]) async {
-    if (kIsWeb || !_initialized) return;
+    if (kIsWeb) return;
     final t = (token ?? fcmToken ?? '').trim();
     if (t.isEmpty) return;
     final client = Supabase.instance.client;
@@ -154,6 +220,28 @@ class PushNotificationService {
     } catch (e) {
       debugPrint('FCM token kaydı: $e');
     }
+  }
+
+  /// Çıkışta token sil (RLS: oturum hâlâ açıkken çağırın).
+  Future<void> unregisterCurrentToken() async {
+    if (kIsWeb) return;
+    final t = (fcmToken ?? '').trim();
+    try {
+      if (t.isNotEmpty) {
+        await Supabase.instance.client
+            .from('user_push_tokens')
+            .delete()
+            .eq('token', t);
+      }
+    } catch (e) {
+      debugPrint('FCM token sil: $e');
+    }
+    try {
+      await _messaging.deleteToken();
+    } catch (e) {
+      debugPrint('FCM deleteToken: $e');
+    }
+    fcmToken = null;
   }
 
   /// Bildirim tercihlerine göre FCM topic abonelikleri.

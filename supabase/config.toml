@@ -4,3 +4,6 @@ project_id = "qycrkqwqrysypvqaipqn"
 
 [functions.gemini-proxy]
 verify_jwt = false
+
+[functions.notify-push]
+verify_jwt = false

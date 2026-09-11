@@ -276,21 +276,6 @@ Future<void> notifySohbetMesaj({
       await client.from('bildirimler').insert(payload);
     } catch (_) {}
   }
-
-  unawaited(
-    BroadcastPushService.instance.sendToUser(
-      toEmail: owner,
-      title: title,
-      body: preview,
-      prefKey: 'mesajlar',
-      data: {
-        'type': 'mesaj',
-        if (ilanId != null) 'id': '$ilanId',
-        'sohbet_key': key,
-        'actor_email': actorEmail,
-      },
-    ),
-  );
 }
 
 /// Aynı kişiden biriken mesaj bildirimlerini tek satıra indir (en son saat kalır).
@@ -638,29 +623,10 @@ Future<void> _insertBildirim({
       'read': false,
     });
   } catch (_) {
-    // Trigger / unique: FCM yine denensin.
+    // Unique / RLS: satır zaten tetikleyicide olabilir.
   }
 
-  // Uygulama içi zil + cihaza FCM (ekran kapalıyken de görünsün)
-  final prefKey = switch (type) {
-    'mesaj' || 'teklif' => 'mesajlar',
-    'ilan' || 'ilan_yorum' => 'ilanlar',
-    _ => 'forum',
-  };
-  unawaited(
-    BroadcastPushService.instance.sendToUser(
-      toEmail: owner,
-      title: title,
-      body: safeBody,
-      prefKey: prefKey,
-      data: {
-        'type': type,
-        if (ilanId != null) 'id': '$ilanId',
-        if (sohbetKey != null) 'sohbet_key': sohbetKey,
-        'actor_email': actorEmail,
-      },
-    ),
-  );
+  // OS tray: notify-push (bildirimler INSERT). İstemci FCM çift bildirim yapmasın.
 }
 
 /// Forum yorum referansı (bildirim → deep link).
