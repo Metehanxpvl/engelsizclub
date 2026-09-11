@@ -1,4 +1,4 @@
-# İŞKUR mid=79417 → web/engelsiz-kariyer.json (katalog; Supabase'e yazılmaz)
+# İŞKUR Engelli filtresi → web/engelsiz-kariyer.json (katalog; Supabase'e yazılmaz)
 #
 # Cron yalnızca default branch'te çalışır. Elle: Actions → Fetch Engelsiz Kariyer.
 # Repo Settings → Actions → General → Workflow permissions → Read and write.
@@ -24,7 +24,7 @@ concurrency:
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:

@@ -2,10 +2,12 @@
  * İŞKUR açık iş ilanları (mid=79417) → web/ + assets JSON.
  * Katalog Supabase'e yazılmaz.
  *
- * İşyeri türü ASP.NET radyo + Ara postback:
- *   ctl04$IsyeriTuruRadios = ozelSektorRadio | kamuRadio
- * Querystring sektör değiştirmez. Node fetch POST WAF’ta elenir; curl geçer.
- * 0 ilan / blokta mevcut JSON korunur.
+ * Engelli filtresi (Ara postback, her sayfada):
+ *   özel: ctl04$ctlEngelli=on
+ *   kamu: ctl04$ctlKisiselDurum=10 (İlan Türü = Engelli)
+ * İşyeri türü: ctl04$IsyeriTuruRadios = ozelSektorRadio | kamuRadio
+ * Querystring meslek (mid=79417) bakım elemanı kilitler; kullanılmaz.
+ * Node fetch POST WAF’ta elenir; curl geçer. 0 ilan / blokta mevcut JSON korunur.
  */
 import {
   writeFileSync,
@@ -21,7 +23,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const SOURCE =
-  'https://esube.iskur.gov.tr/istihdam/AcikIsIlanAra.aspx?mid=79417';
+  'https://esube.iskur.gov.tr/istihdam/AcikIsIlanAra.aspx';
 const DETAIL =
   'https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=';
 const UA =
@@ -31,6 +33,9 @@ const NEXT_TARGET = 'ctl04$ctlDataPagerDetay$btnNext';
 const JUMP_TARGET = 'ctl04$ctlDataPagerDetay$btnChangeCurrentPage';
 const RADIO_NAME = 'ctl04$IsyeriTuruRadios';
 const RADIO = { ozel: 'ozelSektorRadio', kamu: 'kamuRadio' };
+const ENGELLI_CHECK = 'ctl04$ctlEngelli';
+const KAMU_ILAN_TURU = 'ctl04$ctlKisiselDurum';
+const KAMU_ILAN_ENGELLI = '10';
 const curlBin = process.platform === 'win32' ? 'curl.exe' : 'curl';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -186,6 +191,17 @@ function collectForm(html) {
   return fields;
 }
 
+function applyEngelliFilter(fields, sektor) {
+  fields[ENGELLI_CHECK] = 'on';
+  if (sektor === 'kamu') {
+    fields[RADIO_NAME] = RADIO.kamu;
+    fields[KAMU_ILAN_TURU] = KAMU_ILAN_ENGELLI;
+  } else {
+    fields[RADIO_NAME] = RADIO.ozel;
+  }
+  return fields;
+}
+
 function runCurl(args) {
   const r = spawnSync(curlBin, args, {
     encoding: 'utf8',
@@ -286,14 +302,14 @@ function paginate(html, cookieFile, sektor) {
   let info = pageInfo(html);
   const firstTotal = info.totalRecords;
   let guard = 0;
-  while (info.hasNext && guard < 12) {
+  while (info.hasNext && guard < 250) {
     guard += 1;
     const before = all.length;
-    const fields = collectForm(html);
+    const fields = applyEngelliFilter(collectForm(html), sektor);
     html = curlPost(cookieFile, fields, NEXT_TARGET);
     push(parseItems(html, sektor));
     if (all.length === before) {
-      const jump = collectForm(html);
+      const jump = applyEngelliFilter(collectForm(html), sektor);
       jump['ctl04$ctlDataPagerDetay$txtCurrentPage'] = String(info.current + 1);
       html = curlPost(cookieFile, jump, JUMP_TARGET);
       push(parseItems(html, sektor));
@@ -309,11 +325,8 @@ function fetchSector(sektor) {
   try {
     writeFileSync(cookieFile, '');
     let html = curlGet(cookieFile);
-    if (sektor === 'kamu') {
-      const fields = collectForm(html);
-      fields[RADIO_NAME] = RADIO.kamu;
-      html = curlPost(cookieFile, fields, SEARCH_TARGET);
-    }
+    const fields = applyEngelliFilter(collectForm(html), sektor);
+    html = curlPost(cookieFile, fields, SEARCH_TARGET);
     return paginate(html, cookieFile, sektor);
   } finally {
     try {
