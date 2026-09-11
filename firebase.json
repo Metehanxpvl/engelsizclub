@@ -132,6 +132,24 @@
         ]
       },
       {
+        "source": "/engelsiz-kariyer.json",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/engelsiz-kariyer-overrides.json",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
         "source": "/admin/daha_fazlasi_menu.json",
         "headers": [
           {

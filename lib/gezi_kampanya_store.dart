@@ -406,12 +406,21 @@ class KampanyaItem {
 const kGeziTileKey = 'gezi';
 const kKampanyaTileKey = 'kampanya';
 const kEtkinlikTileKey = 'etkinlik';
+const kKariyerTileKey = 'kariyer';
+/// Ana sayfa Engelsiz Kariyer kutusu.
+const kShowEngelsizKariyerTile = true;
 const kKampanyaTable = 'kampanyalar';
 const kEtkinlikTable = 'etkinlikler';
 
-const _kTileKeys = <String>{kGeziTileKey, kKampanyaTileKey, kEtkinlikTileKey};
+const _kTileKeys = <String>{
+  kKariyerTileKey,
+  kGeziTileKey,
+  kKampanyaTileKey,
+  kEtkinlikTileKey,
+};
 
 Map<String, String> get _emptyTileCovers => {
+      kKariyerTileKey: '',
       kGeziTileKey: '',
       kKampanyaTileKey: '',
       kEtkinlikTileKey: '',

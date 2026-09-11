@@ -208,7 +208,9 @@ $staticRoots = @(
   "web\evde-egitim.html",
   "web\google_oauth_callback.html",
   "web\mobile_google_auth.html",
-  "web\admin"
+  "web\admin",
+  "web\engelsiz-kariyer.json",
+  "web\engelsiz-kariyer-overrides.json"
 )
 foreach ($src in $staticRoots) {
   if (Test-Path $src) {

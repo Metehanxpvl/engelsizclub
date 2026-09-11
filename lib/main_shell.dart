@@ -45,6 +45,7 @@ import 'pages/destek_sorgu_page.dart';
 import 'remote/app_screen_config.dart';
 import 'pages/gelisim_etkinlikleri_page.dart';
 import 'pages/barcode_scanner_screen.dart';
+import 'pages/engelsiz_kariyer_page.dart';
 import 'pages/etkinlikler_page.dart';
 import 'pages/gezi_rehberi_page.dart';
 import 'pages/kampanyalar_page.dart';
@@ -4233,12 +4234,26 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             child: _menuTile(
               emoji: '👤',
               label: 'Bölüm yöneticileri',
-              sub: 'Duyuru / gezi / kampanya / etkinlik yetkisi',
+              sub: 'Duyuru / gezi / kampanya / etkinlik / kariyer yetkisi',
               highlight: true,
               onTap: () => setState(() => _showSectionEditors = true),
             ),
           ),
         ],
+        if (canEditSection(widget.user.email, SectionKey.kariyer))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '💼',
+              label: 'Engelsiz Kariyer',
+              sub: 'İŞKUR ilanları · düzenle / gizle',
+              highlight: true,
+              onTap: () => EngelsizKariyerPage.open(
+                context,
+                userEmail: widget.user.email,
+              ),
+            ),
+          ),
         if (canEditSection(widget.user.email, SectionKey.gezi))
           Padding(
             padding: const EdgeInsets.only(bottom: 8),

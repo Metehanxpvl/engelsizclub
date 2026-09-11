@@ -20,7 +20,7 @@ create table if not exists public.section_editors (
       and position('@' in email) > 1
     ),
   constraint section_editors_key_chk
-    check (section_key in ('duyurular', 'gezi', 'kampanya', 'etkinlik')),
+    check (section_key in ('duyurular', 'gezi', 'kampanya', 'etkinlik', 'kariyer')),
   constraint section_editors_email_section_uq unique (email, section_key)
 );
 

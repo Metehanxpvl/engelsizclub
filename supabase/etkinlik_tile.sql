@@ -9,7 +9,7 @@ alter table public.gezi_kampanya_tiles
 
 alter table public.gezi_kampanya_tiles
   add constraint gezi_kampanya_tiles_key_chk
-    check (tile_key in ('gezi', 'kampanya', 'etkinlik'));
+    check (tile_key in ('gezi', 'kampanya', 'etkinlik', 'kariyer'));
 
 insert into public.gezi_kampanya_tiles (tile_key, image_url)
 values ('etkinlik', '')

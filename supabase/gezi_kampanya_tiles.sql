@@ -1,7 +1,7 @@
--- Ana sayfa kutucuk kapakları: Gezi Rehberi | Kampanyalar | Etkinlikler
+-- Ana sayfa kutucuk kapakları: Engelsiz Kariyer | Gezi | Kampanya | Etkinlik
 -- Dashboard: https://supabase.com/dashboard/project/qycrkqwqrysypvqaipqn/sql/new
 -- Tümünü yapıştırıp Run (additive; IF NOT EXISTS; mevcut gezi/kampanya tablolarına dokunmaz)
--- Dart: gezi_kampanya_tiles / tile_key = gezi | kampanya | etkinlik
+-- Dart: gezi_kampanya_tiles / tile_key = kariyer | gezi | kampanya | etkinlik
 -- Mevcut kurulumda etkinlik tablosu + kapak: etkinlikler.sql
 -- Herkes okur; yazma yalnız admin.
 
@@ -17,10 +17,10 @@ alter table public.gezi_kampanya_tiles
 
 alter table public.gezi_kampanya_tiles
   add constraint gezi_kampanya_tiles_key_chk
-    check (tile_key in ('gezi', 'kampanya', 'etkinlik'));
+    check (tile_key in ('gezi', 'kampanya', 'etkinlik', 'kariyer'));
 
 insert into public.gezi_kampanya_tiles (tile_key, image_url)
-values ('gezi', ''), ('kampanya', ''), ('etkinlik', '')
+values ('kariyer', ''), ('gezi', ''), ('kampanya', ''), ('etkinlik', '')
 on conflict (tile_key) do nothing;
 
 alter table public.gezi_kampanya_tiles enable row level security;

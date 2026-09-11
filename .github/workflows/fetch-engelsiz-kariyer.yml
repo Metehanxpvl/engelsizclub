@@ -1,0 +1,47 @@
+# İŞKUR mid=79417 → web/engelsiz-kariyer.json (katalog; Supabase'e yazılmaz)
+#
+# Cron yalnızca default branch'te çalışır. Elle: Actions → Fetch Engelsiz Kariyer.
+# Repo Settings → Actions → General → Workflow permissions → Read and write.
+# Secret gerekmez.
+name: Fetch Engelsiz Kariyer
+
+on:
+  schedule:
+    - cron: '20 5 * * *'
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tool/fetch_engelsiz_kariyer.mjs'
+      - '.github/workflows/fetch-engelsiz-kariyer.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fetch-engelsiz-kariyer
+  cancel-in-progress: true
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Fetch İŞKUR → JSON
+        run: node tool/fetch_engelsiz_kariyer.mjs
+      - name: Commit catalog if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/engelsiz-kariyer.json assets/engelsiz_kariyer/engelsiz-kariyer.json
+          if git diff --staged --quiet; then
+            echo "Katalog değişmedi."
+          else
+            git commit -m "chore: refresh Engelsiz Kariyer İŞKUR catalog"
+            git push
+          fi

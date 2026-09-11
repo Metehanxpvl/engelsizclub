@@ -1,0 +1,265 @@
+{
+  "source": "https://esube.iskur.gov.tr/istihdam/AcikIsIlanAra.aspx?mid=79417",
+  "fetchedAt": "2026-09-10T20:16:59.150Z",
+  "ok": true,
+  "totalHint": 23,
+  "counts": {
+    "kamu": 0,
+    "ozel": 23
+  },
+  "items": [
+    {
+      "id": "00009800137",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Bursa / İnegöl",
+      "date": "08.10.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009800137",
+      "positions": "3",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009798341",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Kayseri / Kocasinan",
+      "date": "07.10.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009798341",
+      "positions": "5",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009794940",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Manisa / Salihli",
+      "date": "30.09.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009794940",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009795051",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Samsun / Canik",
+      "date": "12.09.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009795051",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009793795",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Mardin / Artuklu",
+      "date": "30.09.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009793795",
+      "positions": "5",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009794135",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Konya / Karatay",
+      "date": "04.10.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009794135",
+      "positions": "7",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009789532",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "İzmir / Menderes",
+      "date": "01.10.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009789532",
+      "positions": "10",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009787374",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Amasya / Merzifon",
+      "date": "01.10.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009787374",
+      "positions": "5",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009788866",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Samsun / Canik",
+      "date": "12.09.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009788866",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009785111",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Kayseri / Melikgazi",
+      "date": "30.09.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009785111",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009785307",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Bursa / Nilüfer",
+      "date": "30.09.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009785307",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009781013",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Tekirdağ / Çerkezköy",
+      "date": "29.09.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009781013",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009782013",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Çorum / Sungurlu",
+      "date": "27.09.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009782013",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009777176",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Konya / Selçuklu",
+      "date": "25.09.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009777176",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009774564",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Denizli / Pamukkale",
+      "date": "24.09.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009774564",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009766718",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "İstanbul / Beylikdüzü",
+      "date": "18.09.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009766718",
+      "positions": "5",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009761468",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Burdur / Bucak",
+      "date": "15.10.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009761468",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009757031",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Manisa / Saruhanlı",
+      "date": "13.09.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009757031",
+      "positions": "3",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009752540",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Balıkesir / Havran",
+      "date": "11.09.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009752540",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009733008",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Rize / Derepazarı",
+      "date": "30.09.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009733008",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009710268",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Tokat / Turhal",
+      "date": "24.09.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009710268",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009702437",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Bursa / Kestel",
+      "date": "13.09.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009702437",
+      "positions": "3",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009660849",
+      "title": "Engelli ve Yaşlı Bakım Elemanı",
+      "city": "Ankara / Çankaya",
+      "date": "20.09.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009660849",
+      "positions": "10",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    }
+  ]
+}
