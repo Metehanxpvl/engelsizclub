@@ -17,7 +17,7 @@ import '../services/image_optimize_service.dart';
 import '../services/r2_storage_service.dart';
 import 'catalog_media.dart';
 
-/// Ana sayfa: Bilgi Kütüphanesi üstü — (Engelsiz Kariyer) | Gezi | Kampanya | Etkinlik.
+/// Ana sayfa: Bilgi Kütüphanesi üstü — üstte Kariyer | Gezi, altta Kampanya | Etkinlik.
 /// Kariyer kutusu [kShowEngelsizKariyerTile] ile açılıp kapanır.
 class GeziKampanyaHomeSection extends StatefulWidget {
   const GeziKampanyaHomeSection({
@@ -110,22 +110,15 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 const gap = 12.0;
-                const minCard = 88.0;
                 const tileH = 120.0;
                 final w = constraints.maxWidth;
-                final tileCount = kShowEngelsizKariyerTile ? 4 : 3;
-                final evenW = (w - (tileCount - 1) * gap) / tileCount;
-                final useEven = evenW >= minCard;
-                final cardW = useEven
-                    ? evenW.floorToDouble()
-                    : ((w - 2 * gap) / 3.15)
-                        .floorToDouble()
-                        .clamp(minCard, 160.0);
+                final twoColW = ((w - gap) / 2).floorToDouble();
                 Widget tile({
                   required String title,
                   required String tileKey,
                   required VoidCallback onTap,
                   IconData? emptyIcon,
+                  required double cardW,
                 }) {
                   return SizedBox(
                     width: cardW,
@@ -171,53 +164,111 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
                   );
                 }
 
-                final tiles = [
-                  if (kShowEngelsizKariyerTile)
+                final kariyer = tile(
+                  title: 'Engelsiz Kariyer',
+                  tileKey: kKariyerTileKey,
+                  emptyIcon: Icons.work_outline,
+                  cardW: twoColW,
+                  onTap: () => EngelsizKariyerPage.open(
+                    context,
+                    userEmail: widget.userEmail,
+                  ),
+                );
+                final gezi = tile(
+                  title: 'Gezi Rehberi',
+                  tileKey: kGeziTileKey,
+                  cardW: twoColW,
+                  onTap: () => GeziRehberiPage.open(
+                    context,
+                    userEmail: widget.userEmail,
+                  ),
+                );
+                final kampanya = tile(
+                  title: 'Kampanyalar',
+                  tileKey: kKampanyaTileKey,
+                  cardW: twoColW,
+                  onTap: () => KampanyalarPage.open(
+                    context,
+                    userEmail: widget.userEmail,
+                    isGuest: widget.isGuest,
+                    onRequireLogin: widget.onRequireLogin,
+                  ),
+                );
+                final etkinlik = tile(
+                  title: 'Etkinlikler',
+                  tileKey: kEtkinlikTileKey,
+                  cardW: twoColW,
+                  onTap: () => EtkinliklerPage.open(
+                    context,
+                    userEmail: widget.userEmail,
+                    isGuest: widget.isGuest,
+                    onRequireLogin: widget.onRequireLogin,
+                  ),
+                );
+
+                Widget pair(Widget left, Widget right) {
+                  return Row(
+                    children: [
+                      left,
+                      const SizedBox(width: gap),
+                      right,
+                    ],
+                  );
+                }
+
+                if (kShowEngelsizKariyerTile) {
+                  return Column(
+                    children: [
+                      pair(kariyer, gezi),
+                      const SizedBox(height: 12),
+                      pair(kampanya, etkinlik),
+                    ],
+                  );
+                }
+
+                const minCard = 88.0;
+                final threeW = (w - 2 * gap) / 3;
+                final useEven = threeW >= minCard;
+                final cardW = useEven
+                    ? threeW.floorToDouble()
+                    : ((w - 2 * gap) / 3.15)
+                        .floorToDouble()
+                        .clamp(minCard, 160.0);
+                final row = Row(
+                  children: [
                     tile(
-                      title: 'Engelsiz Kariyer',
-                      tileKey: kKariyerTileKey,
-                      emptyIcon: Icons.work_outline,
-                      onTap: () => EngelsizKariyerPage.open(
+                      title: 'Gezi Rehberi',
+                      tileKey: kGeziTileKey,
+                      cardW: cardW,
+                      onTap: () => GeziRehberiPage.open(
                         context,
                         userEmail: widget.userEmail,
                       ),
                     ),
-                  tile(
-                    title: 'Gezi Rehberi',
-                    tileKey: kGeziTileKey,
-                    onTap: () => GeziRehberiPage.open(
-                      context,
-                      userEmail: widget.userEmail,
+                    SizedBox(width: gap),
+                    tile(
+                      title: 'Kampanyalar',
+                      tileKey: kKampanyaTileKey,
+                      cardW: cardW,
+                      onTap: () => KampanyalarPage.open(
+                        context,
+                        userEmail: widget.userEmail,
+                        isGuest: widget.isGuest,
+                        onRequireLogin: widget.onRequireLogin,
+                      ),
                     ),
-                  ),
-                  tile(
-                    title: 'Kampanyalar',
-                    tileKey: kKampanyaTileKey,
-                    onTap: () => KampanyalarPage.open(
-                      context,
-                      userEmail: widget.userEmail,
-                      isGuest: widget.isGuest,
-                      onRequireLogin: widget.onRequireLogin,
+                    SizedBox(width: gap),
+                    tile(
+                      title: 'Etkinlikler',
+                      tileKey: kEtkinlikTileKey,
+                      cardW: cardW,
+                      onTap: () => EtkinliklerPage.open(
+                        context,
+                        userEmail: widget.userEmail,
+                        isGuest: widget.isGuest,
+                        onRequireLogin: widget.onRequireLogin,
+                      ),
                     ),
-                  ),
-                  tile(
-                    title: 'Etkinlikler',
-                    tileKey: kEtkinlikTileKey,
-                    onTap: () => EtkinliklerPage.open(
-                      context,
-                      userEmail: widget.userEmail,
-                      isGuest: widget.isGuest,
-                      onRequireLogin: widget.onRequireLogin,
-                    ),
-                  ),
-                ];
-
-                final row = Row(
-                  children: [
-                    for (var i = 0; i < tiles.length; i++) ...[
-                      if (i > 0) const SizedBox(width: gap),
-                      tiles[i],
-                    ],
                   ],
                 );
                 if (useEven) return row;

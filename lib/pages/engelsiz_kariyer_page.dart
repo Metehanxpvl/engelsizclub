@@ -175,7 +175,7 @@ class _EngelsizKariyerPageState extends State<EngelsizKariyerPage> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: L10nText(
-              'İŞKUR açık iş ilanları (engelli ve yaşlı bakım). '
+              'İŞKUR açık iş ilanları (Engelli kutusu işaretli). '
               'Kamu / özel, kaynaktaki işyeri türü ile aynıdır. '
               'Başvuru İŞKUR sayfasında yapılır. Liste GitHub JSON önbelleğidir; '
               'ana sayfa veritabanına sormaz.',
