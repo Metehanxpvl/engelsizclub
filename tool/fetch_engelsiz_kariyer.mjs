@@ -1,5 +1,5 @@
 /**
- * İŞKUR açık iş ilanları (mid=79417) → web/ + assets JSON.
+ * İŞKUR açık iş ilanları (Engelli kutusu işaretli) → web/ + assets JSON.
  * Katalog Supabase'e yazılmaz.
  *
  * Engelli filtresi (Ara postback, her sayfada):
