@@ -12,7 +12,7 @@ import 'force_update_logic.dart';
 export 'force_update_logic.dart';
 
 /// pubspec `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
-const kAppBuildNumber = 200002;
+const kAppBuildNumber = 200003;
 
 /// Açılışta (ForceUpdateGate) semver kontrolü. Splash kilidi yok.
 ///
