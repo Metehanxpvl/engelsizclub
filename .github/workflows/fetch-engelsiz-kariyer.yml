@@ -1,13 +1,14 @@
-# İŞKUR Engelli filtresi → web/engelsiz-kariyer.json (katalog; Supabase'e yazılmaz)
+# İŞKUR mid=79417 + Engelli kutusu → web/engelsiz-kariyer.json
 #
-# Cron yalnızca default branch'te çalışır. Elle: Actions → Fetch Engelsiz Kariyer.
+# Cron 08:00 Türkiye = 05:00 UTC. Yalnızca default branch'te çalışır.
+# Elle: Actions → Fetch Engelsiz Kariyer → Run workflow (main).
 # Repo Settings → Actions → General → Workflow permissions → Read and write.
 # Secret gerekmez.
 name: Fetch Engelsiz Kariyer
 
 on:
   schedule:
-    - cron: '20 5 * * *'
+    - cron: '0 5 * * *'
   workflow_dispatch:
   push:
     paths:
