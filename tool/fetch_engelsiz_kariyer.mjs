@@ -1,12 +1,12 @@
 /**
- * İŞKUR mid=79417 + Engelli kutusu → web/ + assets JSON.
+ * İŞKUR Engelli kotası (tüm meslekler) → web/ + assets JSON.
  * Katalog Supabase'e yazılmaz.
  *
- * GET: AcikIsIlanAra.aspx?mid=79417 (meslek sayfada kalır).
- * Ara postback (her sektör, her sayfa): yalnız Engelli işaretlenir.
- *   özel: ctl04$ctlEngelli=on
- *   kamu: ctl04$ctlKisiselDurum=10 (İlan Türü = Engelli)
- * İşyeri türü: ctl04$IsyeriTuruRadios = ozelSektorRadio | kamuRadio
+ * GET: AcikIsIlanAra.aspx  (mid=79417 YOK — o meslek bakım elemanına kilitler).
+ * Ara postback (her sektör, her sayfa):
+ *   ctl04$ctlEngelli=on
+ *   özel: ctl04$IsyeriTuruRadios=ozelSektorRadio
+ *   kamu: ctl04$IsyeriTuruRadios=kamuRadio + ctl04$ctlKisiselDurum=10 (İlan Türü=Engelli)
  * Node fetch POST WAF’ta elenir; curl geçer. 0 ilan / blokta mevcut JSON korunur.
  */
 import {
@@ -22,8 +22,7 @@ import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const SOURCE =
-  'https://esube.iskur.gov.tr/istihdam/AcikIsIlanAra.aspx?mid=79417';
+const SOURCE = 'https://esube.iskur.gov.tr/istihdam/AcikIsIlanAra.aspx';
 const DETAIL =
   'https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=';
 const UA =
@@ -191,7 +190,22 @@ function collectForm(html) {
   return fields;
 }
 
+function stripMeslekLock(fields) {
+  for (const k of Object.keys(fields)) {
+    const kl = k.toLowerCase();
+    const v = String(fields[k] ?? '');
+    if (
+      (kl.includes('meslek') || kl.includes('meslekkayit')) &&
+      (v === '79417' || v.includes('79417'))
+    ) {
+      delete fields[k];
+    }
+  }
+  return fields;
+}
+
 function applyEngelliFilter(fields, sektor) {
+  stripMeslekLock(fields);
   fields[ENGELLI_CHECK] = 'on';
   if (sektor === 'kamu') {
     fields[RADIO_NAME] = RADIO.kamu;
@@ -302,7 +316,7 @@ function paginate(html, cookieFile, sektor) {
   let info = pageInfo(html);
   const firstTotal = info.totalRecords;
   let guard = 0;
-  while (info.hasNext && guard < 250) {
+  while (info.hasNext && guard < 500) {
     guard += 1;
     const before = all.length;
     const fields = applyEngelliFilter(collectForm(html), sektor);

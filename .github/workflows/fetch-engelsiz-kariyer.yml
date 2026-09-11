@@ -1,4 +1,4 @@
-# İŞKUR mid=79417 + Engelli kutusu → web/engelsiz-kariyer.json
+# İŞKUR Engelli kotası (tüm meslekler) → web/engelsiz-kariyer.json
 #
 # Cron 08:00 Türkiye = 05:00 UTC. Yalnızca default branch'te çalışır.
 # Elle: Actions → Fetch Engelsiz Kariyer → Run workflow (main).
