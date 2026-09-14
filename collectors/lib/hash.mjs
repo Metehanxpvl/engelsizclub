@@ -40,37 +40,64 @@ export function isDuplicate(existing, { sourceUrl, contentHash, externalId }) {
   return false;
 }
 
-export const RELEVANCE_KEYWORDS = [
+export const DISABILITY_CORE_KEYWORDS = [
   'engelli',
   'engelsiz',
   'özel gereksinim',
   'ozel gereksinim',
+  'özürlü',
+  'ozurlu',
   'otizm',
   'down sendrom',
   'serebral palsi',
-  'sma',
-  'dehb',
   'erişilebilir',
   'erisilebilir',
+  'erişilebilirlik',
+  'erisilebilirlik',
   'evde eğitim',
   'evde egitim',
   'özel eğitim',
   'ozel egitim',
-  'ram ',
   'bakım aylığı',
   'bakim ayligi',
   'engelli maaşı',
   'engelli maasi',
-  'işkur',
-  'iskur',
-  'burs',
-  'istihdam',
-  'kota',
-  'erişilebilirlik',
+  'ötv muaf',
+  'otv muaf',
+  'rehberlik araştırma',
+  'rehberlik arastirma',
+  'işitme engel',
+  'isitme engel',
+  'görme engel',
+  'gorme engel',
+  'bedensel engel',
+  'zihinsel engel',
+  'tekerlekli sandalye',
+  'nadir hastalık',
+  'nadir hastalik',
+  'protez ortez',
 ];
 
+const CORE_WORD_RE = [
+  /\bsma\b/i,
+  /\bdehb\b/i,
+  /\bcvi\b/i,
+  /\bram\b/i,
+];
+
+export const RELEVANCE_KEYWORDS = DISABILITY_CORE_KEYWORDS;
+
 export function hasRelevanceKeyword(text) {
+  return isDisabilityOpportunity(text);
+}
+
+export function isDisabilityOpportunity(text) {
   const hay = String(text ?? '').toLowerCase();
   if (!hay.trim()) return false;
-  return RELEVANCE_KEYWORDS.some((k) => hay.includes(k));
+  const hasCore =
+    DISABILITY_CORE_KEYWORDS.some((k) => hay.includes(k)) ||
+    CORE_WORD_RE.some((re) => re.test(hay));
+  if (!hasCore) return false;
+  return true;
 }
+

@@ -50,18 +50,22 @@ async function generateOnce(apiKey, model, prompt) {
 }
 
 export async function classifyCandidate(apiKey, item) {
-  const prompt = `Türkiye’de özel gereksinimli bireyler ve aileleri için resmi fırsat, destek, burs, hak veya hizmet duyurusu mu?
+  const prompt = `Türkiye’de ÖZEL GEREKSİNİMLİ / ENGELLİ birey veya ailesi için resmi fırsat, destek, burs, hak, cihaz, eğitim veya istihdam duyurusu mu?
 
-Kurallar:
-- Teşhis koyma, tedavi önerme.
-- Ham HTML yok. Yalnız sade Türkçe.
-- Alakasız genel haberi reddet.
+relevant=true YALNIZCA hedef kitle açıkça engelli, özel gereksinimli, otizm, down, SMA, erişilebilirlik, özel eğitim, evde eğitim, bakım aylığı, ÖTV muafiyeti vb. ise.
+
+relevant=false:
+- Genel belediye / spor / konser / hava / imar haberi
+- Herkese açık burs, iş ilanı, TÜBİTAK çağrısı (engelli vurgusu yoksa)
+- "Bursa" şehri, genel istihdam, genel kota
+
+Teşhis koyma. Ham HTML yok.
 
 Başlık: ${item.title}
 Özet: ${item.summary}
 Kaynak: ${item.sourceUrl}
 
-Yalnız JSON döndür:
+Yalnız JSON:
 {"relevant":true|false,"title":"...","summary":"...","category":"firsat|destek|hak|burs|egitim|istihdam|diger","city":"","deadline":"YYYY-MM-DD veya boş","notes":"kısa gerekçe"}`;
 
   let lastErr;
