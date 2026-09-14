@@ -228,7 +228,7 @@ async function processItem(item, source, existing, stats) {
 
   let ai;
   if (!AI_KEY) {
-    console.warn(`AI anahtarı yok, kelime yedek POTENTIAL_VALUE: ${item.title}`);
+    console.warn(`AI anahtarı yok, Türkçe yedek POTENTIAL_VALUE: ${item.title}`);
     ai = heuristicPendingScore(item);
     stats.aiFail += 1;
   } else {
@@ -237,7 +237,7 @@ async function processItem(item, source, existing, stats) {
       stats.ai += 1;
     } catch (e) {
       stats.aiFail += 1;
-      console.warn(`AI hata, kelime yedek POTENTIAL_VALUE: ${item.title} — ${e.message}`);
+      console.warn(`AI hata, Türkçe yedek POTENTIAL_VALUE: ${item.title} — ${e.message}`);
       ai = heuristicPendingScore(item);
     }
   }
@@ -287,7 +287,7 @@ async function main() {
     throw new Error('SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY gerekli.');
   }
   if (!AI_KEY) {
-    console.warn('GEMINI_API_KEY / AI_API_KEY yok; ön filtre ile POTENTIAL_VALUE pending_review yazılır.');
+    console.warn('GEMINI_API_KEY / AI_API_KEY yok; Türkçe yedek başlık + POTENTIAL_VALUE pending_review yazılır.');
   }
 
   const config = loadConditions();
