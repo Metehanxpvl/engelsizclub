@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +17,7 @@ import '../services/google_places_config.dart';
 import '../widgets/web_google_map.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n_text.dart';
+import '../places/place_accessibility_panel.dart';
 
 enum _LocStatus { idle, loading, ok, denied }
 
@@ -27,7 +30,14 @@ class _CenterWithDist {
 
 /// Merkezler — Google Maps + Places API (New).
 class MerkezlerPage extends StatefulWidget {
-  const MerkezlerPage({super.key});
+  const MerkezlerPage({
+    super.key,
+    this.isGuest = false,
+    this.onRequireLogin,
+  });
+
+  final bool isGuest;
+  final VoidCallback? onRequireLogin;
 
   @override
   State<MerkezlerPage> createState() => _MerkezlerPageState();
@@ -48,6 +58,10 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
   double _cameraZoom = 12;
 
   List<MetoCenter> _liveCenters = const [];
+  List<MetoCenter> _queryPlaces = const [];
+  Timer? _searchDebounce;
+  bool _querySearching = false;
+  int _querySeq = 0;
   bool _centersLoading = false;
   String? _centersError;
   String? _dataNote;
@@ -61,6 +75,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     _mapController?.dispose();
     super.dispose();
@@ -188,7 +203,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
         [c.name, c.category, c.address, c.ilce, ...c.services]
             .any((f) => f.toLowerCase().contains(q));
 
-    List<_CenterWithDist> build(Iterable<MetoCenter> src) {
+    List<_CenterWithDist> rank(Iterable<MetoCenter> src, {required bool clampKm}) {
       final list = src
           .map(
             (c) => _CenterWithDist(
@@ -196,10 +211,48 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
               distKm: geoDistanceKm(origin.lat, origin.lng, c.lat, c.lng),
             ),
           )
-          .where((e) => e.distKm <= maxKm + 8)
+          .where((e) => !clampKm || e.distKm <= maxKm + 8)
           .toList();
       list.sort((a, b) => a.distKm.compareTo(b.distKm));
       return list;
+    }
+
+    List<_CenterWithDist> build(Iterable<MetoCenter> src) =>
+        rank(src, clampKm: true);
+
+    // Serbest metin: katalog + Places; şehir kilidi yok; DB yazılmaz.
+    final qRaw = _searchController.text.trim();
+    if (qRaw.length >= 3) {
+      final localHits = [
+        ...kCenters,
+        ..._liveCenters,
+        ..._queryPlaces,
+      ].where((c) {
+        return [c.name, c.category, c.address, c.ilce, c.city, ...c.services]
+            .any((f) => f.toLowerCase().contains(qRaw.toLowerCase()));
+      });
+      final merged = <String, MetoCenter>{};
+      for (final c in [..._queryPlaces, ...localHits]) {
+        final key =
+            '${_normTr(c.name)}|${c.lat.toStringAsFixed(4)}|${c.lng.toStringAsFixed(4)}';
+        merged.putIfAbsent(key, () => c);
+      }
+      final built = rank(merged.values, clampKm: false);
+      if (built.isNotEmpty) {
+        return (
+          items: built,
+          note: _querySearching
+              ? 'Aranıyor…'
+              : 'Arama · ${built.length} sonuç · kayıt oluşturulmadı',
+        );
+      }
+      if (_querySearching) {
+        return (items: <_CenterWithDist>[], note: 'Mekân aranıyor…');
+      }
+      return (
+        items: <_CenterWithDist>[],
+        note: _centersError ?? 'Sonuç yok. Farklı bir ad veya adres deneyin.',
+      );
     }
 
     // Her zaman seçilen ile kilitle
@@ -412,6 +465,55 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     }
   }
 
+  Future<void> _runPlaceQuery(String raw) async {
+    final q = raw.trim();
+    if (q.length < 3) {
+      _searchDebounce?.cancel();
+      if (_queryPlaces.isNotEmpty || _querySearching) {
+        setState(() {
+          _queryPlaces = const [];
+          _querySearching = false;
+        });
+      }
+      return;
+    }
+    final seq = ++_querySeq;
+    setState(() => _querySearching = true);
+    final origin = _mapCenter;
+    final found = await CentersGooglePlacesService.searchByUserQuery(
+      query: q,
+      lat: origin.lat,
+      lng: origin.lng,
+    );
+    if (!mounted || seq != _querySeq) return;
+    setState(() {
+      _queryPlaces = found;
+      _querySearching = false;
+      if (found.isNotEmpty) {
+        _centersError = null;
+      } else if (CentersGooglePlacesService.lastError != null) {
+        _centersError = CentersGooglePlacesService.lastError;
+      }
+    });
+    if (found.isNotEmpty) {
+      _moveMap(found.first.lat, found.first.lng, zoom: 14);
+    }
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {});
+    _searchDebounce?.cancel();
+    final q = value.trim();
+    if (q.length < 3) {
+      _queryPlaces = const [];
+      _querySearching = false;
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 480), () {
+      unawaited(_runPlaceQuery(q));
+    });
+  }
+
   Future<void> _detectLocation() async {
     setState(() => _locStatus = _LocStatus.loading);
     try {
@@ -526,30 +628,6 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     }
   }
 
-  static bool _hasPhone(String? raw) {
-    final digits = (raw ?? '').replaceAll(RegExp(r'[^\d+]'), '');
-    return digits.length >= 7;
-  }
-
-  Future<void> _callPhoneNumber(BuildContext context, String phone) async {
-    final digits = phone.replaceAll(RegExp(r'[^\d+]'), '');
-    if (digits.length < 7) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: L10nText('Telefon numarası yok.')),
-      );
-      return;
-    }
-    final uri = Uri.parse('tel:$digits');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: L10nText('Ara: $phone')),
-      );
-    }
-  }
-
   Future<void> _openDirections(MetoCenter center) async {
     final from = _mapCenter;
     final uri = Uri.parse(
@@ -585,8 +663,8 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const L10nText(
-                            'Merkezler',
+                          const Text(
+                            'Engelsiz Haritalar',
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
@@ -639,18 +717,18 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
+                    horizontal: 14,
+                    vertical: 6,
                   ),
                   decoration: BoxDecoration(
                     color: MetoColors.card,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: MetoColors.border),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: MetoColors.border, width: 1.5),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
@@ -658,46 +736,61 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                     children: [
                       const Icon(
                         Icons.search,
-                        size: 15,
-                        color: MetoColors.mutedFg,
+                        size: 22,
+                        color: MetoColors.primary,
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: TextField(
                           controller: _searchController,
-                          onChanged: (_) => setState(() {}),
+                          textInputAction: TextInputAction.search,
+                          onChanged: _onSearchChanged,
+                          onSubmitted: (v) => unawaited(_runPlaceQuery(v)),
                           style: const TextStyle(
-                            fontSize: 14,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
                             color: MetoColors.foreground,
                           ),
                           decoration: InputDecoration(
-                            hintText: S.auto('Merkez adı veya hizmet ara...'),
+                            hintText:
+                                S.auto('🔎 Mekân, kurum veya adres ara'),
                             hintStyle: TextStyle(
-                              fontSize: 14,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
                               color: MetoColors.mutedFg,
                             ),
                             border: InputBorder.none,
                             isDense: true,
-                            contentPadding: EdgeInsets.symmetric(vertical: 10),
+                            contentPadding: EdgeInsets.symmetric(vertical: 14),
                           ),
                         ),
                       ),
-                      if (_searchController.text.isNotEmpty)
+                      if (_querySearching)
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      else if (_searchController.text.isNotEmpty)
                         IconButton(
                           onPressed: () {
+                            _searchDebounce?.cancel();
                             _searchController.clear();
-                            setState(() {});
+                            setState(() {
+                              _queryPlaces = const [];
+                              _querySearching = false;
+                            });
                           },
                           icon: const Icon(
                             Icons.close,
-                            size: 14,
+                            size: 18,
                             color: MetoColors.mutedFg,
                           ),
                           visualDensity: VisualDensity.compact,
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(
-                            minWidth: 28,
-                            minHeight: 28,
+                            minWidth: 36,
+                            minHeight: 36,
                           ),
                         ),
                     ],
@@ -758,6 +851,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
               ],
             ),
           ),
+          // Faz D: kategori kısayol chip'leri (eczane/AVM) — ayrı tablo değil.
           SizedBox(
             height: 36,
             child: ListView.separated(
@@ -1118,54 +1212,32 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 12),
+                PlaceAccessibilityPanel(
+                  center: center,
+                  isGuest: widget.isGuest,
+                  onRequireLogin: widget.onRequireLogin,
+                ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => _openDirections(center),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: MetoColors.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          elevation: 1,
-                        ),
-                        child: const L10nText('Yol Tarifi'),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => _openDirections(center),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: MetoColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
+                      textStyle: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      elevation: 1,
                     ),
-                    if (_hasPhone(center.phone)) ...[
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () =>
-                              _callPhoneNumber(context, center.phone),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: MetoColors.primary,
-                            side: const BorderSide(
-                              color: MetoColors.primary,
-                              width: 2,
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            textStyle: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          child: const L10nText('Randevu Al'),
-                        ),
-                      ),
-                    ],
-                  ],
+                    child: const L10nText('Yol Tarifi'),
+                  ),
                 ),
               ],
             ),

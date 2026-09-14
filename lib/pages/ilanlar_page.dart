@@ -6539,7 +6539,10 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
 
     if (edit == null && !await ensureUgcTermsAccepted(context)) return;
     if (!mounted) return;
-    if (containsBlockedContent('$baslik\n$note')) {
+    final scanText = _isUzmanArama
+        ? '$baslik\n$note\n$_formUzmanlik'
+        : '$baslik\n$note';
+    if (containsBlockedContent(scanText)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: L10nText(blockedContentMessage())),
       );

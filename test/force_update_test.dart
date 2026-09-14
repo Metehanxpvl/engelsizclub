@@ -108,6 +108,27 @@ void main() {
       );
     });
 
+    test('latestVersion fallback used when platform keys missing', () {
+      final cfg = ForceUpdateRemoteConfig.fromJson({
+        'minimumSupportedVersion': '1.0.0',
+        'latestVersion': '1.1.9',
+      });
+      expect(cfg.latestForIos(false), '1.1.9');
+      expect(cfg.latestForIos(true), '1.1.9');
+      expect(cfg.androidUrl, kForceUpdatePlayUrl);
+      expect(cfg.iosUrl, kForceUpdateIosUrl);
+    });
+
+    test('platform latest keys win over generic latestVersion', () {
+      final cfg = ForceUpdateRemoteConfig.fromJson({
+        'latestVersion': '9.9.9',
+        'latestVersionAndroid': '1.1.9',
+        'latestVersionIOS': '1.1.8',
+      });
+      expect(cfg.latestForIos(false), '1.1.9');
+      expect(cfg.latestForIos(true), '1.1.8');
+    });
+
     test('TEST 9: new version shows again after skip', () async {
       SharedPreferences.setMockInitialValues({
         forceUpdateSkipPrefsKey('1.0.81'): true,

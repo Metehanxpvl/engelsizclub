@@ -573,8 +573,10 @@ class _MetoCareAppState extends State<MetoCareApp> {
   }
 
   Future<void> _logout() async {
-    await PushNotificationService.instance.unregisterCurrentToken();
-    await Supabase.instance.client.auth.signOut();
+    try {
+      await PushNotificationService.instance.unregisterCurrentToken();
+    } catch (_) {}
+    await Supabase.instance.client.auth.signOut().timeout(kNetworkTimeout);
     if (mounted) setState(() => _user = null);
   }
 
@@ -1125,7 +1127,7 @@ class _AuthScreenState extends State<AuthScreen> {
             _step = 'verify_email';
           });
           unawaited(_resendVerifyCode());
-          _snack('E-posta henüz doğrulanmamış. Yeni kod gönderildi.');
+          _snack('E-posta henüz doğrulanmamış. Doğrulama linki gönderildi.');
         } else {
           setState(() => _step = 'signin');
           _snack(_authErrorMessage(e));
@@ -1547,10 +1549,10 @@ class _AuthScreenState extends State<AuthScreen> {
       });
       _snack(
         hediyeKredi > 0
-            ? 'Doğrulama kodu $email adresine gönderildi. '
-                'Kodu girince $hediyeKredi hediye puan hesabınızda olacak.'
-            : 'Doğrulama kodu $email adresine gönderildi. '
-                'Kodu girdikten sonra giriş yapabilirsiniz.',
+            ? 'Doğrulama linki $email adresine gönderildi. '
+                'Linke tıklayınca $hediyeKredi hediye puan hesabınızda olacak.'
+            : 'Doğrulama linki $email adresine gönderildi. '
+                'Linke tıkladıktan sonra giriş yapabilirsiniz.',
       );
     } catch (e) {
       if (mounted) {
@@ -1633,7 +1635,7 @@ class _AuthScreenState extends State<AuthScreen> {
         email: email,
       );
       if (mounted) {
-        _snack('Yeni doğrulama kodu gönderildi. Gelen kutunuzu kontrol edin.');
+        _snack('Doğrulama linki gönderildi. Gelen kutunuzu kontrol edin.');
       }
     } catch (e) {
       if (mounted) _snack(_authErrorMessage(e));
@@ -1977,7 +1979,7 @@ class _SplashStep extends StatelessWidget {
 
   static const _features = [
     ('📚', 'Bilgi Kütüphanesi', 'Aileler için bilgilendirme içerikleri'),
-    ('🗺️', 'Yakınımdaki Merkezler', 'Terapi merkezi ve uzman bul'),
+    ('🗺️', 'Engelsiz Haritalar', 'Terapi merkezi ve uzman bul'),
     ('🗣️', 'AAC İletişim Kartları', 'Görsel iletişim desteği'),
     ('⚖️', 'Yasal Haklar & Destek', 'Devlet yardımlarına kolayca ulaş'),
   ];

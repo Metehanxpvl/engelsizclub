@@ -163,6 +163,12 @@ try {
   } else {
     Write-Host "==> supabase functions deploy skipped (npx supabase login). Dashboard: Edge Functions → gemini-proxy → Secrets." -ForegroundColor Yellow
   }
+  npx --yes supabase functions deploy metobot-chat --project-ref qycrkqwqrysypvqaipqn
+  if ($LASTEXITCODE -eq 0) {
+    Write-Host "==> metobot-chat Edge Function OK (JWT on)" -ForegroundColor Green
+  } else {
+    Write-Host "==> metobot-chat deploy skipped. JWT açık kalmalı; --no-verify-jwt kullanmayın." -ForegroundColor Yellow
+  }
   npx --yes supabase functions deploy titck-kubkt --no-verify-jwt --project-ref qycrkqwqrysypvqaipqn
   if ($LASTEXITCODE -eq 0) {
     Write-Host "==> titck-kubkt Edge Function OK" -ForegroundColor Green
@@ -206,6 +212,8 @@ $staticRoots = @(
   "web\boyama.html",
   "web\destek-sorgu.html",
   "web\evde-egitim.html",
+  "web\images",
+  "web\about.html",
   "web\google_oauth_callback.html",
   "web\mobile_google_auth.html",
   "web\admin",

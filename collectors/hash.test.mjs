@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { hasRelevanceKeyword, isDuplicate, stripHtml, usefulContentHash } from './lib/hash.mjs';
+import {
+  hasRelevanceKeyword,
+  hasScholarshipTerm,
+  isDisabilityOpportunity,
+  isDuplicate,
+  stripHtml,
+  usefulContentHash,
+} from './lib/hash.mjs';
 
 describe('stripHtml', () => {
   it('removes tags and scripts', () => {
@@ -53,5 +60,56 @@ describe('hash/dedup', () => {
     assert.equal(hasRelevanceKeyword('TÜBİTAK 1001 çağrısı açıldı'), false);
     assert.equal(hasRelevanceKeyword('İŞKUR genel iş ilanları'), false);
     assert.equal(hasRelevanceKeyword('Belediye konseri'), false);
+  });
+
+  it('keeps özel gereksinimli without the word engelli', () => {
+    assert.equal(
+      isDisabilityOpportunity('Özel gereksinimli öğrencilere destek eğitimi'),
+      true,
+    );
+    assert.equal(isDisabilityOpportunity('Kaynaştırma öğrencisi kayıt duyurusu'), true);
+    assert.equal(isDisabilityOpportunity('Otizm spektrum bozukluğu farkındalık günü'), true);
+    assert.equal(isDisabilityOpportunity('Down sendromlu çocuklar için etkinlik'), true);
+    assert.equal(isDisabilityOpportunity('BEP uygulaması hakkında veli toplantısı'), true);
+    assert.equal(
+      isDisabilityOpportunity('serebral palsi rehabilitasyon'),
+      true,
+    );
+    assert.equal(isDisabilityOpportunity('down sendromu farkındalık'), true);
+    assert.equal(isDisabilityOpportunity('Serebral paldi fizik tedavi'), true);
+    assert.equal(isDisabilityOpportunity('Trizomi 21 farkındalık yürüyüşü'), true);
+    assert.equal(isDisabilityOpportunity('Cerebral palsy family support'), true);
+    assert.equal(
+      isDisabilityOpportunity('Evde Bakım Yardımı ödemeleri hesaplara yatırıldı'),
+      true,
+    );
+    assert.equal(isDisabilityOpportunity('EYHGM erişilebilirlik duyurusu'), true);
+    assert.equal(isDisabilityOpportunity('ÇÖZGER raporu başvurusu'), true);
+  });
+
+  it('rejects İŞKUR / generic burs with no disability terms', () => {
+    assert.equal(isDisabilityOpportunity('İŞKUR iş ilanı'), false);
+    assert.equal(isDisabilityOpportunity('İŞKUR iş ilanı genel personel alımı'), false);
+    assert.equal(hasRelevanceKeyword('Belediye asfalt ihalesi tamamlandı'), false);
+    assert.equal(hasRelevanceKeyword('Genel istihdam ve kota duyurusu'), false);
+    assert.equal(hasRelevanceKeyword('Rehabilitasyon merkezi fizik tedavi'), false);
+    assert.equal(hasRelevanceKeyword('Evde bakım hizmeti yaşlılara'), false);
+  });
+
+  it('keeps burs only with a disability / özel gereksinim core term', () => {
+    assert.equal(isDisabilityOpportunity('engellilere burs'), true);
+    assert.equal(isDisabilityOpportunity('engellilere burs başvurusu'), true);
+    assert.equal(isDisabilityOpportunity('engelli öğrencilerine burs'), true);
+    assert.equal(isDisabilityOpportunity('özel gereksinimli burs'), true);
+    assert.equal(isDisabilityOpportunity('özel gereksinimli öğrencilere burs'), true);
+    assert.equal(isDisabilityOpportunity('down sendromlu çocuklara burs'), true);
+    assert.equal(isDisabilityOpportunity('serebral palsili öğrencilere burs'), true);
+    assert.equal(hasScholarshipTerm('engellilere burs başvurusu'), true);
+    assert.equal(isDisabilityOpportunity('üniversite burs başvurusu'), false);
+    assert.equal(isDisabilityOpportunity('KYK burs sonuçları açıklandı'), false);
+    assert.equal(isDisabilityOpportunity('İŞKUR burs başvurusu'), false);
+    assert.equal(isDisabilityOpportunity('belediye spor bursu'), false);
+    assert.equal(hasScholarshipTerm('üniversite burs başvurusu'), true);
+    assert.equal(hasScholarshipTerm("Bursa Büyükşehir Belediyespor’dan galibiyet"), false);
   });
 });

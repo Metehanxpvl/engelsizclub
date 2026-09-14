@@ -161,6 +161,7 @@ class MetoCenter {
     required this.color,
     required this.lat,
     required this.lng,
+    this.googlePlaceId,
   });
 
   final int id;
@@ -177,6 +178,9 @@ class MetoCenter {
   final Color color;
   final double lat;
   final double lng;
+
+  /// Places API kimliği (`ChIJ…`). Katalog satırlarında null.
+  final String? googlePlaceId;
 }
 
 /// Medikal cihaz firması (`medicalVendors`).

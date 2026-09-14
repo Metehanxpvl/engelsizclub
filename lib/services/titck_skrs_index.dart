@@ -58,6 +58,7 @@ class TitckSkrsIndex {
   TitckSkrsIndex._();
 
   static const assetPath = 'assets/medicines/titck_skrs_gtin.json';
+  static const overrideAssetPath = 'assets/medicines/gtin_overrides.json';
 
   static Map<String, TitckSkrsHit>? _byBarcode;
   static List<TitckSkrsHit>? _all;
@@ -101,6 +102,7 @@ class TitckSkrsIndex {
       await Future<void>.delayed(Duration.zero);
       if (!kIsWeb) {
         _applyParsed(await compute(_parseTitckGtinJson, raw));
+        await _applyOverrides();
         return;
       }
       final decoded = jsonDecode(raw);
@@ -116,6 +118,7 @@ class TitckSkrsIndex {
         return;
       }
       await _ingestByMap(by);
+      await _applyOverrides();
     } catch (e, st) {
       debugPrint('TİTCK SKRS indeks yüklenemedi: $e\n$st');
       _byBarcode = {};
@@ -195,7 +198,74 @@ class TitckSkrsIndex {
     );
   }
 
-  /// O(1) map lookup after [ensureLoaded]. Never re-parses the JSON asset.
+  static void _putHit(TitckSkrsHit hit, {bool overwrite = false}) {
+    final map = _byBarcode ?? <String, TitckSkrsHit>{};
+    final list = List<TitckSkrsHit>.from(_all ?? const []);
+    final keys = Gs1Barcode.cacheKeys(hit.barcode);
+    final existingIdx = list.indexWhere((h) {
+      final stored = Gs1Barcode.cacheKeys(h.barcode);
+      return stored.any(keys.contains);
+    });
+    if (existingIdx >= 0) {
+      list[existingIdx] = hit;
+    } else {
+      list.add(hit);
+    }
+    for (final k in keys) {
+      if (overwrite || !map.containsKey(k)) {
+        map[k] = hit;
+      }
+    }
+    _byBarcode = map;
+    _all = list;
+  }
+
+  static Future<void> _applyOverrides() async {
+    try {
+      final raw = await rootBundle.loadString(overrideAssetPath);
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      final by = decoded['by'];
+      if (by is! Map) return;
+      var n = 0;
+      by.forEach((dynamic key, dynamic value) {
+        final barcode = key.toString().trim();
+        if (barcode.length < 8) return;
+        String name = '';
+        String atc = '';
+        if (value is List && value.isNotEmpty) {
+          name = value[0].toString().trim();
+          if (value.length > 1) atc = value[1].toString().trim();
+        } else if (value is String) {
+          name = value.trim();
+        }
+        if (name.isEmpty) return;
+        _putHit(
+          TitckSkrsHit(
+            barcode: barcode,
+            name: name,
+            activeIngredient: atc,
+          ),
+          overwrite: true,
+        );
+        n += 1;
+      });
+      if (n > 0) {
+        debugPrint('TİTCK GTIN overrides: $n kayıt üzerine yazıldı');
+      }
+    } catch (e, st) {
+      debugPrint('GTIN overrides yüklenemedi: $e\n$st');
+    }
+  }
+
+  /// Test: override satırını indeks üzerine yaz.
+  @visibleForTesting
+  static void debugApplyOverride(TitckSkrsHit hit) {
+    _putHit(hit, overwrite: true);
+    lastMatchForm = null;
+  }
+
+  /// O(1) map lookup after [ensureLoaded]. Exact GTIN (+ padding) only.
   static Future<TitckSkrsHit?> findByBarcode(String barcode) async {
     await ensureLoaded();
     final map = _byBarcode;

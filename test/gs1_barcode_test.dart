@@ -94,8 +94,23 @@ void main() {
     expect(from14.map((c) => c.form), contains('raw'));
     expect(from14.map((c) => c.form), contains('gtin14_pad'));
 
-    final noCheck = Gs1Barcode.lookupCandidates('869971701010');
-    expect(noCheck.map((c) => c.value), contains('8699717010109'));
-    expect(noCheck.map((c) => c.form), contains('ean13_add_check'));
+    final padded = Gs1Barcode.lookupCandidates('8699717010109');
+    expect(padded.map((c) => c.value), contains('08699717010109'));
+    expect(padded.map((c) => c.form), contains('gtin14_pad'));
+  });
+
+  test('exact lookup does not invent a check digit or drop one', () {
+    final from12 = Gs1Barcode.exactLookupKeys('869971701010');
+    expect(from12, isNot(contains('8699717010109')));
+    expect(from12, containsAll(['869971701010', '0869971701010']));
+
+    final from13 = Gs1Barcode.lookupCandidates('8699529150121');
+    expect(from13.map((c) => c.value), isNot(contains('869952915012')));
+    expect(from13.map((c) => c.form), isNot(contains('ean13_no_check')));
+    expect(from13.map((c) => c.form), isNot(contains('ean13_add_check')));
+
+    final from14 = Gs1Barcode.lookupCandidates('86823290000194');
+    expect(from14.map((c) => c.value), isNot(contains('8682329000019')));
+    expect(from14.map((c) => c.form), isNot(contains('gtin14_no_check')));
   });
 }

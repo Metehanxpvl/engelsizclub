@@ -7,3 +7,6 @@ verify_jwt = false
 
 [functions.notify-push]
 verify_jwt = false
+
+[functions.metobot-chat]
+verify_jwt = true

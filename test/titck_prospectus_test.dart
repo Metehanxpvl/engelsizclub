@@ -23,7 +23,62 @@ void main() {
     expect(TitckSkrsIndex.lastMatchForm, isNotNull);
 
     final noCheck = await TitckSkrsIndex.findByBarcode('869971701010');
-    expect(noCheck?.name, 'PAROL 500 MG 20 TABLET');
+    expect(noCheck, isNull);
+  });
+
+  test('truncated / prefix GTIN does not return a different drug', () async {
+    TitckSkrsIndex.debugSetHits([
+      const TitckSkrsHit(
+        barcode: '8682329000019',
+        name: 'LEVOXIMED 250MG FILM KAPLI TABLET , 7 TABLET',
+        activeIngredient: 'levofloxacin',
+      ),
+      const TitckSkrsHit(
+        barcode: '86823290000194',
+        name: 'ZAGERA 300 MG SERT KAPSÜL, 56 ADET',
+        activeIngredient: 'pregabalin',
+      ),
+      const TitckSkrsHit(
+        barcode: '8699717010109',
+        name: 'PAROL 500 MG 20 TABLET',
+        activeIngredient: 'paracetamol',
+      ),
+    ]);
+
+    expect(
+      (await TitckSkrsIndex.findByBarcode('86823290000194'))?.name,
+      startsWith('ZAGERA'),
+    );
+    expect(
+      (await TitckSkrsIndex.findByBarcode('8682329000019'))?.name,
+      startsWith('LEVOXIMED'),
+    );
+    expect(await TitckSkrsIndex.findByBarcode('86823290000190'), isNull);
+    expect(await TitckSkrsIndex.findByBarcode('869971701010'), isNull);
+    expect(
+      (await TitckSkrsIndex.findByBarcode('08699717010109'))?.name,
+      'PAROL 500 MG 20 TABLET',
+    );
+  });
+
+  test('GTIN override overwrites a wrong index row', () async {
+    TitckSkrsIndex.debugSetHits([
+      const TitckSkrsHit(
+        barcode: '8683060650037',
+        name: 'ROXEM 150 MG FILM TABLET',
+        activeIngredient: 'roxithromycin',
+      ),
+    ]);
+    TitckSkrsIndex.debugApplyOverride(
+      const TitckSkrsHit(
+        barcode: '8683060650037',
+        name: 'DULCOSOFT Oral Solüsyon 5 g/10 ml 250 ml',
+        activeIngredient: 'Makrogol 4000',
+      ),
+    );
+    final hit = await TitckSkrsIndex.findByBarcode('08683060650037');
+    expect(hit?.name, contains('DULCOSOFT'));
+    expect(hit?.activeIngredient, 'Makrogol 4000');
   });
 
   test('GTIN index stays a singleton map across lookups', () async {
@@ -184,5 +239,21 @@ void main() {
     expect(hit!.activeIngredient, 'treprostinil');
     final again = await TitckSkrsIndex.findByBarcode('1111111100755');
     expect(identical(hit, again), isTrue);
+  });
+
+  test('live index: 14-digit neighbor is not a 13-digit prefix hit', () async {
+    await TitckSkrsIndex.ensureLoaded();
+    final zagera = await TitckSkrsIndex.findByBarcode('86823290000194');
+    expect(zagera?.name, contains('ZAGERA'));
+    final levox = await TitckSkrsIndex.findByBarcode('8682329000019');
+    expect(levox?.name, contains('LEVOXIMED'));
+    expect(await TitckSkrsIndex.findByBarcode('86823290000190'), isNull);
+
+    final dulco = await TitckSkrsIndex.findByBarcode('8683060650037');
+    expect(dulco?.name, contains('DULCOSOFT'));
+    expect(
+      await TitckSkrsIndex.findByBarcode('8690000000004'),
+      isNull,
+    );
   });
 }

@@ -79,11 +79,11 @@ select * from (values
 ) as v(title, subtitle, link_type, link, icon, sort_order, is_active, is_builtin)
 where not exists (select 1 from public.daha_fazlasi_menu limit 1);
 
--- Harita alt menüden Daha Fazlası’na taşındı (tablo dolu olsa da ekle).
+-- Engelsiz Haritalar alt menüden Daha Fazlası’na taşındı (tablo dolu olsa da ekle).
 insert into public.daha_fazlasi_menu
   (title, subtitle, link_type, link, icon, sort_order, is_active, is_builtin)
 select
-  'Harita',
+  'Engelsiz Haritalar',
   'Destek merkezleri ve yakındaki hizmet noktaları',
   'route',
   'harita',
@@ -95,6 +95,32 @@ where not exists (
   select 1 from public.daha_fazlasi_menu
   where lower(link) in ('harita', 'merkezler')
 );
+
+-- Klasöre taşınmış / pasif kaydı üst menüde aç; ürün adı Engelsiz Haritalar.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'daha_fazlasi_menu'
+      and column_name = 'parent_id'
+  ) then
+    update public.daha_fazlasi_menu
+    set title = 'Engelsiz Haritalar',
+        is_active = true,
+        parent_id = null,
+        sort_order = 0,
+        updated_at = now()
+    where lower(trim(link)) in ('harita', 'merkezler');
+  else
+    update public.daha_fazlasi_menu
+    set title = 'Engelsiz Haritalar',
+        is_active = true,
+        sort_order = 0,
+        updated_at = now()
+    where lower(trim(link)) in ('harita', 'merkezler');
+  end if;
+end $$;
 
 -- Taramalar & Egzersizler & Oyun grubu (tablo dolu olsa da ekle).
 -- Çocuklar (puzzle / cvi / cvi2 / mchat) istemcide bu grubun altında açılır.

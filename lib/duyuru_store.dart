@@ -153,6 +153,8 @@ Future<DuyuruItem> addDuyuru({
   bool isPopup = false,
   DateTime? publishAt,
   DateTime? expiresAt,
+  bool requireImage = true,
+  bool notify = true,
 }) async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
@@ -175,6 +177,7 @@ Future<DuyuruItem> addDuyuru({
     publishAt: publishAt,
     expiresAt: expiresAt,
     includeCreatedBy: true,
+    requireImage: requireImage,
   );
 
   Map<String, dynamic> row;
@@ -209,7 +212,7 @@ Future<DuyuruItem> addDuyuru({
   _setDuyuruCache([item, ...prev.where((d) => d.id != item.id)]);
 
   // Görselli push (yalnız https görseller; data URL atlanır)
-  if (item.isActive) {
+  if (notify && item.isActive) {
     unawaited(
       BroadcastPushService.instance.duyuru(
         title: item.title.trim().isEmpty ? 'Yeni duyuru' : item.title.trim(),
@@ -267,6 +270,7 @@ Map<String, dynamic> _buildDuyuruPayload({
   DateTime? publishAt,
   DateTime? expiresAt,
   required bool includeCreatedBy,
+  bool requireImage = true,
 }) {
   final t = title.trim();
   final b = body.trim();
@@ -301,7 +305,9 @@ Map<String, dynamic> _buildDuyuruPayload({
     bodyOut = '';
   } else {
     img = imageUrl.trim();
-    if (img.isEmpty) throw StateError('Görsel URL veya yükleme gerekli.');
+    if (img.isEmpty && requireImage) {
+      throw StateError('Görsel URL veya yükleme gerekli.');
+    }
     src = srcRaw.isEmpty ? null : srcRaw;
   }
 

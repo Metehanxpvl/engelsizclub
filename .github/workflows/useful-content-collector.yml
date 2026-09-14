@@ -9,11 +9,11 @@
 #
 # Kaynak listesi: supabase/useful_content_sources_tr.sql (SQL Editor → Run).
 # Collector yalnız doğrulanmış RSS/Atom çeker; Bursa genel HTML ve TBB indeks yok.
-# Engelli çekirdek süzgeci (isDisabilityOpportunity) zorunlu. Gemini kotası = kayıt yok.
+# Özel gereksinim/engelli çekirdek süzgeci (isDisabilityOpportunity) zorunlu. Gemini kotası = kayıt yok.
 # Yayın / FCM yok.
 #
-# Cron yalnız default branch’te çalışır. Bu branch’te:
-#   Actions → Useful content collector → Run workflow → branch fix/ios-build-113
+# Cron yalnız default branch’te çalışır.
+#   Actions → Useful content collector → Run workflow → branch main
 # Cron 07:30 UTC = 10:30 Türkiye. Engelsiz Kariyer (05:00 UTC) ile çakışmaz.
 name: Useful content collector
 
@@ -21,6 +21,9 @@ on:
   schedule:
     - cron: '30 7 * * *'
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   collect:

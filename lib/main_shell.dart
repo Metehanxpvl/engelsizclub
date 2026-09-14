@@ -36,12 +36,15 @@ import 'meto_theme.dart';
 import 'cvi/cvi2_entry.dart';
 import 'cvi/cvi_entry.dart';
 import 'aile_kocu/aile_kocu_entry.dart';
+import 'metobot/metobot_page.dart';
 import 'mchat/mchat_entry.dart';
+import 'metobot/metobot_draggable_fab.dart';
 import 'data/more_menu_data.dart';
 import 'more_menu_store.dart';
 import 'pages/in_app_web_page.dart';
 import 'pages/boyama_page.dart';
 import 'pages/destek_sorgu_page.dart';
+import 'features/useful_opportunities/opportunities_screen.dart';
 import 'remote/app_screen_config.dart';
 import 'pages/gelisim_etkinlikleri_page.dart';
 import 'pages/barcode_scanner_screen.dart';
@@ -168,7 +171,7 @@ class MainShell extends StatefulWidget {
   });
 
   final AuthUser user;
-  final VoidCallback onLogout;
+  final Future<void> Function() onLogout;
   final ValueChanged<AuthUser>? onUserChanged;
   /// Misafir kısıtında Giriş/Üye Ol ekranına dön.
   final VoidCallback? onRequireLogin;
@@ -199,6 +202,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   bool _showKesfetAdmin = false;
   bool _showSectionEditors = false;
   bool _showDilSecimi = false;
+  bool _loggingOut = false;
   /// Android geri: ana sayfadayken ikinci basışta çıkış için zaman damgası.
   DateTime? _lastExitBackAt;
   /// Profil panelini aşağı kaydırarak kapatırken biriken dikey ofset.
@@ -688,17 +692,24 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             child: FutureBuilder<List<MoreMenuItem>>(
               future: loadMoreMenu(forceRefresh: true),
               builder: (context, snap) {
-                final items = snap.data ??
+                final rawItems = snap.data ??
                     cachedMoreMenu ??
                     prepareUserMoreMenu(
                       defaultMoreMenuItems()
                           .where((e) => e.isActive)
                           .toList(),
                     );
-                final allForGroups = cachedMoreMenuAll ??
-                    defaultMoreMenuItems()
-                        .where((e) => e.isActive)
-                        .toList();
+                final items = visibleMoreMenuForViewer(
+                  rawItems,
+                  isAdmin: isAdmin,
+                );
+                final allForGroups = visibleMoreMenuForViewer(
+                  cachedMoreMenuAll ??
+                      defaultMoreMenuItems()
+                          .where((e) => e.isActive)
+                          .toList(),
+                  isAdmin: isAdmin,
+                );
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -848,6 +859,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       case 'family':
         icon = Icons.family_restroom;
         color = Colors.green.shade700;
+      case 'smart_toy':
+        icon = Icons.smart_toy_outlined;
+        color = MetoColors.primary;
       case 'balance':
         icon = Icons.balance_outlined;
         color = MetoColors.primary;
@@ -868,6 +882,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         color = MetoColors.primary;
       case 'calculate':
         icon = Icons.calculate_outlined;
+        color = MetoColors.primary;
+      case 'volunteer':
+        icon = Icons.volunteer_activism_outlined;
         color = MetoColors.primary;
       case 'apps':
       case 'folder':
@@ -904,7 +921,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     final all = cachedMoreMenuAll ??
         await loadMoreMenuAll(forceRefresh: false);
     if (!mounted) return;
-    final children = childrenForMoreMenuGroup(parent, all);
+    final isAdmin = isAppAdmin(widget.user.email);
+    final children = visibleMoreMenuForViewer(
+      childrenForMoreMenuGroup(parent, all),
+      isAdmin: isAdmin,
+    );
     await showModalBottomSheet<void>(
       context: parentSheet ?? context,
       backgroundColor: MetoColors.card,
@@ -933,6 +954,66 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           },
         );
       },
+    );
+  }
+
+  Future<void> _openMetoBotSuggestedRoute(String raw) async {
+    final route = raw.trim();
+    if (route.isEmpty || !mounted) return;
+    switch (route) {
+      case 'ilanlar':
+        _goToTab(MetoTab.ilanlar);
+        return;
+      case 'kesfet':
+        _goToTab(MetoTab.kesfet);
+        return;
+      case 'forum':
+        _goToTab(MetoTab.forum);
+        return;
+      case 'home':
+        _goToTab(MetoTab.home);
+        return;
+      case 'kariyer':
+        await EngelsizKariyerPage.open(
+          context,
+          userEmail: widget.user.email,
+        );
+        return;
+      case 'destek_sorgu':
+      case 'destek-sorgu':
+        await DestekSorguPage.open(
+          context,
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(
+            'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
+          ),
+        );
+        return;
+    }
+    if (route.startsWith('/')) {
+      await InAppWebPage.open(
+        context,
+        title: 'Engelsiz Club',
+        url: route,
+        isGuest: _isGuest,
+        onRequireLogin: () => _requireLogin(
+          'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
+        ),
+      );
+      return;
+    }
+    await _openMoreMenuItem(
+      MoreMenuItem(
+        id: 0,
+        title: route,
+        subtitle: '',
+        linkType: 'route',
+        link: route,
+        icon: 'link',
+        sortOrder: 0,
+        isActive: true,
+        isBuiltin: true,
+      ),
     );
   }
 
@@ -998,6 +1079,24 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
           ),
         );
+        return;
+      case 'metobot':
+        if (_isGuest) {
+          _requireLogin(
+            'MetoBot için giriş yapmanız veya üye olmanız gerekiyor.',
+          );
+          return;
+        }
+        final route = await openMetoBot(
+          context,
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(
+            'MetoBot için giriş yapmanız veya üye olmanız gerekiyor.',
+          ),
+        );
+        if (route != null && route.isNotEmpty && mounted) {
+          await _openMetoBotSuggestedRoute(route);
+        }
         return;
       case 'harita':
       case 'merkezler':
@@ -1093,6 +1192,26 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       case 'destek_sorgu':
         await DestekSorguPage.open(
           context,
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(
+            'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
+          ),
+        );
+        return;
+      case 'firsatlar':
+        if (!isAppAdmin(widget.user.email)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Bu bölüm yalnızca yöneticiler içindir.'),
+              ),
+            );
+          }
+          return;
+        }
+        await OpportunitiesScreen.open(
+          context,
+          adminEmail: widget.user.email,
           isGuest: _isGuest,
           onRequireLogin: () => _requireLogin(
             'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
@@ -2763,7 +2882,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
     Widget? overlay;
     if (_activeTab == MetoTab.merkezler) {
-      overlay = const _KeepAliveTab(child: MerkezlerPage());
+      overlay = _KeepAliveTab(
+        child: MerkezlerPage(
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(
+            'Değerlendirmek için giriş yapmanız gerekiyor.',
+          ),
+        ),
+      );
     } else if (_activeTab == MetoTab.haklar) {
       overlay = HaklarPage(adminEmail: widget.user.email);
     } else if (_activeTab == MetoTab.kartlar) {
@@ -2879,11 +3005,39 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     });
   }
 
+  Future<void> _startLogout() async {
+    if (_loggingOut) return;
+    setState(() {
+      _loggingOut = true;
+      _showProfilPanel = false;
+      _showCocukProfil = false;
+      _showIlanlarim = false;
+      _showKullaniciProfil = false;
+      _showKaydedilenler = false;
+      _showBildirimler = false;
+      _showHakkinda = false;
+      _showEngellenenler = false;
+      _showIyilikLiderleri = false;
+      _showAdminUsers = false;
+      _showKesfetAdmin = false;
+      _showSectionEditors = false;
+      _showDilSecimi = false;
+    });
+    clearRuntimeIlanlar();
+    try {
+      await widget.onLogout();
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loggingOut = false);
+    }
+  }
+
   /// Android sistem geri tuşu:
   /// 1) profil paneli açıksa kapat
   /// 2) ana sayfada değilse ana sayfaya dön (bu 1. basış sayılır)
   /// 3) kısa süre içinde 2. basışta uygulamadan çık
   void _handleSystemBack() {
+    if (_loggingOut) return;
     if (_showProfilPanel) {
       _lastExitBackAt = null;
       _closeProfilPanel();
@@ -3010,10 +3164,21 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     ),
                 ],
               ),
+              if (!_isGuest)
+                MetobotDraggableFab(
+                  isGuest: _isGuest,
+                  onRequireLogin: () => _requireLogin(
+                    'MetoBot için giriş yapmanız veya üye olmanız gerekiyor.',
+                  ),
+                  onOpenRoute: (route) {
+                    unawaited(_openMetoBotSuggestedRoute(route));
+                  },
+                ),
               if (_showProfilPanel)
                 (_krediSatin && _isTabletLayout)
                     ? _buildKrediCenteredOverlay()
                     : _buildProfilOverlay(),
+              if (_loggingOut) const _LogoutBusyOverlay(),
             ],
           ),
         );
@@ -4224,6 +4389,23 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: _menuTile(
+              emoji: '🎁',
+              label: 'Fırsatlar ve Destekler',
+              sub: 'Onay kuyruğu · onaylanınca ana sayfa story',
+              highlight: true,
+              onTap: () {
+                unawaited(
+                  OpportunitiesScreen.open(
+                    context,
+                    adminEmail: widget.user.email,
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
               emoji: '💚',
               label: 'İyilik Puanı Liderleri',
               sub: 'En yüksek 10 · ekran görüntüsü için',
@@ -4632,25 +4814,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           label: S.t('logout'),
           sub: null,
           danger: true,
-          onTap: () {
-            setState(() {
-              _showProfilPanel = false;
-              _showCocukProfil = false;
-              _showIlanlarim = false;
-              _showKullaniciProfil = false;
-              _showKaydedilenler = false;
-              _showBildirimler = false;
-              _showHakkinda = false;
-              _showEngellenenler = false;
-              _showIyilikLiderleri = false;
-              _showAdminUsers = false;
-              _showKesfetAdmin = false;
-              _showSectionEditors = false;
-              _showDilSecimi = false;
-            });
-            clearRuntimeIlanlar();
-            widget.onLogout();
-          },
+          onTap: () => unawaited(_startLogout()),
         ),
       ],
     );
@@ -4981,7 +5145,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     'kaynaklara ve topluluk bilgisine erişimi kolaylaştırır.',
               ),
               feature(
-                title: 'Harita ve Lokasyonlar',
+                title: 'Engelsiz Haritalar',
                 desc:
                     'Yakındaki destek merkezlerini ve kamuya açık konumları '
                     'bulmanıza yardımcı olur.',
@@ -7126,6 +7290,80 @@ class _NavItem extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact hourglass while sign-out is in flight (token + Supabase).
+class _LogoutBusyOverlay extends StatefulWidget {
+  const _LogoutBusyOverlay();
+
+  @override
+  State<_LogoutBusyOverlay> createState() => _LogoutBusyOverlayState();
+}
+
+class _LogoutBusyOverlayState extends State<_LogoutBusyOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: AbsorbPointer(
+        child: ColoredBox(
+          color: const Color(0x330D2B1F),
+          child: Center(
+            child: Semantics(
+              liveRegion: true,
+              label: S.t('logout'),
+              child: Material(
+                color: MetoColors.card,
+                elevation: 6,
+                shadowColor: MetoColors.primary.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(18),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 36,
+                          height: 36,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: MetoColors.primary.withValues(alpha: 0.28),
+                          ),
+                        ),
+                        FadeTransition(
+                          opacity: Tween<double>(begin: 0.55, end: 1)
+                              .animate(_pulse),
+                          child: const Icon(
+                            Icons.hourglass_top_rounded,
+                            size: 20,
+                            color: MetoColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

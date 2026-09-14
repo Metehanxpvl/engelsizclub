@@ -53,7 +53,8 @@ class MedicineRepository {
       'Bu barkod için özet bulunamadı. İsterseniz küpür veya prospektüs fotoğrafı ekleyebilirsiniz (isteğe bağlı).';
 
   static const notInIndexMessage =
-      'Bu karekod indeksde yok, etiket/küpür fotoğrafı deneyin.';
+      'TİTCK indeksinde bulunamadı. Takviye / vitamin ise Ürün tarama ile deneyin; '
+      'ilaçsa isteğe bağlı küpür fotoğrafı ekleyin.';
 
   static const needsKeyMessage = 'Analiz servisi yanıt vermedi';
 
@@ -86,10 +87,32 @@ class MedicineRepository {
     }
 
     try {
+      final skrs = ean == null ? null : await TitckSkrsIndex.findByBarcode(ean);
+      final typedName = medicineName.trim();
+      final barcodeOnly = !hasPhoto &&
+          text.isEmpty &&
+          typedName.length < 2 &&
+          scannedUrl == null;
+
+      // Unknown GTIN: do not return a Gemini-poisoned cache row and do not
+      // ask the model to invent a nearby drug (vitamins / takviye).
+      if (ean != null && skrs == null && barcodeOnly) {
+        debugPrint('GTIN lookup fail-closed ean=$ean');
+        return MedicineLookupResult(
+          barcode: ean,
+          error: notInIndexMessage,
+          needsPhoto: true,
+        );
+      }
+
       MedicineRecord? cached;
       if (ean != null) {
         cached = await findByBarcode(ean);
-        if (cached != null && cached.isComplete && !hasPhoto) {
+        if (cached != null &&
+            cached.isComplete &&
+            !hasPhoto &&
+            skrs != null &&
+            _cacheAgreesWithSkrs(cached, skrs)) {
           var withUrl = cached;
           if (scannedUrl != null &&
               scannedUrl.trim().isNotEmpty &&
@@ -106,9 +129,7 @@ class MedicineRepository {
         }
       }
 
-      final skrs = ean == null ? null : await TitckSkrsIndex.findByBarcode(ean);
       var seed = cached;
-      final typedName = medicineName.trim();
       if (typedName.length >= 2 && !MedicineRecord.isNumericName(typedName)) {
         seed = _mergeIdentity(
           seed,
@@ -292,11 +313,9 @@ class MedicineRepository {
   }
 
   static Future<MedicineRecord?> findByBarcode(String barcode) async {
-    final keys = <String>{};
-    for (final cand in Gs1Barcode.lookupCandidates(barcode)) {
-      keys.addAll(Gs1Barcode.cacheKeys(cand.value));
-    }
-    keys.removeWhere((c) => c.length < 4);
+    final keys = Gs1Barcode.exactLookupKeys(barcode)
+        .where((c) => c.length >= 8)
+        .toSet();
     if (keys.isEmpty) return null;
     try {
       final rows = await withNetworkTimeout(
@@ -566,6 +585,48 @@ class MedicineRepository {
     }
   }
 
+  static String _foldName(String raw) {
+    var s = raw.trim().toLowerCase();
+    s = s
+        .replaceAll('ı', 'i')
+        .replaceAll('İ', 'i')
+        .replaceAll('ş', 's')
+        .replaceAll('ğ', 'g')
+        .replaceAll('ü', 'u')
+        .replaceAll('ö', 'o')
+        .replaceAll('ç', 'c');
+    s = s.replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+    return s;
+  }
+
+  /// Same brand / product line (cache vs TİTCK). Roxem ≠ Dulcosoft.
+  static bool namesAgree(String a, String b) {
+    final na = _foldName(a);
+    final nb = _foldName(b);
+    if (na.isEmpty || nb.isEmpty) return false;
+    if (na == nb) return true;
+    if (na.contains(nb) || nb.contains(na)) return true;
+    String firstToken(String s) {
+      for (final t in s.split(RegExp(r'\s+'))) {
+        if (t.length >= 3) return t;
+      }
+      return '';
+    }
+
+    final fa = firstToken(na);
+    final fb = firstToken(nb);
+    return fa.isNotEmpty && fa == fb;
+  }
+
+  static bool _cacheAgreesWithSkrs(MedicineRecord cached, TitckSkrsHit skrs) {
+    final skrsName = skrs.name.trim();
+    if (skrsName.length < 2 || MedicineRecord.isNumericName(skrsName)) {
+      return true;
+    }
+    if (cached.medicineName.trim().isEmpty) return true;
+    return namesAgree(cached.medicineName, skrsName);
+  }
+
   static String _preferName(String a, String b) {
     final aOk = a.trim().length >= 2 && !MedicineRecord.isNumericName(a);
     final bOk = b.trim().length >= 2 && !MedicineRecord.isNumericName(b);
@@ -615,6 +676,20 @@ class MedicineRepository {
     MedicineRecord incoming,
   ) {
     if (existing == null) return incoming;
+    final incomingIsIndex =
+        incoming.source == 'titck' || incoming.source == 'public_index';
+    final conflict = existing.medicineName.trim().isNotEmpty &&
+        incoming.medicineName.trim().isNotEmpty &&
+        !namesAgree(existing.medicineName, incoming.medicineName);
+    if (incomingIsIndex && conflict) {
+      return incoming.copyWith(
+        id: existing.id,
+        prospectusUrl: (incoming.prospectusUrl ?? '').trim().isNotEmpty
+            ? incoming.prospectusUrl
+            : existing.prospectusUrl,
+        imageUrl: existing.imageUrl,
+      );
+    }
     return existing.copyWith(
       barcode: (existing.barcode ?? '').trim().length >= 4
           ? existing.barcode

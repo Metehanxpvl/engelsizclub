@@ -370,10 +370,11 @@ class GeminiService {
       source =
           'Görev: taranan ilaç barkodu / GS1 GTIN için kamuya açık küpür / '
           'prospektüs bilgisine dayanan, yalnızca bilgi amaçlı kısa özet. '
-          'Görsel yok; fotoğraf zorunlu değil. Türkiye’de bu GTIN ile satılan '
-          'ilacın adını, etken maddesini ve prospektüs özetini doldur. '
-          'Teşhis koyma, tedavi veya doz önerisi verme, eksik alanı uydurma. '
-          'Bu bir reçete değildir. Emin değilsen ilgili alanı "" veya [] bırak.';
+          'Görsel yok; fotoğraf zorunlu değil. Yalnız bu GTIN ile birebir '
+          'eşleşen Türkiye ilacını yaz. Yakın / kısmi / önek barkod veya '
+          'benzer ada bakma. Takviye, vitamin veya emin değilsen product_name '
+          've diğer alanları boş bırak. Teşhis koyma, tedavi veya doz önerisi '
+          'verme, eksik alanı uydurma. Bu bir reçete değildir.';
     } else {
       source =
           'Görev: ilaç kutusunun arka yüzü (küpür) veya prospektüs görselinden / '

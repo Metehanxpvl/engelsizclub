@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:in_app_update/in_app_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,13 +11,13 @@ import 'force_update_logic.dart';
 export 'force_update_logic.dart';
 
 /// pubspec marketing / `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
-const kAppVersionName = '1.1.8';
-const kAppBuildNumber = 200006;
+const kAppVersionName = '1.1.10';
+const kAppBuildNumber = 200008;
 
 /// Açılışta (ForceUpdateGate) semver kontrolü. Splash kilidi yok.
 ///
 /// Kaynak: Supabase `app_settings.force_update` (Remote Config yok).
-/// Android: "Güncelle" → Play In-App Update, olmazsa mağaza URL.
+/// CTA: Android → Google Play, iOS → App Store (in-app binary update yok).
 class ForceUpdateService extends ChangeNotifier {
   ForceUpdateService._();
   static final ForceUpdateService instance = ForceUpdateService._();
@@ -46,6 +45,10 @@ class ForceUpdateService extends ChangeNotifier {
   String minVersion = '';
 
   bool _checking = false;
+
+  /// Primary CTA: Android → Google Play, iOS → App Store.
+  String get storeCtaLabel =>
+      defaultTargetPlatform == TargetPlatform.iOS ? 'App Store' : 'Google Play';
 
   Future<void> check() async {
     if (kIsWeb) {
@@ -106,19 +109,10 @@ class ForceUpdateService extends ChangeNotifier {
     }
   }
 
-  /// Arka plandan dönüş: semver yeniden; indirilmiş esnek güncellemeyi kur.
+  /// Arka plandan dönüş: semver yeniden kontrol.
   Future<void> onResumed() async {
     if (kIsWeb) return;
     unawaited(check());
-    if (defaultTargetPlatform != TargetPlatform.android) return;
-    try {
-      final info = await InAppUpdate.checkForUpdate();
-      if (info.installStatus == InstallStatus.downloaded) {
-        await InAppUpdate.completeFlexibleUpdate();
-      }
-    } catch (e) {
-      debugPrint('ForceUpdate resume: $e');
-    }
   }
 
   Future<void> skipOptional() async {
@@ -145,57 +139,28 @@ class ForceUpdateService extends ChangeNotifier {
 
   Future<void> openStore() async {
     try {
-      if (defaultTargetPlatform == TargetPlatform.android) {
-        final usedPlay = await _tryPlayInAppUpdate();
-        if (usedPlay) return;
+      final ios = defaultTargetPlatform == TargetPlatform.iOS;
+      if (!ios) {
         final market = Uri.parse(defaultMarketUrl);
         if (await canLaunchUrl(market)) {
           final ok =
               await launchUrl(market, mode: LaunchMode.externalApplication);
           if (ok) return;
         }
+        final play = Uri.parse(
+          storeUrl.isNotEmpty ? storeUrl : defaultPlayUrl,
+        );
+        await launchUrl(play, mode: LaunchMode.externalApplication);
+        return;
       }
-      final uri = Uri.tryParse(storeUrl);
+      final uri = Uri.tryParse(
+        storeUrl.isNotEmpty ? storeUrl : defaultIosUrl,
+      );
       if (uri == null) return;
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (e) {
       debugPrint('ForceUpdate openStore: $e');
     }
-  }
-
-  Future<bool> _tryPlayInAppUpdate() async {
-    AppUpdateInfo info;
-    try {
-      info = await InAppUpdate.checkForUpdate();
-    } catch (e) {
-      debugPrint('ForceUpdate Play check skipped: $e');
-      return false;
-    }
-    final available = info.availableVersionCode ?? 0;
-    final hasNewer = info.updateAvailability ==
-            UpdateAvailability.updateAvailable &&
-        available > 0;
-    if (!hasNewer) return false;
-    try {
-      if (isMandatory && info.immediateUpdateAllowed) {
-        await InAppUpdate.performImmediateUpdate();
-        return true;
-      }
-      if (info.flexibleUpdateAllowed) {
-        final result = await InAppUpdate.startFlexibleUpdate();
-        if (result == AppUpdateResult.success) {
-          await InAppUpdate.completeFlexibleUpdate();
-        }
-        return true;
-      }
-      if (info.immediateUpdateAllowed) {
-        await InAppUpdate.performImmediateUpdate();
-        return true;
-      }
-    } catch (e) {
-      debugPrint('ForceUpdate Play start: $e');
-    }
-    return false;
   }
 
   Future<void> _loadPackageInfo() async {

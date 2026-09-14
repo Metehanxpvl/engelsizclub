@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,7 +8,7 @@ import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
 import '../social_links_store.dart';
 
-/// Ana sayfa en altı: mağaza rozetleri + Instagram / Facebook.
+/// Ana sayfa en altı: Instagram / Facebook.
 class HomeSocialFooter extends StatefulWidget {
   const HomeSocialFooter({super.key, this.adminEmail = ''});
 
@@ -73,15 +72,6 @@ class _HomeSocialFooterState extends State<HomeSocialFooter> {
   Widget build(BuildContext context) {
     if (_loading) return const SizedBox(height: 24);
 
-    final isIosApp =
-        !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
-    final hasApp = _cfg.appStoreUrl.trim().isNotEmpty;
-    final hasPlay = _cfg.playStoreUrl.trim().isNotEmpty;
-    // iOS incelemesi: Google Play rozeti Guideline 2.3.10 ihlali.
-    final showPlay = !isIosApp && (hasPlay || _isAdmin);
-    final showApp = !isIosApp && (hasApp || _isAdmin);
-    final showStores = showApp || showPlay;
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       child: Column(
@@ -131,40 +121,6 @@ class _HomeSocialFooterState extends State<HomeSocialFooter> {
               ),
             ],
           ),
-          if (showStores) ...[
-            const SizedBox(height: 16),
-            Text(
-              'Uygulamayı indir',
-              style: GoogleFonts.nunito(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: MetoColors.mutedFg,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                if (showApp)
-                  Expanded(
-                    child: _StoreBadge(
-                      assetPng: 'assets/images/badge_app_store.png',
-                      assetSvgFallback: 'assets/images/badge_app_store.svg',
-                      onTap: () => _open(_cfg.appStoreUrl),
-                    ),
-                  ),
-                if (showApp && showPlay)
-                  const SizedBox(width: 10),
-                if (showPlay)
-                  Expanded(
-                    child: _StoreBadge(
-                      assetPng: 'assets/images/badge_google_play.png',
-                      assetSvgFallback: 'assets/images/badge_google_play.svg',
-                      onTap: () => _open(_cfg.playStoreUrl),
-                    ),
-                  ),
-              ],
-            ),
-          ],
         ],
       ),
     );
@@ -219,42 +175,6 @@ class _SocialTile extends StatelessWidget {
   }
 }
 
-class _StoreBadge extends StatelessWidget {
-  const _StoreBadge({
-    required this.assetPng,
-    required this.assetSvgFallback,
-    required this.onTap,
-  });
-
-  final String assetPng;
-  final String assetSvgFallback;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: AspectRatio(
-          aspectRatio: 3.1,
-          child: Image.asset(
-            assetPng,
-            fit: BoxFit.contain,
-            alignment: Alignment.centerLeft,
-            errorBuilder: (_, __, ___) => SvgPicture.asset(
-              assetSvgFallback,
-              fit: BoxFit.contain,
-              alignment: Alignment.centerLeft,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _SocialLinksEditSheet extends StatefulWidget {
   const _SocialLinksEditSheet({required this.initial});
 
@@ -267,8 +187,6 @@ class _SocialLinksEditSheet extends StatefulWidget {
 class _SocialLinksEditSheetState extends State<_SocialLinksEditSheet> {
   late final TextEditingController _ig;
   late final TextEditingController _fb;
-  late final TextEditingController _app;
-  late final TextEditingController _play;
   bool _saving = false;
 
   @override
@@ -277,16 +195,12 @@ class _SocialLinksEditSheetState extends State<_SocialLinksEditSheet> {
     final i = widget.initial;
     _ig = TextEditingController(text: i.instagramUrl);
     _fb = TextEditingController(text: i.facebookUrl);
-    _app = TextEditingController(text: i.appStoreUrl);
-    _play = TextEditingController(text: i.playStoreUrl);
   }
 
   @override
   void dispose() {
     _ig.dispose();
     _fb.dispose();
-    _app.dispose();
-    _play.dispose();
     super.dispose();
   }
 
@@ -299,8 +213,6 @@ class _SocialLinksEditSheetState extends State<_SocialLinksEditSheet> {
       facebookUrl: _fb.text.trim().isEmpty
           ? SocialLinksConfig.kDefaultFacebookUrl
           : _fb.text.trim(),
-      appStoreUrl: _app.text.trim(),
-      playStoreUrl: _play.text.trim(),
     );
     try {
       await SocialLinksStore.instance.save(next);
@@ -343,7 +255,7 @@ class _SocialLinksEditSheetState extends State<_SocialLinksEditSheet> {
               ),
               const SizedBox(height: 14),
               Text(
-                'Sosyal & mağaza linkleri',
+                'Sosyal linkler',
                 style: GoogleFonts.nunito(
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
@@ -365,28 +277,7 @@ class _SocialLinksEditSheetState extends State<_SocialLinksEditSheet> {
                   border: OutlineInputBorder(),
                 ),
               ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _app,
-                decoration: const InputDecoration(
-                  labelText: 'App Store URL',
-                  hintText: 'https://apps.apple.com/...',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) ...[
-                TextField(
-                  controller: _play,
-                  decoration: const InputDecoration(
-                    labelText: 'Google Play URL',
-                    hintText: 'https://play.google.com/store/apps/...',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ] else
-                const SizedBox(height: 16),
+              const SizedBox(height: 16),
               FilledButton(
                 onPressed: _saving ? null : _save,
                 style: FilledButton.styleFrom(

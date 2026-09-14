@@ -69,6 +69,14 @@
         "destination": "/fotografli-puzzle.html"
       },
       {
+        "source": "/beceri-oyunlari",
+        "destination": "/beceri-oyunlari.html"
+      },
+      {
+        "source": "/beceri-oyunlari/**",
+        "destination": "/beceri-oyunlari.html"
+      },
+      {
         "source": "/boyama",
         "destination": "/boyama.html"
       },
@@ -115,6 +123,10 @@
       {
         "source": "/mobile_google_auth.html",
         "destination": "/mobile_google_auth.html"
+      },
+      {
+        "source": "/assets/metobot/metobot.png",
+        "destination": "/assets/assets/metobot/metobot.png"
       },
       {
         "source": "**",
@@ -326,6 +338,15 @@
         ]
       },
       {
+        "source": "/beceri-oyunlari.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
         "source": "/boyama.html",
         "headers": [
           {
@@ -452,6 +473,32 @@
           {
             "key": "Permissions-Policy",
             "value": "camera=(self), microphone=()"
+          }
+        ]
+      },
+      {
+        "source": "/metobot.png",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=3600"
+          },
+          {
+            "key": "Access-Control-Allow-Origin",
+            "value": "*"
+          }
+        ]
+      },
+      {
+        "source": "/assets/assets/metobot/metobot.png",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=3600"
+          },
+          {
+            "key": "Access-Control-Allow-Origin",
+            "value": "*"
           }
         ]
       }

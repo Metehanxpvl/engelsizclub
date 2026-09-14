@@ -251,6 +251,20 @@ class PushNotificationService {
       );
     } catch (e) {
       debugPrint('FCM token kaydı: $e');
+      // Eski şemada owner_id yoksa yine yaz (token kaydı düşmesin).
+      try {
+        await client.from('user_push_tokens').upsert(
+          {
+            'token': t,
+            'owner_email': email,
+            'platform': _platformLabel,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          },
+          onConflict: 'token',
+        );
+      } catch (e2) {
+        debugPrint('FCM token kaydı (yedek): $e2');
+      }
     }
   }
 
@@ -350,7 +364,8 @@ class PushNotificationService {
             alert: true,
             badge: true,
             sound: true,
-            provisional: true,
+            // provisional: banner/ses yok (sadece sessiz bildirim merkezi).
+            provisional: false,
           )
           .timeout(const Duration(seconds: 8));
       debugPrint('FCM izin durumu: ${settings.authorizationStatus}');

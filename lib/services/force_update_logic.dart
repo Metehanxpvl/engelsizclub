@@ -119,10 +119,14 @@ class ForceUpdateRemoteConfig {
       latestVersionAndroid: pick([
         'latestVersionAndroid',
         'latest_version_android',
+        'latestVersion',
+        'latest_version',
       ]),
       latestVersionIOS: pick([
         'latestVersionIOS',
         'latest_version_ios',
+        'latestVersion',
+        'latest_version',
       ]),
       androidUrl: pick(
         ['android_url', 'androidUrl'],

@@ -31,6 +31,22 @@ describe('extractDisabilityListings', () => {
     assert.equal(items.length, 1);
     assert.equal(items[0].sourceUrl, 'https://www.example.bel.tr/haberler/engelli-rampasi');
   });
+
+  it('keeps özel gereksinimli titles that never say engelli', () => {
+    const html = `
+      <a href="/haberler/ozel-gereksinimli-destek">Özel gereksinimli öğrencilere tablet</a>
+      <a href="/haberler/iskur-ilan">İŞKUR iş ilanı</a>
+      <a href="/duyurular/asfalt">Asfalt çalışması başladı</a>
+    `;
+    const items = extractDisabilityListings(html, 'https://www.example.bel.tr/');
+    assert.equal(items.length, 1);
+    assert.equal(
+      items[0].sourceUrl,
+      'https://www.example.bel.tr/haberler/ozel-gereksinimli-destek',
+    );
+    assert.equal(isDisabilityOpportunity(items[0].title), true);
+    assert.equal(isDisabilityOpportunity('İŞKUR iş ilanı'), false);
+  });
 });
 
 describe('robotsBlocksAll', () => {

@@ -4,15 +4,16 @@
 -- Flutter `app_settings.force_update` okur (Firebase Remote Config YOK).
 -- Semver: current < minimumSupportedVersion → zorunlu
 --         min ≤ current < latestVersion*   → opsiyonel
---         current >= latest                → ekran yok (1.1.8 yüklü testçi görmez)
+--         current >= latest                → ekran yok (yüklü sürüm latest ise)
 -- Web (engelsizclub.com) ekranı GÖSTERMEZ — yalnız iOS/Android mağaza.
 --
--- Seed 1.0.0 = henüz uyarı yok. Mağaza sürümü yayınlandıktan sonra Table Editor'dan
--- `value` JSON'unu güncelleyin. Bu dosyayı tekrar çalıştırmak mevcut latest'ı EZMEZ.
+-- Seed 1.0.0 = henüz uyarı yok. Play/App Store yayını ONAYLANDIKTAN sonra
+-- Table Editor'dan latest* alanlarını mağaza sürümüne çekin (ör. 1.1.9).
+-- Bu dosyayı tekrar çalıştırmak mevcut latest'ı EZMEZ.
 --
 -- Table Editor → app_settings → key = force_update → value örneği:
---   a) 1.1.8 altı opsiyonel:  min 1.0.0, latest* 1.1.8
---   b) 1.1.8 altı zorunlu:    min 1.1.8, latest* 1.1.8
+--   a) 1.1.9 altı opsiyonel:  min 1.0.0, latest* 1.1.9
+--   b) 1.1.9 altı zorunlu:    min 1.1.9, latest* 1.1.9
 -- Sahte yüksek latest "Güncelle" döngüsü yapar; yalnız gerçek mağaza sürümü yazın.
 
 alter table if exists public.app_settings enable row level security;

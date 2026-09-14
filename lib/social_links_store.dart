@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Ana sayfa altı: mağaza + Instagram / Facebook linkleri.
+/// Ana sayfa altı: Instagram / Facebook.
 class SocialLinksConfig {
   const SocialLinksConfig({
     this.instagramUrl = kDefaultInstagramUrl,
@@ -14,6 +14,8 @@ class SocialLinksConfig {
 
   final String instagramUrl;
   final String facebookUrl;
+
+  /// Eski APK'lar hâlâ bu alanları okur; paylaşılan config'te boş tutulur.
   final String appStoreUrl;
   final String playStoreUrl;
 
@@ -34,11 +36,12 @@ class SocialLinksConfig {
         playStoreUrl: playStoreUrl ?? this.playStoreUrl,
       );
 
+  /// Mağaza URL'leri kasıtlı boş: 1.1.8 Android "URL doluysa rozet göster" der.
   Map<String, dynamic> toJson() => {
         'instagram': instagramUrl.trim(),
         'facebook': facebookUrl.trim(),
-        'app_store': appStoreUrl.trim(),
-        'play_store': playStoreUrl.trim(),
+        'app_store': '',
+        'play_store': '',
       };
 
   factory SocialLinksConfig.fromJson(Map<String, dynamic>? raw) {
@@ -51,8 +54,8 @@ class SocialLinksConfig {
     return SocialLinksConfig(
       instagramUrl: pick('instagram', kDefaultInstagramUrl),
       facebookUrl: pick('facebook', kDefaultFacebookUrl),
-      appStoreUrl: pick('app_store'),
-      playStoreUrl: pick('play_store'),
+      appStoreUrl: '',
+      playStoreUrl: '',
     );
   }
 }
@@ -111,13 +114,18 @@ class SocialLinksStore {
   }
 
   Future<void> save(SocialLinksConfig next) async {
+    // Mağaza alanlarını her kayıtta boş yaz — eski APK'lar rozeti gizler.
+    final sanitized = SocialLinksConfig(
+      instagramUrl: next.instagramUrl,
+      facebookUrl: next.facebookUrl,
+    );
     await Supabase.instance.client.from('app_settings').upsert({
       'key': _settingsKey,
-      'value': next.toJson(),
-      'description': 'Ana sayfa sosyal medya ve mağaza linkleri',
+      'value': sanitized.toJson(),
+      'description': 'Ana sayfa Instagram / Facebook linkleri',
     });
-    _config = next;
-    await _cacheLocal(next);
+    _config = sanitized;
+    await _cacheLocal(sanitized);
   }
 
   Future<void> _cacheLocal(SocialLinksConfig c) async {

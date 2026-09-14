@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="Beceri ve Oyun — nörodiverjan ve özel çocuklar için sakin, dokunmatik mini oyunlar. Engelsiz Club." />
+  <meta name="theme-color" content="#e8f4f1" />
+  <title>Beceri ve Oyun — Engelsiz Club</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            mist: '#e8f4f1',
+            foam: '#f7fbf9',
+            sage: '#6ea89a',
+            pine: '#3d6b61',
+            sky: '#b9d7ee',
+            lilac: '#d7c8ea',
+            peach: '#f3d5c4',
+            butter: '#f6e7b8',
+            mint: '#c8e6d4'
+          },
+          fontFamily: {
+            sans: ['Nunito', 'system-ui', 'Segoe UI', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    :root { color-scheme: light; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      background: radial-gradient(1200px 600px at 20% -10%, #dceee8 0%, transparent 55%),
+                  radial-gradient(900px 500px at 110% 10%, #d7e6f4 0%, transparent 50%),
+                  #e8f4f1;
+      font-family: Nunito, system-ui, sans-serif;
+      touch-action: manipulation;
+    }
+    button { -webkit-tap-highlight-color: transparent; }
+    .tab-btn[aria-selected="true"] {
+      background: #3d6b61;
+      color: #fff;
+      box-shadow: 0 8px 18px rgba(61, 107, 97, 0.22);
+    }
+    .piece, .slot, .card, .balloon {
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    .piece.dragging, .card.dragging { opacity: 0.55; z-index: 40; }
+    .slot.ready, .drop.ready {
+      outline: 4px solid #8fc4b4;
+      outline-offset: 2px;
+    }
+    .slot.filled { background: #f7fbf9; }
+    .soft-pop { animation: popIn 0.45s ease; }
+    @keyframes popIn {
+      from { transform: scale(0.86); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    @keyframes floaty {
+      0% { transform: translateY(0); }
+      50% { transform: translateY(-14px); }
+      100% { transform: translateY(0); }
+    }
+    @keyframes fadeLift {
+      to { transform: translateY(-28px) scale(1.08); opacity: 0; }
+    }
+    .balloon { animation: floaty 5.5s ease-in-out infinite; }
+    .balloon.leaving { animation: fadeLift 0.7s ease forwards; pointer-events: none; }
+    .celebrate {
+      animation: popIn 0.5s ease;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .balloon, .soft-pop, .celebrate { animation: none !important; }
+    }
+  </style>
+</head>
+<body class="text-pine">
+  <a href="#oyun-alani" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-white focus:px-4 focus:py-2">Oyuna atla</a>
+
+  <header class="px-4 pt-5 pb-3 max-w-3xl mx-auto">
+    <a href="/" class="inline-flex min-h-12 items-center text-sage font-extrabold">← Engelsiz Club</a>
+    <h1 class="mt-2 text-3xl sm:text-4xl font-black tracking-tight">Beceri ve Oyun</h1>
+    <p class="mt-2 text-base sm:text-lg font-semibold text-pine/75 max-w-xl">
+      Sakin, yavaş ve dokunarak. Süre yok, puan baskısı yok. İstediğin kadar dene.
+    </p>
+  </header>
+
+  <nav class="px-4 max-w-3xl mx-auto" aria-label="Oyunlar">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" role="tablist">
+      <button type="button" role="tab" id="tab-esles" aria-controls="panel-esles" aria-selected="true"
+        class="tab-btn min-h-[64px] rounded-2xl bg-white/80 px-4 text-lg font-extrabold shadow-sm">
+        Dokun ve Eşleştir
+      </button>
+      <button type="button" role="tab" id="tab-balon" aria-controls="panel-balon" aria-selected="false"
+        class="tab-btn min-h-[64px] rounded-2xl bg-white/80 px-4 text-lg font-extrabold shadow-sm">
+        Sakin Balonlar
+      </button>
+      <button type="button" role="tab" id="tab-rutin" aria-controls="panel-rutin" aria-selected="false"
+        class="tab-btn min-h-[64px] rounded-2xl bg-white/80 px-4 text-lg font-extrabold shadow-sm">
+        Günlük Rutin
+      </button>
+    </div>
+  </nav>
+
+  <main id="oyun-alani" class="px-4 pb-16 pt-5 max-w-3xl mx-auto">
+    <p id="status" class="mb-4 min-h-8 text-lg font-bold text-pine/80" aria-live="polite"></p>
+
+    <!-- 1. Eşleştir -->
+    <section id="panel-esles" role="tabpanel" aria-labelledby="tab-esles" class="space-y-5">
+      <p class="text-base font-semibold text-pine/70">Nesneye dokun, sonra evine dokun. Sürükleyerek de bırakabilirsin.</p>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="match-pieces"></div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="match-slots"></div>
+      <button type="button" id="match-reset" class="min-h-14 w-full rounded-2xl bg-sage text-white text-xl font-extrabold">Yeniden dene</button>
+    </section>
+
+    <!-- 2. Balonlar -->
+    <section id="panel-balon" role="tabpanel" aria-labelledby="tab-balon" class="hidden">
+      <p class="text-base font-semibold text-pine/70 mb-3">Balona dokun. Yumuşak bir sesle uçar. Acele yok.</p>
+      <div class="flex gap-3 mb-3">
+        <button type="button" id="balon-sakin" class="min-h-14 flex-1 rounded-2xl bg-white font-extrabold text-lg shadow-sm">Daha sakin</button>
+        <button type="button" id="balon-ses" class="min-h-14 flex-1 rounded-2xl bg-white font-extrabold text-lg shadow-sm" aria-pressed="true">Ses açık</button>
+      </div>
+      <div id="balloon-sky" class="relative overflow-hidden rounded-3xl bg-gradient-to-b from-sky/70 to-foam min-h-[420px] h-[58vh]"></div>
+      <p class="mt-3 text-center text-lg font-extrabold text-pine/70">Bugün <span id="balloon-count">0</span> balon</p>
+    </section>
+
+    <!-- 3. Rutin -->
+    <section id="panel-rutin" role="tabpanel" aria-labelledby="tab-rutin" class="hidden space-y-4">
+      <p class="text-base font-semibold text-pine/70">Kartları sabah sırasına göre diz. Yanlış olsa da sorun yok; birlikte bakarız.</p>
+      <div id="routine-slots" class="space-y-3"></div>
+      <div id="routine-cards" class="grid grid-cols-2 gap-3"></div>
+      <button type="button" id="routine-reset" class="min-h-14 w-full rounded-2xl bg-sage text-white text-xl font-extrabold">Kartları karıştır</button>
+    </section>
+  </main>
+
+  <script>
+(function () {
+  const statusEl = document.getElementById('status');
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  const panels = {
+    'tab-esles': document.getElementById('panel-esles'),
+    'tab-balon': document.getElementById('panel-balon'),
+    'tab-rutin': document.getElementById('panel-rutin')
+  };
+
+  function say(msg) { statusEl.textContent = msg; }
+
+  tabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      tabs.forEach((t) => t.setAttribute('aria-selected', String(t === tab)));
+      Object.entries(panels).forEach(([id, panel]) => {
+        panel.classList.toggle('hidden', id !== tab.id);
+      });
+      if (tab.id === 'tab-esles') say('Nesneyi evine götür.');
+      if (tab.id === 'tab-balon') {
+        say('Balonlara yavaşça dokun.');
+        BalloonGame.ensure();
+      }
+      if (tab.id === 'tab-rutin') say('Kartları sıraya diz.');
+    });
+  });
+
+  /* ---- yumuşak ses (dosya yok, Web Audio) ---- */
+  const SoftSound = {
+    ctx: null,
+    enabled: true,
+    unlock() {
+      if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+    },
+    tone(freq, dur, type) {
+      if (!this.enabled) return;
+      this.unlock();
+      const ctx = this.ctx;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type || 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.07, ctx.currentTime + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + dur + 0.02);
+    },
+    success() { this.tone(523.25, 0.28); setTimeout(() => this.tone(659.25, 0.32), 90); },
+    pop() { this.tone(392, 0.22, 'triangle'); },
+    gentle() { this.tone(349.23, 0.18); }
+  };
+  document.addEventListener('pointerdown', () => SoftSound.unlock(), { once: true });
+
+  /* ---- Dokun ve Eşleştir ---- */
+  const PAIRS = [
+    { id: 'elma', emoji: '🍎', label: 'Elma', home: '🧺', homeLabel: 'Sepet', tint: 'bg-peach' },
+    { id: 'balik', emoji: '🐟', label: 'Balık', home: '🌊', homeLabel: 'Su', tint: 'bg-sky' },
+    { id: 'ay', emoji: '🌙', label: 'Ay', home: '🌃', homeLabel: 'Gece', tint: 'bg-lilac' },
+    { id: 'cicek', emoji: '🌼', label: 'Çiçek', home: '🪴', homeLabel: 'Saksı', tint: 'bg-mint' }
+  ];
+
+  const MatchGame = {
+    selected: null,
+    done: new Set(),
+    init() {
+      this.done.clear();
+      this.selected = null;
+      this.render();
+      say('Nesneyi evine götür.');
+    },
+    render() {
+      const pieces = document.getElementById('match-pieces');
+      const slots = document.getElementById('match-slots');
+      pieces.innerHTML = '';
+      slots.innerHTML = '';
+      const order = shuffle(PAIRS.map((p) => p.id));
+      const slotOrder = shuffle(PAIRS.map((p) => p.id));
+      order.forEach((id) => {
+        const p = PAIRS.find((x) => x.id === id);
+        if (this.done.has(id)) return;
+        pieces.appendChild(this.pieceEl(p));
+      });
+      slotOrder.forEach((id) => {
+        const p = PAIRS.find((x) => x.id === id);
+        slots.appendChild(this.slotEl(p));
+      });
+    },
+    pieceEl(p) {
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = `piece ${p.tint} min-h-[108px] rounded-3xl shadow-sm flex flex-col items-center justify-center gap-1 text-5xl font-black`;
+      el.dataset.id = p.id;
+      el.setAttribute('aria-label', p.label);
+      el.innerHTML = `<span aria-hidden="true">${p.emoji}</span><span class="text-base">${p.label}</span>`;
+      el.addEventListener('click', () => this.pick(p.id));
+      this.enableDrag(el, p.id);
+      return el;
+    },
+    slotEl(p) {
+      const el = document.createElement('div');
+      el.className = 'slot drop min-h-[108px] rounded-3xl border-4 border-dashed border-sage/40 bg-white/70 flex flex-col items-center justify-center gap-1 text-4xl font-black';
+      el.dataset.home = p.id;
+      el.setAttribute('aria-label', p.homeLabel + ' yeri');
+      if (this.done.has(p.id)) {
+        el.classList.add('filled', 'soft-pop');
+        el.innerHTML = `<span aria-hidden="true">${p.emoji}</span><span class="text-base">${p.label}</span>`;
+      } else {
+        el.innerHTML = `<span aria-hidden="true">${p.home}</span><span class="text-base">${p.homeLabel}</span>`;
+      }
+      el.addEventListener('click', () => this.dropOn(p.id));
+      el.addEventListener('pointerup', () => {
+        if (el.classList.contains('ready')) this.dropOn(p.id);
+      });
+      return el;
+    },
+    pick(id) {
+      if (this.done.has(id)) return;
+      this.selected = id;
+      document.querySelectorAll('.piece').forEach((n) => {
+        n.style.boxShadow = n.dataset.id === id ? '0 0 0 4px #6ea89a' : '';
+      });
+      SoftSound.gentle();
+      const p = PAIRS.find((x) => x.id === id);
+      say(p.label + ' seçildi. Şimdi evine dokun.');
+    },
+    dropOn(id) {
+      if (!this.selected) {
+        say('Önce bir nesneye dokun.');
+        return;
+      }
+      if (this.selected === id) {
+        this.done.add(id);
+        this.selected = null;
+        SoftSound.success();
+        const p = PAIRS.find((x) => x.id === id);
+        say('Güzel, ' + p.label + ' evinde.');
+        this.render();
+        if (this.done.size === PAIRS.length) {
+          say('Hepsi yerinde. İstersen yeniden dene.');
+        }
+      } else {
+        SoftSound.gentle();
+        say('Bu ev değil. Başka bir yere bakalım.');
+      }
+    },
+    enableDrag(el, id) {
+      let start = null;
+      el.addEventListener('pointerdown', (e) => {
+        el.setPointerCapture(e.pointerId);
+        start = { x: e.clientX, y: e.clientY };
+        this.pick(id);
+        el.classList.add('dragging');
+      });
+      el.addEventListener('pointermove', (e) => {
+        if (!start) return;
+        const over = document.elementFromPoint(e.clientX, e.clientY);
+        document.querySelectorAll('.slot').forEach((s) => s.classList.remove('ready'));
+        const slot = over && over.closest ? over.closest('.slot') : null;
+        if (slot) slot.classList.add('ready');
+      });
+      el.addEventListener('pointerup', (e) => {
+        el.classList.remove('dragging');
+        const over = document.elementFromPoint(e.clientX, e.clientY);
+        const slot = over && over.closest ? over.closest('.slot') : null;
+        document.querySelectorAll('.slot').forEach((s) => s.classList.remove('ready'));
+        if (slot) this.dropOn(slot.dataset.home);
+        start = null;
+      });
+    }
+  };
+  document.getElementById('match-reset').addEventListener('click', () => MatchGame.init());
+
+  /* ---- Sakin Balonlar ---- */
+  const BalloonGame = {
+    sky: document.getElementById('balloon-sky'),
+    countEl: document.getElementById('balloon-count'),
+    count: 0,
+    calm: false,
+    timer: null,
+    colors: ['#b9d7ee', '#d7c8ea', '#c8e6d4', '#f3d5c4', '#f6e7b8', '#c5dce8'],
+    ensure() {
+      if (this.timer) return;
+      this.spawnMany(this.calm ? 4 : 7);
+      this.timer = setInterval(() => {
+        const n = this.sky.querySelectorAll('.balloon:not(.leaving)').length;
+        const max = this.calm ? 5 : 9;
+        if (n < max) this.spawn();
+      }, this.calm ? 2800 : 1600);
+    },
+    spawnMany(n) { for (let i = 0; i < n; i++) setTimeout(() => this.spawn(), i * 180); },
+    spawn() {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'balloon absolute rounded-full shadow-md';
+      const size = 72 + Math.floor(Math.random() * 48);
+      b.style.width = size + 'px';
+      b.style.height = size + 'px';
+      b.style.left = (6 + Math.random() * 78) + '%';
+      b.style.top = (8 + Math.random() * 70) + '%';
+      b.style.background = this.colors[Math.floor(Math.random() * this.colors.length)];
+      b.style.animationDelay = (-Math.random() * 5) + 's';
+      b.setAttribute('aria-label', 'Sakin balon');
+      b.addEventListener('click', () => this.pop(b));
+      this.sky.appendChild(b);
+    },
+    pop(b) {
+      if (b.classList.contains('leaving')) return;
+      b.classList.add('leaving');
+      SoftSound.pop();
+      this.count += 1;
+      this.countEl.textContent = String(this.count);
+      say('Balon uçtu. Yavaşça devam edebilirsin.');
+      setTimeout(() => b.remove(), 700);
+    }
+  };
+  document.getElementById('balon-sakin').addEventListener('click', () => {
+    BalloonGame.calm = !BalloonGame.calm;
+    document.getElementById('balon-sakin').textContent = BalloonGame.calm ? 'Biraz daha balon' : 'Daha sakin';
+    if (BalloonGame.timer) {
+      clearInterval(BalloonGame.timer);
+      BalloonGame.timer = null;
+    }
+    BalloonGame.ensure();
+  });
+  document.getElementById('balon-ses').addEventListener('click', () => {
+    SoftSound.enabled = !SoftSound.enabled;
+    const btn = document.getElementById('balon-ses');
+    btn.textContent = SoftSound.enabled ? 'Ses açık' : 'Ses kapalı';
+    btn.setAttribute('aria-pressed', String(SoftSound.enabled));
+  });
+
+  /* ---- Günlük rutin ---- */
+  const STEPS = [
+    { id: 'uyan', emoji: '🌅', label: 'Uyanmak' },
+    { id: 'dis', emoji: '🪥', label: 'Diş fırçalamak' },
+    { id: 'kahvalti', emoji: '🥣', label: 'Kahvaltı' },
+    { id: 'giyin', emoji: '👕', label: 'Giyinmek' },
+    { id: 'okul', emoji: '🎒', label: 'Okula gitmek' }
+  ];
+
+  const RoutineGame = {
+    placed: [null, null, null, null, null],
+    init() {
+      this.placed = [null, null, null, null, null];
+      this.selected = null;
+      this.render();
+      say('Kartları sabah sırasına diz.');
+    },
+    remaining() {
+      return STEPS.filter((s) => !this.placed.includes(s.id));
+    },
+    render() {
+      const slots = document.getElementById('routine-slots');
+      const cards = document.getElementById('routine-cards');
+      slots.innerHTML = '';
+      cards.innerHTML = '';
+      this.placed.forEach((id, i) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'drop slot min-h-[76px] rounded-2xl bg-white/80 border-4 border-dashed border-sage/35 px-3 flex items-center gap-3';
+        wrap.dataset.index = String(i);
+        wrap.addEventListener('click', () => this.put(i));
+        const num = `<span class="flex h-12 w-12 items-center justify-center rounded-full bg-mist text-xl font-black">${i + 1}</span>`;
+        if (id) {
+          const s = STEPS.find((x) => x.id === id);
+          wrap.classList.add('filled');
+          wrap.innerHTML = num + `<span class="text-3xl" aria-hidden="true">${s.emoji}</span><span class="text-lg font-extrabold">${s.label}</span>`;
+        } else {
+          wrap.innerHTML = num + `<span class="text-pine/50 font-bold">Buraya bir kart</span>`;
+        }
+        slots.appendChild(wrap);
+      });
+      shuffle(this.remaining()).forEach((s) => {
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'card min-h-[96px] rounded-3xl bg-butter flex flex-col items-center justify-center text-4xl font-black shadow-sm';
+        el.dataset.id = s.id;
+        el.innerHTML = `<span aria-hidden="true">${s.emoji}</span><span class="text-base mt-1">${s.label}</span>`;
+        el.addEventListener('click', () => this.pick(s.id));
+        this.enableDrag(el, s.id);
+        cards.appendChild(el);
+      });
+    },
+    pick(id) {
+      this.selected = id;
+      document.querySelectorAll('.card').forEach((n) => {
+        n.style.boxShadow = n.dataset.id === id ? '0 0 0 4px #6ea89a' : '';
+      });
+      SoftSound.gentle();
+      const s = STEPS.find((x) => x.id === id);
+      say(s.label + ' seçildi. Sıradaki kutuya dokun.');
+    },
+    put(index) {
+      if (this.placed[index]) {
+        const back = this.placed[index];
+        this.placed[index] = null;
+        this.selected = back;
+        this.render();
+        say('Kartı aldık. İstediğin kutuya koy.');
+        return;
+      }
+      if (!this.selected) {
+        say('Önce bir karta dokun.');
+        return;
+      }
+      this.placed[index] = this.selected;
+      this.selected = null;
+      SoftSound.gentle();
+      this.render();
+      this.check();
+    },
+    check() {
+      if (this.placed.some((x) => !x)) return;
+      const ok = this.placed.every((id, i) => id === STEPS[i].id);
+      if (ok) {
+        SoftSound.success();
+        say('Harika. Sabah rutini tamam. İstersen kartları karıştır.');
+      } else {
+        say('Sıra biraz karışık. Kartlara dokunup yerlerini değiştirebilirsin. Acele yok.');
+      }
+    },
+    enableDrag(el, id) {
+      el.addEventListener('pointerdown', (e) => {
+        el.setPointerCapture(e.pointerId);
+        this.pick(id);
+        el.classList.add('dragging');
+      });
+      el.addEventListener('pointermove', (e) => {
+        document.querySelectorAll('#routine-slots .slot').forEach((s) => s.classList.remove('ready'));
+        const over = document.elementFromPoint(e.clientX, e.clientY);
+        const slot = over && over.closest ? over.closest('#routine-slots .slot') : null;
+        if (slot) slot.classList.add('ready');
+      });
+      el.addEventListener('pointerup', (e) => {
+        el.classList.remove('dragging');
+        const over = document.elementFromPoint(e.clientX, e.clientY);
+        const slot = over && over.closest ? over.closest('#routine-slots .slot') : null;
+        document.querySelectorAll('#routine-slots .slot').forEach((s) => s.classList.remove('ready'));
+        if (slot) this.put(Number(slot.dataset.index));
+      });
+    }
+  };
+  document.getElementById('routine-reset').addEventListener('click', () => RoutineGame.init());
+
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  MatchGame.init();
+  RoutineGame.init();
+  say('Nesneyi evine götür.');
+})();
+  </script>
+</body>
+</html>

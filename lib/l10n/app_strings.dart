@@ -30,7 +30,7 @@ abstract final class S {
 const _tables = <AppLang, Map<String, String>>{
   AppLang.tr: {
     'nav_home': 'Ana',
-    'nav_map': 'Harita',
+    'nav_map': 'Engelsiz Haritalar',
     'nav_listings': 'İlanlar',
     'nav_scan': 'Tarama',
     'nav_forum': 'Forum',
@@ -51,10 +51,10 @@ const _tables = <AppLang, Map<String, String>>{
     'tour_kesfet':
         'Onaylı kısa videolar: engellilik, sağlık, haklar ve aile. Forum yanındaki sekmede.',
     'tour_more':
-        'Harita artık alt çubukta değil — buradan açılır. Taramalar & Egzersizler & Oyun (Puzzle, CVI, otizm taraması) da burada.',
+        'Engelsiz Haritalar artık alt çubukta değil — buradan açılır. Taramalar & Egzersizler & Oyun (Puzzle, CVI, otizm taraması) da burada.',
     'tour_messages':
         'Mesajlar üst çubukta duruyor. Anlaştığın uzman ve bakıcılarla iletişim buradan devam eder.',
-    'more_map': 'Harita',
+    'more_map': 'Engelsiz Haritalar',
     'more_map_sub': 'Destek merkezleri ve yakındaki hizmet noktaları',
     'more_rights': 'Hak Sorgulama Sihirbazı',
     'more_rights_sub': 'Haklarınızı adım adım sorgulayın',
@@ -131,7 +131,7 @@ const _tables = <AppLang, Map<String, String>>{
   },
   AppLang.en: {
     'nav_home': 'Home',
-    'nav_map': 'Map',
+    'nav_map': 'Engelsiz Haritalar',
     'nav_listings': 'Listings',
     'nav_scan': 'Scan',
     'nav_forum': 'Forum',
@@ -152,10 +152,10 @@ const _tables = <AppLang, Map<String, String>>{
     'tour_scan':
         'Scan a product barcode/label or a medicine package insert. Switch Ürün | İlaç at the top. This is not a diagnosis.',
     'tour_more':
-        'Map is no longer on the bar — open it here. Screenings, exercises and games (Puzzle, CVI, autism screening) are here too.',
+        'Engelsiz Haritalar is no longer on the bar — open it here. Screenings, exercises and games (Puzzle, CVI, autism screening) are here too.',
     'tour_messages':
         'Messages stay in the top bar. Chat with specialists and caregivers from here.',
-    'more_map': 'Map',
+    'more_map': 'Engelsiz Haritalar',
     'more_map_sub': 'Support centers and nearby services',
     'more_rights': 'Benefits Wizard',
     'more_rights_sub': 'Check your rights step by step',
@@ -232,7 +232,7 @@ const _tables = <AppLang, Map<String, String>>{
   },
   AppLang.de: {
     'nav_home': 'Start',
-    'nav_map': 'Karte',
+    'nav_map': 'Engelsiz Haritalar',
     'nav_listings': 'Anzeigen',
     'nav_scan': 'Scan',
     'nav_forum': 'Forum',
@@ -253,10 +253,10 @@ const _tables = <AppLang, Map<String, String>>{
     'tour_scan':
         'Produktbarcode/-etikett oder Beipackzettel scannen. Oben Ürün | İlaç wählen. Keine Diagnose.',
     'tour_more':
-        'Die Karte ist nicht mehr in der Leiste — hier öffnen. Screenings, Übungen und Spiele (Puzzle, CVI, Autismus-Screening) auch hier.',
+        'Engelsiz Haritalar ist nicht mehr in der Leiste — hier öffnen. Screenings, Übungen und Spiele (Puzzle, CVI, Autismus-Screening) auch hier.',
     'tour_messages':
         'Nachrichten bleiben in der oberen Leiste. Chat mit Fachleuten und Betreuungspersonen von hier.',
-    'more_map': 'Karte',
+    'more_map': 'Engelsiz Haritalar',
     'more_map_sub': 'Zentren und Dienste in der Nähe',
     'more_rights': 'Rechte-Assistent',
     'more_rights_sub': 'Rechte Schritt für Schritt prüfen',
@@ -333,7 +333,7 @@ const _tables = <AppLang, Map<String, String>>{
   },
   AppLang.ar: {
     'nav_home': 'الرئيسية',
-    'nav_map': 'الخريطة',
+    'nav_map': 'Engelsiz Haritalar',
     'nav_listings': 'الإعلانات',
     'nav_scan': 'مسح',
     'nav_forum': 'المنتدى',
@@ -354,10 +354,10 @@ const _tables = <AppLang, Map<String, String>>{
     'tour_scan':
         'امسح باركود/ملصق المنتج أو نشرة الدواء. اختر Ürün | İlaç في الأعلى. هذا ليس تشخيصاً.',
     'tour_more':
-        'الخريطة لم تعد في الشريط — افتحها من هنا. الفحوصات والتمارين والألعاب (بازل، CVI، فحص التوحد) هنا أيضاً.',
+        'Engelsiz Haritalar لم تعد في الشريط — افتحها من هنا. الفحوصات والتمارين والألعاب (بازل، CVI، فحص التوحد) هنا أيضاً.',
     'tour_messages':
         'الرسائل ما زالت في الشريط العلوي. تابع المحادثة مع المختصين ومقدمي الرعاية من هنا.',
-    'more_map': 'الخريطة',
+    'more_map': 'Engelsiz Haritalar',
     'more_map_sub': 'مراكز الدعم والخدمات القريبة',
     'more_rights': 'معالج الحقوق',
     'more_rights_sub': 'تحقق من حقوقك خطوة بخطوة',
@@ -434,7 +434,7 @@ const _tables = <AppLang, Map<String, String>>{
   },
   AppLang.fr: {
     'nav_home': 'Accueil',
-    'nav_map': 'Carte',
+    'nav_map': 'Engelsiz Haritalar',
     'nav_listings': 'Annonces',
     'nav_scan': 'Scan',
     'nav_forum': 'Forum',
@@ -455,10 +455,10 @@ const _tables = <AppLang, Map<String, String>>{
     'tour_scan':
         'Scannez un code-barres/étiquette produit ou une notice médicament. Choisissez Ürün | İlaç en haut. Pas un diagnostic.',
     'tour_more':
-        'La carte n’est plus dans la barre — ouvrez-la ici. Dépistages, exercices et jeux (Puzzle, CVI, dépistage autisme) aussi ici.',
+        'Engelsiz Haritalar n’est plus dans la barre — ouvrez-la ici. Dépistages, exercices et jeux (Puzzle, CVI, dépistage autisme) aussi ici.',
     'tour_messages':
         'Les messages restent dans la barre du haut. Continuez le chat avec spécialistes et aidants ici.',
-    'more_map': 'Carte',
+    'more_map': 'Engelsiz Haritalar',
     'more_map_sub': 'Centres et services à proximité',
     'more_rights': 'Assistant des droits',
     'more_rights_sub': 'Vérifiez vos droits étape par étape',

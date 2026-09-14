@@ -1,0 +1,9 @@
+{
+  "comment": "TİTCK SKRS / SGK listesinde olmayan veya yanlış eşleşen GTIN düzeltmeleri. İndeks yüklemede üzerine yazılır. Takviye / vitamin GTIN'lerini ilaca eşleme; bilinmeyen barkod bulunamadı kalır.",
+  "by": {
+    "8683060650037": [
+      "DULCOSOFT Oral Solüsyon 5 g/10 ml 250 ml",
+      "Makrogol 4000"
+    ]
+  }
+}

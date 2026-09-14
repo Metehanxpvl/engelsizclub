@@ -18,6 +18,7 @@ class MoreMenuItem {
     'harita',
     'merkezler',
     'aile_kocu',
+    'metobot',
     'haklar',
     'kartlar',
     'mchat',
@@ -29,6 +30,7 @@ class MoreMenuItem {
     'puzzle',
     'boyama',
     'destek_sorgu',
+    'firsatlar',
     'folder',
   };
 
@@ -120,9 +122,15 @@ class MoreMenuItem {
     final route = normalizeMoreMenuRoute(rawLink);
     if (route != null) linkType = route == 'folder' ? 'folder' : 'route';
 
+    final parsedTitle = json['title']?.toString() ?? '';
+    final linkKey = (route ?? rawLink.trim()).toLowerCase();
+    final title = (linkKey == 'harita' || linkKey == 'merkezler')
+        ? kEngelsizHaritalarTitle
+        : parsedTitle;
+
     return MoreMenuItem(
       id: (json['id'] as num?)?.toInt() ?? 0,
-      title: json['title']?.toString() ?? '',
+      title: title,
       subtitle: json['subtitle']?.toString() ?? '',
       linkType: linkType,
       link: route ?? rawLink.trim(),
@@ -261,9 +269,11 @@ bool wouldCreateMoreMenuCycle(
   return false;
 }
 
+const kEngelsizHaritalarTitle = 'Engelsiz Haritalar';
+
 const defaultHaritaMenuItem = MoreMenuItem(
   id: -9,
-  title: 'Harita',
+  title: kEngelsizHaritalarTitle,
   subtitle: 'Destek merkezleri ve yakındaki hizmet noktaları',
   linkType: 'route',
   link: 'harita',
@@ -279,17 +289,34 @@ bool isHaritaMenuItem(MoreMenuItem e) {
 }
 
 /// Harita artık alt menüde değil; Daha Fazlası’nda üstte dursun.
+/// [all] içindeki asıl kayıt (iç içe olsa bile) üste alınır; yoksa varsayılan eklenir.
 /// [pinTop] kullanıcı menüsünde her zaman en üste alır; admin listesinde sıra korunur.
 List<MoreMenuItem> withProminentHarita(
   List<MoreMenuItem> items, {
   bool pinTop = true,
+  List<MoreMenuItem>? all,
 }) {
-  final existing = items.where(isHaritaMenuItem).toList();
-  if (existing.isEmpty) {
-    return [defaultHaritaMenuItem, ...items];
+  final pool = all ?? items;
+  final existing = pool.where(isHaritaMenuItem).toList();
+  final harita = existing.isEmpty
+      ? defaultHaritaMenuItem
+      : existing.first.copyWith(
+          parentId: null,
+          title: kEngelsizHaritalarTitle,
+        );
+  final rest = items.where((e) => !isHaritaMenuItem(e)).toList();
+  if (!pinTop) {
+    if (items.any(isHaritaMenuItem)) {
+      return [
+        for (final e in items)
+          isHaritaMenuItem(e)
+              ? e.copyWith(title: kEngelsizHaritalarTitle)
+              : e,
+      ];
+    }
+    return [harita, ...rest];
   }
-  if (!pinTop) return items;
-  return [existing.first, ...items.where((e) => !isHaritaMenuItem(e))];
+  return [harita, ...rest];
 }
 
 /// Eski çağrılar: haritayı gizleme — artık menüde öne çıkar.
@@ -468,14 +495,27 @@ List<MoreMenuItem> withTaramalarGroup(
 
 /// Kullanıcı Daha Fazlası: parent_id ağacının kökleri.
 /// Sütun yoksa eski Taramalar gruplamasına düşer (çift satır olmasın).
+/// Harita her zaman üstte (klasöre taşınmış olsa bile).
 List<MoreMenuItem> prepareUserMoreMenu(List<MoreMenuItem> items) {
   final cleaned = withoutMovedLibraryItems(items);
   if (hasMoreMenuNesting(cleaned)) {
-    return moreMenuRoots(cleaned);
+    return withoutFirsatlar(
+      withMetoBot(
+        withProminentHarita(
+          moreMenuRoots(cleaned),
+          pinTop: true,
+          all: cleaned,
+        ),
+      ),
+    );
   }
-  return withTaramalarGroup(
-    withProminentHarita(cleaned, pinTop: true),
-    pinTop: true,
+  return withoutFirsatlar(
+    withMetoBot(
+      withTaramalarGroup(
+        withProminentHarita(cleaned, pinTop: true),
+        pinTop: true,
+      ),
+    ),
   );
 }
 
@@ -483,13 +523,76 @@ List<MoreMenuItem> prepareUserMoreMenu(List<MoreMenuItem> items) {
 List<MoreMenuItem> prepareAdminMoreMenu(List<MoreMenuItem> items) {
   final cleaned = withoutMovedLibraryItems(List<MoreMenuItem>.from(items));
   if (!hasMoreMenuNesting(cleaned)) {
-    return withTaramalarGroup(
-      withProminentHarita(cleaned, pinTop: false),
-      pinTop: false,
+    return withoutFirsatlar(
+      withMetoBot(
+        withTaramalarGroup(
+          withProminentHarita(cleaned, pinTop: false),
+          pinTop: false,
+        ),
+      ),
     );
   }
   cleaned.sort(compareMoreMenuOrder);
-  return cleaned;
+  return withoutFirsatlar(withMetoBot(cleaned));
+}
+
+const defaultMetoBotMenuItem = MoreMenuItem(
+  id: -23,
+  title: 'MetoBot',
+  subtitle: 'Yardımcı asistan',
+  linkType: 'route',
+  link: 'metobot',
+  icon: 'smart_toy',
+  sortOrder: 12,
+  isActive: true,
+  isBuiltin: true,
+);
+
+bool isMetoBotMenuItem(MoreMenuItem e) {
+  return (e.routeKey ?? e.link.trim().toLowerCase()) == 'metobot';
+}
+
+List<MoreMenuItem> withMetoBot(List<MoreMenuItem> items) {
+  if (items.any(isMetoBotMenuItem)) return items;
+  final aileIdx = items.indexWhere(
+    (e) => (e.routeKey ?? e.link.trim().toLowerCase()) == 'aile_kocu',
+  );
+  if (aileIdx >= 0) {
+    return [
+      ...items.take(aileIdx + 1),
+      defaultMetoBotMenuItem,
+      ...items.skip(aileIdx + 1),
+    ];
+  }
+  return [...items, defaultMetoBotMenuItem];
+}
+
+const defaultFirsatlarMenuItem = MoreMenuItem(
+  id: -24,
+  title: 'Fırsatlar ve Destekler',
+  subtitle: 'Yalnız yönetici — onaylanınca ana sayfa story’sine düşer',
+  linkType: 'route',
+  link: 'firsatlar',
+  icon: 'volunteer',
+  sortOrder: 21,
+  isActive: true,
+  isBuiltin: true,
+);
+
+bool isFirsatlarMenuItem(MoreMenuItem e) {
+  return (e.routeKey ?? e.link.trim().toLowerCase()) == 'firsatlar';
+}
+
+List<MoreMenuItem> withoutFirsatlar(List<MoreMenuItem> items) {
+  return items.where((e) => !isFirsatlarMenuItem(e)).toList();
+}
+
+/// Fırsatlar Daha Fazlası’nda yok; admin profilde.
+List<MoreMenuItem> visibleMoreMenuForViewer(
+  List<MoreMenuItem> items, {
+  required bool isAdmin,
+}) {
+  return withoutFirsatlar(items);
 }
 
 /// DB yoksa / hata olursa kullanılan varsayılan menü.
@@ -508,6 +611,7 @@ List<MoreMenuItem> defaultMoreMenuItems() => [
         isActive: true,
         isBuiltin: true,
       ),
+      defaultMetoBotMenuItem,
       MoreMenuItem(
         id: -2,
         title: 'Haklar',

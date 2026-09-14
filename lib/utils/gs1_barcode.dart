@@ -77,10 +77,8 @@ class Gs1Barcode {
     return (10 - (sum % 10)) % 10;
   }
 
-  static String _withCheck(String body) => '$body${checkDigit(body)}';
-
-  /// Index keys: GTIN-14, EAN-13 (drop leading 0). Check-digit variants
-  /// belong in [lookupCandidates] so the map does not collide.
+  /// Index keys: GTIN-14, EAN-13 (drop leading 0). Same product only —
+  /// no truncated / recalculated check-digit aliases.
   static List<String> cacheKeys(String code) {
     final c = code.replaceAll(RegExp(r'[^0-9]'), '');
     if (c.isEmpty) return const [];
@@ -95,12 +93,13 @@ class Gs1Barcode {
     return keys.toList();
   }
 
-  /// All GTIN forms to try against an index / `medicines.barcode`.
-  /// GTIN-14, EAN-13, with/without check digit, padded leading zeros.
+  /// Exact GTIN forms only: the scanned digits plus 13↔14 / UPC leading-zero
+  /// padding. Never drop or rewrite a check digit (that maps vitamins onto
+  /// a nearby TİTCK drug).
   static List<GtinForm> lookupCandidates(String raw) {
     final parsed = lookupCode(raw);
     final digits = (parsed ?? raw).replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.length < 8) return const [];
+    if (digits.length < 8 || digits.length > 14) return const [];
     final seen = <String>{};
     final out = <GtinForm>[];
     void add(String value, String form) {
@@ -113,30 +112,28 @@ class Gs1Barcode {
     add(digits, 'raw');
     add(canonicalGtin(digits), 'canonical');
     if (digits.length == 12) {
-      add(_withCheck(digits), 'ean13_add_check');
-      add('0${_withCheck(digits)}', 'gtin14_add_check');
+      add('0$digits', 'ean13_pad');
+      add('00$digits', 'gtin14_pad');
     }
     if (digits.length == 13) {
       add('0$digits', 'gtin14_pad');
-      add(digits.substring(0, 12), 'ean13_no_check');
-      add(_withCheck(digits.substring(0, 12)), 'ean13_recheck');
-      add('0${_withCheck(digits.substring(0, 12))}', 'gtin14_recheck');
     }
-    if (digits.length == 14) {
-      add(digits, 'gtin14');
-      if (digits.startsWith('0')) add(digits.substring(1), 'ean13_drop0');
-      add(digits.substring(0, 13), 'gtin14_no_check');
-      add(_withCheck(digits.substring(0, 13)), 'gtin14_recheck');
-      if (digits.startsWith('0')) {
-        add(digits.substring(1, 13), 'ean13_no_check');
-        add(_withCheck(digits.substring(1, 13)), 'ean13_recheck');
-      }
+    if (digits.length == 14 && digits.startsWith('0')) {
+      add(digits.substring(1), 'ean13_drop0');
     }
     return out;
   }
 
-  static List<String> lookupKeys(String raw) =>
-      lookupCandidates(raw).map((c) => c.value).toList();
+  /// Map keys for an exact GTIN hit (padding variants of the same number).
+  static List<String> exactLookupKeys(String raw) {
+    final keys = <String>{};
+    for (final cand in lookupCandidates(raw)) {
+      keys.addAll(cacheKeys(cand.value));
+    }
+    return keys.toList();
+  }
+
+  static List<String> lookupKeys(String raw) => exactLookupKeys(raw);
 
   static String? _gtinFromAi01(String body) {
     final parts = body.split(RegExp(r'[\u001D\u001E\u00E8]'));

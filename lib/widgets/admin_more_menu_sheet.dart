@@ -300,6 +300,8 @@ class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
         icon = Icons.qr_code_scanner;
       case 'calculate':
         icon = Icons.calculate_outlined;
+      case 'volunteer':
+        icon = Icons.volunteer_activism_outlined;
       case 'apps':
       case 'folder':
         icon = Icons.folder_outlined;
