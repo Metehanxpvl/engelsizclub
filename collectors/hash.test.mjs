@@ -78,6 +78,12 @@ describe('hash/dedup', () => {
     assert.equal(isDisabilityOpportunity('Serebral paldi fizik tedavi'), true);
     assert.equal(isDisabilityOpportunity('Trizomi 21 farkındalık yürüyüşü'), true);
     assert.equal(isDisabilityOpportunity('Cerebral palsy family support'), true);
+    assert.equal(
+      isDisabilityOpportunity('Evde Bakım Yardımı ödemeleri hesaplara yatırıldı'),
+      true,
+    );
+    assert.equal(isDisabilityOpportunity('EYHGM erişilebilirlik duyurusu'), true);
+    assert.equal(isDisabilityOpportunity('ÇÖZGER raporu başvurusu'), true);
   });
 
   it('rejects İŞKUR / generic burs with no disability terms', () => {

@@ -120,6 +120,11 @@ export const DISABILITY_CORE_KEYWORDS = [
   'braille',
   'paralimpik',
   'meb orgm',
+  'evde bakim yardimi',
+  'engelli kimlik',
+  'eyhgm',
+  'shcek',
+  'tidyes',
 ];
 
 const CORE_WORD_RE = [

@@ -1,7 +1,7 @@
 -- Resmi TR belediye + bakanlık kaynakları → public.content_sources
 -- SQL Editor → Run. events / kariyer / push tablolarına dokunmaz.
 -- Collector YALNIZ pending_review yazar; yayın ve FCM yok.
--- is_active=true yalnızca 2026-09-14 HEAD/GET ile doğrulanmış RSS/Atom.
+-- is_active=true: 2026-09-14 GET ile doğrulanmış RSS/Atom + ASHB EYHGM HTML liste.
 -- TBB indeks sayfaları ve Bursa genel RSS bilinçli kapalı.
 -- muğla.bel.tr → mugla.bel.tr
 
@@ -101,7 +101,7 @@ select * from (values
     'rss',
     true,
     24,
-    'Özel Eğitim ve Rehberlik Hizmetleri GM. GET: RSS 50 madde (2026-09-14). www.meb.gov.tr/rss.php 404.'
+    'ORGM https://orgm.meb.gov.tr/ HTML; /rss 404. Aktif akış: meb_iys_dosyalar/xml/rss_duyurular.xml (GET RSS, 2026-09-14).'
   ),
   (
     'MEB ORGM haberler RSS',
@@ -109,7 +109,7 @@ select * from (values
     'rss',
     true,
     24,
-    'Özel Eğitim ve Rehberlik Hizmetleri GM. GET: RSS 5 madde (2026-09-14).'
+    'ORGM https://orgm.meb.gov.tr/ HTML; aktif akış: meb_iys_dosyalar/xml/rss_haberler.xml (GET RSS, 2026-09-14).'
   ),
   (
     'Bursa BB RSS',
@@ -653,7 +653,15 @@ select * from (values
     'scrape',
     false,
     168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). EYHGM HTML var; RSS/sitemap 404. HTML döküm KAPALI.'
+    'Bakanlık ana sayfa HTML; RSS/sitemap 404. Aktif kaynak: https://www.aile.gov.tr/eyhgm'
+  ),
+  (
+    'ASHB EYHGM (Engelli ve Yaşlı Hizmetleri)',
+    'https://www.aile.gov.tr/eyhgm',
+    'scrape',
+    true,
+    24,
+    'RSS/Atom yok (2026-09-14). Collector /eyhgm/haberler + /eyhgm/duyurular HTML listesini çeker; bakanlık ana sayfa kapalı.'
   ),
   (
     'Çalışma ve Sosyal Güvenlik Bakanlığı',
@@ -829,6 +837,32 @@ where url in (
   'https://www.sirnak.bel.tr/feed/',
   'https://orgm.meb.gov.tr/meb_iys_dosyalar/xml/rss_duyurular.xml',
   'https://orgm.meb.gov.tr/meb_iys_dosyalar/xml/rss_haberler.xml'
+);
+
+-- ASHB EYHGM: RSS yok, dar HTML liste (haberler + duyurular).
+update public.content_sources
+set
+  is_active = true,
+  method = 'scrape',
+  fetch_interval_hours = 24,
+  notes = 'RSS/Atom yok (2026-09-14). Collector /eyhgm/haberler + /eyhgm/duyurular HTML listesini çeker.',
+  updated_at = now()
+where url in (
+  'https://www.aile.gov.tr/eyhgm',
+  'https://www.aile.gov.tr/eyhgm/',
+  'https://www.aile.gov.tr/eyhgm/haberler',
+  'https://www.aile.gov.tr/eyhgm/duyurular'
+);
+
+update public.content_sources
+set
+  is_active = false,
+  notes = 'Bakanlık ana sayfa HTML; RSS yok. Aktif kaynak: https://www.aile.gov.tr/eyhgm',
+  updated_at = now()
+where url in (
+  'https://www.aile.gov.tr',
+  'https://www.aile.gov.tr/',
+  'https://www.aile.gov.tr/sitemap.xml'
 );
 
 -- Bursa genel haber RSS: doğrulanmış olsa da kapalı.
