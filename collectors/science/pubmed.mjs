@@ -18,20 +18,32 @@ function qs(params) {
   return u.toString();
 }
 
-async function eutilsGet(path, params, { timeoutMs = 25000 } = {}) {
-  const url = `${EUTILS}/${path}?${qs(params)}`;
-  const res = await fetch(url, {
-    headers: {
-      accept: 'application/json, text/plain, application/xml, */*',
-      'user-agent': `EngelsizClub-ScienceCollector/1.0 (${EMAIL})`,
-    },
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`PubMed ${path} HTTP ${res.status}: ${text.slice(0, 240)}`);
+async function eutilsGet(path, params, { timeoutMs = 25000, retries = 3 } = {}) {
+  let lastErr;
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      const url = `${EUTILS}/${path}?${qs(params)}`;
+      const res = await fetch(url, {
+        headers: {
+          accept: 'application/json, text/plain, application/xml, */*',
+          'user-agent': `EngelsizClub-ScienceCollector/1.0 (${EMAIL})`,
+        },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(`PubMed ${path} HTTP ${res.status}: ${text.slice(0, 240)}`);
+      }
+      return text;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < retries) {
+        await sleep(delayMs(params.api_key) * attempt);
+        continue;
+      }
+    }
   }
-  return text;
+  throw lastErr || new Error(`PubMed ${path} başarısız`);
 }
 
 export function parseMedlineRecords(raw) {
@@ -144,8 +156,8 @@ export async function esearchIds(term, { apiKey, retmax, reldateDays } = {}) {
     term,
     retmax: retmax ?? 25,
     retmode: 'json',
-    sort: 'pub+date',
-    reldate: reldateDays ?? 45,
+    sort: 'pub date',
+    reldate: reldateDays ?? 90,
     datetype: 'pdat',
     tool: TOOL,
     email: EMAIL,
@@ -155,10 +167,17 @@ export async function esearchIds(term, { apiKey, retmax, reldateDays } = {}) {
   try {
     json = JSON.parse(text);
   } catch {
-    throw new Error('PubMed esearch JSON yok');
+    throw new Error(`PubMed esearch JSON yok: ${text.slice(0, 180)}`);
   }
+  const err = json?.esearchresult?.ERROR;
+  if (err) throw new Error(`PubMed esearch ERROR: ${err}`);
+  const count = json?.esearchresult?.count;
   const ids = json?.esearchresult?.idlist;
-  return Array.isArray(ids) ? ids.map(String) : [];
+  const list = Array.isArray(ids) ? ids.map(String) : [];
+  console.log(
+    `PubMed esearch count=${count ?? '?'} ids=${list.length} term=${String(term).slice(0, 90)}`,
+  );
+  return list;
 }
 
 export async function efetchMedline(ids, { apiKey } = {}) {
@@ -200,15 +219,31 @@ export function toPubmedItem(rec, source) {
   };
 }
 
+function pubmedQueryList(source, config) {
+  const queries = [
+    ...(Array.isArray(config.pubmed_queries) ? config.pubmed_queries : []),
+  ];
+  const extra = String(source?.query || '').trim();
+  if (extra && !queries.some((q) => String(q.term || '').trim() === extra)) {
+    queries.unshift({ id: 'source_query', term: extra });
+  }
+  return queries;
+}
+
 export async function fetchPubmed(source, opts = {}) {
   const config = opts.config || loadConditions();
   const apiKey = (opts.apiKey || process.env.NCBI_API_KEY || '').trim();
   const retmax = Number(opts.retmax || config.retmax || 25);
-  const reldateDays = Number(opts.reldateDays || config.reldate_days || 45);
-  const queries = Array.isArray(config.pubmed_queries) ? config.pubmed_queries : [];
+  const reldateDays = Number(opts.reldateDays || config.reldate_days || 90);
+  const queries = pubmedQueryList(source, config);
   const wait = opts.sleep || sleep;
   const seen = new Set();
   const items = [];
+  const errors = [];
+
+  if (!queries.length) {
+    throw new Error('PubMed: conditions.json pubmed_queries boş');
+  }
 
   for (const q of queries) {
     const term = String(q.term || '').trim();
@@ -223,14 +258,22 @@ export async function fetchPubmed(source, opts = {}) {
       });
       if (!fresh.length) continue;
       const recs = await efetchMedline(fresh, { apiKey });
+      console.log(`PubMed efetch ${q.id}: recs=${recs.length}`);
       for (const rec of recs) {
         items.push(toPubmedItem(rec, source));
       }
       await wait(delayMs(apiKey));
     } catch (e) {
+      errors.push(`${q.id}: ${e.message}`);
       console.warn(`PubMed sorgu atlandı ${q.id}: ${e.message}`);
     }
   }
 
+  if (!items.length && errors.length) {
+    throw new Error(`PubMed tüm sorgular hata: ${errors.slice(0, 3).join(' | ')}`);
+  }
+  if (!items.length) {
+    console.warn('PubMed: esearch 0 id (reldate/sorgu). conditions.json pubmed_queries kontrol edin.');
+  }
   return items;
 }

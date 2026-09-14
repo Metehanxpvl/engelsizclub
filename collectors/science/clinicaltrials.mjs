@@ -100,42 +100,71 @@ export function toTrialItem(parsed, source) {
   };
 }
 
-export async function fetchClinicalTrialsPage(term, { pageSize = 25 } = {}) {
+export async function fetchClinicalTrialsPage(term, { pageSize = 25, retries = 3 } = {}) {
   const url = new URL(API);
   url.searchParams.set('query.cond', term);
   url.searchParams.set('pageSize', String(pageSize));
   url.searchParams.set('sort', 'LastUpdatePostDate:desc');
   url.searchParams.set('format', 'json');
-  const res = await fetch(url, {
-    headers: {
-      accept: 'application/json',
-      'user-agent': `EngelsizClub-ScienceCollector/1.0 (${EMAIL})`,
-    },
-    signal: AbortSignal.timeout(30000),
-  });
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`ClinicalTrials HTTP ${res.status}: ${text.slice(0, 240)}`);
+  let lastErr;
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          accept: 'application/json',
+          'user-agent': `EngelsizClub-ScienceCollector/1.0 (${EMAIL})`,
+        },
+        signal: AbortSignal.timeout(60000),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(`ClinicalTrials HTTP ${res.status}: ${text.slice(0, 240)}`);
+      }
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        throw new Error(`ClinicalTrials JSON yok: ${text.slice(0, 180)}`);
+      }
+      const studies = Array.isArray(json?.studies) ? json.studies : [];
+      console.log(`ClinicalTrials studies=${studies.length} term=${String(term).slice(0, 80)}`);
+      return studies.map(parseStudy).filter((s) => s.nctId && s.title);
+    } catch (e) {
+      lastErr = e;
+      if (attempt < retries) {
+        await sleep(400 * attempt);
+        continue;
+      }
+    }
   }
-  let json;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    throw new Error('ClinicalTrials JSON yok');
+  throw lastErr || new Error('ClinicalTrials başarısız');
+}
+
+function trialsQueryList(source, config) {
+  const queries = [
+    ...(Array.isArray(config.clinicaltrials_queries)
+      ? config.clinicaltrials_queries
+      : []),
+  ];
+  const extra = String(source?.query || '').trim();
+  if (extra && !queries.some((q) => String(q.term || '').trim() === extra)) {
+    queries.unshift({ id: 'source_query', term: extra });
   }
-  const studies = Array.isArray(json?.studies) ? json.studies : [];
-  return studies.map(parseStudy).filter((s) => s.nctId && s.title);
+  return queries;
 }
 
 export async function fetchClinicalTrials(source, opts = {}) {
   const config = opts.config || loadConditions();
   const pageSize = Number(opts.pageSize || config.clinicaltrials_page_size || 25);
-  const queries = Array.isArray(config.clinicaltrials_queries)
-    ? config.clinicaltrials_queries
-    : [];
+  const queries = trialsQueryList(source, config);
   const wait = opts.sleep || sleep;
   const seen = new Set();
   const items = [];
+  const errors = [];
+
+  if (!queries.length) {
+    throw new Error('ClinicalTrials: conditions.json clinicaltrials_queries boş');
+  }
 
   for (const q of queries) {
     const term = String(q.term || '').trim();
@@ -149,9 +178,18 @@ export async function fetchClinicalTrials(source, opts = {}) {
       }
       await wait(300);
     } catch (e) {
+      errors.push(`${q.id}: ${e.message}`);
       console.warn(`ClinicalTrials sorgu atlandı ${q.id}: ${e.message}`);
     }
   }
 
+  if (!items.length && errors.length) {
+    throw new Error(
+      `ClinicalTrials tüm sorgular hata: ${errors.slice(0, 3).join(' | ')}`,
+    );
+  }
+  if (!items.length) {
+    console.warn('ClinicalTrials: 0 çalışma. query.cond / API v2 kontrol edin.');
+  }
   return items;
 }

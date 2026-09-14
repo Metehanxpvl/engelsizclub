@@ -1,8 +1,18 @@
 import { pathToFileURL } from 'node:url';
-import { scoreResearch } from './ai.mjs';
+import { heuristicPendingScore, scoreResearch } from './ai.mjs';
 import { fetchClinicalTrials } from './clinicaltrials.mjs';
-import { loadConditions, sleep } from './config.mjs';
-import { prefilterKeep, shouldInsertResearch } from './filter.mjs';
+import {
+  EMPTY_SOURCES_SQL_HINT,
+  TABLES_SQL_HINT,
+  fallbackSources,
+  loadConditions,
+  sleep,
+} from './config.mjs';
+import {
+  prefilterKeep,
+  promoteKeepTopicPotential,
+  shouldInsertResearch,
+} from './filter.mjs';
 import {
   isDuplicate,
   remember,
@@ -13,15 +23,6 @@ import { buildInsertRow } from './row.mjs';
 
 const EXISTING_PAGE = 1000;
 const AI_DELAY_MS = 400;
-const TABLES_SQL_HINT = `
-Tablo yok. Supabase Dashboard → SQL Editor → supabase/scientific_researches.sql dosyasının tamamını yapıştırıp Run edin.
-
-  create table if not exists public.scientific_sources (...);
-  create table if not exists public.scientific_researches (...);
-  -- Collector yalnız pending_review yazar; yayın / FCM yok.
-
-İlk Action çalışmadan önce bu SQL'in bir kez koşması gerekir.
-`.trim();
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -119,22 +120,33 @@ async function loadExistingKeys() {
   return existing;
 }
 
-async function loadDueSources() {
-  const rows =
-    (await sb(
-      'scientific_sources?is_active=eq.true&select=id,name,url,method,query,fetch_interval_hours,last_fetched_at',
-    )) || [];
-  const now = Date.now();
-  return (Array.isArray(rows) ? rows : []).filter((s) => {
-    if (!s.last_fetched_at) return true;
-    const hours = Number(s.fetch_interval_hours) || 6;
-    const last = Date.parse(s.last_fetched_at);
-    if (!Number.isFinite(last)) return true;
-    return now - last >= hours * 3600 * 1000;
-  });
+async function loadActiveSources() {
+  let rows;
+  try {
+    rows =
+      (await sb(
+        'scientific_sources?select=id,name,url,method,query,is_active,fetch_interval_hours,last_fetched_at',
+      )) || [];
+  } catch (e) {
+    if (isMissingTableError(e)) {
+      console.error(TABLES_SQL_HINT);
+    }
+    throw e;
+  }
+  const all = Array.isArray(rows) ? rows : [];
+  const active = all.filter(
+    (s) => s.is_active === true || s.is_active === 'true',
+  );
+  console.log(`scientific_sources rows=${all.length} active=${active.length}`);
+  if (!active.length) {
+    console.error(EMPTY_SOURCES_SQL_HINT);
+    return fallbackSources();
+  }
+  return active;
 }
 
 async function touchSource(source) {
+  if (!source?.id) return;
   await sb(`scientific_sources?id=eq.${source.id}`, {
     method: 'PATCH',
     body: { last_fetched_at: new Date().toISOString() },
@@ -214,20 +226,29 @@ async function processItem(item, source, existing, stats) {
     return;
   }
 
+  let ai;
   if (!AI_KEY) {
-    console.warn(`AI anahtarı yok, insert atlandı: ${item.title}`);
+    console.warn(`AI anahtarı yok, kelime yedek POTENTIAL_VALUE: ${item.title}`);
+    ai = heuristicPendingScore(item);
     stats.aiFail += 1;
-    return;
+  } else {
+    try {
+      ai = await scoreResearch(AI_KEY, item);
+      stats.ai += 1;
+    } catch (e) {
+      stats.aiFail += 1;
+      console.warn(`AI hata, kelime yedek POTENTIAL_VALUE: ${item.title} — ${e.message}`);
+      ai = heuristicPendingScore(item);
+    }
   }
 
-  let ai;
-  try {
-    ai = await scoreResearch(AI_KEY, item);
-    stats.ai += 1;
-  } catch (e) {
-    stats.aiFail += 1;
-    console.warn(`AI hata, insert yok (uydurma yok): ${item.title} — ${e.message}`);
-    return;
+  const promoted = promoteKeepTopicPotential(item, ai.treatment_potential);
+  if (promoted !== ai.treatment_potential) {
+    ai = {
+      ...ai,
+      treatment_potential: promoted,
+      ai_notes: `${ai.ai_notes || ''} | keep-topic override ${promoted}`.trim(),
+    };
   }
 
   if (ai.treatment_potential === 'HIGH_VALUE') stats.high += 1;
@@ -266,12 +287,12 @@ async function main() {
     throw new Error('SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY gerekli.');
   }
   if (!AI_KEY) {
-    console.warn('GEMINI_API_KEY / AI_API_KEY yok; AI olmadan insert yapılmaz.');
+    console.warn('GEMINI_API_KEY / AI_API_KEY yok; ön filtre ile POTENTIAL_VALUE pending_review yazılır.');
   }
 
   const config = loadConditions();
   const existing = await loadExistingKeys();
-  const sources = await loadDueSources();
+  const sources = await loadActiveSources();
   const stats = emptyStats();
   stats.sources = sources.length;
   console.log(`aktif kaynak: ${sources.length}`);
@@ -291,15 +312,21 @@ async function main() {
       stats.errors += 1;
       console.warn(`kaynak hata ${source.name}: ${e.message}`);
       if (isMissingTableError(e)) throw e;
-      try {
-        await touchSource(source);
-      } catch {
-        /* ignore */
-      }
     }
   }
 
   printSummary(stats);
+  if (stats.found === 0) {
+    console.error(
+      'found=0. SQL seed (scientific_sources) çalıştı mı? PubMed/ClinicalTrials hatalarına bakın. ' +
+        'supabase/scientific_researches.sql → SQL Editor → Run, sonra workflow\'u main\'de tekrar çalıştırın.',
+    );
+  }
+  if (stats.saved === 0 && stats.found > 0) {
+    console.error(
+      `saved=0 (found=${stats.found} prefilter=${stats.prefilter} irrelevant=${stats.irrelevant} ai_fail=${stats.aiFail}).`,
+    );
+  }
 }
 
 function isEntry() {

@@ -20,7 +20,7 @@ Kurallar:
 - treatment_potential yalnız: HIGH_VALUE | POTENTIAL_VALUE | IRRELEVANT
   HIGH_VALUE: insan, hedef kitleyle ilgili, tedavi/rehabilitasyon/mekanizma açısından anlamlı klinik bağ.
   POTENTIAL_VALUE: ilgili ama erken, hayvan, küçük örneklem, belirsiz.
-  IRRELEVANT: konumuzla alakasız (ör. yalnızca erişkin onkoloji).
+  IRRELEVANT: konumuzla alakasız (ör. yalnızca erişkin onkoloji). Serebral palsi, PVL, HIE, otizm, Down, pediatrik epilepsi, nöroplastisite/remiyelinizasyon/kök hücre-gen tedavisi (bu popülasyonlarda) asla IRRELEVANT değil — en az POTENTIAL_VALUE.
 - Skorlar 0-100 tamsayı.
 - PDF/tam metin yok; yalnız verilen başlık+özet.
 
@@ -143,6 +143,34 @@ export function normalizeAiResult(parsed, item) {
     treatment_potential_score: clampScore(parsed.treatment_potential_score),
     clinical_readiness_score: clampScore(parsed.clinical_readiness_score),
     ai_notes: String(parsed.ai_notes || '').trim().slice(0, 800),
+  };
+}
+
+/** No invented Turkish copy: keep source title/abstract. pending_review only. */
+export function heuristicPendingScore(item) {
+  const title = String(item.title || '').trim().slice(0, 400) || MISSING;
+  return {
+    treatment_potential: 'POTENTIAL_VALUE',
+    title,
+    original_title: String(item.originalTitle || item.title || '')
+      .trim()
+      .slice(0, 400) || title,
+    summary: String(item.summary || '').trim().slice(0, 4000) || MISSING,
+    why_important: MISSING,
+    limitations: MISSING,
+    conditions: Array.isArray(item.conditions) ? item.conditions : [],
+    categories: [],
+    study_type: item.studyType || MISSING,
+    evidence_level: MISSING,
+    study_phase: item.studyPhase || MISSING,
+    human_or_animal: item.humanOrAnimal || MISSING,
+    pediatric_relevance: MISSING,
+    relevance_score: null,
+    scientific_importance_score: null,
+    treatment_potential_score: null,
+    clinical_readiness_score: null,
+    ai_notes:
+      'AI yok veya hata; ön filtre anahtar kelime → POTENTIAL_VALUE. Tedavi vaadi yok; yayın yok.',
   };
 }
 

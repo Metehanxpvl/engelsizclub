@@ -66,3 +66,20 @@ export function shouldInsertResearch(treatmentPotential) {
     .replace(/[\s-]+/g, '_');
   return v === 'HIGH_VALUE' || v === 'POTENTIAL_VALUE';
 }
+
+/**
+ * CP / PVL / HIE / autism / pediatric neuro that already passed prefilter
+ * must not be dropped as IRRELEVANT — keep as POTENTIAL_VALUE at least.
+ */
+export function promoteKeepTopicPotential(
+  item,
+  treatmentPotential,
+  config = loadConditions(),
+) {
+  const v = String(treatmentPotential || '')
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_');
+  if (v === 'HIGH_VALUE' || v === 'POTENTIAL_VALUE') return v;
+  if (prefilterKeep(item, config)) return 'POTENTIAL_VALUE';
+  return v || 'IRRELEVANT';
+}

@@ -45,6 +45,20 @@ create table if not exists public.scientific_sources (
 create unique index if not exists scientific_sources_url_uidx
   on public.scientific_sources (url);
 
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'scientific_sources_url_key'
+      and conrelid = 'public.scientific_sources'::regclass
+  ) then
+    alter table public.scientific_sources
+      add constraint scientific_sources_url_key unique using index scientific_sources_url_uidx;
+  end if;
+exception
+  when duplicate_object then null;
+end $$;
+
 create table if not exists public.scientific_researches (
   id uuid primary key default gen_random_uuid(),
   source_id uuid references public.scientific_sources (id) on delete set null,
@@ -201,8 +215,9 @@ grant all on table public.scientific_sources to postgres, service_role;
 
 -- Resmi API kaynakları. Collector PDF/tam metin çekmez; blog kazımaz.
 -- Cochrane RSS isteğe bağlı (karmaşık/abonelik); şimdilik eklenmedi — conditions.json ile genişletilir.
+-- ON CONFLICT: SQL tekrar Run edilirse PubMed/CT yeniden is_active=true olur (boş/pasif tablo 0 kâğıt üretir).
 insert into public.scientific_sources (name, url, method, query, is_active, fetch_interval_hours, notes)
-select * from (values
+values
   (
     'PubMed',
     'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/',
@@ -210,7 +225,7 @@ select * from (values
     'cerebral palsy OR periventricular leukomalacia OR hypoxic ischemic encephalopathy',
     true,
     6,
-    'NCBI E-utilities (esearch+efetch). NCBI_API_KEY isteğe bağlı. Sorgu listesi collectors/science/conditions.json. Collector pending_review yazar; yayınlamaz.'
+    'NCBI E-utilities (esearch+efetch). NCBI_API_KEY isteğe bağlı. Sorgu listesi collectors/science/conditions.json. Collector pending_review yazar; yayınlamaz. Kaynak satırı yoksa collector conditions.json fallback kullanır.'
   ),
   (
     'ClinicalTrials.gov',
@@ -230,9 +245,20 @@ select * from (values
     24,
     'İsteğe bağlı. Resmi RSS basit ve kararlı değilse kapalı bırakın. Blog kazımayın.'
   )
-) as v(name, url, method, query, is_active, fetch_interval_hours, notes)
-where not exists (
-  select 1 from public.scientific_sources s where s.url = v.url
+on conflict (url) do update set
+  name = excluded.name,
+  method = excluded.method,
+  query = excluded.query,
+  is_active = excluded.is_active,
+  fetch_interval_hours = excluded.fetch_interval_hours,
+  notes = excluded.notes;
+
+-- Eski kurulumda is_active=false kaldıysa API kaynaklarını aç.
+update public.scientific_sources
+set is_active = true, method = 'api'
+where url in (
+  'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/',
+  'https://clinicaltrials.gov/api/v2/studies'
 );
 
 notify pgrst, 'reload schema';

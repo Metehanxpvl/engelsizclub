@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { prefilterKeep, shouldInsertResearch } from './filter.mjs';
+import { prefilterKeep, promoteKeepTopicPotential, shouldInsertResearch } from './filter.mjs';
 
 describe('prefilterKeep', () => {
   it('keeps PVL and cerebral palsy', () => {
@@ -27,7 +27,16 @@ describe('prefilterKeep', () => {
     assert.equal(prefilterKeep('Dental caries in adults'), false);
   });
 
-  it('keeps oncology only when our neuro terms are present', () => {
+  it('keeps autism / pediatric trials', () => {
+    assert.equal(prefilterKeep('Autism spectrum disorder parent training RCT'), true);
+    assert.equal(prefilterKeep('Autism in toddlers: communication therapy'), true);
+    assert.equal(
+      prefilterKeep({
+        title: 'Pediatric epilepsy ketogenic diet',
+        conditions: ['Epilepsy'],
+      }),
+      true,
+    );
     assert.equal(
       prefilterKeep('Pediatric glioma and cerebral palsy outcomes'),
       true,
@@ -42,5 +51,38 @@ describe('shouldInsertResearch', () => {
     assert.equal(shouldInsertResearch('HIGH_VALUE'), true);
     assert.equal(shouldInsertResearch('POTENTIAL_VALUE'), true);
     assert.equal(shouldInsertResearch(''), false);
+  });
+});
+
+describe('promoteKeepTopicPotential', () => {
+  it('does not drop CP/PVL as IRRELEVANT', () => {
+    assert.equal(
+      promoteKeepTopicPotential(
+        { title: 'Cerebral palsy stem cell trial', summary: 'Children with CP' },
+        'IRRELEVANT',
+      ),
+      'POTENTIAL_VALUE',
+    );
+    assert.equal(
+      promoteKeepTopicPotential(
+        { title: 'PVL oligodendrocyte study', summary: 'Preterm' },
+        'irrelevant',
+      ),
+      'POTENTIAL_VALUE',
+    );
+    assert.equal(
+      promoteKeepTopicPotential(
+        { title: 'Metastatic breast cancer chemotherapy trial', summary: '' },
+        'IRRELEVANT',
+      ),
+      'IRRELEVANT',
+    );
+    assert.equal(
+      promoteKeepTopicPotential(
+        { title: 'Cerebral palsy gait RCT', summary: '' },
+        'HIGH_VALUE',
+      ),
+      'HIGH_VALUE',
+    );
   });
 });
