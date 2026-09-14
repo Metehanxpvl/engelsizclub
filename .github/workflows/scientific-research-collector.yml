@@ -1,0 +1,56 @@
+# Bilimsel araştırma toplayıcı → public.scientific_sources → public.scientific_researches
+# (status=pending_review). Kariyer / AVM / useful-content / FCM / login iş akışlarına dokunmaz.
+#
+# Gerekli repo secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+#   GEMINI_API_KEY   (yoksa AI_API_KEY)
+# İsteğe bağlı:
+#   NCBI_API_KEY     (PubMed E-utilities hız limiti)
+# Anahtarları YAML’e yazmayın. Flutter’a koymayın. service_role istemcide yok.
+#
+# İlk çalıştırmadan önce SQL Editor → supabase/scientific_researches.sql → Run.
+# Collector asla published yazmaz; FCM yok; tedavi vaadi yok.
+#
+# Cron yalnız default branch’te çalışır.
+#   Actions → Scientific research collector → Run workflow → branch main
+# Cron 0 */6 * * * (UTC :00) — Kariyer 05:00 ve useful-content 07:30 ile çakışmaz.
+name: Scientific research collector
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install science collector deps
+        working-directory: collectors/science
+        run: npm ci
+      - name: Science collector unit tests
+        working-directory: collectors/science
+        run: npm test
+      - name: Collect → pending_review
+        working-directory: collectors/science
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+        run: |
+          # Secret may omit the extra `a` in the project ref; rewrite before node.
+          SUPABASE_URL="${SUPABASE_URL//qycrkqwqrysypvqipqn/qycrkqwqrysypvqaipqn}"
+          SUPABASE_URL="${SUPABASE_URL//ypvqipqn.supabase.co/ypvqaipqn.supabase.co}"
+          export SUPABASE_URL
+          npm run collect

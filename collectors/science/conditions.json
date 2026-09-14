@@ -1,0 +1,132 @@
+{
+  "retmax": 25,
+  "reldate_days": 45,
+  "clinicaltrials_page_size": 25,
+  "pubmed_queries": [
+    {
+      "id": "cp",
+      "term": "cerebral palsy[Title/Abstract]"
+    },
+    {
+      "id": "pvl",
+      "term": "periventricular leukomalacia[Title/Abstract] OR \"periventricular white matter injury\"[Title/Abstract]"
+    },
+    {
+      "id": "hie",
+      "term": "hypoxic ischemic encephalopathy[Title/Abstract] OR \"hypoxic-ischaemic encephalopathy\"[Title/Abstract]"
+    },
+    {
+      "id": "autism",
+      "term": "(autism spectrum disorder[Title/Abstract] OR autism[Title/Abstract]) AND (pediatric[Title/Abstract] OR child[Title/Abstract] OR neurodevelopmental[Title/Abstract] OR therapy[Title/Abstract] OR trial[Title/Abstract])"
+    },
+    {
+      "id": "down",
+      "term": "(down syndrome[Title/Abstract] OR \"trisomy 21\"[Title/Abstract]) AND (neuro[Title/Abstract] OR therapy[Title/Abstract] OR trial[Title/Abstract] OR pediatric[Title/Abstract])"
+    },
+    {
+      "id": "epilepsy",
+      "term": "(epilepsy[Title/Abstract] OR epileptic[Title/Abstract]) AND (pediatric[Title/Abstract] OR \"cerebral palsy\"[Title/Abstract] OR neurodevelopmental[Title/Abstract] OR \"infantile spasm\"[Title/Abstract])"
+    },
+    {
+      "id": "mechanisms",
+      "term": "(neuroplasticity[Title/Abstract] OR remyelination[Title/Abstract] OR oligodendrocyte[Title/Abstract]) AND (\"cerebral palsy\"[Title/Abstract] OR leukomalacia[Title/Abstract] OR pediatric[Title/Abstract] OR neonatal[Title/Abstract])"
+    },
+    {
+      "id": "gene_stem",
+      "term": "(\"gene therapy\"[Title/Abstract] OR \"stem cell\"[Title/Abstract] OR \"mesenchymal stem\"[Title/Abstract]) AND (\"cerebral palsy\"[Title/Abstract] OR leukomalacia[Title/Abstract] OR \"hypoxic ischemic\"[Title/Abstract] OR autism[Title/Abstract] OR \"down syndrome\"[Title/Abstract])"
+    }
+  ],
+  "clinicaltrials_queries": [
+    { "id": "cp", "term": "cerebral palsy" },
+    { "id": "pvl", "term": "periventricular leukomalacia" },
+    { "id": "hie", "term": "hypoxic ischemic encephalopathy" },
+    { "id": "autism", "term": "autism spectrum disorder" },
+    { "id": "down", "term": "down syndrome" },
+    { "id": "epilepsy_pediatric", "term": "pediatric epilepsy" }
+  ],
+  "keep_keywords": [
+    "cerebral palsy",
+    "serebral palsi",
+    "serebral pal",
+    "periventricular leukomalacia",
+    "periventricular white matter",
+    "periventrikuler",
+    "periventriküler",
+    "leukomalacia",
+    "lökomalazi",
+    "lokomalazi",
+    "hypoxic ischemic encephalopathy",
+    "hypoxic-ischaemic encephalopathy",
+    "hypoxic ischaemic",
+    "hipoksik iskemik",
+    "autism spectrum",
+    "autistic",
+    "otizm",
+    "asperger",
+    "down syndrome",
+    "down sendrom",
+    "trisomy 21",
+    "trizomi 21",
+    "epilepsy",
+    "epileptic",
+    "epilepsi",
+    "infantile spasm",
+    "west syndrome",
+    "neuroplasticity",
+    "noroplastisite",
+    "nöroplastisite",
+    "remyelination",
+    "remiyelin",
+    "oligodendrocyte",
+    "oligodendrosit",
+    "gene therapy",
+    "gen tedavisi",
+    "gen terapisi",
+    "stem cell",
+    "kok hucre",
+    "kök hücre",
+    "mesenchymal stem",
+    "spastic diplegia",
+    "spastik",
+    "white matter injury",
+    "preterm brain",
+    "neonatal encephalopathy"
+  ],
+  "keep_word_re": [
+    "\\bpvl\\b",
+    "\\bhie\\b",
+    "\\basd\\b",
+    "\\bcp\\b"
+  ],
+  "pediatric_neuro_keep": [
+    "pediatric neurology",
+    "paediatric neurology",
+    "child neurology",
+    "neonatal neurology",
+    "pediatric neuro",
+    "brain injury pediatric",
+    "cocuk noroloji",
+    "çocuk nöroloji"
+  ],
+  "reject_unless_keep": [
+    "breast cancer",
+    "lung cancer",
+    "prostate cancer",
+    "colorectal cancer",
+    "pancreatic cancer",
+    "ovarian cancer",
+    "melanoma",
+    "hepatocellular carcinoma",
+    "leukemia chemotherapy",
+    "lymphoma car-t",
+    "coronary artery",
+    "myocardial infarction",
+    "type 2 diabetes mellitus",
+    "osteoarthritis knee",
+    "dental caries",
+    "periodontitis",
+    "covid-19 vaccine manufacturing",
+    "stock market",
+    "agricultural pesticide"
+  ]
+}

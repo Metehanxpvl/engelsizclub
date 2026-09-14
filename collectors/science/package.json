@@ -1,0 +1,9 @@
+{
+  "name": "engelsizclub-scientific-research-collector",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "collect": "node index.mjs",
+    "test": "node --test"
+  }
+}
