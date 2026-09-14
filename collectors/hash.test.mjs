@@ -47,6 +47,11 @@ describe('hash/dedup', () => {
 
   it('matches relevance keywords', () => {
     assert.equal(hasRelevanceKeyword('Özel eğitim bursu'), true);
+    assert.equal(hasRelevanceKeyword('Engelli bakım aylığı'), true);
     assert.equal(hasRelevanceKeyword('Hava durumu'), false);
+    assert.equal(hasRelevanceKeyword("Bursa Büyükşehir Belediyespor’dan galibiyet"), false);
+    assert.equal(hasRelevanceKeyword('TÜBİTAK 1001 çağrısı açıldı'), false);
+    assert.equal(hasRelevanceKeyword('İŞKUR genel iş ilanları'), false);
+    assert.equal(hasRelevanceKeyword('Belediye konseri'), false);
   });
 });

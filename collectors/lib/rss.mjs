@@ -6,6 +6,11 @@ const parser = new XMLParser({
   attributeNamePrefix: '',
   textNodeName: '#text',
   trimValues: true,
+  processEntities: {
+    enabled: true,
+    maxTotalExpansions: 50000,
+    maxEntityCount: 20000,
+  },
 });
 
 function asArray(value) {
@@ -46,26 +51,105 @@ function linkOf(item) {
   return '';
 }
 
-export async function fetchText(url, { timeoutMs = 15000 } = {}) {
+function firstHttpUrl(value) {
+  if (typeof value === 'string' && value.startsWith('http')) return value.trim();
+  if (value && typeof value === 'object') {
+    const href = value.url || value.href || value['#text'];
+    if (typeof href === 'string' && href.startsWith('http')) return href.trim();
+  }
+  return '';
+}
+
+function enclosureImageUrl(item) {
+  const blobs = [
+    item.enclosure,
+    item['media:content'],
+    item['media:thumbnail'],
+    item['itunes:image'],
+  ];
+  for (const raw of blobs) {
+    for (const node of asArray(raw)) {
+      const url = firstHttpUrl(node);
+      if (!url) continue;
+      const type = String(node?.type || node?.medium || '').toLowerCase();
+      if (
+        /image|jpeg|jpg|png|webp|gif/i.test(type) ||
+        /\.(jpe?g|png|webp|gif)(\?|$)/i.test(url)
+      ) {
+        return url;
+      }
+    }
+  }
+  return '';
+}
+
+export const COLLECTOR_UA =
+  'EngelsizClubContentCollector/1.0 (+https://engelsizclub.com)';
+
+export async function fetchText(
+  url,
+  {
+    timeoutMs = 15000,
+    maxBytes = 0,
+    accept = 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
+  } = {},
+) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
       headers: {
-        'user-agent':
-          'EngelsizClubContentCollector/1.0 (+https://engelsizclub.com)',
-        accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
+        'user-agent': COLLECTOR_UA,
+        accept,
       },
       redirect: 'follow',
     });
     if (!res.ok) {
       throw new Error(`HTTP ${res.status} ${url}`);
     }
+    if (maxBytes > 0 && res.body) {
+      const reader = res.body.getReader();
+      const chunks = [];
+      let n = 0;
+      while (n < maxBytes) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        n += value.byteLength;
+      }
+      try {
+        await reader.cancel();
+      } catch {
+        /* ignore */
+      }
+      return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString('utf8');
+    }
     return await res.text();
   } finally {
     clearTimeout(t);
   }
+}
+
+export function looksLikeHtml(text) {
+  const head = String(text || '').slice(0, 2500).toLowerCase();
+  return head.includes('<!doctype html') || /<html[\s>]/.test(head);
+}
+
+export function looksLikeRssOrAtom(text) {
+  if (looksLikeHtml(text)) return false;
+  const head = String(text || '').slice(0, 2500).toLowerCase();
+  return (
+    head.includes('<rss') ||
+    head.includes('<feed') ||
+    head.includes('<rdf:rdf')
+  );
+}
+
+export function looksLikeSitemap(text) {
+  if (looksLikeHtml(text)) return false;
+  const head = String(text || '').slice(0, 2500).toLowerCase();
+  return head.includes('<urlset') || head.includes('<sitemapindex');
 }
 
 export function parseRssOrAtom(xml) {
@@ -82,7 +166,8 @@ export function parseRssOrAtom(xml) {
       );
       const sourceUrl = linkOf(item);
       const externalId = textOf(item.guid || item.id) || sourceUrl;
-      return { title, summary, sourceUrl, externalId };
+      const imageUrl = enclosureImageUrl(item);
+      return { title, summary, sourceUrl, externalId, imageUrl };
     })
     .filter((e) => e.title && e.sourceUrl);
 }

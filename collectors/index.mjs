@@ -1,16 +1,38 @@
 import { classifyCandidate } from './lib/ai.mjs';
 import {
   hasRelevanceKeyword,
+  isDisabilityOpportunity,
   isDuplicate,
   stripHtml,
   usefulContentHash,
 } from './lib/hash.mjs';
 import {
+  extractDisabilityListings,
+  originAllowsFetch,
+  resolveRssFromHomepage,
+} from './lib/discover.mjs';
+import {
   fetchText,
   isXmlUrl,
+  looksLikeHtml,
+  looksLikeRssOrAtom,
+  looksLikeSitemap,
   parseRssOrAtom,
   parseSitemapLocs,
 } from './lib/rss.mjs';
+
+const MAX_ITEMS_RSS = 25;
+const MAX_ITEMS_SCRAPE = 12;
+const MAX_SITEMAP_FEEDS = 8;
+const SOURCE_DELAY_MS = 600;
+const HTML_MAX_BYTES = 80_000;
+const XML_MAX_BYTES = 250_000;
+const TBB_INDEX_RE =
+  /tbb\.gov\.tr\/tr\/(buyuksehir-belediyeleri|il-belediyeleri|bagli-idareler)/i;
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -82,6 +104,28 @@ async function loadDueSources() {
   });
 }
 
+async function rejectUnrelatedPending() {
+  const rows =
+    (await sb(
+      'useful_content?status=eq.pending_review&select=id,title,summary',
+    )) || [];
+  let n = 0;
+  for (const row of rows) {
+    const blob = `${row.title || ''} ${row.summary || ''}`;
+    if (isDisabilityOpportunity(blob)) continue;
+    await sb(`useful_content?id=eq.${row.id}`, {
+      method: 'PATCH',
+      body: {
+        status: 'rejected',
+        ai_notes: 'alakasız_haber',
+      },
+    });
+    n += 1;
+    console.log(`pending reddedildi (alakasız): ${row.title}`);
+  }
+  if (n) console.log(`alakasız pending reddi: ${n}`);
+}
+
 async function markExpired() {
   const now = new Date().toISOString();
   await sb(
@@ -102,15 +146,17 @@ async function collectFromRss(source, xml) {
 }
 
 async function collectFromSitemap(source, xml) {
-  const locs = parseSitemapLocs(xml).filter(isXmlUrl).slice(0, 8);
+  const locs = parseSitemapLocs(xml).filter(isXmlUrl).slice(0, MAX_SITEMAP_FEEDS);
   const items = [];
   for (const loc of locs) {
     try {
-      const nested = await fetchText(loc);
+      const nested = await fetchText(loc, { maxBytes: XML_MAX_BYTES });
+      if (!looksLikeRssOrAtom(nested)) continue;
       items.push(...(await collectFromRss(source, nested)));
     } catch (e) {
       console.warn(`sitemap alt XML atlandı ${loc}: ${e.message}`);
     }
+    await sleep(200);
   }
   return items;
 }
@@ -127,6 +173,11 @@ async function refineItem(item) {
   const summary = stripHtml(item.summary).slice(0, 1200);
   if (!title || !item.sourceUrl) return null;
 
+  if (!isDisabilityOpportunity(`${title} ${summary}`)) {
+    console.log(`engelli çekirdek yok, atlandı: ${title}`);
+    return null;
+  }
+
   if (AI_KEY) {
     try {
       const ai = await classifyCandidate(AI_KEY, {
@@ -138,6 +189,11 @@ async function refineItem(item) {
         console.log(`AI alakasız, atlandı: ${title}`);
         return null;
       }
+      const merged = `${ai.title || title} ${ai.summary || summary}`;
+      if (!isDisabilityOpportunity(merged) && !isDisabilityOpportunity(`${title} ${summary}`)) {
+        console.log(`AI evet dedi ama engelli çekirdek yok, atlandı: ${title}`);
+        return null;
+      }
       return {
         title: stripHtml(ai.title || title).slice(0, 240) || title,
         summary: stripHtml(ai.summary || summary).slice(0, 1200),
@@ -147,13 +203,12 @@ async function refineItem(item) {
         aiNotes: stripHtml(ai.notes || ''),
       };
     } catch (e) {
-      console.warn(`AI hata, insert yok: ${title} — ${e.message}`);
+      console.warn(`AI hata, kayıt yazılmadı: ${title} — ${e.message}`);
       return null;
     }
   }
 
-  const blob = `${title} ${summary}`;
-  if (!hasRelevanceKeyword(blob)) {
+  if (!hasRelevanceKeyword(`${title} ${summary}`)) {
     console.log(`Anahtar kelime yok, atlandı: ${title}`);
     return null;
   }
@@ -204,16 +259,24 @@ async function insertPending(existing, source, raw) {
     deadline_at: refined.deadlineAt,
     ai_notes: refined.aiNotes,
   };
+  const imageUrl = String(raw.imageUrl || '').trim();
+  if (imageUrl.startsWith('http')) row.image_url = imageUrl;
 
   try {
     await sb('useful_content', { method: 'POST', body: row });
   } catch (e) {
-    if (String(e.message).includes('23505') || String(e.message).includes('409')) {
+    const msg = String(e.message);
+    if (msg.includes('23505') || msg.includes('409')) {
       console.log(`benzersiz kısıt, atlandı: ${sourceUrl}`);
       remember(existing, { sourceUrl, contentHash, externalId });
       return false;
     }
-    throw e;
+    if (row.image_url && (msg.includes('image_url') || msg.includes('PGRST204'))) {
+      delete row.image_url;
+      await sb('useful_content', { method: 'POST', body: row });
+    } else {
+      throw e;
+    }
   }
 
   remember(existing, { sourceUrl, contentHash, externalId });
@@ -238,6 +301,7 @@ async function main() {
   }
 
   await markExpired();
+  await rejectUnrelatedPending();
   const existing = await loadExistingKeys();
   const sources = await loadDueSources();
   console.log(`aktif kaynak: ${sources.length}`);
@@ -245,27 +309,85 @@ async function main() {
   let inserted = 0;
   for (const source of sources) {
     const method = String(source.method || 'rss').toLowerCase();
-    if (method === 'scrape' || method === 'api') {
-      console.warn(`v1 ${method} atlandı: ${source.name}`);
+    if (TBB_INDEX_RE.test(source.url || '')) {
+      console.warn(`TBB indeks atlandı (belediye listesi): ${source.name}`);
+      await touchSource(source);
+      continue;
+    }
+    if (method === 'api') {
+      console.warn(`v1 api atlandı: ${source.name}`);
+      await touchSource(source);
+      continue;
+    }
+    if (method === 'scrape' && /bursa\.bel\.tr/i.test(source.url || '')) {
+      console.warn(`Bursa genel HTML tarama atlandı: ${source.name}`);
       await touchSource(source);
       continue;
     }
     try {
-      const xml = await fetchText(source.url);
-      const items =
-        method === 'sitemap'
-          ? await collectFromSitemap(source, xml)
-          : await collectFromRss(source, xml);
-      for (const item of items.slice(0, 40)) {
+      if (!(await originAllowsFetch(source.url))) {
+        console.warn(`robots Disallow:/ atlandı: ${source.name}`);
+        await touchSource(source);
+        continue;
+      }
+      const items = await collectSourceItems(source, method);
+      const cap = method === 'scrape' ? MAX_ITEMS_SCRAPE : MAX_ITEMS_RSS;
+      for (const item of items.slice(0, cap)) {
         if (await insertPending(existing, source, item)) inserted += 1;
       }
       await touchSource(source);
     } catch (e) {
       console.warn(`kaynak hata ${source.name}: ${e.message}`);
     }
+    await sleep(SOURCE_DELAY_MS);
   }
 
   console.log(`eklenen pending_review: ${inserted}`);
+}
+
+async function collectSourceItems(source, method) {
+  if (method === 'scrape') {
+    const html = await fetchText(source.url, {
+      maxBytes: HTML_MAX_BYTES,
+      accept: 'text/html, application/xhtml+xml, */*;q=0.5',
+    });
+    if (!looksLikeHtml(html) && looksLikeRssOrAtom(html)) {
+      return collectFromRss(source, html);
+    }
+    const discovered = await resolveRssFromHomepage(source.url, html);
+    if (discovered) {
+      console.log(`scrape→rss keşif: ${source.name} → ${discovered.url}`);
+      return collectFromRss(source, discovered.xml);
+    }
+    const listings = extractDisabilityListings(html, source.url, {
+      limit: MAX_ITEMS_SCRAPE,
+    });
+    console.log(`scrape aday (engelli başlık): ${source.name} ${listings.length}`);
+    return listings.map((item) => ({
+      ...item,
+      sourceName: source.name,
+      sourceId: source.id,
+    }));
+  }
+
+  const body = await fetchText(source.url, { maxBytes: XML_MAX_BYTES });
+  if (method === 'sitemap' || looksLikeSitemap(body)) {
+    if (looksLikeSitemap(body)) return collectFromSitemap(source, body);
+  }
+  if (looksLikeRssOrAtom(body)) {
+    return collectFromRss(source, body);
+  }
+  if (looksLikeHtml(body)) {
+    const discovered = await resolveRssFromHomepage(source.url, body);
+    if (discovered) {
+      console.log(`html→rss keşif: ${source.name} → ${discovered.url}`);
+      return collectFromRss(source, discovered.xml);
+    }
+    console.warn(`XML/RSS yok, HTML dökümü atlandı: ${source.name}`);
+    return [];
+  }
+  console.warn(`beklenmeyen gövde, atlandı: ${source.name}`);
+  return [];
 }
 
 main().catch((e) => {
