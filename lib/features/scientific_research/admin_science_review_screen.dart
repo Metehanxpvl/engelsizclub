@@ -96,6 +96,17 @@ class _AdminScienceReviewScreenState extends State<AdminScienceReviewScreen> {
                 controller: titleCtrl,
                 decoration: const InputDecoration(labelText: 'Başlık (TR)'),
               ),
+              if (!isBlankOrUnspecified(item.originalTitle) &&
+                  item.originalTitle.trim() != item.title.trim()) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Orijinal başlık: ${item.originalTitle}',
+                  style: GoogleFonts.nunito(
+                    fontSize: 12,
+                    color: MetoColors.mutedFg,
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               TextField(
                 controller: summaryCtrl,
@@ -398,14 +409,8 @@ class _ScienceReviewCard extends StatelessWidget {
             ),
             if (!isBlankOrUnspecified(item.originalTitle) &&
                 item.originalTitle.trim() != item.displayTitle) ...[
-              const SizedBox(height: 4),
-              Text(
-                item.originalTitle,
-                style: GoogleFonts.nunito(
-                  fontSize: 12,
-                  color: MetoColors.mutedFg,
-                ),
-              ),
+              const SizedBox(height: 8),
+              _labeled('Orijinal başlık', item.originalTitle),
             ],
             const SizedBox(height: 8),
             Wrap(

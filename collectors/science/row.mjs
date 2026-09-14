@@ -1,3 +1,4 @@
+import { TITLE_TR_FALLBACK } from './ai.mjs';
 import { MISSING } from './config.mjs';
 
 function missingIfEmpty(v) {
@@ -9,11 +10,11 @@ export function buildInsertRow(item, ai, source, contentHash) {
   const pub = item.publicationDate || null;
   return {
     source_id: source?.id || item.sourceId || null,
-    title: String(ai.title || item.title).slice(0, 400),
+    title: String(ai.title || TITLE_TR_FALLBACK).slice(0, 400),
     original_title: String(
       ai.original_title || item.originalTitle || item.title || '',
     ).slice(0, 400),
-    summary: String(ai.summary || '').slice(0, 4000),
+    summary: String(ai.summary || TITLE_TR_FALLBACK).slice(0, 4000),
     why_important: missingIfEmpty(ai.why_important),
     limitations: missingIfEmpty(ai.limitations),
     conditions: Array.isArray(ai.conditions) ? ai.conditions : [],

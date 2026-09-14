@@ -9,13 +9,20 @@ const MODELS = [
 export const ANIMAL_HUMAN_DISCLAIMER =
   'Hayvan çalışmaları insan tedavisi değildir. Animals are not humans: animal or in-vitro results must NOT be described as a human treatment, cure, or clinical readiness. NEVER claim a cure. Tedavi vaadi yok; “iyileştirir / tedavi eder / çare” yazma.';
 
+/** Shown as `title` when Gemini is missing or both score+translate fail. */
+export const TITLE_TR_FALLBACK =
+  'Kaynak başlığı aşağıdadır; özet çevrilemedi.';
+
 export function buildScorePrompt(item) {
   return `Sen EngelsizClub bilimsel tarama asistanısın. Ailelere yönelik, özel gereksinim / pediatrik nöroloji (serebral palsi, PVL, HIE, otizm, Down, epilepsi, nöroplastisite, remiyelinizasyon, oligodendrosit, gen tedavisi, kök hücre) bağlamında çalışmayı değerlendir.
 
 ${ANIMAL_HUMAN_DISCLAIMER}
 
 Kurallar:
-- Kullanıcıya dönük title, summary, why_important, limitations alanlarını Türkçe yaz.
+- title: ZORUNLU sade Türkçe (aile dostu). İngilizce/kaynak başlığını title alanına kopyalama. Tedavi/çare iddiası yok.
+- original_title: kaynak başlığını AYNEN bırak (genelde İngilizce).
+- summary, why_important, limitations: ZORUNLU Türkçe. Uydurma yok.
+- categories ve conditions: Türkçe etiket veya kısa iki dilli etiket (ör. "serebral palsi").
 - Eksik bilgi uydurma. Bilinmeyen metin alanları için null değil "${MISSING}" kullan. Sayısal skor yoksa null.
 - treatment_potential yalnız: HIGH_VALUE | POTENTIAL_VALUE | IRRELEVANT
   HIGH_VALUE: insan, hedef kitleyle ilgili, tedavi/rehabilitasyon/mekanizma açısından anlamlı klinik bağ.
@@ -38,10 +45,30 @@ human_or_animal ipucu: ${item.humanOrAnimal || ''}
 Koşullar: ${(item.conditions || []).join(', ')}
 
 Yalnız JSON:
-{"treatment_potential":"HIGH_VALUE|POTENTIAL_VALUE|IRRELEVANT","title":"...","original_title":"...","summary":"...","why_important":"...","limitations":"...","conditions":["serebral palsi"],"categories":["rehabilitasyon"],"study_type":"...","evidence_level":"...","study_phase":"...","human_or_animal":"human|animal|both|unspecified","pediatric_relevance":"...","relevance_score":0,"scientific_importance_score":0,"treatment_potential_score":0,"clinical_readiness_score":0,"ai_notes":"kısa gerekçe"}`;
+{"treatment_potential":"HIGH_VALUE|POTENTIAL_VALUE|IRRELEVANT","title":"Türkçe sade başlık","original_title":"English source title unchanged","summary":"Türkçe özet","why_important":"Türkçe","limitations":"Türkçe","conditions":["serebral palsi"],"categories":["rehabilitasyon"],"study_type":"...","evidence_level":"...","study_phase":"...","human_or_animal":"human|animal|both|unspecified","pediatric_relevance":"...","relevance_score":0,"scientific_importance_score":0,"treatment_potential_score":0,"clinical_readiness_score":0,"ai_notes":"kısa gerekçe"}`;
 }
 
-function extractJson(text) {
+export function buildTranslatePrompt(item) {
+  return `Sen EngelsizClub çeviri asistanısın. Aşağıdaki bilimsel başlık ve özeti ailelere yönelik sade Türkçeye çevir. Skorlama yapma.
+
+${ANIMAL_HUMAN_DISCLAIMER}
+
+Kurallar:
+- title: ZORUNLU sade Türkçe (aile dostu). İngilizce başlığı title’a kopyalama. Tedavi/çare iddiası yok.
+- original_title: kaynak başlığını AYNEN bırak (İngilizce/orijinal dil).
+- summary, why_important, limitations: ZORUNLU Türkçe. Uydurma yok; yoksa "${MISSING}".
+- categories ve conditions: Türkçe etiket veya kısa iki dilli etiket.
+- Yalnız JSON.
+
+Başlık: ${item.title || ''}
+Orijinal: ${item.originalTitle || item.title || ''}
+Özet: ${String(item.summary || '').slice(0, 3500)}
+
+Yalnız JSON:
+{"title":"Türkçe sade başlık","original_title":"English source title unchanged","summary":"Türkçe özet","why_important":"Türkçe","limitations":"Türkçe","conditions":["serebral palsi"],"categories":["rehabilitasyon"]}`;
+}
+
+export function extractJson(text) {
   const raw = String(text ?? '').trim();
   if (!raw) return null;
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -56,7 +83,7 @@ function extractJson(text) {
   }
 }
 
-async function generateOnce(apiKey, model, prompt) {
+async function generateOnce(apiKey, model, prompt, { maxOutputTokens = 1536 } = {}) {
   const url =
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent` +
     `?key=${encodeURIComponent(apiKey)}`;
@@ -67,7 +94,7 @@ async function generateOnce(apiKey, model, prompt) {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.15,
-        maxOutputTokens: 1536,
+        maxOutputTokens,
       },
     }),
     signal: AbortSignal.timeout(45000),
@@ -100,6 +127,18 @@ function textOrMissing(v) {
   return s;
 }
 
+function turkishOrFallback(v) {
+  const s = String(v ?? '').trim();
+  if (!s || s.toLowerCase() === 'null') return TITLE_TR_FALLBACK;
+  return s;
+}
+
+function sourceOriginalTitle(item, parsed) {
+  const fromSource = String(item?.originalTitle || item?.title || '').trim();
+  if (fromSource) return fromSource.slice(0, 400);
+  return textOrMissing(parsed?.original_title).slice(0, 400);
+}
+
 function asStringList(raw) {
   if (Array.isArray(raw)) {
     return raw.map((x) => String(x || '').trim()).filter(Boolean);
@@ -112,6 +151,18 @@ function asStringList(raw) {
     .filter(Boolean);
 }
 
+export function applyTranslatedCopy(item, parsed) {
+  return {
+    title: turkishOrFallback(parsed?.title).slice(0, 400),
+    original_title: sourceOriginalTitle(item, parsed),
+    summary: turkishOrFallback(parsed?.summary).slice(0, 4000),
+    why_important: textOrMissing(parsed?.why_important).slice(0, 2000),
+    limitations: textOrMissing(parsed?.limitations).slice(0, 2000),
+    conditions: asStringList(parsed?.conditions || item.conditions),
+    categories: asStringList(parsed?.categories),
+  };
+}
+
 export function normalizeAiResult(parsed, item) {
   if (!parsed || typeof parsed !== 'object') return null;
   const pot = String(parsed.treatment_potential || '')
@@ -120,17 +171,10 @@ export function normalizeAiResult(parsed, item) {
   if (!['HIGH_VALUE', 'POTENTIAL_VALUE', 'IRRELEVANT'].includes(pot)) {
     return null;
   }
+  const copy = applyTranslatedCopy(item, parsed);
   return {
     treatment_potential: pot,
-    title: textOrMissing(parsed.title || item.title).slice(0, 400),
-    original_title: textOrMissing(
-      parsed.original_title || item.originalTitle || item.title,
-    ).slice(0, 400),
-    summary: textOrMissing(parsed.summary || item.summary).slice(0, 4000),
-    why_important: textOrMissing(parsed.why_important).slice(0, 2000),
-    limitations: textOrMissing(parsed.limitations).slice(0, 2000),
-    conditions: asStringList(parsed.conditions || item.conditions),
-    categories: asStringList(parsed.categories),
+    ...copy,
     study_type: textOrMissing(parsed.study_type || item.studyType),
     evidence_level: textOrMissing(parsed.evidence_level),
     study_phase: textOrMissing(parsed.study_phase || item.studyPhase),
@@ -146,16 +190,17 @@ export function normalizeAiResult(parsed, item) {
   };
 }
 
-/** No invented Turkish copy: keep source title/abstract. pending_review only. */
+/** No Gemini: Turkish stub title/summary, keep source original_title. pending_review only. */
 export function heuristicPendingScore(item) {
-  const title = String(item.title || '').trim().slice(0, 400) || MISSING;
+  const original =
+    String(item.originalTitle || item.title || '')
+      .trim()
+      .slice(0, 400) || TITLE_TR_FALLBACK;
   return {
     treatment_potential: 'POTENTIAL_VALUE',
-    title,
-    original_title: String(item.originalTitle || item.title || '')
-      .trim()
-      .slice(0, 400) || title,
-    summary: String(item.summary || '').trim().slice(0, 4000) || MISSING,
+    title: TITLE_TR_FALLBACK,
+    original_title: original,
+    summary: TITLE_TR_FALLBACK,
     why_important: MISSING,
     limitations: MISSING,
     conditions: Array.isArray(item.conditions) ? item.conditions : [],
@@ -170,24 +215,51 @@ export function heuristicPendingScore(item) {
     treatment_potential_score: null,
     clinical_readiness_score: null,
     ai_notes:
-      'AI yok veya hata; ön filtre anahtar kelime → POTENTIAL_VALUE. Tedavi vaadi yok; yayın yok.',
+      'AI yok veya hata; özet çevrilemedi. Ön filtre anahtar kelime → POTENTIAL_VALUE. Tedavi vaadi yok; yayın yok.',
   };
 }
 
-export async function scoreResearch(apiKey, item) {
-  const prompt = buildScorePrompt(item);
+async function generateJson(apiKey, prompt, { maxOutputTokens = 1536 } = {}) {
   let lastErr;
   for (const model of MODELS) {
     try {
-      const text = await generateOnce(apiKey, model, prompt);
+      const text = await generateOnce(apiKey, model, prompt, { maxOutputTokens });
       const parsed = extractJson(text);
-      const normalized = normalizeAiResult(parsed, item);
-      if (!normalized) throw new Error('AI JSON yok veya treatment_potential geçersiz');
-      return normalized;
+      if (!parsed) throw new Error('AI JSON yok');
+      return parsed;
     } catch (e) {
       lastErr = e;
       if (e.status && e.status !== 404 && e.status !== 503) break;
     }
   }
   throw lastErr || new Error('AI başarısız');
+}
+
+/** Cheaper second pass: Turkish title/summary only; no scores. */
+export async function translateResearchCopy(apiKey, item) {
+  const parsed = await generateJson(apiKey, buildTranslatePrompt(item), {
+    maxOutputTokens: 1024,
+  });
+  return applyTranslatedCopy(item, parsed);
+}
+
+export async function scoreResearch(apiKey, item) {
+  try {
+    const parsed = await generateJson(apiKey, buildScorePrompt(item));
+    const normalized = normalizeAiResult(parsed, item);
+    if (!normalized) throw new Error('AI JSON yok veya treatment_potential geçersiz');
+    return normalized;
+  } catch (scoreErr) {
+    try {
+      const copy = await translateResearchCopy(apiKey, item);
+      return {
+        ...heuristicPendingScore(item),
+        ...copy,
+        ai_notes:
+          'Tam skor başarısız; yalnız Türkçe çeviri. Tedavi vaadi yok; yayın yok.',
+      };
+    } catch {
+      throw scoreErr;
+    }
+  }
 }

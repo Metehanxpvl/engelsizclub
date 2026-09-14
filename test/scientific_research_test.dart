@@ -37,6 +37,8 @@ void main() {
       });
 
       expect(row.displayTitle, 'Serebral palside yürüyüş denemesi');
+      expect(row.originalTitle, 'Gait trial in cerebral palsy');
+      expect(row.displayTitle, isNot(row.originalTitle));
       expect(row.summary, contains('faz 1'));
       expect(row.whyImportant, isNotEmpty);
       expect(row.limitations, contains('kesin değildir'));
@@ -164,6 +166,15 @@ void main() {
       );
       expect(isPediatricResearch(item()), isFalse);
     });
+  });
+
+  test('admin review shows TR title first and original label', () {
+    final src = File(
+      'lib/features/scientific_research/admin_science_review_screen.dart',
+    ).readAsStringSync();
+    expect(src.contains('item.displayTitle'), isTrue);
+    expect(src.contains("'Orijinal başlık'"), isTrue);
+    expect(src.contains('Başlık (TR)'), isTrue);
   });
 
   test('science admin is not in Daha Fazlası', () {
