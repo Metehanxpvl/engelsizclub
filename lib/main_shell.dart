@@ -45,6 +45,7 @@ import 'pages/in_app_web_page.dart';
 import 'pages/boyama_page.dart';
 import 'pages/destek_sorgu_page.dart';
 import 'features/useful_opportunities/opportunities_screen.dart';
+import 'features/scientific_research/admin_science_review_screen.dart';
 import 'remote/app_screen_config.dart';
 import 'pages/gelisim_etkinlikleri_page.dart';
 import 'pages/barcode_scanner_screen.dart';
@@ -4396,6 +4397,23 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               onTap: () {
                 unawaited(
                   OpportunitiesScreen.open(
+                    context,
+                    adminEmail: widget.user.email,
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '🔬',
+              label: S.t('science_admin_title'),
+              sub: S.t('science_admin_sub'),
+              highlight: true,
+              onTap: () {
+                unawaited(
+                  AdminScienceReviewScreen.open(
                     context,
                     adminEmail: widget.user.email,
                   ),
