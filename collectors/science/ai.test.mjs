@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { afterEach, describe, it, mock } from 'node:test';
 import {
   ANIMAL_HUMAN_DISCLAIMER,
   TITLE_TR_FALLBACK,
@@ -9,12 +9,22 @@ import {
   buildTranslatePrompt,
   extractJson,
   forceTurkishPrimary,
+  generateJson,
+  geminiRetryDelayMs,
   heuristicPendingScore,
+  isRetryableGeminiStatus,
   looksEnglishTitle,
   looksTurkishText,
   needsTurkishBackfill,
   normalizeAiResult,
+  resetGeminiPace,
+  scoreResearch,
+  selectBackfillRows,
+  titleTranslateOutcome,
+  translateResearchCopy,
 } from './ai.mjs';
+import { sleep } from './config.mjs';
+import { BACKFILL_CAP } from './index.mjs';
 import { shouldInsertResearch } from './filter.mjs';
 import { buildInsertRow } from './row.mjs';
 
@@ -284,3 +294,160 @@ describe('English title detection and backfill source', () => {
     assert.equal(payload.original_title, item.originalTitle);
   });
 });
+
+function geminiHttp(status, text = '') {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => {
+      if (status !== 200) {
+        return {
+          error: {
+            message: `HTTP ${status}`,
+            details: status === 429 ? [{ retryDelay: '1s' }] : [],
+          },
+        };
+      }
+      return {
+        candidates: [{ content: { parts: [{ text }] } }],
+      };
+    },
+  };
+}
+
+const TR_JSON =
+  '{"title":"Serebral palside yürüyüş denemesi","original_title":"Gait trial in cerebral palsy","summary":"Çocuklarda küçük örneklem.","why_important":"Hedef kitle.","limitations":"Küçük n","conditions":["serebral palsi"],"categories":["rehabilitasyon"]}';
+const EN_SCORE_JSON =
+  '{"treatment_potential":"POTENTIAL_VALUE","title":"Gait trial in cerebral palsy","original_title":"Gait trial in cerebral palsy","summary":"Children received training.","why_important":"Early signal.","limitations":"Small n","conditions":["cerebral palsy"],"categories":["rehab"],"ai_notes":"ok"}';
+const TR_SCORE_JSON =
+  '{"treatment_potential":"HIGH_VALUE","title":"Serebral palside yürüyüş denemesi","original_title":"Gait trial in cerebral palsy","summary":"Çocuklarda küçük örneklem.","why_important":"Hedef kitle.","limitations":"Küçük n","conditions":["serebral palsi"],"categories":["rehabilitasyon"],"ai_notes":"ok"}';
+
+const paper = {
+  title: 'Gait trial in cerebral palsy',
+  originalTitle: 'Gait trial in cerebral palsy',
+  summary: 'Children with CP received training.',
+};
+
+describe('Gemini 429 retries and backfill cap', () => {
+  afterEach(() => {
+    mock.restoreAll();
+    resetGeminiPace({ minGapMs: 2000, sleepFn: sleep });
+  });
+
+  it('treats 429 as retryable, not a fatal break', () => {
+    assert.equal(isRetryableGeminiStatus(429), true);
+    assert.equal(isRetryableGeminiStatus(503), true);
+    assert.equal(isRetryableGeminiStatus(404), false);
+    assert.equal(isRetryableGeminiStatus(400), false);
+    assert.ok(geminiRetryDelayMs(429, 0) >= 2500);
+  });
+
+  it('retries after 429 instead of stopping at the first call', async () => {
+    resetGeminiPace({ minGapMs: 0, sleepFn: async () => {} });
+    const queue = [
+      geminiHttp(429),
+      geminiHttp(200, TR_JSON),
+    ];
+    mock.method(globalThis, 'fetch', async () => {
+      const next = queue.shift();
+      if (!next) return geminiHttp(500, '');
+      return next;
+    });
+    const parsed = await generateJson('k', 'p', {
+      sleepFn: async () => {},
+      maxAttemptsPerModel: 3,
+    });
+    assert.equal(parsed.title, 'Serebral palside yürüyüş denemesi');
+    assert.equal(queue.length, 0);
+  });
+
+  it('translates later items after a 429 (serial, not first-only)', async () => {
+    resetGeminiPace({ minGapMs: 0, sleepFn: async () => {} });
+    const queue = [
+      geminiHttp(200, TR_JSON),
+      geminiHttp(429),
+      geminiHttp(200, TR_JSON),
+      geminiHttp(429),
+      geminiHttp(200, TR_JSON),
+    ];
+    mock.method(globalThis, 'fetch', async () => {
+      const next = queue.shift();
+      if (!next) return geminiHttp(500, '');
+      return next;
+    });
+    const opts = { sleepFn: async () => {}, maxAttemptsPerModel: 3 };
+    const a = await generateJson('k', 'p', opts);
+    const b = await generateJson('k', 'p', opts);
+    const c = await generateJson('k', 'p', opts);
+    assert.equal(a.title, 'Serebral palside yürüyüş denemesi');
+    assert.equal(b.title, 'Serebral palside yürüyüş denemesi');
+    assert.equal(c.title, 'Serebral palside yürüyüş denemesi');
+    assert.equal(queue.length, 0);
+  });
+
+  it('translate-only retry after English score keeps Turkish title', async () => {
+    resetGeminiPace({ minGapMs: 0, sleepFn: async () => {} });
+    const queue = [
+      geminiHttp(200, EN_SCORE_JSON),
+      geminiHttp(429),
+      geminiHttp(200, TR_JSON),
+    ];
+    mock.method(globalThis, 'fetch', async () => {
+      const next = queue.shift();
+      if (!next) return geminiHttp(500, '');
+      return next;
+    });
+    const ai = await scoreResearch('k', paper, { sleepFn: async () => {} });
+    assert.equal(ai.title, 'Serebral palside yürüyüş denemesi');
+    assert.equal(ai.original_title, 'Gait trial in cerebral palsy');
+    assert.notEqual(ai.title, ai.original_title);
+    assert.equal(looksEnglishTitle(ai.title), false);
+    assert.equal(titleTranslateOutcome(ai.title), 'translated');
+  });
+
+  it('selectBackfillRows uses cap 40, not 1', () => {
+    assert.equal(BACKFILL_CAP, 40);
+    const rows = Array.from({ length: 45 }, (_, i) => ({
+      id: `id-${i}`,
+      status: 'pending_review',
+      title: 'Gait trial in cerebral palsy',
+      original_title: 'Gait trial in cerebral palsy',
+    }));
+    rows[0].title = 'Serebral palside yürüyüş denemesi';
+    const picked = selectBackfillRows(rows, BACKFILL_CAP);
+    assert.equal(picked.length, 40);
+    assert.equal(picked[0].id, 'id-1');
+    assert.equal(titleTranslateOutcome('Gait trial in cerebral palsy'), 'english_left');
+    assert.equal(titleTranslateOutcome('Serebral palside yürüyüş denemesi'), 'translated');
+  });
+
+  it('score JSON that is already Turkish does not require a second call', async () => {
+    resetGeminiPace({ minGapMs: 0, sleepFn: async () => {} });
+    let n = 0;
+    mock.method(globalThis, 'fetch', async () => {
+      n += 1;
+      return geminiHttp(200, TR_SCORE_JSON);
+    });
+    const ai = await scoreResearch('k', paper, { sleepFn: async () => {} });
+    assert.equal(ai.treatment_potential, 'HIGH_VALUE');
+    assert.equal(ai.title, 'Serebral palside yürüyüş denemesi');
+    assert.equal(n, 1);
+  });
+
+  it('translateResearchCopy retries 429 with delay then returns Turkish', async () => {
+    resetGeminiPace({ minGapMs: 0, sleepFn: async () => {} });
+    const queue = [geminiHttp(429), geminiHttp(200, TR_JSON)];
+    mock.method(globalThis, 'fetch', async () => {
+      const next = queue.shift();
+      if (!next) return geminiHttp(500, '');
+      return next;
+    });
+    const copy = await translateResearchCopy('k', paper, {
+      maxRetries: 3,
+      sleepFn: async () => {},
+    });
+    assert.equal(copy.title, 'Serebral palside yürüyüş denemesi');
+    assert.equal(copy.original_title, 'Gait trial in cerebral palsy');
+  });
+});
+

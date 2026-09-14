@@ -1,12 +1,14 @@
 import { pathToFileURL } from 'node:url';
 import {
+  TITLE_TR_FALLBACK,
   backfillSourceItem,
   backfillUpdatePayload,
   forceTurkishPrimary,
   heuristicPendingScore,
   looksEnglishTitle,
-  needsTurkishBackfill,
   scoreResearch,
+  selectBackfillRows,
+  titleTranslateOutcome,
   translateResearchCopy,
 } from './ai.mjs';
 import { fetchClinicalTrials } from './clinicaltrials.mjs';
@@ -31,7 +33,7 @@ import { fetchPubmed } from './pubmed.mjs';
 import { buildInsertRow } from './row.mjs';
 
 const EXISTING_PAGE = 1000;
-const AI_DELAY_MS = 400;
+const AI_DELAY_MS = 2000;
 const BACKFILL_CAP = 40;
 const BACKFILL_PAGE = 200;
 
@@ -55,6 +57,7 @@ function emptyStats() {
     errors: 0,
     aiFail: 0,
     translatedBackfill: 0,
+    englishLeft: 0,
   };
 }
 
@@ -207,41 +210,62 @@ async function insertPending(row) {
 function printSummary(stats) {
   console.log('--- bilimsel araştırma özeti ---');
   console.log(
-    `sources=${stats.sources} new=${stats.neu} dupes=${stats.dupes} prefilter=${stats.prefilter} AI=${stats.ai} high=${stats.high} potential=${stats.potential} irrelevant=${stats.irrelevant} saved=${stats.saved} errors=${stats.errors} ai_fail_skip=${stats.aiFail} translated_backfill=${stats.translatedBackfill}`,
+    `sources=${stats.sources} new=${stats.neu} dupes=${stats.dupes} prefilter=${stats.prefilter} AI=${stats.ai} high=${stats.high} potential=${stats.potential} irrelevant=${stats.irrelevant} saved=${stats.saved} errors=${stats.errors} ai_fail_skip=${stats.aiFail} translated_backfill=${stats.translatedBackfill} english_left=${stats.englishLeft}`,
   );
 }
 
+async function loadBackfillPage(status, offset) {
+  try {
+    return (
+      (await sb(
+        `scientific_researches?status=eq.${status}&select=id,title,original_title,summary,why_important,limitations,status&limit=${BACKFILL_PAGE}&offset=${offset}&order=created_at.desc`,
+      )) || []
+    );
+  } catch {
+    return (
+      (await sb(
+        `scientific_researches?status=eq.${status}&select=id,title,original_title,summary,why_important,limitations,status&limit=${BACKFILL_PAGE}&offset=${offset}`,
+      )) || []
+    );
+  }
+}
+
 async function loadBackfillCandidates() {
-  const out = [];
+  const english = [];
   for (const status of ['pending_review', 'published']) {
-    let rows;
-    try {
-      rows =
-        (await sb(
-          `scientific_researches?status=eq.${status}&select=id,title,original_title,summary,why_important,limitations,status&limit=${BACKFILL_PAGE}&order=created_at.desc`,
-        )) || [];
-    } catch {
-      rows =
-        (await sb(
-          `scientific_researches?status=eq.${status}&select=id,title,original_title,summary,why_important,limitations,status&limit=${BACKFILL_PAGE}`,
-        )) || [];
-    }
-    if (!Array.isArray(rows)) continue;
-    for (const row of rows) {
-      if (needsTurkishBackfill(row)) out.push(row);
+    let offset = 0;
+    for (;;) {
+      if (english.length >= BACKFILL_CAP) break;
+      const rows = await loadBackfillPage(status, offset);
+      if (!Array.isArray(rows) || !rows.length) break;
+      english.push(
+        ...selectBackfillRows(rows, BACKFILL_CAP - english.length),
+      );
+      if (rows.length < BACKFILL_PAGE) break;
+      offset += rows.length;
     }
   }
-  return out.slice(0, BACKFILL_CAP);
+  return english.slice(0, BACKFILL_CAP);
+}
+
+function logTitleOutcome(kind, id, title) {
+  const outcome = titleTranslateOutcome(title);
+  const line = `${outcome}: ${kind} ${id} ${String(title || '').slice(0, 120)}`;
+  if (outcome === 'english_left') console.warn(line);
+  else console.log(line);
+  return outcome;
 }
 
 async function backfillEnglishRows() {
   if (!AI_KEY) {
     console.warn('AI anahtarı yok; İngilizce başlık backfill atlandı.');
-    console.log('translated_backfill=0');
-    return 0;
+    console.log('translated_backfill=0 english_left=0');
+    return { translated: 0, englishLeft: 0 };
   }
   const candidates = await loadBackfillCandidates();
-  let n = 0;
+  console.log(`backfill candidates=${candidates.length} cap=${BACKFILL_CAP}`);
+  let translated = 0;
+  let englishLeft = 0;
   for (const row of candidates) {
     try {
       const item = backfillSourceItem(row);
@@ -249,23 +273,24 @@ async function backfillEnglishRows() {
         await translateResearchCopy(AI_KEY, item),
         item,
       );
-      if (looksEnglishTitle(copy.title)) {
-        console.warn(`backfill hâlâ İngilizce, atlandı: ${row.id}`);
+      const outcome = logTitleOutcome('backfill', row.id, copy.title);
+      if (outcome === 'english_left') {
+        englishLeft += 1;
         continue;
       }
       await sb(`scientific_researches?id=eq.${row.id}`, {
         method: 'PATCH',
         body: backfillUpdatePayload(row, copy),
       });
-      n += 1;
-      console.log(`backfill TR: ${copy.title}`);
+      translated += 1;
     } catch (e) {
-      console.warn(`backfill hata ${row.id}: ${e.message}`);
+      englishLeft += 1;
+      console.warn(`english_left: backfill ${row.id} ${e.message}`);
     }
     await sleep(AI_DELAY_MS);
   }
-  console.log(`translated_backfill=${n}`);
-  return n;
+  console.log(`translated_backfill=${translated} english_left=${englishLeft}`);
+  return { translated, englishLeft };
 }
 
 async function processItem(item, source, existing, stats) {
@@ -309,7 +334,16 @@ async function processItem(item, source, existing, stats) {
       console.warn(`AI hata, Türkçe yedek POTENTIAL_VALUE: ${item.title} — ${e.message}`);
       ai = heuristicPendingScore(item);
     }
+    if (looksEnglishTitle(ai.title) || ai.title === TITLE_TR_FALLBACK) {
+      try {
+        const copy = await translateResearchCopy(AI_KEY, item);
+        ai = { ...ai, ...copy };
+      } catch (e) {
+        console.warn(`translate-only hata: ${item.title} — ${e.message}`);
+      }
+    }
   }
+  ai = forceTurkishPrimary(ai, item);
 
   const promoted = promoteKeepTopicPotential(item, ai.treatment_potential);
   if (promoted !== ai.treatment_potential) {
@@ -337,6 +371,11 @@ async function processItem(item, source, existing, stats) {
   }
 
   const row = buildInsertRow(item, ai, source, contentHash);
+  if (looksEnglishTitle(row.title)) {
+    row.title = TITLE_TR_FALLBACK;
+  }
+  const outcome = logTitleOutcome('insert', item.pmid || item.nctId || item.sourceUrl, row.title);
+  if (outcome === 'english_left') stats.englishLeft += 1;
   const ok = await insertPending(row);
   if (ok) {
     stats.saved += 1;
@@ -362,7 +401,9 @@ async function main() {
   const config = loadConditions();
   const existing = await loadExistingKeys();
   const stats = emptyStats();
-  stats.translatedBackfill = await backfillEnglishRows();
+  const backfill = await backfillEnglishRows();
+  stats.translatedBackfill = backfill.translated;
+  stats.englishLeft += backfill.englishLeft;
   const sources = await loadActiveSources();
   stats.sources = sources.length;
   console.log(`aktif kaynak: ${sources.length}`);
