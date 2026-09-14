@@ -1,7 +1,7 @@
 -- Resmi TR belediye + bakanlık kaynakları → public.content_sources
 -- SQL Editor → Run. events / kariyer / push tablolarına dokunmaz.
 -- Collector YALNIZ pending_review yazar; yayın ve FCM yok.
--- is_active=true: 2026-09-14 GET ile doğrulanmış RSS/Atom + ASHB EYHGM HTML liste.
+-- is_active=true: 2026-09-14 GET ile doğrulanmış RSS/Atom + ASHB EYHGM HTML + Resmi Gazete fihrist.
 -- TBB indeks sayfaları ve Bursa genel RSS bilinçli kapalı.
 -- muğla.bel.tr → mugla.bel.tr
 
@@ -110,6 +110,14 @@ select * from (values
     true,
     24,
     'ORGM https://orgm.meb.gov.tr/ HTML; aktif akış: meb_iys_dosyalar/xml/rss_haberler.xml (GET RSS, 2026-09-14).'
+  ),
+  (
+    'Resmi Gazete',
+    'https://www.resmigazete.gov.tr/',
+    'scrape',
+    true,
+    24,
+    'RSS/Atom yok: /rss /rss.xml /feed /sitemap.xml HTML SPA, /reg/rss.aspx 404 (2026-09-14). Collector bugün + son 3 gün fihrist (/eskiler/YYYY/MM/YYYYMMDD-N.htm). İlan arşivi yok. Engelli süzgeci zorunlu.'
   ),
   (
     'Bursa BB RSS',
@@ -853,6 +861,27 @@ where url in (
   'https://www.aile.gov.tr/eyhgm/haberler',
   'https://www.aile.gov.tr/eyhgm/duyurular'
 );
+
+-- Resmi Gazete: RSS/Atom yok, dar HTML fihrist (bugün + son 3 gün). Belediye HTML açılmaz.
+update public.content_sources
+set
+  name = 'Resmi Gazete',
+  is_active = true,
+  method = 'scrape',
+  fetch_interval_hours = 24,
+  notes = 'RSS/Atom yok: /rss /rss.xml /feed /sitemap.xml HTML SPA, /reg/rss.aspx 404 (2026-09-14). Collector bugün + son 3 gün fihrist (/eskiler/YYYY/MM/YYYYMMDD-N.htm). İlan arşivi yok. Engelli süzgeci zorunlu.',
+  updated_at = now()
+where url in (
+  'https://www.resmigazete.gov.tr/',
+  'https://www.resmigazete.gov.tr'
+);
+
+update public.content_sources
+set
+  is_active = false,
+  notes = '404 /reg/rss.aspx. Aktif kaynak: https://www.resmigazete.gov.tr/',
+  updated_at = now()
+where url ilike '%resmigazete.gov.tr/reg/rss.aspx%';
 
 update public.content_sources
 set
