@@ -50,6 +50,39 @@ bool isBlankOrUnspecified(String raw) {
       lower == 'null';
 }
 
+const kScientificResearchTitleTrFallback =
+    'Kaynak başlığı aşağıdadır; özet çevrilemedi.';
+
+final _trTitleChars = RegExp(r'[çğıöşüÇĞİÖŞÜ]');
+final _trTitleWords = RegExp(
+  r'\b(ve|bir|ile|bu|olan|için|icin|çalışma|calisma|deneme|özet|ozet|çocuk|cocuk|serebral|palsi|tedavi|rehabilitasyon|hayvan|insan|faz|klinik|erken|küçük|kucuk|örneklem|orneklem|sonuç|sonuc|değil|degil|yok|var|başlık|baslik|kaynak|aşağıdadır|çevrilemedi|üzerine|yürüyüş)\b',
+  caseSensitive: false,
+);
+final _enTitleWords = RegExp(
+  r'\b(the|and|for|with|from|of|in|a|an|on|to|by|or|as|at|study|studies|trial|trials|review|effect|effects|children|child|infant|autism|treatment|therapy|clinical|patients?|disorder|syndrome|randomized|randomised|intervention|developmental|outcomes?|analysis|among|between|cerebral|palsy|stem|cells?|gait|training|efficacy|safety|phase|remyelination)\b',
+  caseSensitive: false,
+);
+final _unicodeLetters = RegExp(r'\p{L}', unicode: true);
+final _asciiLetters = RegExp(r'[A-Za-z]');
+
+bool looksTurkishResearchCopy(String raw) {
+  final s = raw.trim();
+  if (s.isEmpty) return false;
+  if (_trTitleChars.hasMatch(s)) return true;
+  return _trTitleWords.hasMatch(s);
+}
+
+bool looksEnglishResearchCopy(String raw) {
+  final s = raw.trim();
+  if (s.isEmpty) return false;
+  if (looksTurkishResearchCopy(s)) return false;
+  if (!_enTitleWords.hasMatch(s)) return false;
+  final letters = _unicodeLetters.allMatches(s).length;
+  if (letters < 8) return false;
+  final ascii = _asciiLetters.allMatches(s).length;
+  return ascii / letters >= 0.9;
+}
+
 bool isScientificResearchesTableMissing(Object error) {
   final s = error.toString().toLowerCase();
   final mentionsTable = s.contains('scientific_researches') ||
@@ -276,12 +309,12 @@ class ScientificResearch {
   final String aiNotes;
   final DateTime? createdAt;
 
-  /// AI Türkçe başlık varsa onu; yoksa orijinal.
+  /// Türkçe `title` varsa onu; İngilizce title asla birincil başlık değil.
   String get displayTitle {
-    if (!isBlankOrUnspecified(title)) return title.trim();
-    if (!isBlankOrUnspecified(originalTitle)) return originalTitle.trim();
-    if (title.trim().isNotEmpty) return title.trim();
-    return originalTitle.trim();
+    final t = title.trim();
+    if (!isBlankOrUnspecified(t) && looksTurkishResearchCopy(t)) return t;
+    if (!isBlankOrUnspecified(t) && !looksEnglishResearchCopy(t)) return t;
+    return kScientificResearchTitleTrFallback;
   }
 
   String get stageLabel => scienceStageLabel(this);

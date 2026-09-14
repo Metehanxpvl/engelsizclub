@@ -56,7 +56,7 @@ void main() {
       expect(row.stageLabel.toLowerCase(), isNot(contains('tedavi bulundu')));
     });
 
-    test('falls back to original title and maps withdrawn to rejected', () {
+    test('English title shows TR stub; original stays separate; withdrawn → rejected', () {
       final row = ScientificResearch.fromJson({
         'id': '2',
         'title': 'Çalışmada belirtilmemiş',
@@ -66,10 +66,39 @@ void main() {
         'treatment_potential': 'potential-value',
         'status': 'withdrawn',
       });
-      expect(row.displayTitle, 'Animal remyelination study');
+      expect(row.displayTitle, kScientificResearchTitleTrFallback);
+      expect(row.originalTitle, 'Animal remyelination study');
+      expect(row.displayTitle, isNot(row.originalTitle));
       expect(row.status, 'rejected');
       expect(row.stageLabel, 'Hayvan');
       expect(row.treatmentPotential, 'POTENTIAL_VALUE');
+    });
+
+    test('detects English title and prefers Turkish title after backfill', () {
+      expect(looksEnglishResearchCopy('Gait trial in cerebral palsy'), isTrue);
+      expect(
+        looksEnglishResearchCopy('Serebral palside yürüyüş denemesi'),
+        isFalse,
+      );
+      expect(looksTurkishResearchCopy('Serebral palside yürüyüş denemesi'), isTrue);
+      final english = ScientificResearch.fromJson({
+        'id': '3',
+        'title': 'Gait trial in cerebral palsy',
+        'original_title': 'Gait trial in cerebral palsy',
+        'treatment_potential': 'POTENTIAL_VALUE',
+        'status': 'pending_review',
+      });
+      expect(english.displayTitle, kScientificResearchTitleTrFallback);
+      expect(english.originalTitle, 'Gait trial in cerebral palsy');
+      final backfilled = ScientificResearch.fromJson({
+        'id': '4',
+        'title': 'Serebral palside yürüyüş denemesi',
+        'original_title': 'Gait trial in cerebral palsy',
+        'treatment_potential': 'POTENTIAL_VALUE',
+        'status': 'pending_review',
+      });
+      expect(backfilled.displayTitle, 'Serebral palside yürüyüş denemesi');
+      expect(backfilled.displayTitle, isNot(backfilled.originalTitle));
     });
   });
 

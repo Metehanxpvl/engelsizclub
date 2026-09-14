@@ -1,5 +1,14 @@
 import { pathToFileURL } from 'node:url';
-import { heuristicPendingScore, scoreResearch } from './ai.mjs';
+import {
+  backfillSourceItem,
+  backfillUpdatePayload,
+  forceTurkishPrimary,
+  heuristicPendingScore,
+  looksEnglishTitle,
+  needsTurkishBackfill,
+  scoreResearch,
+  translateResearchCopy,
+} from './ai.mjs';
 import { fetchClinicalTrials } from './clinicaltrials.mjs';
 import {
   EMPTY_SOURCES_SQL_HINT,
@@ -23,6 +32,8 @@ import { buildInsertRow } from './row.mjs';
 
 const EXISTING_PAGE = 1000;
 const AI_DELAY_MS = 400;
+const BACKFILL_CAP = 40;
+const BACKFILL_PAGE = 200;
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -43,6 +54,7 @@ function emptyStats() {
     saved: 0,
     errors: 0,
     aiFail: 0,
+    translatedBackfill: 0,
   };
 }
 
@@ -195,8 +207,65 @@ async function insertPending(row) {
 function printSummary(stats) {
   console.log('--- bilimsel araştırma özeti ---');
   console.log(
-    `sources=${stats.sources} new=${stats.neu} dupes=${stats.dupes} prefilter=${stats.prefilter} AI=${stats.ai} high=${stats.high} potential=${stats.potential} irrelevant=${stats.irrelevant} saved=${stats.saved} errors=${stats.errors} ai_fail_skip=${stats.aiFail}`,
+    `sources=${stats.sources} new=${stats.neu} dupes=${stats.dupes} prefilter=${stats.prefilter} AI=${stats.ai} high=${stats.high} potential=${stats.potential} irrelevant=${stats.irrelevant} saved=${stats.saved} errors=${stats.errors} ai_fail_skip=${stats.aiFail} translated_backfill=${stats.translatedBackfill}`,
   );
+}
+
+async function loadBackfillCandidates() {
+  const out = [];
+  for (const status of ['pending_review', 'published']) {
+    let rows;
+    try {
+      rows =
+        (await sb(
+          `scientific_researches?status=eq.${status}&select=id,title,original_title,summary,why_important,limitations,status&limit=${BACKFILL_PAGE}&order=created_at.desc`,
+        )) || [];
+    } catch {
+      rows =
+        (await sb(
+          `scientific_researches?status=eq.${status}&select=id,title,original_title,summary,why_important,limitations,status&limit=${BACKFILL_PAGE}`,
+        )) || [];
+    }
+    if (!Array.isArray(rows)) continue;
+    for (const row of rows) {
+      if (needsTurkishBackfill(row)) out.push(row);
+    }
+  }
+  return out.slice(0, BACKFILL_CAP);
+}
+
+async function backfillEnglishRows() {
+  if (!AI_KEY) {
+    console.warn('AI anahtarı yok; İngilizce başlık backfill atlandı.');
+    console.log('translated_backfill=0');
+    return 0;
+  }
+  const candidates = await loadBackfillCandidates();
+  let n = 0;
+  for (const row of candidates) {
+    try {
+      const item = backfillSourceItem(row);
+      const copy = forceTurkishPrimary(
+        await translateResearchCopy(AI_KEY, item),
+        item,
+      );
+      if (looksEnglishTitle(copy.title)) {
+        console.warn(`backfill hâlâ İngilizce, atlandı: ${row.id}`);
+        continue;
+      }
+      await sb(`scientific_researches?id=eq.${row.id}`, {
+        method: 'PATCH',
+        body: backfillUpdatePayload(row, copy),
+      });
+      n += 1;
+      console.log(`backfill TR: ${copy.title}`);
+    } catch (e) {
+      console.warn(`backfill hata ${row.id}: ${e.message}`);
+    }
+    await sleep(AI_DELAY_MS);
+  }
+  console.log(`translated_backfill=${n}`);
+  return n;
 }
 
 async function processItem(item, source, existing, stats) {
@@ -292,8 +361,9 @@ async function main() {
 
   const config = loadConditions();
   const existing = await loadExistingKeys();
-  const sources = await loadActiveSources();
   const stats = emptyStats();
+  stats.translatedBackfill = await backfillEnglishRows();
+  const sources = await loadActiveSources();
   stats.sources = sources.length;
   console.log(`aktif kaynak: ${sources.length}`);
 
@@ -347,4 +417,10 @@ if (isEntry()) {
   });
 }
 
-export { main, shouldInsertResearch, TABLES_SQL_HINT, buildInsertRow };
+export {
+  BACKFILL_CAP,
+  main,
+  shouldInsertResearch,
+  TABLES_SQL_HINT,
+  buildInsertRow,
+};

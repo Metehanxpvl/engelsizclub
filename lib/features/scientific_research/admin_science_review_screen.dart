@@ -79,7 +79,7 @@ class _AdminScienceReviewScreenState extends State<AdminScienceReviewScreen> {
   }
 
   Future<void> _edit(ScientificResearch item) async {
-    final titleCtrl = TextEditingController(text: item.title);
+    final titleCtrl = TextEditingController(text: item.displayTitle);
     final summaryCtrl = TextEditingController(text: item.summary);
     final ok = await showDialog<bool>(
       context: context,
