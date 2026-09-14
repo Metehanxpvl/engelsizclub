@@ -1,9 +1,11 @@
 -- Resmi TR belediye + bakanlık kaynakları → public.content_sources
 -- SQL Editor → Run. events / kariyer / push tablolarına dokunmaz.
 -- Collector YALNIZ pending_review yazar; yayın ve FCM yok.
--- is_active=true: 2026-09-14 GET ile doğrulanmış RSS/Atom + ASHB EYHGM HTML liste.
+-- is_active=true: doğrulanmış RSS/Atom + ASHB EYHGM HTML + Resmi Gazete fihrist
+-- + .bel.tr ana sayfa scrape (Faz 2 site tarama: haberler/duyurular/ilanlar).
 -- TBB indeks sayfaları ve Bursa genel RSS bilinçli kapalı.
 -- muğla.bel.tr → mugla.bel.tr
+-- Canlı DB’de yalnız .bel.tr açmak için kısa dosya: useful_content_bel_tr_activate.sql
 
 insert into public.content_sources (name, url, method, is_active, fetch_interval_hours, notes)
 select * from (values
@@ -112,6 +114,14 @@ select * from (values
     'ORGM https://orgm.meb.gov.tr/ HTML; aktif akış: meb_iys_dosyalar/xml/rss_haberler.xml (GET RSS, 2026-09-14).'
   ),
   (
+    'Resmi Gazete',
+    'https://www.resmigazete.gov.tr/',
+    'scrape',
+    true,
+    24,
+    'RSS/Atom yok: /rss /rss.xml /feed /sitemap.xml HTML SPA, /reg/rss.aspx 404 (2026-09-14). Collector bugün + son 3 gün fihrist (/eskiler/YYYY/MM/YYYYMMDD-N.htm). İlan arşivi yok. Engelli süzgeci zorunlu.'
+  ),
+  (
     'Bursa BB RSS',
     'https://www.bursa.bel.tr/rss',
     'rss',
@@ -123,521 +133,521 @@ select * from (values
     'Adana BB',
     'https://www.adana.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Adıyaman BB',
     'https://www.adiyaman.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Afyonkarahisar BB',
     'https://www.afyon.bel.tr',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). sitemap.xml var; RSS/Atom madde yok. is_active=false.'
   ),
   (
     'Amasya BB',
     'https://www.amasya.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Ankara BB',
     'https://www.ankara.bel.tr',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). /rss HTML SPA; XML değil. is_active=false.'
   ),
   (
     'Antalya BB',
     'https://www.antalya.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Artvin BB',
     'https://www.artvin.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Aydın BB',
     'https://www.aydin.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Balıkesir BB',
     'https://www.balikesir.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Bilecik BB',
     'https://www.bilecik.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Bingöl BB',
     'https://www.bingol.bel.tr',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). sitemap.xml var; RSS madde yok. is_active=false.'
   ),
   (
     'Bitlis BB',
     'https://www.bitlis.bel.tr',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). /feed XML ama madde yok. is_active=false.'
   ),
   (
     'Çanakkale BB',
     'https://www.canakkale.bel.tr',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). sitemap.xml var; RSS madde yok. is_active=false.'
   ),
   (
     'Çankırı BB',
     'https://www.cankiri.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Çorum BB',
     'https://www.corum.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Denizli BB',
     'https://www.denizli.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Diyarbakır BB',
     'https://www.diyarbakir.bel.tr',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). çok dilli sitemap; RSS madde yok. is_active=false.'
   ),
   (
     'Düzce BB',
     'https://www.duzce.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Edirne BB',
     'https://www.edirne.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Elazığ BB',
     'https://www.elazig.bel.tr',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). sitemap.xml var; RSS madde yok. is_active=false.'
   ),
   (
     'Erzincan BB',
     'https://www.erzincan.bel.tr',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). sitemap.xml var; RSS madde yok. is_active=false.'
   ),
   (
     'Erzurum BB',
     'https://www.erzurum.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Eskişehir BB',
     'https://www.eskisehir.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Gaziantep BB',
     'https://www.gaziantep.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Hakkari BB',
     'https://www.hakkari.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Hatay BB',
     'https://www.hatay.bel.tr',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). sitemap.xml var; RSS madde yok. is_active=false.'
   ),
   (
     'Iğdır BB',
     'https://www.igdir.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Isparta BB',
     'https://www.isparta.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'İBB',
     'https://www.ibb.istanbul',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). sitemap.xml var; /rss 404. HTML ana sayfa tarama KAPALI.. is_active=false.'
   ),
   (
     'İzmir BB',
     'https://www.izmir.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Karabük BB',
     'https://www.karabuk.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Karaman BB',
     'https://www.karaman.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Kars BB',
     'https://www.kars.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Kayseri BB',
     'https://www.kayseri.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Kırıkkale BB',
     'https://www.kirikkale.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Kırklareli BB',
     'https://www.kirklareli.bel.tr',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). sitemap.xml var; RSS madde yok. is_active=false.'
   ),
   (
     'Kırşehir BB',
     'https://www.kirsehir.bel.tr',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). sitemap.xml var; RSS madde yok. is_active=false.'
   ),
   (
     'Konya BB',
     'https://www.konya.bel.tr',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). sitemap.xml var; RSS madde yok. is_active=false.'
   ),
   (
     'Kütahya BB',
     'https://www.kutahya.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Malatya BB',
     'https://www.malatya.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Manisa BB',
     'https://www.manisa.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Mardin BB',
     'https://www.mardin.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Mersin BB',
     'https://www.mersin.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Muğla BB',
     'https://www.mugla.bel.tr',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). muğla.bel.tr → mugla.bel.tr. is_active=false.'
   ),
   (
     'Muş BB',
     'https://www.mus.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Nevşehir BB',
     'https://www.nevsehir.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Niğde BB',
     'https://www.nigde.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Ordu BB',
     'https://www.ordu.bel.tr',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). sitemap.xml var; RSS madde yok. is_active=false.'
   ),
   (
     'Osmaniye BB ana sayfa',
     'https://www.osmaniye.bel.tr',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). RSS osmaniye-bld.gov.tr/feed (ayrı aktif kayıt). is_active=false.'
   ),
   (
     'Rize BB',
     'https://www.rize.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Sakarya BB',
     'https://www.sakarya.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Samsun BB',
     'https://www.samsun.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Siirt BB',
     'https://www.siirt.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Sinop BB',
     'https://www.sinop.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Sivas BB',
     'https://www.sivas.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Şanlıurfa BB',
     'https://www.sanliurfa.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Tekirdağ BB',
     'https://www.tekirdag.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Tokat BB',
     'https://www.tokat.bel.tr',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). sitemap.xml var; RSS madde yok. is_active=false.'
   ),
   (
     'Trabzon BB',
     'https://www.trabzon.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Tunceli BB',
     'https://www.tunceli.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Uşak BB',
     'https://www.usak.bel.tr',
     'scrape',
-    false,
-    168,
+    true,
+    24,
     'Doğrulanmış RSS/Atom yok (2026-09-14). sitemap.xml var; RSS madde yok. is_active=false.'
   ),
   (
     'Van BB',
     'https://www.van.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Yalova BB',
     'https://www.yalova.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Yozgat BB',
     'https://www.yozgat.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Zonguldak BB',
     'https://www.zonguldak.bel.tr',
     'scrape',
-    false,
-    168,
-    'Doğrulanmış RSS/Atom yok (2026-09-14). Ana sayfa HTML tarama KAPALI. is_active=false.'
+    true,
+    24,
+    'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
   ),
   (
     'Adalet Bakanlığı',
@@ -854,6 +864,47 @@ where url in (
   'https://www.aile.gov.tr/eyhgm/duyurular'
 );
 
+-- Resmi Gazete: RSS/Atom yok, dar HTML fihrist (bugün + son 3 gün).
+update public.content_sources
+set
+  name = 'Resmi Gazete',
+  is_active = true,
+  method = 'scrape',
+  fetch_interval_hours = 24,
+  notes = 'RSS/Atom yok: /rss /rss.xml /feed /sitemap.xml HTML SPA, /reg/rss.aspx 404 (2026-09-14). Collector bugün + son 3 gün fihrist (/eskiler/YYYY/MM/YYYYMMDD-N.htm). İlan arşivi yok. Engelli süzgeci zorunlu.',
+  updated_at = now()
+where url in (
+  'https://www.resmigazete.gov.tr/',
+  'https://www.resmigazete.gov.tr'
+);
+
+-- Faz 2: mevcut .bel.tr (ve İBB) ana sayfa scrape satırlarını aç.
+-- RSS satırlarına dokunmaz. İçerik silinmez. TBB / bakanlık ana sayfa kapalı kalır.
+update public.content_sources
+set
+  is_active = true,
+  method = 'scrape',
+  fetch_interval_hours = 24,
+  notes = case
+    when notes ilike '%Faz 2%' then notes
+    else 'Faz 2: site tarama (haberler/duyurular/ilanlar/sosyal). Admin onay; yayın yok.'
+  end,
+  updated_at = now()
+where method = 'scrape'
+  and (
+    url ~* '\.bel\.tr([/?#]|$)'
+    or url ~* '(^|://)([^/]*\.)?ibb\.istanbul([/?#]|$)'
+  )
+  and url !~* 'tbb\.gov\.tr'
+  and url !~* 'bursa\.bel\.tr/rss';
+
+update public.content_sources
+set
+  is_active = false,
+  notes = '404 /reg/rss.aspx. Aktif kaynak: https://www.resmigazete.gov.tr/',
+  updated_at = now()
+where url ilike '%resmigazete.gov.tr/reg/rss.aspx%';
+
 update public.content_sources
 set
   is_active = false,
@@ -865,13 +916,14 @@ where url in (
   'https://www.aile.gov.tr/sitemap.xml'
 );
 
--- Bursa genel haber RSS: doğrulanmış olsa da kapalı.
+-- Bursa genel haber RSS: doğrulanmış olsa da kapalı. Ana sayfa scrape satırı yoksa dokunulmaz.
 update public.content_sources
 set
   is_active = false,
-  notes = 'genel haber RSS; spor/konser dökülmesin diye kapalı. Engelli süzgeci olsa da açmayın.',
+  notes = 'genel haber RSS; spor/konser dökülmesin diye kapalı. Faz 2 filtreyle scrape ayrı URL ister.',
   updated_at = now()
-where url ilike '%bursa.bel.tr%';
+where url ilike '%bursa.bel.tr%rss%'
+   or url ~* 'bursa\.bel\.tr/rss';
 
 -- TBB belediye listeleri haber değil.
 update public.content_sources

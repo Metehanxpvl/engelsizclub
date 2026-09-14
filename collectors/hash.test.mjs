@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  classifyKeep,
+  hasPotentialFamilyBenefit,
   hasRelevanceKeyword,
   hasScholarshipTerm,
   isDisabilityOpportunity,
   isDuplicate,
+  isHardReject,
+  shouldKeepCandidate,
   stripHtml,
   usefulContentHash,
 } from './lib/hash.mjs';
@@ -49,6 +53,23 @@ describe('hash/dedup', () => {
     assert.equal(
       isDuplicate(existing, { sourceUrl: 'https://b.example/2', contentHash: 'zz' }),
       false,
+    );
+  });
+
+  it('dedups similar title + source', () => {
+    const existing = {
+      urls: new Set(),
+      hashes: new Set(),
+      externalIds: new Set(),
+      titleKeys: new Set(['sosyal yardim basvurusu basladi|adana bb']),
+    };
+    assert.equal(
+      isDuplicate(existing, {
+        title: 'Sosyal Yardım Başvurusu Başladı',
+        sourceName: 'Adana BB',
+        sourceUrl: 'https://www.adana.bel.tr/haberler/2',
+      }),
+      true,
     );
   });
 
@@ -111,5 +132,33 @@ describe('hash/dedup', () => {
     assert.equal(isDisabilityOpportunity('belediye spor bursu'), false);
     assert.equal(hasScholarshipTerm('üniversite burs başvurusu'), true);
     assert.equal(hasScholarshipTerm("Bursa Büyükşehir Belediyespor’dan galibiyet"), false);
+  });
+});
+
+describe('classifyKeep phase 2', () => {
+  it('rejects asfalt / yol / atama without benefit', () => {
+    assert.equal(classifyKeep('Asfalt çalışması başladı'), null);
+    assert.equal(classifyKeep('Yol çalışması nedeniyle güzergah değişikliği'), null);
+    assert.equal(classifyKeep('Personel atama duyurusu'), null);
+    assert.equal(classifyKeep('Belediye başkanı açıklama yaptı'), null);
+    assert.equal(isHardReject('Asfalt çalışması başladı'), true);
+  });
+
+  it('keeps sosyal yardım as potential without engelli', () => {
+    assert.equal(classifyKeep('Sosyal yardım başvurusu başladı'), 'potential');
+    assert.equal(hasPotentialFamilyBenefit('Nakdi yardım ödemeleri yatıyor'), true);
+    assert.equal(classifyKeep('Dar gelirli ailelere maddi destek'), 'potential');
+    assert.equal(classifyKeep('Ücretsiz ulaşım kartı başvuruları açıldı'), 'potential');
+    assert.equal(shouldKeepCandidate('Sosyal yardım başvurusu başladı'), true);
+  });
+
+  it('keeps burs / ücretsiz kurs / başvuru without engelli, still dumps asfalt', () => {
+    assert.equal(classifyKeep('üniversite burs başvurusu'), 'potential');
+    assert.equal(classifyKeep('KYK burs sonuçları açıklandı'), 'potential');
+    assert.equal(classifyKeep('Ücretsiz kurs kayıtları başladı'), 'potential');
+    assert.equal(classifyKeep('Başvurular başladı'), 'potential');
+    assert.equal(isDisabilityOpportunity('üniversite burs başvurusu'), false);
+    assert.equal(classifyKeep('İhale ilanı başvurusu'), null);
+    assert.equal(classifyKeep('Asfalt çalışması başladı'), null);
   });
 });

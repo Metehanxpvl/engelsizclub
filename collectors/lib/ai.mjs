@@ -50,29 +50,31 @@ async function generateOnce(apiKey, model, prompt) {
 }
 
 export async function classifyCandidate(apiKey, item) {
-  const prompt = `Türkiye’de ÖZEL GEREKSİNİMLİ / ENGELLİ birey veya ailesi için resmi fırsat, destek, burs, hak, cihaz, eğitim veya istihdam duyurusu mu?
+  const prompt = `Türkiye’de özel gereksinimli / engelli birey-aile VEYA dar gelirli aileye yönelik resmi fırsat, destek, burs, hak, cihaz, eğitim, sosyal yardım veya başvurusu açık duyuru mu?
 
-relevant=true YALNIZCA hedef kitle açıkça şu alandaysa (yalnız "engelli" demesi ZORUNLU DEĞİL):
-engelli, engelsiz, özel gereksinim(li), özel eğitim, ÖYÇ, kaynaştırma, BEP, otizm/OSB/asperger, down sendromu/down sendromlu/down syndrome/trizomi 21, serebral palsi/serebral palsili/serebral paldi/cerebral palsy, SMA, CVI, DEHB/ADHD, işitme/görme/bedensel/zihinsel yetersizlik, gelişim geriliği, dil konuşma, erişilebilirlik, MEB ORGM, RAM, ÇÖZGER, bakım aylığı, ÖTV muafiyeti, EKPSS, işaret dili.
+relevant=true (direct): hedef kitle açıkça şu alandaysa
+engelli, engelsiz, özel gereksinim(li), özel eğitim, ÖYÇ, kaynaştırma, BEP, otizm/OSB/asperger, down sendromu, serebral palsi, SMA, CVI, DEHB, işitme/görme/bedensel/zihinsel yetersizlik, erişilebilirlik, MEB ORGM, RAM, ÇÖZGER, bakım aylığı, ÖTV muafiyeti, EKPSS, işaret dili, tekerlekli sandalye, tıbbi/medikal cihaz, engelli aracı.
+Burs: burs + çekirdek terim varsa relevant=true. Burs tek başına relevant=false.
 
-Burs: relevant=true eğer burs/bursu/burslar/öğrenim bursu/scholarship ile birlikte çekirdek terim varsa
-(ör. engellilere burs, engelli öğrencilerine burs, özel gereksinimli öğrencilere burs, down sendromlu çocuklara burs).
-Burs tek başına veya KYK/üniversite/İŞKUR/belediye spor bursu çekirdek terim yoksa relevant=false. Burs kelimesini yok sayma.
+potential_family_benefit=true (engelli demese de): sosyal yardım, nakdi yardım, maddi destek, dar gelirli aile, ücretsiz kurs, ücretsiz ulaşım, gıda/yakacak/kira yardımı, başvuru açıldı/başladı — aile faydası.
 
-relevant=false:
-- Genel belediye / spor / konser / hava / imar / asfalt / ihale haberi
-- Çekirdek terimsiz burs, İŞKUR iş ilanı, istihdam, kota, TÜBİTAK çağrısı
-- Yalnız "rehabilitasyon", "rapor", "hak", "evde bakım" (engellilik/özel gereksinim bağlamı yoksa)
-- "Bursa" şehri, genel istihdam, genel kota
+relevant=false VE potential_family_benefit=false:
+- Asfalt, yol çalışması, kazı, imar, ihale
+- Personel atama, memur alımı (engelli kotası yoksa)
+- Siyasi açıklama, başkan açıklaması (yardım/hak yoksa)
+- Genel açılış/tören, konser, spor galibiyeti, hava durumu
 
-Teşhis koyma. Ham HTML yok.
+Kategori etiketleri (1-3, zorunlu değil; yoksa diger):
+firsat, destek, hak, burs, egitim, istihdam, sosyal_yardim, nakdi_yardim, ulasim, cihaz, saglik, barinma, etkinlik, basvuru, bakim, erisilebilirlik, ozel_egitim, kultur, otv, diger
+
+Teşhis koyma. Ham HTML yok. Yayınlama.
 
 Başlık: ${item.title}
 Özet: ${item.summary}
 Kaynak: ${item.sourceUrl}
 
 Yalnız JSON:
-{"relevant":true|false,"title":"...","summary":"...","category":"firsat|destek|hak|burs|egitim|istihdam|diger","city":"","deadline":"YYYY-MM-DD veya boş","notes":"kısa gerekçe"}`;
+{"relevant":true|false,"potential_family_benefit":true|false,"title":"...","summary":"...","category":"destek","categories":["destek"],"city":"","deadline":"YYYY-MM-DD veya boş","notes":"kısa gerekçe"}`;
 
   let lastErr;
   for (const model of MODELS) {
