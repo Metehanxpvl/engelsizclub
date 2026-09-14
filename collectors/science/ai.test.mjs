@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   ANIMAL_HUMAN_DISCLAIMER,
   buildScorePrompt,
+  heuristicPendingScore,
   normalizeAiResult,
 } from './ai.mjs';
 import { shouldInsertResearch } from './filter.mjs';
@@ -20,6 +21,7 @@ describe('AI prompt disclaimer', () => {
     assert.match(ANIMAL_HUMAN_DISCLAIMER, /Animals are not humans/i);
     assert.match(prompt, /Animals are not humans/i);
     assert.match(prompt, /tedavi vaadi|NEVER claim a cure/i);
+    assert.match(prompt, /asla IRRELEVANT/);
     assert.equal(prompt.includes(ANIMAL_HUMAN_DISCLAIMER), true);
   });
 });
@@ -73,5 +75,21 @@ describe('IRRELEVANT is not inserted', () => {
     assert.equal(row.status, 'pending_review');
     assert.equal(row.treatment_potential, 'HIGH_VALUE');
     assert.notEqual(row.status, 'published');
+  });
+});
+
+describe('heuristicPendingScore', () => {
+  it('keeps source text as POTENTIAL_VALUE pending path', () => {
+    const ai = heuristicPendingScore({
+      title: 'Cerebral palsy gait RCT',
+      originalTitle: 'CP gait',
+      summary: 'Children with CP.',
+      studyType: 'RCT',
+    });
+    assert.equal(ai.treatment_potential, 'POTENTIAL_VALUE');
+    assert.equal(ai.title, 'Cerebral palsy gait RCT');
+    assert.equal(ai.summary, 'Children with CP.');
+    assert.equal(shouldInsertResearch(ai.treatment_potential), true);
+    assert.match(ai.ai_notes, /POTENTIAL_VALUE/);
   });
 });

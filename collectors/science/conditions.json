@@ -1,6 +1,6 @@
 {
   "retmax": 25,
-  "reldate_days": 45,
+  "reldate_days": 90,
   "clinicaltrials_page_size": 25,
   "pubmed_queries": [
     {
@@ -57,9 +57,11 @@
     "lokomalazi",
     "hypoxic ischemic encephalopathy",
     "hypoxic-ischaemic encephalopathy",
+    "hypoxic-ischemic",
     "hypoxic ischaemic",
     "hipoksik iskemik",
     "autism spectrum",
+    "autism",
     "autistic",
     "otizm",
     "asperger",

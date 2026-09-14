@@ -49,6 +49,7 @@ jobs:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
         run: |
+          echo "Once: Supabase SQL Editor -> supabase/scientific_researches.sql (Run). Empty scientific_sources used to yield found=0; collector now falls back to conditions.json."
           # Secret may omit the extra `a` in the project ref; rewrite before node.
           SUPABASE_URL="${SUPABASE_URL//qycrkqwqrysypvqipqn/qycrkqwqrysypvqaipqn}"
           SUPABASE_URL="${SUPABASE_URL//ypvqipqn.supabase.co/ypvqaipqn.supabase.co}"
