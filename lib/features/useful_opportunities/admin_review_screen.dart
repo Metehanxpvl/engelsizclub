@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../admin_config.dart';
 import '../../data/duyuru_data.dart';
@@ -391,6 +392,42 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
     await widget.onApprove(image);
   }
 
+  Future<void> _openSource(String raw) async {
+    final uri = Uri.tryParse(raw.trim());
+    if (uri == null || !(uri.isScheme('http') || uri.isScheme('https'))) {
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Widget _sourceLabel(UsefulContentItem item) {
+    final url = item.sourceUrl.trim();
+    final name = item.sourceName.trim();
+    final label = name.isNotEmpty ? name : url;
+    if (label.isEmpty) return const SizedBox.shrink();
+    final uri = Uri.tryParse(url);
+    final canOpen =
+        uri != null && (uri.isScheme('http') || uri.isScheme('https'));
+    final style = GoogleFonts.nunito(
+      fontSize: 12,
+      color: canOpen ? MetoColors.primary : MetoColors.mutedFg,
+      decoration: canOpen ? TextDecoration.underline : TextDecoration.none,
+      decorationColor: canOpen ? MetoColors.primary : null,
+    );
+    final text = Text(label, style: style);
+    if (!canOpen) return text;
+    return Tooltip(
+      message: url,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: InkWell(
+          onTap: () => _openSource(url),
+          child: text,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
@@ -418,13 +455,7 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
               ),
             ],
             const SizedBox(height: 8),
-            Text(
-              item.sourceUrl,
-              style: GoogleFonts.nunito(
-                fontSize: 12,
-                color: MetoColors.mutedFg,
-              ),
-            ),
+            _sourceLabel(item),
             const SizedBox(height: 14),
             Text(
               'Dairesel görsel',

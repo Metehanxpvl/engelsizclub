@@ -11,8 +11,8 @@ import 'force_update_logic.dart';
 export 'force_update_logic.dart';
 
 /// pubspec marketing / `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
-const kAppVersionName = '1.1.10';
-const kAppBuildNumber = 200008;
+const kAppVersionName = '1.1.11';
+const kAppBuildNumber = 200009;
 
 /// Açılışta (ForceUpdateGate) semver kontrolü. Splash kilidi yok.
 ///

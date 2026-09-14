@@ -93,6 +93,7 @@ create table if not exists public.scientific_researches (
   nct_id text,
   source_name text not null default '',
   source_url text not null default '',
+  image_url text not null default '',
   external_id text,
   content_hash text not null,
   status text not null default 'pending_review'

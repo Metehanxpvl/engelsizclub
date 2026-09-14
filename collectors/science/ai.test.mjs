@@ -3,10 +3,16 @@ import { describe, it } from 'node:test';
 import {
   ANIMAL_HUMAN_DISCLAIMER,
   TITLE_TR_FALLBACK,
+  backfillSourceItem,
+  backfillUpdatePayload,
   buildScorePrompt,
   buildTranslatePrompt,
   extractJson,
+  forceTurkishPrimary,
   heuristicPendingScore,
+  looksEnglishTitle,
+  looksTurkishText,
+  needsTurkishBackfill,
   normalizeAiResult,
 } from './ai.mjs';
 import { shouldInsertResearch } from './filter.mjs';
@@ -35,17 +41,18 @@ describe('AI prompt disclaimer', () => {
       summary: 'Children with CP received training.',
     };
     const prompt = buildScorePrompt(item);
-    assert.match(prompt, /title: ZORUNLU sade Türkçe/);
+    assert.match(prompt, /title: MUTLAKA sade Türkçe/);
     assert.match(prompt, /original_title: kaynak başlığını AYNEN bırak/);
-    assert.match(prompt, /summary, why_important, limitations: ZORUNLU Türkçe/);
+    assert.match(prompt, /summary, why_important, limitations: MUTLAKA Türkçe/);
     assert.match(prompt, /"title":"Türkçe sade başlık"/);
     assert.match(prompt, /"original_title":"English source title unchanged"/);
     assert.match(prompt, /İngilizce\/kaynak başlığını title alanına kopyalama/);
+    assert.match(prompt, /İngilizce akademik başlık YASAK/);
 
     const translate = buildTranslatePrompt(item);
-    assert.match(translate, /title: ZORUNLU sade Türkçe/);
+    assert.match(translate, /title: MUTLAKA sade Türkçe/);
     assert.match(translate, /original_title: kaynak başlığını AYNEN bırak/);
-    assert.match(translate, /summary, why_important, limitations: ZORUNLU Türkçe/);
+    assert.match(translate, /summary, why_important, limitations: MUTLAKA Türkçe/);
     assert.match(translate, /Skorlama yapma/);
   });
 });
@@ -183,5 +190,97 @@ describe('heuristicPendingScore', () => {
     assert.equal(row.title, TITLE_TR_FALLBACK);
     assert.equal(row.original_title, 'CP gait');
     assert.equal(row.status, 'pending_review');
+  });
+});
+
+describe('English title detection and backfill source', () => {
+  it('detects English titles and keeps Turkish', () => {
+    assert.equal(looksEnglishTitle('Gait trial in cerebral palsy'), true);
+    assert.equal(looksEnglishTitle('Stem cells in a rat model of PVL'), true);
+    assert.equal(looksEnglishTitle('Randomized children trial for autism'), true);
+    assert.equal(looksEnglishTitle('Serebral palside yürüyüş denemesi'), false);
+    assert.equal(looksEnglishTitle(TITLE_TR_FALLBACK), false);
+    assert.equal(looksTurkishText('Serebral palside yürüyüş denemesi'), true);
+    assert.equal(looksTurkishText('Gait trial in cerebral palsy'), false);
+  });
+
+  it('needs backfill for English pending/published titles only', () => {
+    assert.equal(
+      needsTurkishBackfill({
+        status: 'pending_review',
+        title: 'Gait trial in cerebral palsy',
+        original_title: 'Gait trial in cerebral palsy',
+      }),
+      true,
+    );
+    assert.equal(
+      needsTurkishBackfill({
+        status: 'published',
+        title: TITLE_TR_FALLBACK,
+        original_title: 'Early PVL cohort',
+      }),
+      true,
+    );
+    assert.equal(
+      needsTurkishBackfill({
+        status: 'pending_review',
+        title: 'Serebral palside yürüyüş denemesi',
+        original_title: 'Gait trial in cerebral palsy',
+      }),
+      false,
+    );
+    assert.equal(
+      needsTurkishBackfill({
+        status: 'rejected',
+        title: 'Gait trial in cerebral palsy',
+        original_title: 'Gait trial in cerebral palsy',
+      }),
+      false,
+    );
+  });
+
+  it('backfill payload uses original_title for source', () => {
+    const item = backfillSourceItem({
+      title: TITLE_TR_FALLBACK,
+      original_title: 'Gait trial in cerebral palsy',
+      summary: 'Children with CP received training.',
+      why_important: 'Early signal.',
+      limitations: 'Small n.',
+    });
+    assert.equal(item.title, 'Gait trial in cerebral palsy');
+    assert.equal(item.originalTitle, 'Gait trial in cerebral palsy');
+    assert.notEqual(item.title, TITLE_TR_FALLBACK);
+
+    const copy = forceTurkishPrimary(
+      {
+        title: 'Gait trial in cerebral palsy',
+        original_title: 'ignored',
+        summary: 'Children with CP received training.',
+        why_important: 'Early clinical signal in children.',
+        limitations: 'Small randomized sample.',
+      },
+      item,
+    );
+    assert.equal(copy.title, TITLE_TR_FALLBACK);
+    assert.equal(copy.original_title, 'Gait trial in cerebral palsy');
+    assert.notEqual(copy.title, copy.original_title);
+
+    const payload = backfillUpdatePayload(
+      {
+        title: 'Gait trial in cerebral palsy',
+        original_title: 'Gait trial in cerebral palsy',
+      },
+      {
+        title: 'Serebral palside yürüyüş denemesi',
+        original_title: 'should not replace source',
+        summary: 'Çocuklarda küçük örneklemli çalışma.',
+        why_important: 'Hedef kitleyle ilgili.',
+        limitations: 'Kesin sonuç değildir.',
+      },
+    );
+    assert.equal(payload.title, 'Serebral palside yürüyüş denemesi');
+    assert.equal(payload.original_title, 'Gait trial in cerebral palsy');
+    assert.match(payload.summary, /Çocuklarda/);
+    assert.equal(payload.original_title, item.originalTitle);
   });
 });

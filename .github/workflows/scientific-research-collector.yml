@@ -11,6 +11,8 @@
 #
 # İlk çalıştırmadan önce SQL Editor → supabase/scientific_researches.sql → Run.
 # Collector asla published yazmaz; FCM yok; tedavi vaadi yok.
+# Her çalıştırmada pending_review + published İngilizce title satırlarını
+# Türkçeye çevirir (en fazla 40); status değişmez.
 #
 # Cron yalnız default branch’te çalışır.
 #   Actions → Scientific research collector → Run workflow → branch main

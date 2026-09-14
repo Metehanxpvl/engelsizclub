@@ -103,6 +103,72 @@ List<DuyuruItem> sortDuyurular(
   return [...unread, ...read];
 }
 
+/// Yayın tarihi (yoksa createdAt) — tümünü gör ızgarası için.
+DateTime duyuruSortDate(DuyuruItem item) => item.publishAt ?? item.createdAt;
+
+/// Tümünü gör: küçük üst sınır yok. PostgREST varsayılanı ~1000.
+const kDuyuruFetchLimit = 1000;
+
+/// Ana sayfa yatay şerit; tam liste Tümünü gör’de.
+const kDuyuruHomeStripMax = 20;
+
+/// Tarihe göre sırala. [newestFirst] true: yeniden eskiye (haber varsayılanı).
+List<DuyuruItem> sortDuyurularByDate(
+  Iterable<DuyuruItem> items, {
+  bool newestFirst = true,
+}) {
+  final list = List<DuyuruItem>.from(items);
+  list.sort((a, b) {
+    final cmp = duyuruSortDate(a).compareTo(duyuruSortDate(b));
+    if (cmp != 0) return newestFirst ? -cmp : cmp;
+    return newestFirst ? b.id.compareTo(a.id) : a.id.compareTo(b.id);
+  });
+  return list;
+}
+
+/// Normal kullanıcı: aktif + yayın aralığında (pop-up dahil).
+List<DuyuruItem> visibleDuyurularNow(
+  Iterable<DuyuruItem> items, {
+  DateTime? now,
+}) {
+  return [
+    for (final d in items)
+      if (d.id > 0 && d.isVisibleNow(now)) d,
+  ];
+}
+
+/// Tümünü gör: şu an görünürlerin tamamı (pop-up dahil, şerit tavanı yok).
+List<DuyuruItem> duyurularForAllScreen(
+  Iterable<DuyuruItem> items, {
+  bool isEditor = false,
+  bool newestFirst = true,
+  DateTime? now,
+}) {
+  final base = isEditor
+      ? items.where((d) => d.id > 0 && d.isActive)
+      : visibleDuyurularNow(items, now: now);
+  return sortDuyurularByDate(base, newestFirst: newestFirst);
+}
+
+/// Ana sayfa şeridi: pop-up yok, en fazla [kDuyuruHomeStripMax].
+List<DuyuruItem> duyurularForHomeStrip(
+  Iterable<DuyuruItem> items, {
+  Set<int> seenIds = const {},
+  bool isEditor = false,
+  DateTime? now,
+  int maxItems = kDuyuruHomeStripMax,
+}) {
+  final pool = isEditor
+      ? items.where((d) => d.id > 0 && d.isActive)
+      : visibleDuyurularNow(items, now: now);
+  final sorted = sortDuyurular(
+    pool.where((d) => !d.isPopup).toList(),
+    seenIds,
+  );
+  if (sorted.length <= maxItems) return sorted;
+  return sorted.take(maxItems).toList();
+}
+
 /// [forceRefresh] true değilse ve taze önbellek varsa ağ çağrısı yapılmaz.
 /// Bölüm editörü / super admin tüm kayıtları (pasif dahil) görür; diğerleri yalnız aktifleri.
 Future<List<DuyuruItem>> loadDuyurular({
@@ -121,7 +187,7 @@ Future<List<DuyuruItem>> loadDuyurular({
         .from('duyurular')
         .select()
         .order('created_at', ascending: false)
-        .limit(50);
+        .limit(kDuyuruFetchLimit);
     final list = [
       for (final e in (rows as List).whereType<Map>())
         duyuruFromRow(Map<String, dynamic>.from(e)),

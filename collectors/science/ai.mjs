@@ -13,15 +13,97 @@ export const ANIMAL_HUMAN_DISCLAIMER =
 export const TITLE_TR_FALLBACK =
   'Kaynak başlığı aşağıdadır; özet çevrilemedi.';
 
+const TR_CHARS = /[çğıöşüÇĞİÖŞÜ]/;
+const TR_WORDS =
+  /\b(ve|bir|ile|bu|olan|için|icin|çalışma|calisma|deneme|özet|ozet|çocuk|cocuk|serebral|palsi|tedavi|rehabilitasyon|hayvan|insan|faz|klinik|erken|küçük|kucuk|örneklem|orneklem|sonuç|sonuc|değil|degil|yok|var|başlık|baslik|kaynak|aşağıdadır|asagidadir|çevrilemedi|cevrilemedi|üzerine|uzerine|yürüyüş|yuruyus)\b/i;
+const EN_WORDS =
+  /\b(the|and|for|with|from|of|in|a|an|on|to|by|or|as|at|into|versus|vs|study|studies|trial|trials|review|effect|effects|children|child|infant|infants|autism|treatment|therapy|clinical|patient|patients|disorder|syndrome|randomized|randomised|intervention|developmental|outcome|outcomes|analysis|among|between|cerebral|palsy|stem|cell|cells|model|rat|rats|mice|mouse|human|neonatal|preterm|gait|training|efficacy|safety|phase|remyelination|leukomalacia)\b/i;
+
+export function looksTurkishText(s) {
+  const t = String(s || '').trim();
+  if (!t) return false;
+  if (TR_CHARS.test(t)) return true;
+  return TR_WORDS.test(t);
+}
+
+function asciiLetterRatio(s) {
+  const letters = [...String(s || '')].filter((c) => /\p{L}/u.test(c));
+  if (!letters.length) return 1;
+  const ascii = letters.filter((c) => c.charCodeAt(0) < 128);
+  return ascii.length / letters.length;
+}
+
+/** ASCII-heavy, common English words, no Turkish chars — not a primary `title`. */
+export function looksEnglishTitle(s) {
+  const t = String(s || '').trim();
+  if (!t) return false;
+  if (looksTurkishText(t)) return false;
+  if (!EN_WORDS.test(t)) return false;
+  const letterCount = [...t].filter((c) => /\p{L}/u.test(c)).length;
+  if (letterCount < 8) return false;
+  return asciiLetterRatio(t) >= 0.9;
+}
+
+export function needsTurkishBackfill(row) {
+  const status = String(row?.status || '');
+  if (status !== 'pending_review' && status !== 'published') return false;
+  const title = String(row?.title || '').trim();
+  if (!title) return true;
+  if (title === TITLE_TR_FALLBACK) return true;
+  return looksEnglishTitle(title);
+}
+
+/** Translate from English `original_title`, never from a TR stub already in `title`. */
+export function backfillSourceItem(row) {
+  const original = String(row?.original_title || row?.title || '').trim();
+  return {
+    title: original,
+    originalTitle: original,
+    summary: String(row?.summary || ''),
+    conditions: row?.conditions,
+    categories: row?.categories,
+  };
+}
+
+export function forceTurkishPrimary(copy, item) {
+  const src = String(
+    item?.originalTitle || item?.title || copy?.original_title || '',
+  ).trim();
+  const next = { ...copy };
+  if (!String(next.title || '').trim() || looksEnglishTitle(next.title)) {
+    next.title = TITLE_TR_FALLBACK;
+  }
+  if (src) next.original_title = src.slice(0, 400);
+  if (looksEnglishTitle(next.summary)) next.summary = TITLE_TR_FALLBACK;
+  if (looksEnglishTitle(next.why_important)) next.why_important = MISSING;
+  if (looksEnglishTitle(next.limitations)) next.limitations = MISSING;
+  return next;
+}
+
+export function backfillUpdatePayload(row, copy) {
+  const original = String(
+    row?.original_title || copy?.original_title || row?.title || '',
+  )
+    .trim()
+    .slice(0, 400);
+  return {
+    title: String(copy?.title || '').slice(0, 400),
+    original_title: original,
+    summary: String(copy?.summary || '').slice(0, 4000),
+    why_important: String(copy?.why_important || '').slice(0, 2000),
+    limitations: String(copy?.limitations || '').slice(0, 2000),
+  };
+}
+
 export function buildScorePrompt(item) {
   return `Sen EngelsizClub bilimsel tarama asistanısın. Ailelere yönelik, özel gereksinim / pediatrik nöroloji (serebral palsi, PVL, HIE, otizm, Down, epilepsi, nöroplastisite, remiyelinizasyon, oligodendrosit, gen tedavisi, kök hücre) bağlamında çalışmayı değerlendir.
 
 ${ANIMAL_HUMAN_DISCLAIMER}
 
 Kurallar:
-- title: ZORUNLU sade Türkçe (aile dostu). İngilizce/kaynak başlığını title alanına kopyalama. Tedavi/çare iddiası yok.
+- title: MUTLAKA sade Türkçe (aile dostu). İngilizce/kaynak başlığını title alanına kopyalama. title, original_title ile aynı olamaz. "study/trial/effect/children/cerebral palsy/randomized" gibi İngilizce akademik başlık YASAK — Türkçe karşılığını yaz. Tedavi/çare iddiası yok.
 - original_title: kaynak başlığını AYNEN bırak (genelde İngilizce).
-- summary, why_important, limitations: ZORUNLU Türkçe. Uydurma yok.
+- summary, why_important, limitations: MUTLAKA Türkçe. Uydurma yok.
 - categories ve conditions: Türkçe etiket veya kısa iki dilli etiket (ör. "serebral palsi").
 - Eksik bilgi uydurma. Bilinmeyen metin alanları için null değil "${MISSING}" kullan. Sayısal skor yoksa null.
 - treatment_potential yalnız: HIGH_VALUE | POTENTIAL_VALUE | IRRELEVANT
@@ -54,9 +136,9 @@ export function buildTranslatePrompt(item) {
 ${ANIMAL_HUMAN_DISCLAIMER}
 
 Kurallar:
-- title: ZORUNLU sade Türkçe (aile dostu). İngilizce başlığı title’a kopyalama. Tedavi/çare iddiası yok.
+- title: MUTLAKA sade Türkçe (aile dostu). İngilizce başlığı title’a kopyalama. title, original_title ile aynı olamaz. İngilizce akademik başlık YASAK. Tedavi/çare iddiası yok.
 - original_title: kaynak başlığını AYNEN bırak (İngilizce/orijinal dil).
-- summary, why_important, limitations: ZORUNLU Türkçe. Uydurma yok; yoksa "${MISSING}".
+- summary, why_important, limitations: MUTLAKA Türkçe. Uydurma yok; yoksa "${MISSING}".
 - categories ve conditions: Türkçe etiket veya kısa iki dilli etiket.
 - Yalnız JSON.
 
@@ -235,20 +317,49 @@ async function generateJson(apiKey, prompt, { maxOutputTokens = 1536 } = {}) {
   throw lastErr || new Error('AI başarısız');
 }
 
-/** Cheaper second pass: Turkish title/summary only; no scores. */
-export async function translateResearchCopy(apiKey, item) {
-  const parsed = await generateJson(apiKey, buildTranslatePrompt(item), {
-    maxOutputTokens: 1024,
-  });
-  return applyTranslatedCopy(item, parsed);
+function sourceItemForTranslate(item) {
+  const original = String(item?.originalTitle || item?.title || '').trim();
+  return {
+    ...item,
+    title: original || item?.title,
+    originalTitle: original || item?.originalTitle || item?.title,
+  };
+}
+
+/** Cheaper second pass: Turkish title/summary only; no scores. Retry if still English. */
+export async function translateResearchCopy(apiKey, item, { maxRetries = 2 } = {}) {
+  const source = sourceItemForTranslate(item);
+  let last = null;
+  let lastErr;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const parsed = await generateJson(apiKey, buildTranslatePrompt(source), {
+        maxOutputTokens: 1024,
+      });
+      last = applyTranslatedCopy(source, parsed);
+      if (!looksEnglishTitle(last.title)) return last;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  if (last) return forceTurkishPrimary(last, source);
+  throw lastErr || new Error('AI çeviri yok');
 }
 
 export async function scoreResearch(apiKey, item) {
   try {
     const parsed = await generateJson(apiKey, buildScorePrompt(item));
-    const normalized = normalizeAiResult(parsed, item);
+    let normalized = normalizeAiResult(parsed, item);
     if (!normalized) throw new Error('AI JSON yok veya treatment_potential geçersiz');
-    return normalized;
+    if (looksEnglishTitle(normalized.title)) {
+      try {
+        const copy = await translateResearchCopy(apiKey, item);
+        normalized = { ...normalized, ...copy };
+      } catch {
+        // fall through — English must not stay as primary title
+      }
+    }
+    return forceTurkishPrimary(normalized, item);
   } catch (scoreErr) {
     try {
       const copy = await translateResearchCopy(apiKey, item);

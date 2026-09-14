@@ -7,9 +7,11 @@ const kScientificResearchStatuses = <String>{
   'rejected',
 };
 
-/// Onayla asla addDuyuru / FCM çağırmaz.
-const kScientificResearchApproveCreatesDuyuru = false;
-const kScientificResearchApproveNotify = false;
+/// Onayla → addDuyuru (Güncel Duyurular story). Fırsatlar ile aynı notify.
+const kScientificResearchApproveCreatesDuyuru = true;
+const kScientificResearchApproveNotify = true;
+
+const kScientificResearchApproveNeedImageMessage = 'Önce görsel ekle';
 
 const kHighTreatmentScoreThreshold = 70;
 
@@ -50,6 +52,39 @@ bool isBlankOrUnspecified(String raw) {
       lower == 'null';
 }
 
+const kScientificResearchTitleTrFallback =
+    'Kaynak başlığı aşağıdadır; özet çevrilemedi.';
+
+final _trTitleChars = RegExp(r'[çğıöşüÇĞİÖŞÜ]');
+final _trTitleWords = RegExp(
+  r'\b(ve|bir|ile|bu|olan|için|icin|çalışma|calisma|deneme|özet|ozet|çocuk|cocuk|serebral|palsi|tedavi|rehabilitasyon|hayvan|insan|faz|klinik|erken|küçük|kucuk|örneklem|orneklem|sonuç|sonuc|değil|degil|yok|var|başlık|baslik|kaynak|aşağıdadır|çevrilemedi|üzerine|yürüyüş)\b',
+  caseSensitive: false,
+);
+final _enTitleWords = RegExp(
+  r'\b(the|and|for|with|from|of|in|a|an|on|to|by|or|as|at|study|studies|trial|trials|review|effect|effects|children|child|infant|autism|treatment|therapy|clinical|patients?|disorder|syndrome|randomized|randomised|intervention|developmental|outcomes?|analysis|among|between|cerebral|palsy|stem|cells?|gait|training|efficacy|safety|phase|remyelination)\b',
+  caseSensitive: false,
+);
+final _unicodeLetters = RegExp(r'\p{L}', unicode: true);
+final _asciiLetters = RegExp(r'[A-Za-z]');
+
+bool looksTurkishResearchCopy(String raw) {
+  final s = raw.trim();
+  if (s.isEmpty) return false;
+  if (_trTitleChars.hasMatch(s)) return true;
+  return _trTitleWords.hasMatch(s);
+}
+
+bool looksEnglishResearchCopy(String raw) {
+  final s = raw.trim();
+  if (s.isEmpty) return false;
+  if (looksTurkishResearchCopy(s)) return false;
+  if (!_enTitleWords.hasMatch(s)) return false;
+  final letters = _unicodeLetters.allMatches(s).length;
+  if (letters < 8) return false;
+  final ascii = _asciiLetters.allMatches(s).length;
+  return ascii / letters >= 0.9;
+}
+
 bool isScientificResearchesTableMissing(Object error) {
   final s = error.toString().toLowerCase();
   final mentionsTable = s.contains('scientific_researches') ||
@@ -80,7 +115,94 @@ String scientificResearchLoadError(Object error) {
   return error.toString();
 }
 
-/// Onay yaması: yalnız status. Bildirim / duyuru alanı yok.
+/// Story görseli yoksa Onayla’dan önce foto gerekir (Instagram istisnası yok).
+bool scientificResearchNeedsStoryImage(ScientificResearch item) {
+  return item.imageUrl.trim().isEmpty;
+}
+
+String scientificResearchStoryImageUrl(ScientificResearch item) {
+  return item.imageUrl.trim();
+}
+
+/// Story başlığı: Türkçe `title`. İngilizce `original_title` duyuruya yazılmaz.
+String scientificResearchDuyuruTitle(
+  ScientificResearch item, {
+  String? title,
+}) {
+  const fallback = 'Bilimsel araştırma';
+  final original = item.originalTitle.trim();
+  bool usable(String raw) {
+    final t = raw.trim();
+    if (isBlankOrUnspecified(t)) return false;
+    if (looksEnglishResearchCopy(t)) return false;
+    if (original.isNotEmpty && t.toLowerCase() == original.toLowerCase()) {
+      return false;
+    }
+    return true;
+  }
+
+  final override = (title ?? '').trim();
+  if (usable(override)) return override;
+  if (usable(item.title)) return item.title.trim();
+  return fallback;
+}
+
+/// Duyuru gövdesi: Türkçe özet. "Tedavi bulundu" üretilmez.
+String scientificResearchDuyuruBody(
+  ScientificResearch item, {
+  String? summary,
+}) {
+  final s = (summary ?? item.summary).trim();
+  if (!isBlankOrUnspecified(s)) return s;
+  if (!isBlankOrUnspecified(item.whyImportant)) {
+    return item.whyImportant.trim();
+  }
+  return item.sourceUrl.trim();
+}
+
+/// Onayla → addDuyuru alanları (notify = fırsat / birey paylaşınca).
+({
+  String title,
+  String body,
+  String imageUrl,
+  String? sourceUrl,
+  bool requireImage,
+  bool notify,
+}) scientificResearchToDuyuruDraft(
+  ScientificResearch item, {
+  String imageUrl = '',
+  String? title,
+  String? summary,
+}) {
+  var photo = imageUrl.trim();
+  if (photo.isEmpty) photo = scientificResearchStoryImageUrl(item);
+  final src = item.sourceUrl.trim();
+  return (
+    title: scientificResearchDuyuruTitle(item, title: title),
+    body: scientificResearchDuyuruBody(item, summary: summary),
+    imageUrl: photo,
+    sourceUrl: src.isEmpty ? null : src,
+    requireImage: true,
+    notify: kScientificResearchApproveNotify,
+  );
+}
+
+void ensureScientificResearchStoryImage(String imageUrl) {
+  if (imageUrl.trim().isEmpty) {
+    throw StateError(kScientificResearchApproveNeedImageMessage);
+  }
+}
+
+bool isScientificResearchImageUrlColumnMissing(Object error) {
+  final s = error.toString().toLowerCase();
+  if (!s.contains('image_url')) return false;
+  return s.contains('does not exist') ||
+      s.contains('schema cache') ||
+      s.contains('pgrst204') ||
+      s.contains('42703');
+}
+
+/// Onay yaması: status. image_url ayrı eklenir (kolon yoksa düşülür).
 Map<String, dynamic> scientificResearchApprovePatch() {
   return const {'status': 'published'};
 }
@@ -236,6 +358,7 @@ class ScientificResearch {
     required this.nctId,
     required this.sourceName,
     required this.sourceUrl,
+    this.imageUrl = '',
     this.externalId,
     required this.contentHash,
     required this.status,
@@ -270,18 +393,19 @@ class ScientificResearch {
   final String nctId;
   final String sourceName;
   final String sourceUrl;
+  final String imageUrl;
   final String? externalId;
   final String contentHash;
   final String status;
   final String aiNotes;
   final DateTime? createdAt;
 
-  /// AI Türkçe başlık varsa onu; yoksa orijinal.
+  /// Türkçe `title` varsa onu; İngilizce title asla birincil başlık değil.
   String get displayTitle {
-    if (!isBlankOrUnspecified(title)) return title.trim();
-    if (!isBlankOrUnspecified(originalTitle)) return originalTitle.trim();
-    if (title.trim().isNotEmpty) return title.trim();
-    return originalTitle.trim();
+    final t = title.trim();
+    if (!isBlankOrUnspecified(t) && looksTurkishResearchCopy(t)) return t;
+    if (!isBlankOrUnspecified(t) && !looksEnglishResearchCopy(t)) return t;
+    return kScientificResearchTitleTrFallback;
   }
 
   String get stageLabel => scienceStageLabel(this);
@@ -290,6 +414,7 @@ class ScientificResearch {
     String? title,
     String? summary,
     String? status,
+    String? imageUrl,
   }) =>
       ScientificResearch(
         id: id,
@@ -319,6 +444,7 @@ class ScientificResearch {
         nctId: nctId,
         sourceName: sourceName,
         sourceUrl: sourceUrl,
+        imageUrl: imageUrl ?? this.imageUrl,
         externalId: externalId,
         contentHash: contentHash,
         status: status ?? this.status,
@@ -381,6 +507,7 @@ class ScientificResearch {
       nctId: json['nct_id']?.toString().trim() ?? '',
       sourceName: json['source_name']?.toString().trim() ?? '',
       sourceUrl: json['source_url']?.toString().trim() ?? '',
+      imageUrl: json['image_url']?.toString().trim() ?? '',
       externalId: json['external_id']?.toString().trim(),
       contentHash: json['content_hash']?.toString().trim() ?? '',
       status: normalizeScienceStatus(

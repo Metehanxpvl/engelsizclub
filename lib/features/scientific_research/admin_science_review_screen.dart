@@ -1,11 +1,16 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../admin_config.dart';
 import '../../l10n/app_strings.dart';
 import '../../l10n/l10n_text.dart';
 import '../../meto_theme.dart';
+import '../../services/image_optimize_service.dart';
+import '../../services/r2_storage_service.dart';
 import 'scientific_research_model.dart';
 import 'scientific_research_repository.dart';
 
@@ -79,7 +84,7 @@ class _AdminScienceReviewScreenState extends State<AdminScienceReviewScreen> {
   }
 
   Future<void> _edit(ScientificResearch item) async {
-    final titleCtrl = TextEditingController(text: item.title);
+    final titleCtrl = TextEditingController(text: item.displayTitle);
     final summaryCtrl = TextEditingController(text: item.summary);
     final ok = await showDialog<bool>(
       context: context,
@@ -148,16 +153,45 @@ class _AdminScienceReviewScreenState extends State<AdminScienceReviewScreen> {
     }
   }
 
-  Future<void> _approve(ScientificResearch item) async {
+  void _replaceItem(ScientificResearch next) {
+    setState(() {
+      _items = [
+        for (final e in _items)
+          if (e.id == next.id) next else e,
+      ];
+    });
+  }
+
+  Future<void> _saveImage(ScientificResearch item, String imageUrl) async {
+    try {
+      await _repo.updateImage(id: item.id, imageUrl: imageUrl);
+      _replaceItem(item.copyWith(imageUrl: imageUrl));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Görsel kaydedilemedi: ${scientificResearchLoadError(e)}',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _approve(ScientificResearch item, String imageUrl) async {
     setState(() => _busyId = item.id);
     try {
-      await _repo.approve(item.id);
+      await _repo.approve(
+        item.id,
+        adminEmail: widget.adminEmail,
+        imageUrl: imageUrl,
+      );
       await _reload();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Yayınlandı. Bildirim veya ana sayfa duyurusu gönderilmedi.',
+            'Onaylandı. Ana sayfa Güncel Duyurular story’sine eklendi.',
           ),
         ),
       );
@@ -342,8 +376,10 @@ class _AdminScienceReviewScreenState extends State<AdminScienceReviewScreen> {
                                       item: item,
                                       busy: _busyId == item.id,
                                       onEdit: () => _edit(item),
+                                      onImageSaved: (url) =>
+                                          _saveImage(item, url),
                                       onApprove: item.status == 'pending_review'
-                                          ? () => _approve(item)
+                                          ? (url) => _approve(item, url)
                                           : null,
                                       onReject: item.status == 'pending_review'
                                           ? () => _reject(item)
@@ -361,11 +397,12 @@ class _AdminScienceReviewScreenState extends State<AdminScienceReviewScreen> {
   }
 }
 
-class _ScienceReviewCard extends StatelessWidget {
+class _ScienceReviewCard extends StatefulWidget {
   const _ScienceReviewCard({
     required this.item,
     required this.busy,
     required this.onEdit,
+    this.onImageSaved,
     this.onApprove,
     this.onReject,
     this.onUnpublish,
@@ -374,9 +411,48 @@ class _ScienceReviewCard extends StatelessWidget {
   final ScientificResearch item;
   final bool busy;
   final VoidCallback onEdit;
-  final VoidCallback? onApprove;
+  final Future<void> Function(String imageUrl)? onImageSaved;
+  final Future<void> Function(String imageUrl)? onApprove;
   final VoidCallback? onReject;
   final VoidCallback? onUnpublish;
+
+  @override
+  State<_ScienceReviewCard> createState() => _ScienceReviewCardState();
+}
+
+class _ScienceReviewCardState extends State<_ScienceReviewCard> {
+  late final TextEditingController _imageUrl;
+  Uint8List? _pickedBytes;
+  String? _uploadedUrl;
+  var _uploading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _imageUrl = TextEditingController(text: widget.item.imageUrl);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ScienceReviewCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.item.id != widget.item.id) {
+      _pickedBytes = null;
+      _uploadedUrl = null;
+      _imageUrl.text = widget.item.imageUrl;
+      return;
+    }
+    if (_pickedBytes == null &&
+        widget.item.imageUrl != oldWidget.item.imageUrl &&
+        widget.item.imageUrl != _imageUrl.text.trim()) {
+      _imageUrl.text = widget.item.imageUrl;
+    }
+  }
+
+  @override
+  void dispose() {
+    _imageUrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _open(String raw) async {
     final uri = Uri.tryParse(raw.trim());
@@ -386,8 +462,89 @@ class _ScienceReviewCard extends StatelessWidget {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  Future<void> _pickImage() async {
+    final file = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      imageQuality: 82,
+    );
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _pickedBytes = bytes;
+      _uploadedUrl = null;
+      _imageUrl.clear();
+    });
+    await _uploadPicked();
+  }
+
+  Future<String> _uploadPicked() async {
+    if (_pickedBytes == null || _pickedBytes!.isEmpty) return '';
+    setState(() => _uploading = true);
+    try {
+      final optimized = await ImageOptimizeService.forCatalogCard(_pickedBytes!);
+      final url = await R2StorageService.uploadBytes(
+        bytes: optimized.bytes,
+        fileName: 'bilim_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        contentType: optimized.contentType,
+      );
+      if (!mounted) return url;
+      _uploadedUrl = url;
+      _imageUrl.text = url;
+      await widget.onImageSaved?.call(url);
+      return url;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Görsel yüklenemedi: $e')),
+        );
+      }
+      rethrow;
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  Future<String> _resolveImagePayload() async {
+    if (_pickedBytes != null && _pickedBytes!.isNotEmpty) {
+      if (_uploadedUrl != null && _uploadedUrl!.isNotEmpty) {
+        return _uploadedUrl!;
+      }
+      return _uploadPicked();
+    }
+    final typed = _imageUrl.text.trim();
+    if (typed.isNotEmpty) return typed;
+    return widget.item.imageUrl.trim();
+  }
+
+  Future<void> _approve() async {
+    if (_uploading) return;
+    String image;
+    try {
+      image = await _resolveImagePayload();
+    } catch (_) {
+      return;
+    }
+    if (image.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(kScientificResearchApproveNeedImageMessage)),
+      );
+      return;
+    }
+    if (image != widget.item.imageUrl) {
+      await widget.onImageSaved?.call(image);
+    }
+    await widget.onApprove?.call(image);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final item = widget.item;
+    final busy = widget.busy || _uploading;
+    final previewUrl = _imageUrl.text.trim();
+    final canPick = widget.onApprove != null;
     final ids = <String>[
       if (item.pmid.isNotEmpty) 'PMID ${item.pmid}',
       if (item.nctId.isNotEmpty) 'NCT ${item.nctId}',
@@ -493,34 +650,109 @@ class _ScienceReviewCard extends StatelessWidget {
                 ),
               ),
             ],
+            if (canPick) ...[
+              const SizedBox(height: 14),
+              Text(
+                'Dairesel görsel',
+                style: GoogleFonts.nunito(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: MetoColors.mutedFg,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Güncel Duyurular’daki gibi dairesel görsel gerekir.',
+                style: GoogleFonts.nunito(
+                  fontSize: 12,
+                  color: MetoColors.mutedFg,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  ClipOval(
+                    child: SizedBox(
+                      width: 64,
+                      height: 64,
+                      child: _pickedBytes != null
+                          ? Image.memory(_pickedBytes!, fit: BoxFit.cover)
+                          : previewUrl.startsWith('http')
+                              ? Image.network(
+                                  previewUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => ColoredBox(
+                                    color: MetoColors.muted,
+                                    child: Icon(
+                                      Icons.campaign_outlined,
+                                      color: MetoColors.primary,
+                                    ),
+                                  ),
+                                )
+                              : ColoredBox(
+                                  color: MetoColors.muted,
+                                  child: Icon(
+                                    Icons.campaign_outlined,
+                                    color: MetoColors.primary,
+                                  ),
+                                ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: busy ? null : _pickImage,
+                      icon: _uploading
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.photo_library_outlined, size: 18),
+                      label: const L10nText('Galeriden yükle'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _imageUrl,
+                enabled: !busy && _pickedBytes == null,
+                decoration: const InputDecoration(
+                  hintText: 'veya görsel URL (https://...)',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ],
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 OutlinedButton(
-                  onPressed: busy ? null : onEdit,
+                  onPressed: busy ? null : widget.onEdit,
                   child: const Text('Düzenle'),
                 ),
-                if (onApprove != null)
+                if (widget.onApprove != null)
                   FilledButton(
-                    onPressed: busy ? null : onApprove,
+                    onPressed: busy ? null : _approve,
                     style: FilledButton.styleFrom(
                       backgroundColor: MetoColors.primary,
                     ),
                     child: const Text('Onayla'),
                   ),
-                if (onReject != null)
+                if (widget.onReject != null)
                   OutlinedButton(
-                    onPressed: busy ? null : onReject,
+                    onPressed: busy ? null : widget.onReject,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFFDC2626),
                     ),
                     child: const Text('Reddet'),
                   ),
-                if (onUnpublish != null)
+                if (widget.onUnpublish != null)
                   OutlinedButton(
-                    onPressed: busy ? null : onUnpublish,
+                    onPressed: busy ? null : widget.onUnpublish,
                     child: const Text('Yayından kaldır'),
                   ),
               ],

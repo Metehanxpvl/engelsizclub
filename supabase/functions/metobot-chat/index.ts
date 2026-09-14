@@ -1,9 +1,11 @@
 // MetoBot. Secret: GEMINI_API_KEY (same as gemini-proxy).
+// Live facts (ÖTV tavanı, maaş, tarih, duyuru) live HERE — not in the APK.
 // Grounding: tools.google_search when off-catalog or time-sensitive
-// (tutar/yıl/mevzuat). Search is optional: any tool/quota/timeout failure
-// retries the same model without tools so the user still gets a Turkish
-// answer. JWT on.
-// Deploy: npx supabase functions deploy metobot-chat --project-ref qycrkqwqrysypvqaipqn
+// (tutar/yıl/mevzuat). Do not hardcode yearly amounts in this file.
+// Search is optional for navigation: tool/quota/timeout failure retries
+// without tools. For amounts, the no-search retry must not quote a number.
+// JWT on. Deploy (JWT stays on — never --no-verify-jwt):
+// npx supabase functions deploy metobot-chat --project-ref qycrkqwqrysypvqaipqn
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
@@ -25,13 +27,9 @@ function istanbulDate(): string {
 }
 
 /**
- * ÖTV 2026 tavanı (uydurma değil):
- * - ÖTV (II) Sayılı Liste Uygulama Genel Tebliği Değişiklik (Seri No: 16),
- *   Resmî Gazete 31.12.2025, 33124 (5. Mükerrer), yürürlük 1/1/2026:
- *   87.03 vergiler dâhil tavan 2.290.200 TL → 2.873.900 TL.
- * - Aynı 2.873.900 TL, 22.04.2026 Resmî Gazete Seri No: 17'de de geçerli:
- *   https://www.resmigazete.gov.tr/eskiler/2026/04/20260422-3.htm
- * Uygulama metni: Engelsiz Club haklar kartı `otv-muafiyet` (rights_data.dart).
+ * Yearly ceilings/amounts are NOT frozen here. Haklar kartı (rights_data.dart)
+ * is in-app copy and can lag a store release; MetoBot must Google-Search
+ * GİB / Resmî Gazete / SGK instead of repeating an APK number.
  */
 type RouteHint = { route: string; title: string; needles: string[] };
 
@@ -358,7 +356,8 @@ function suggestRoutes(userText: string): { route: string; title: string }[] {
 function siteCatalog(): string {
   return [
     "YÖNLENDİRME: Önce Engelsiz Club ekranı. Uygulamada kart/makale varken ana CTA 'SGK/İŞKUR/hastane/derneğe gidin' olmasın.",
-    "Katalogda YOKSA resmi ve GÜNCEL kaynak kullan: GİB, Resmî Gazete, SGK, MEB, Aile ve Sosyal Hizmetler Bakanlığı, İŞKUR. Kurum adı dipnot + yıl; eski eğitim verisi değil.",
+    "Katalog: ekran adı ve nasıl açılacağı. Katalogdaki kart tutarını güncel kanun gibi okuma; tavan/maaş/tarih web ile doğrulanır.",
+    "Katalogda YOKSA veya tutar/yıl/duyuru soruluyorsa resmi ve GÜNCEL kaynak: GİB, Resmî Gazete, SGK, MEB, Aile ve Sosyal Hizmetler Bakanlığı, İŞKUR. Kurum + kaynak tarihi; eski eğitim verisi değil.",
     "Uydurma. Teşhis koyma. M-CHAT tarama teşhis değildir. Acilde 112.",
     "Her yanıtta (varsa) ekranı ada göre söyle ve nasıl açılacağını yaz.",
     "Açılış yolları:",
@@ -373,7 +372,7 @@ function siteCatalog(): string {
     "- Aile Koçum, Kartlar, Gelişim Etkinlikleri, Barkod, Boyama: Daha Fazlası.",
     "- Keşfet ve Forum: alt menü.",
     "Haklar kartları: Evde Bakım Maaşı; Engelli Aylığı; 18 Yaş Altı Engelli Yakını Aylığı; Yardımcı Araç-Gereç Desteği; Nöbet Muafiyeti & Günlük Eğitim/Bakım İzni; Mazeret İzni; Yarı Zamanlı Çalışma; ÖTV Muafiyetli Araç Alımı; MTV Muafiyeti; Engelli Park Kartı; Engelli Sürücü Belgesi; KDV İndirimi; Gelir Vergisi İndirimi; Ücretsiz Özel Eğitim; RAM Raporu; Kaynaştırma; Engelli Kimlik Kartı; Ücretsiz Toplu Taşıma; TCDD & THY; Emlak Vergisi; Su Faturası İndirimi; Telefon & İnternet İndirimi.",
-    "Örnek: ÖTV → Daha Fazlası → Haklar → ÖTV Muafiyetli Araç Alımı. Vergi dairesi yalnız başvuru dipnotu.",
+    "Örnek: ÖTV başvurusu nereye → Daha Fazlası → Haklar → ÖTV Muafiyetli Araç Alımı. Tavan kaç TL diye sorulursa karttaki eski rakamı tekrarlama; web kaynağının tarihini söyle. Vergi dairesi yalnız başvuru dipnotu.",
     "Bilgi Kütüphanesi: /bilgi-kutuphanesi/premature-bebek ; /bilgi-kutuphanesi/0-2-yas-gelisim-rehberi ; /bilgi-kutuphanesi/cvi-gorsel-egzersizler ; /bilgi-kutuphanesi/cvi-egzersizleri-2 ; /bilgi-kutuphanesi/gelisim-etkinlikleri.html",
   ].join("\n");
 }
@@ -416,11 +415,44 @@ const TIME_SENSITIVE = [
   "evde bakim",
   "engelli ayligi",
   "aile bakanligi",
+  "duyuru",
+  "yonetmelik",
+  "basvuru tarih",
+  "yururluk tarih",
 ];
 
 function isTimeSensitive(folded: string): boolean {
   return TIME_SENSITIVE.some((n) => folded.includes(foldTr(n)));
 }
+
+/** Amounts/dates that must not be answered from model memory. */
+const LIVE_FIGURE = [
+  "tavan",
+  "tutar",
+  "ne kadar",
+  "maas",
+  "aylik",
+  "ucreti",
+  "limit",
+  "asgari",
+  "kac tl",
+  "kac lira",
+  "fiyat sinir",
+  "basvuru tarih",
+  "yururluk tarih",
+  "son tarih",
+];
+
+function isLiveFigureQuestion(userText: string): boolean {
+  const t = foldTr(userText);
+  if (LIVE_FIGURE.some((n) => t.includes(foldTr(n)))) return true;
+  const tax = /(otv|mtv|kdv|vergi|sgk|sut|maas|aylig)/.test(t);
+  const when = /(2024|2025|2026|2027|guncel|bu yil|yururluk)/.test(t);
+  return tax && when;
+}
+
+const UNVERIFIED_FIGURE =
+  "Şu an resmi kaynaktan güncel tutarı doğrulayamadım; ezber rakam vermiyorum. ÖTV, vergi tavanı ve maaş her yıl GİB / Resmî Gazete / SGK ile değişir. Başvuru adımları için Daha Fazlası → Haklar. Rakamı gib.gov.tr veya resmigazete.gov.tr üzerinden kontrol edin.";
 
 /** Search costs extra: skip greetings; use for off-catalog or tutar/yıl/mevzuat. */
 function wantsLiveSearch(userText: string): boolean {
@@ -483,32 +515,41 @@ function searchWasUsed(raw: string): boolean {
     entry != null;
 }
 
-function systemPrompt(searchOn: boolean): string {
+function parseAppContext(raw: unknown): string {
+  if (typeof raw === "string") return raw.trim().slice(0, 240);
+  const rec = asRecord(raw);
+  if (!rec) return "";
+  const bits = [rec.screen, rec.route, rec.title]
+    .map((v) => String(v ?? "").trim())
+    .filter(Boolean);
+  return bits.join(" · ").slice(0, 240);
+}
+
+function systemPrompt(searchOn: boolean, appContext = ""): string {
   const date = istanbulDate();
   const year = date.slice(0, 4);
+  const ctx = appContext.trim()
+    ? `Kullanıcının açık olabileceği ekran (yalnız ipucu, zorunlu değil): ${appContext.trim()}.`
+    : "";
   return [
     "Sen Engelsiz Club MetoBot'sun. Türkçe, sakin ve nazik konuşursun.",
     "Doktor değilsin. Teşhis koymazsın, tedavi yazmazsın.",
     "Sağlık kararı için hekim/terapist dipnotu yeter; uygulama içi bilgi kartını önce göster.",
     "Acil durumda 112'yi ara, dersin.",
-    "Kısa ve anlaşılır yanıt ver.",
+    "Kısa ve anlaşılır yanıt ver. Engelsiz Club / engellilik hakları kapsamındasın; alakasız gündem veya spor/siyaset haberi dökme.",
     `Bugün (Avrupa/İstanbul): ${date}. Güncel takvim yılı ${year}. Rakamlar her yıl değişir.`,
-    "Hak, maaş, tavan ve vergi tutarında yılı her zaman söyle.",
+    "Hak, maaş, tavan ve vergi tutarında yılı ve (varsa) resmi kaynak tarihini söyle.",
     "2024 veya daha eski ÖTV / maaş / muafiyet rakamını asla güncel kanun gibi sunma.",
-    "Emin değilsen sayı uydurma. 2026 rakamı doğrulanamadıysa 2024 yazma; 'güncel resmi kaynağı kontrol edin' de.",
-    "2026 engelli araç ÖTV istisnası (ÖTV Kanunu 7/2; GİB ÖTV II Liste Tebliği):",
-    "87.03 binek/SUV/panelvan/pick-up/arazi: motor hacmine bakılmaksızın, ÖTV ve diğer her türlü vergiler dâhil bedel 2.873.900 TL'nin altında olmalı.",
-    "Bu tavan 1 Ocak 2026'dan geçerlidir (RG 31.12.2025 / 33124 5. Mükerrer, Tebliğ Seri No: 16; Nisan 2026 Seri No: 17 aynı tavanı korur).",
-    "87.04 van/kamyonet: motor silindir hacmi en fazla 2800 cm³.",
-    "87.11 motosiklet: motor hacmi sınırı yok.",
-    "Yerli katkı oranı en az %40.",
-    "Hak 10 yılda bir kullanılabilir; araç 5 yıl dolmadan ÖTV ödemeden satılamaz.",
-    "ÖTV ayrıntısı: Daha Fazlası → Haklar → ÖTV Muafiyetli Araç Alımı. Arama 2024 tavanı gösterirse onu güncel sanma; uygulama kartındaki 2026 tavan 2.873.900 TL.",
+    "Eğitim verindeki, bellek veya uygulama kartındaki tutarı güncel kanun gibi yazma. Bu promptta sabit tavan/maaş ezberi yok.",
+    "ÖTV tavanı, MTV, KDV, maaş, aylık, başvuru/yürürlük tarihi, yönetmelik, duyuru: yalnızca bu turdaki web araması (GİB, Resmî Gazete, SGK, Aile Bakanlığı) doğruladıysa sayı ver. Doğrulanamadıysa sayı uydurma; 'şu an resmi kaynaktan doğrulayamadım; GİB / Resmî Gazete veya Haklar kartına bakın' de.",
+    "Süreç (kim başvurur, hangi ekran, 10 yılda bir hak, 5 yıl satış kuralı) katalogdan anlatılabilir; tutar/yıl ayrıdır.",
+    "ÖTV başvuru yolu: Daha Fazlası → Haklar → ÖTV Muafiyetli Araç Alımı. Arama 2024 tavanı gösterirse onu güncel sanma; güncel yılın GİB/Resmî Gazete metnini ara. Karttaki TL rakamını kopyalama.",
+    ctx,
     siteCatalog(),
     searchOn
-      ? "Bu turda Google Search aracı açık. Tutar, tavan, yıl ve mevzuat için ara (GİB, Resmî Gazete, SGK, MEB, Aile Bakanlığı, İŞKUR). Eğitim verisindeki eski rakamı kullanma. Kaynağın yılını söyle."
-      : "Bu turda web araması kapalı. Katalog ve yukarıdaki 2026 ÖTV bilgisi yeter; katalog dışı tutarda emin değilsen uydurma.",
-  ].join("\n");
+      ? "Bu turda Google Search aracı açık. Tutar, tavan, yıl, yönetmelik, başvuru tarihi ve resmi duyuru için GİB, Resmî Gazete, SGK, MEB, Aile Bakanlığı, İŞKUR ara. Kaynağın tarihini söyle. 'Bu ekran nerede' sorusunda haber dökme; katalog yeterli."
+      : "Bu turda web araması kapalı veya başarısız. Katalog ve başvuru yolu yeter. Tutar/tavan/maaş/tarih sorusunda bellek veya kart rakamı yazma; doğrulayamadığını söyle ve Haklar kartına yönlendir.",
+  ].filter((line) => line.trim().length > 0).join("\n");
 }
 
 const MODELS = [
@@ -785,6 +826,7 @@ serve(async (req) => {
   }
 
   const userText = turns[turns.length - 1].text;
+  const appContext = parseAppContext(body.appContext ?? body.app_context);
   const useSearch = wantsLiveSearch(userText);
   const contents = turns.map((t) => ({
     role: t.role,
@@ -795,12 +837,12 @@ serve(async (req) => {
     maxOutputTokens: limits.maxOutputTokens,
   };
   const payloadPlain = JSON.stringify({
-    systemInstruction: { parts: [{ text: systemPrompt(false) }] },
+    systemInstruction: { parts: [{ text: systemPrompt(false, appContext) }] },
     contents,
     generationConfig,
   });
   const payloadSearch = JSON.stringify({
-    systemInstruction: { parts: [{ text: systemPrompt(true) }] },
+    systemInstruction: { parts: [{ text: systemPrompt(true, appContext) }] },
     contents,
     generationConfig,
     tools: GOOGLE_SEARCH_TOOLS,
@@ -825,11 +867,15 @@ serve(async (req) => {
         reply = extractText(grounded.text);
         if (reply) {
           searchUsed = searchWasUsed(grounded.text);
-          break;
+          if (searchUsed || !isLiveFigureQuestion(userText)) break;
+          // Amount/date question but no grounding — do not keep a memory figure.
+          reply = "";
+          searchUsed = false;
         }
       }
-      // Search is optional. 400 tool-schema, 429 quota, timeout, or empty
-      // candidates must still get a Turkish answer without tools.
+      // Search is optional for navigation. 400 tool-schema, 429 quota, timeout,
+      // or empty candidates must still get a Turkish answer without tools.
+      // Live figures: canned "could not verify" instead of a stale APK/memory number.
       searchRejected = true;
       if (searchToolRejected(grounded.status, grounded.text)) {
         console.warn("metobot-chat search tool rejected; retrying without search");
@@ -838,6 +884,10 @@ serve(async (req) => {
           `metobot-chat search skipped status=${grounded.status}; retrying without search`,
         );
       }
+      if (isLiveFigureQuestion(userText)) {
+        reply = UNVERIFIED_FIGURE;
+        break;
+      }
     }
     const result = await generateOnce(model, geminiKey, payloadPlain);
     lastStatus = result.status;
@@ -845,6 +895,11 @@ serve(async (req) => {
     if (!result.ok) continue;
     reply = extractText(result.text);
     if (reply) break;
+  }
+  if (!reply) {
+    if (useSearch && isLiveFigureQuestion(userText)) {
+      reply = UNVERIFIED_FIGURE;
+    }
   }
   if (!reply) {
     const quota = isQuotaStatus(lastStatus, lastRaw);
