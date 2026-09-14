@@ -1,16 +1,17 @@
 import { classifyCandidate } from './lib/ai.mjs';
 import {
-  hasRelevanceKeyword,
-  isDisabilityOpportunity,
+  classifyKeep,
+  hasScholarshipTerm,
   isDuplicate,
+  normalizeCategoryLabels,
+  primaryCategory,
+  shouldKeepCandidate,
   stripHtml,
+  titleSourceFingerprint,
   usefulContentHash,
 } from './lib/hash.mjs';
-import {
-  extractDisabilityListings,
-  originAllowsFetch,
-  resolveRssFromHomepage,
-} from './lib/discover.mjs';
+import { originAllowsFetch, resolveRssFromHomepage } from './lib/discover.mjs';
+import { crawlMunicipality, withSourceGuard } from './lib/crawl.mjs';
 import {
   aileEyhgmListingUrls,
   extractAileEyhgmListings,
@@ -32,15 +33,15 @@ import {
 } from './lib/rss.mjs';
 
 const MAX_ITEMS_RSS = 25;
-const MAX_ITEMS_SCRAPE = 12;
+const MAX_ITEMS_SCRAPE = 30;
 const MAX_SITEMAP_FEEDS = 8;
 const SOURCE_DELAY_MS = 600;
-const HTML_MAX_BYTES = 80_000;
 const AILE_EYHGM_HTML_MAX_BYTES = 300_000;
 const RESMI_GAZETE_HTML_MAX_BYTES = 300_000;
 const XML_MAX_BYTES = 250_000;
 const MAX_ITEMS_AILE_EYHGM = 20;
 const MAX_ITEMS_RESMI_GAZETE = 20;
+const EXISTING_PAGE = 1000;
 const TBB_INDEX_RE =
   /tbb\.gov\.tr\/tr\/(buyuksehir-belediyeleri|il-belediyeleri|bagli-idareler)/i;
 
@@ -51,6 +52,19 @@ function sleep(ms) {
 const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const AI_KEY = (process.env.GEMINI_API_KEY || process.env.AI_API_KEY || '').trim();
+
+function emptyStats(name) {
+  return {
+    name,
+    found: 0,
+    neu: 0,
+    keyword: 0,
+    aiReject: 0,
+    aiFailFallback: 0,
+    inserted: 0,
+    error: '',
+  };
+}
 
 function headers() {
   return {
@@ -81,33 +95,46 @@ async function sb(path, { method = 'GET', body, extraQuery = '' } = {}) {
 }
 
 async function loadExistingKeys() {
-  const rows = (await sb(
-    'useful_content?select=source_url,content_hash,external_id',
-  )) || [];
   const urls = new Set();
   const hashes = new Set();
   const externalIds = new Set();
-  for (const row of rows) {
-    const url = String(row.source_url || '').trim();
-    const hash = String(row.content_hash || '').trim();
-    const ext = String(row.external_id || '').trim();
-    if (url) urls.add(url);
-    if (hash) hashes.add(hash);
-    if (ext) externalIds.add(ext);
+  const titleKeys = new Set();
+  let offset = 0;
+  for (;;) {
+    const rows =
+      (await sb(
+        `useful_content?select=source_url,content_hash,external_id,title,source_name&limit=${EXISTING_PAGE}&offset=${offset}`,
+      )) || [];
+    if (!Array.isArray(rows) || !rows.length) break;
+    for (const row of rows) {
+      const url = String(row.source_url || '').trim();
+      const hash = String(row.content_hash || '').trim();
+      const ext = String(row.external_id || '').trim();
+      if (url) urls.add(url);
+      if (hash) hashes.add(hash);
+      if (ext) externalIds.add(ext);
+      const fp = titleSourceFingerprint(row.title, row.source_name);
+      if (fp) titleKeys.add(fp);
+    }
+    if (rows.length < EXISTING_PAGE) break;
+    offset += rows.length;
   }
-  return { urls, hashes, externalIds };
+  return { urls, hashes, externalIds, titleKeys };
 }
 
-function remember(existing, { sourceUrl, contentHash, externalId }) {
+function remember(existing, { sourceUrl, contentHash, externalId, title, sourceName }) {
   if (sourceUrl) existing.urls.add(sourceUrl);
   if (contentHash) existing.hashes.add(contentHash);
   if (externalId) existing.externalIds.add(externalId);
+  const fp = titleSourceFingerprint(title, sourceName);
+  if (fp && existing.titleKeys) existing.titleKeys.add(fp);
 }
 
 async function loadDueSources() {
-  const rows = (await sb(
-    'content_sources?is_active=eq.true&select=id,name,url,method,fetch_interval_hours,last_fetched_at',
-  )) || [];
+  const rows =
+    (await sb(
+      'content_sources?is_active=eq.true&select=id,name,url,method,fetch_interval_hours,last_fetched_at',
+    )) || [];
   const now = Date.now();
   return rows.filter((s) => {
     if (!s.last_fetched_at) return true;
@@ -121,12 +148,13 @@ async function loadDueSources() {
 async function rejectUnrelatedPending() {
   const rows =
     (await sb(
-      'useful_content?status=eq.pending_review&select=id,title,summary',
+      'useful_content?status=eq.pending_review&select=id,title,summary,ai_notes',
     )) || [];
   let n = 0;
   for (const row of rows) {
-    const blob = `${row.title || ''} ${row.summary || ''}`;
-    if (isDisabilityOpportunity(blob)) continue;
+    const blob = `${row.title || ''} ${row.summary || ''} ${row.ai_notes || ''}`;
+    if (shouldKeepCandidate(blob)) continue;
+    if (/potential_family_benefit/.test(String(row.ai_notes || ''))) continue;
     await sb(`useful_content?id=eq.${row.id}`, {
       method: 'PATCH',
       body: {
@@ -182,15 +210,37 @@ function parseDeadline(raw) {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-async function refineItem(item) {
+function keywordRefined(title, summary, keep) {
+  const blob = `${title} ${summary}`;
+  const labels =
+    keep === 'potential'
+      ? hasScholarshipTerm(blob)
+        ? ['burs']
+        : ['sosyal_yardim', 'destek']
+      : ['diger'];
+  return {
+    title,
+    summary,
+    category: primaryCategory(labels),
+    city: '',
+    deadlineAt: null,
+    aiNotes:
+      keep === 'potential' ? 'potential_family_benefit' : 'anahtar_kelime',
+  };
+}
+
+async function refineItem(item, stats) {
   const title = stripHtml(item.title);
   const summary = stripHtml(item.summary).slice(0, 1200);
   if (!title || !item.sourceUrl) return null;
 
-  if (!isDisabilityOpportunity(`${title} ${summary}`)) {
-    console.log(`özel gereksinim çekirdeği yok, atlandı: ${title}`);
+  const blob = `${title} ${summary}`;
+  const keep = classifyKeep(blob);
+  if (!keep) {
+    console.log(`süzgeç elendi: ${title}`);
     return null;
   }
+  stats.keyword += 1;
 
   if (AI_KEY) {
     try {
@@ -199,45 +249,51 @@ async function refineItem(item) {
         summary,
         sourceUrl: item.sourceUrl,
       });
-      if (!ai.relevant) {
-        console.log(`AI alakasız, atlandı: ${title}`);
+      const aiDirect = ai.relevant === true || ai.relevant === 'true';
+      const aiPotential =
+        ai.potential_family_benefit === true ||
+        ai.potential_family_benefit === 'true';
+      const labels = normalizeCategoryLabels(
+        Array.isArray(ai.categories) && ai.categories.length
+          ? ai.categories
+          : ai.category,
+      );
+      if (!aiDirect && !aiPotential) {
+        stats.aiReject += 1;
+        if (keep === 'direct' || keep === 'potential') {
+          console.log(`AI hayır, kelime yedek pending: ${title}`);
+          return keywordRefined(title, summary, keep);
+        }
         return null;
       }
-      const merged = `${ai.title || title} ${ai.summary || summary}`;
-      if (!isDisabilityOpportunity(merged) && !isDisabilityOpportunity(`${title} ${summary}`)) {
-        console.log(`AI evet dedi ama özel gereksinim çekirdeği yok, atlandı: ${title}`);
-        return null;
-      }
+      const notes = [
+        stripHtml(ai.notes || ''),
+        keep === 'potential' || aiPotential ? 'potential_family_benefit' : '',
+        `labels:${labels.join(',')}`,
+      ]
+        .filter(Boolean)
+        .join('; ')
+        .slice(0, 500);
       return {
         title: stripHtml(ai.title || title).slice(0, 240) || title,
         summary: stripHtml(ai.summary || summary).slice(0, 1200),
-        category: String(ai.category || 'diger').trim() || 'diger',
+        category: primaryCategory(labels),
         city: stripHtml(ai.city || ''),
         deadlineAt: parseDeadline(ai.deadline),
-        aiNotes: stripHtml(ai.notes || ''),
+        aiNotes: notes,
       };
     } catch (e) {
-      console.warn(`AI hata, kayıt yazılmadı: ${title} — ${e.message}`);
-      return null;
+      stats.aiFailFallback += 1;
+      console.warn(`AI hata, anahtar kelime yedek: ${title} — ${e.message}`);
+      return keywordRefined(title, summary, keep);
     }
   }
 
-  if (!hasRelevanceKeyword(`${title} ${summary}`)) {
-    console.log(`Anahtar kelime yok, atlandı: ${title}`);
-    return null;
-  }
-  return {
-    title,
-    summary,
-    category: 'diger',
-    city: '',
-    deadlineAt: null,
-    aiNotes: 'anahtar_kelime',
-  };
+  return keywordRefined(title, summary, keep);
 }
 
-async function insertPending(existing, source, raw) {
-  const refined = await refineItem(raw);
+async function insertPending(existing, source, raw, stats) {
+  const refined = await refineItem(raw, stats);
   if (!refined) return false;
 
   const sourceUrl = String(raw.sourceUrl || '').trim();
@@ -253,6 +309,8 @@ async function insertPending(existing, source, raw) {
       sourceUrl,
       contentHash,
       externalId,
+      title: refined.title,
+      sourceName: source.name,
     })
   ) {
     return false;
@@ -282,7 +340,13 @@ async function insertPending(existing, source, raw) {
     const msg = String(e.message);
     if (msg.includes('23505') || msg.includes('409')) {
       console.log(`benzersiz kısıt, atlandı: ${sourceUrl}`);
-      remember(existing, { sourceUrl, contentHash, externalId });
+      remember(existing, {
+        sourceUrl,
+        contentHash,
+        externalId,
+        title: refined.title,
+        sourceName: source.name,
+      });
       return false;
     }
     if (row.image_url && (msg.includes('image_url') || msg.includes('PGRST204'))) {
@@ -293,7 +357,13 @@ async function insertPending(existing, source, raw) {
     }
   }
 
-  remember(existing, { sourceUrl, contentHash, externalId });
+  remember(existing, {
+    sourceUrl,
+    contentHash,
+    externalId,
+    title: refined.title,
+    sourceName: source.name,
+  });
   console.log(`pending_review: ${refined.title}`);
   return true;
 }
@@ -303,6 +373,40 @@ async function touchSource(source) {
     method: 'PATCH',
     body: { last_fetched_at: new Date().toISOString() },
   });
+}
+
+function printSummary(allStats, inserted) {
+  console.log('--- kaynak özeti ---');
+  for (const s of allStats) {
+    const err = s.error ? ` err=${s.error}` : '';
+    console.log(
+      `${s.name}: found=${s.found} new=${s.neu} keyword=${s.keyword} ai_reject=${s.aiReject} inserted=${s.inserted}${err}`,
+    );
+  }
+  const tot = allStats.reduce(
+    (a, s) => ({
+      found: a.found + s.found,
+      neu: a.neu + s.neu,
+      keyword: a.keyword + s.keyword,
+      aiReject: a.aiReject + s.aiReject,
+      aiFailFallback: a.aiFailFallback + s.aiFailFallback,
+      inserted: a.inserted + s.inserted,
+      errors: a.errors + (s.error ? 1 : 0),
+    }),
+    {
+      found: 0,
+      neu: 0,
+      keyword: 0,
+      aiReject: 0,
+      aiFailFallback: 0,
+      inserted: 0,
+      errors: 0,
+    },
+  );
+  console.log(
+    `TOPLAM found=${tot.found} new=${tot.neu} keyword=${tot.keyword} ai_reject=${tot.aiReject} ai_fail_yedek=${tot.aiFailFallback} inserted=${tot.inserted} kaynak_hata=${tot.errors}`,
+  );
+  console.log(`eklenen pending_review: ${inserted}`);
 }
 
 async function main() {
@@ -321,30 +425,34 @@ async function main() {
   console.log(`aktif kaynak: ${sources.length}`);
 
   let inserted = 0;
+  const allStats = [];
   for (const source of sources) {
     const method = String(source.method || 'rss').toLowerCase();
+    const stats = emptyStats(source.name);
     if (TBB_INDEX_RE.test(source.url || '')) {
       console.warn(`TBB indeks atlandı (belediye listesi): ${source.name}`);
       await touchSource(source);
+      stats.error = 'tbb_index';
+      allStats.push(stats);
       continue;
     }
     if (method === 'api') {
       console.warn(`v1 api atlandı: ${source.name}`);
       await touchSource(source);
+      stats.error = 'api_skip';
+      allStats.push(stats);
       continue;
     }
-    if (method === 'scrape' && /bursa\.bel\.tr/i.test(source.url || '')) {
-      console.warn(`Bursa genel HTML tarama atlandı: ${source.name}`);
-      await touchSource(source);
-      continue;
-    }
-    try {
-      if (!(await originAllowsFetch(source.url))) {
+    const result = await withSourceGuard(source.name, async () => {
+      if (method !== 'scrape' && !(await originAllowsFetch(source.url))) {
         console.warn(`robots Disallow:/ atlandı: ${source.name}`);
         await touchSource(source);
-        continue;
+        return { items: [], found: 0, error: 'robots' };
       }
-      const items = await collectSourceItems(source, method);
+      const items = await collectSourceItems(source, method, existing);
+      stats.found = items.length;
+      const known = existing.urls;
+      stats.neu = items.filter((it) => !known.has(String(it.sourceUrl || ''))).length;
       const cap = isAileEyhgmSourceUrl(source.url)
         ? MAX_ITEMS_AILE_EYHGM
         : isResmiGazeteSourceUrl(source.url)
@@ -352,17 +460,27 @@ async function main() {
           : method === 'scrape'
             ? MAX_ITEMS_SCRAPE
             : MAX_ITEMS_RSS;
-      for (const item of items.slice(0, cap)) {
-        if (await insertPending(existing, source, item)) inserted += 1;
+      let n = 0;
+      for (const item of items) {
+        if (n >= cap) break;
+        if (await insertPending(existing, source, item, stats)) {
+          n += 1;
+          inserted += 1;
+        }
       }
+      stats.inserted = n;
       await touchSource(source);
-    } catch (e) {
-      console.warn(`kaynak hata ${source.name}: ${e.message}`);
+      return { items, found: items.length, error: null };
+    });
+    if (result?.error) {
+      stats.error = result.error;
+      console.warn(`kaynak hata ${source.name}: ${result.error}`);
     }
+    allStats.push(stats);
     await sleep(SOURCE_DELAY_MS);
   }
 
-  console.log(`eklenen pending_review: ${inserted}`);
+  printSummary(allStats, inserted);
 }
 
 async function collectAileEyhgm(source) {
@@ -421,7 +539,7 @@ async function collectResmiGazete(source) {
   return items.slice(0, MAX_ITEMS_RESMI_GAZETE);
 }
 
-async function collectSourceItems(source, method) {
+async function collectSourceItems(source, method, existing) {
   if (method === 'scrape' && isAileEyhgmSourceUrl(source.url)) {
     return collectAileEyhgm(source);
   }
@@ -429,27 +547,21 @@ async function collectSourceItems(source, method) {
     return collectResmiGazete(source);
   }
   if (method === 'scrape') {
-    const html = await fetchText(source.url, {
-      maxBytes: HTML_MAX_BYTES,
-      accept: 'text/html, application/xhtml+xml, */*;q=0.5',
+    const crawled = await crawlMunicipality(source, {
+      fetchText,
+      existingUrls: existing?.urls || new Set(),
+      lastFetchedAt: source.last_fetched_at || null,
     });
-    if (!looksLikeHtml(html) && looksLikeRssOrAtom(html)) {
-      return collectFromRss(source, html);
+    if (crawled.error) {
+      console.warn(`scrape ${source.name}: ${crawled.error}`);
     }
-    const discovered = await resolveRssFromHomepage(source.url, html);
-    if (discovered) {
-      console.log(`scrape→rss keşif: ${source.name} → ${discovered.url}`);
-      return collectFromRss(source, discovered.xml);
+    console.log(
+      `scrape tarama: ${source.name} listing=${crawled.listingCount ?? 0} aday=${crawled.found}`,
+    );
+    if (crawled.error && !(crawled.items && crawled.items.length)) {
+      throw new Error(crawled.error);
     }
-    const listings = extractDisabilityListings(html, source.url, {
-      limit: MAX_ITEMS_SCRAPE,
-    });
-    console.log(`scrape aday (özel gereksinim başlık): ${source.name} ${listings.length}`);
-    return listings.map((item) => ({
-      ...item,
-      sourceName: source.name,
-      sourceId: source.id,
-    }));
+    return crawled.items || [];
   }
 
   const body = await fetchText(source.url, { maxBytes: XML_MAX_BYTES });
@@ -465,8 +577,13 @@ async function collectSourceItems(source, method) {
       console.log(`html→rss keşif: ${source.name} → ${discovered.url}`);
       return collectFromRss(source, discovered.xml);
     }
-    console.warn(`XML/RSS yok, HTML dökümü atlandı: ${source.name}`);
-    return [];
+    const crawled = await crawlMunicipality(source, {
+      fetchText,
+      existingUrls: existing?.urls || new Set(),
+      lastFetchedAt: source.last_fetched_at || null,
+    });
+    console.log(`html→tarama: ${source.name} aday=${crawled.found}`);
+    return crawled.items || [];
   }
   console.warn(`beklenmeyen gövde, atlandı: ${source.name}`);
   return [];

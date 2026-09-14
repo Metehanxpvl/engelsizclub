@@ -152,6 +152,19 @@ export function looksLikeSitemap(text) {
   return head.includes('<urlset') || head.includes('<sitemapindex');
 }
 
+function dateOf(item) {
+  const raw = textOf(
+    item.pubDate ||
+      item.published ||
+      item.updated ||
+      item['dc:date'] ||
+      item['atom:updated'],
+  );
+  if (!raw) return null;
+  const t = Date.parse(raw);
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+}
+
 export function parseRssOrAtom(xml) {
   const doc = parser.parse(xml);
   const channelItems = asArray(doc?.rss?.channel?.item);
@@ -167,20 +180,40 @@ export function parseRssOrAtom(xml) {
       const sourceUrl = linkOf(item);
       const externalId = textOf(item.guid || item.id) || sourceUrl;
       const imageUrl = enclosureImageUrl(item);
-      return { title, summary, sourceUrl, externalId, imageUrl };
+      const publishedAt = dateOf(item);
+      return { title, summary, sourceUrl, externalId, imageUrl, publishedAt };
     })
     .filter((e) => e.title && e.sourceUrl);
 }
 
-export function parseSitemapLocs(xml) {
+export function parseSitemapEntries(xml) {
   const doc = parser.parse(xml);
   const urlset = asArray(doc?.urlset?.url);
   const sitemapIndex = asArray(doc?.sitemapindex?.sitemap);
-  const locs = [
-    ...urlset.map((u) => textOf(u.loc)),
-    ...sitemapIndex.map((s) => textOf(s.loc)),
-  ].filter((u) => u.startsWith('http'));
-  return [...new Set(locs)];
+  const entries = [
+    ...urlset.map((u) => ({
+      loc: textOf(u.loc),
+      lastmod: textOf(u.lastmod) || '',
+      isIndex: false,
+    })),
+    ...sitemapIndex.map((s) => ({
+      loc: textOf(s.loc),
+      lastmod: textOf(s.lastmod) || '',
+      isIndex: true,
+    })),
+  ].filter((e) => e.loc.startsWith('http'));
+  const seen = new Set();
+  const out = [];
+  for (const e of entries) {
+    if (seen.has(e.loc)) continue;
+    seen.add(e.loc);
+    out.push(e);
+  }
+  return out;
+}
+
+export function parseSitemapLocs(xml) {
+  return parseSitemapEntries(xml).map((e) => e.loc);
 }
 
 export function isXmlUrl(url) {

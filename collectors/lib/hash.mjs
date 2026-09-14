@@ -30,13 +30,27 @@ export function usefulContentHash({ title, summary, sourceUrl }) {
   return createHash('sha256').update(normalized, 'utf8').digest('hex');
 }
 
-export function isDuplicate(existing, { sourceUrl, contentHash, externalId }) {
+export function titleSourceFingerprint(title, sourceName) {
+  const t = foldTr(title)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .slice(0, 96);
+  const s = foldTr(sourceName).slice(0, 48);
+  return t && s ? `${t}|${s}` : '';
+}
+
+export function isDuplicate(
+  existing,
+  { sourceUrl, contentHash, externalId, title, sourceName },
+) {
   const url = String(sourceUrl ?? '').trim();
   const hash = String(contentHash ?? '').trim();
   const ext = String(externalId ?? '').trim();
   if (url && existing.urls.has(url)) return true;
   if (hash && existing.hashes.has(hash)) return true;
   if (ext && existing.externalIds.has(ext)) return true;
+  const fp = titleSourceFingerprint(title, sourceName);
+  if (fp && existing.titleKeys && existing.titleKeys.has(fp)) return true;
   return false;
 }
 
@@ -176,4 +190,205 @@ export function isDisabilityOpportunity(text) {
   const raw = String(text ?? '');
   if (!raw.trim()) return false;
   return hasDisabilityCore(raw);
+}
+
+/** Direct keep extras that are still disability/device-specific. */
+const DIRECT_EXTRA_KEYWORDS = [
+  'tibbi cihaz',
+  'medikal cihaz',
+  'isitme cihazi',
+  'engelli araci',
+  'engelli ramp',
+  'otv muafiyet',
+];
+
+export const POTENTIAL_FAMILY_KEYWORDS = [
+  'sosyal yardim',
+  'nakdi yardim',
+  'nakdi destek',
+  'maddi destek',
+  'maddi yardim',
+  'dar gelirli',
+  'dusuk gelirli',
+  'ucretsiz kurs',
+  'ucretsiz ulasim',
+  'ucretsiz otobus',
+  'ucretsiz servis',
+  'gida yardimi',
+  'yakacak yardimi',
+  'kira yardimi',
+  'egitim yardimi',
+  'sosyal destek',
+  'yardim basvuru',
+  'sosyal hizmet',
+  'askida fatura',
+  'basvurular basladi',
+  'basvuru basladi',
+  'basvurular acildi',
+  'basvuruya acildi',
+  'basvuru alimi basladi',
+  'online basvuru alimi',
+];
+
+const HARD_REJECT_KEYWORDS = [
+  'asfalt',
+  'yol calismasi',
+  'yol calisma',
+  'yol onarim',
+  'kazi calismasi',
+  'personel atama',
+  'atama kararnamesi',
+  'memur alimi',
+  'sozlesmeli personel',
+  'imar plani',
+  'imar degisikligi',
+  'ihale ilan',
+  'hava durumu',
+  'kar yagis',
+  'trafik duzenleme',
+  'spor galibiyet',
+  'belediyespor',
+  'konser',
+  'miting',
+  'parti grup',
+  'personel basvuru',
+  'is basvurusu',
+];
+
+const HARD_REJECT_RE = [
+  /\bbaskan\b.{0,40}\baciklama/,
+  /\bbaskan\b.{0,40}\bacikladi/,
+  /\bgenel acilis\b/,
+  /\bacilis toren/,
+  /\bsiyasi\b/,
+];
+
+export const CATEGORY_LABELS = [
+  'firsat',
+  'destek',
+  'hak',
+  'burs',
+  'egitim',
+  'istihdam',
+  'sosyal_yardim',
+  'nakdi_yardim',
+  'ulasim',
+  'cihaz',
+  'saglik',
+  'barinma',
+  'etkinlik',
+  'basvuru',
+  'bakim',
+  'erisilebilirlik',
+  'ozel_egitim',
+  'kultur',
+  'otv',
+  'diger',
+];
+
+const PRIMARY_CATEGORY_MAP = {
+  sosyal_yardim: 'destek',
+  nakdi_yardim: 'destek',
+  ulasim: 'destek',
+  cihaz: 'hak',
+  saglik: 'hak',
+  barinma: 'destek',
+  etkinlik: 'firsat',
+  basvuru: 'firsat',
+  bakim: 'destek',
+  erisilebilirlik: 'hak',
+  ozel_egitim: 'egitim',
+  kultur: 'firsat',
+  otv: 'hak',
+};
+
+const UI_CATEGORIES = new Set([
+  'firsat',
+  'destek',
+  'hak',
+  'burs',
+  'egitim',
+  'istihdam',
+  'diger',
+]);
+
+export function isHardReject(text) {
+  const hay = foldTr(text);
+  if (!hay) return false;
+  if (HARD_REJECT_KEYWORDS.some((k) => hay.includes(k))) return true;
+  return HARD_REJECT_RE.some((re) => re.test(hay));
+}
+
+const WEAK_POTENTIAL_RE = /\bbasvuru|\bburs(u|lar|lari)?\b|\bscholarship\b/;
+
+export function hasPotentialFamilyBenefit(text) {
+  const hay = foldTr(text);
+  if (!hay) return false;
+  if (POTENTIAL_FAMILY_KEYWORDS.some((k) => hay.includes(k))) return true;
+  if (hasScholarshipTerm(text)) return true;
+  return WEAK_POTENTIAL_RE.test(hay);
+}
+
+export function hasStrongFamilyBenefit(text) {
+  const hay = foldTr(text);
+  if (!hay) return false;
+  return POTENTIAL_FAMILY_KEYWORDS.some(
+    (k) => !k.includes('basvuru') && hay.includes(k),
+  );
+}
+
+export function hasDirectKeep(text) {
+  if (hasDisabilityCore(text)) return true;
+  const hay = foldTr(text);
+  return DIRECT_EXTRA_KEYWORDS.some((k) => hay.includes(k));
+}
+
+/**
+ * direct = disability / özel gereksinim / cihaz-ÖTV.
+ * potential = aile faydası (sosyal yardım, burs, ücretsiz kurs, başvuru)
+ *   even without “engelli” — AVM etkinlikleri gibi.
+ * null = asfalt / atama / siyasi / genel açılış.
+ */
+export function classifyKeep(text) {
+  const raw = String(text ?? '');
+  if (!raw.trim()) return null;
+  if (hasDirectKeep(raw)) return 'direct';
+  const potential = hasPotentialFamilyBenefit(raw);
+  if (isHardReject(raw)) {
+    return hasStrongFamilyBenefit(raw) ? 'potential' : null;
+  }
+  if (potential) return 'potential';
+  return null;
+}
+
+export function shouldKeepCandidate(text) {
+  return classifyKeep(text) != null;
+}
+
+export function primaryCategory(labels) {
+  const list = (Array.isArray(labels) ? labels : [labels])
+    .map((v) => String(v || '').trim().toLowerCase())
+    .filter(Boolean);
+  const ui = list.find((l) => UI_CATEGORIES.has(l));
+  if (ui) return ui;
+  for (const l of list) {
+    if (PRIMARY_CATEGORY_MAP[l]) return PRIMARY_CATEGORY_MAP[l];
+  }
+  return 'diger';
+}
+
+export function normalizeCategoryLabels(raw) {
+  const parts = Array.isArray(raw)
+    ? raw
+    : String(raw || '')
+        .split(/[,|/]+/)
+        .map((s) => s.trim().toLowerCase());
+  const known = [];
+  const seen = new Set();
+  for (const p of parts) {
+    if (!CATEGORY_LABELS.includes(p) || seen.has(p)) continue;
+    seen.add(p);
+    known.push(p);
+  }
+  return known.length ? known : ['diger'];
 }

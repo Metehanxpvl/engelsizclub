@@ -1,5 +1,5 @@
-# Fırsat / Destek / Hak toplayıcı → public.content_sources RSS → public.useful_content
-# (status=pending_review). Kariyer / AVM scraper iş akışlarına dokunmaz.
+# Fırsat / Destek / Hak toplayıcı → public.content_sources → public.useful_content
+# (status=pending_review). Kariyer / AVM scraper / FCM / login iş akışlarına dokunmaz.
 #
 # Gerekli repo secrets (Settings → Secrets and variables → Actions):
 #   SUPABASE_URL
@@ -8,9 +8,11 @@
 # Anahtarları YAML’e yazmayın. Flutter’a koymayın.
 #
 # Kaynak listesi: supabase/useful_content_sources_tr.sql (SQL Editor → Run).
-# Collector yalnız doğrulanmış RSS/Atom çeker; Bursa genel HTML ve TBB indeks yok.
-# Engelli çekirdek süzgeci (isDisabilityOpportunity) zorunlu. Gemini kotası = kayıt yok.
-# Yayın / FCM yok.
+# Canlı DB’de kapalı .bel.tr ana sayfalar için kısa UPSERT:
+#   supabase/useful_content_bel_tr_activate.sql
+# Collector: RSS + EYHGM/ORGM/RG + belediye site taraması (haberler/duyurular/ilanlar).
+# Ham HTML body yazılmaz. Yayın / FCM yok; admin onaylar.
+# Gemini kotası = kelime/potential yedek (pending_review). Tek şehir 500 tüm işi düşürmez.
 #
 # Cron yalnız default branch’te çalışır.
 #   Actions → Useful content collector → Run workflow → branch main
@@ -22,10 +24,13 @@ on:
     - cron: '30 7 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -37,7 +42,7 @@ jobs:
       - name: Collector unit tests
         working-directory: collectors
         run: npm test
-      - name: Collect RSS → pending_review
+      - name: Collect → pending_review
         working-directory: collectors
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
