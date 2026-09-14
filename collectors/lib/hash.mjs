@@ -40,49 +40,99 @@ export function isDuplicate(existing, { sourceUrl, contentHash, externalId }) {
   return false;
 }
 
+/** Fold TR letters + İ→i so "Özel Gereksinimli" matches "ozel gereksinim". */
+export function foldTr(text) {
+  return String(text ?? '')
+    .toLowerCase()
+    .replace(/\u0130/g, 'i')
+    .replace(/\u0307/g, '')
+    .replace(/ı/g, 'i')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .replace(/â/g, 'a')
+    .replace(/î/g, 'i')
+    .replace(/û/g, 'u')
+    .replace(/[''`´’]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export const DISABILITY_CORE_KEYWORDS = [
   'engelli',
   'engelsiz',
-  'özel gereksinim',
+  'engeli',
   'ozel gereksinim',
-  'özürlü',
+  'ozel egitim',
+  'ozel yetenek',
   'ozurlu',
   'otizm',
+  'asperger',
+  'otizm spektrum',
+  'osbli',
+  'osb tani',
+  'osb ogrenci',
+  'osb cocuk',
+  'osb spektrum',
+  'osb bozuk',
   'down sendrom',
+  'down syndrome',
+  'mongolizm',
+  'trizomi 21',
+  'trisomi 21',
+  'trisomy 21',
+  'serebral pal',
   'serebral palsi',
-  'erişilebilir',
+  'serebral paldi',
+  'cerebral palsy',
+  'cerebral pal',
   'erisilebilir',
-  'erişilebilirlik',
-  'erisilebilirlik',
-  'evde eğitim',
   'evde egitim',
-  'özel eğitim',
-  'ozel egitim',
-  'bakım aylığı',
   'bakim ayligi',
-  'engelli maaşı',
   'engelli maasi',
-  'ötv muaf',
   'otv muaf',
-  'rehberlik araştırma',
   'rehberlik arastirma',
-  'işitme engel',
   'isitme engel',
-  'görme engel',
   'gorme engel',
   'bedensel engel',
   'zihinsel engel',
+  'bedensel yetersiz',
+  'zihinsel yetersiz',
+  'isitme yetersiz',
+  'gorme yetersiz',
+  'gelisim gerili',
+  'dil konusma',
+  'dil ve konusma',
   'tekerlekli sandalye',
-  'nadir hastalık',
   'nadir hastalik',
   'protez ortez',
+  'kaynastirma',
+  'bireyselestirilmis egitim',
+  'destek egitim odasi',
+  'cozger',
+  'erozger',
+  'isaret dili',
+  'ekpss',
+  'korumali isyeri',
+  'disleksi',
+  'braille',
+  'paralimpik',
+  'meb orgm',
 ];
 
 const CORE_WORD_RE = [
   /\bsma\b/i,
   /\bdehb\b/i,
+  /\badhd\b/i,
   /\bcvi\b/i,
   /\bram\b/i,
+  /\bbep\b/i,
+  /\boyc\b/i,
+  /\borgm\b/i,
+  // SP'li / SPli — not bare \bsp\b (too many false hits)
+  /\bspli\b/i,
 ];
 
 export const RELEVANCE_KEYWORDS = DISABILITY_CORE_KEYWORDS;
@@ -92,12 +142,11 @@ export function hasRelevanceKeyword(text) {
 }
 
 export function isDisabilityOpportunity(text) {
-  const hay = String(text ?? '').toLowerCase();
-  if (!hay.trim()) return false;
-  const hasCore =
-    DISABILITY_CORE_KEYWORDS.some((k) => hay.includes(k)) ||
-    CORE_WORD_RE.some((re) => re.test(hay));
-  if (!hasCore) return false;
-  return true;
+  const raw = String(text ?? '');
+  if (!raw.trim()) return false;
+  const hay = foldTr(raw);
+  if (!hay) return false;
+  if (DISABILITY_CORE_KEYWORDS.some((k) => hay.includes(k))) return true;
+  if (CORE_WORD_RE.some((re) => re.test(hay))) return true;
+  return false;
 }
-

@@ -52,11 +52,13 @@ async function generateOnce(apiKey, model, prompt) {
 export async function classifyCandidate(apiKey, item) {
   const prompt = `Türkiye’de ÖZEL GEREKSİNİMLİ / ENGELLİ birey veya ailesi için resmi fırsat, destek, burs, hak, cihaz, eğitim veya istihdam duyurusu mu?
 
-relevant=true YALNIZCA hedef kitle açıkça engelli, özel gereksinimli, otizm, down, SMA, erişilebilirlik, özel eğitim, evde eğitim, bakım aylığı, ÖTV muafiyeti vb. ise.
+relevant=true YALNIZCA hedef kitle açıkça şu alandaysa (yalnız "engelli" demesi ZORUNLU DEĞİL):
+engelli, engelsiz, özel gereksinim(li), özel eğitim, ÖYÇ, kaynaştırma, BEP, otizm/OSB/asperger, down sendromu/down sendromlu/down syndrome/trizomi 21, serebral palsi/serebral palsili/serebral paldi/cerebral palsy, SMA, CVI, DEHB/ADHD, işitme/görme/bedensel/zihinsel yetersizlik, gelişim geriliği, dil konuşma, erişilebilirlik, MEB ORGM, RAM, ÇÖZGER, bakım aylığı, ÖTV muafiyeti, EKPSS, işaret dili.
 
 relevant=false:
-- Genel belediye / spor / konser / hava / imar haberi
-- Herkese açık burs, iş ilanı, TÜBİTAK çağrısı (engelli vurgusu yoksa)
+- Genel belediye / spor / konser / hava / imar / asfalt / ihale haberi
+- Herkese açık burs, İŞKUR iş ilanı, istihdam, kota, TÜBİTAK çağrısı (özel gereksinim/engelli vurgusu yoksa)
+- Yalnız "rehabilitasyon", "rapor", "hak", "evde bakım" (engellilik/özel gereksinim bağlamı yoksa)
 - "Bursa" şehri, genel istihdam, genel kota
 
 Teşhis koyma. Ham HTML yok.

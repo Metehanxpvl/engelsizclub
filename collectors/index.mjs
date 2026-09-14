@@ -174,7 +174,7 @@ async function refineItem(item) {
   if (!title || !item.sourceUrl) return null;
 
   if (!isDisabilityOpportunity(`${title} ${summary}`)) {
-    console.log(`engelli çekirdek yok, atlandı: ${title}`);
+    console.log(`özel gereksinim çekirdeği yok, atlandı: ${title}`);
     return null;
   }
 
@@ -191,7 +191,7 @@ async function refineItem(item) {
       }
       const merged = `${ai.title || title} ${ai.summary || summary}`;
       if (!isDisabilityOpportunity(merged) && !isDisabilityOpportunity(`${title} ${summary}`)) {
-        console.log(`AI evet dedi ama engelli çekirdek yok, atlandı: ${title}`);
+        console.log(`AI evet dedi ama özel gereksinim çekirdeği yok, atlandı: ${title}`);
         return null;
       }
       return {
@@ -362,7 +362,7 @@ async function collectSourceItems(source, method) {
     const listings = extractDisabilityListings(html, source.url, {
       limit: MAX_ITEMS_SCRAPE,
     });
-    console.log(`scrape aday (engelli başlık): ${source.name} ${listings.length}`);
+    console.log(`scrape aday (özel gereksinim başlık): ${source.name} ${listings.length}`);
     return listings.map((item) => ({
       ...item,
       sourceName: source.name,
