@@ -1,0 +1,12 @@
+{
+  "name": "engelsizclub-useful-content-collector",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "collect": "node index.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.5.1"
+  }
+}
