@@ -55,9 +55,13 @@ export async function classifyCandidate(apiKey, item) {
 relevant=true YALNIZCA hedef kitle açıkça şu alandaysa (yalnız "engelli" demesi ZORUNLU DEĞİL):
 engelli, engelsiz, özel gereksinim(li), özel eğitim, ÖYÇ, kaynaştırma, BEP, otizm/OSB/asperger, down sendromu/down sendromlu/down syndrome/trizomi 21, serebral palsi/serebral palsili/serebral paldi/cerebral palsy, SMA, CVI, DEHB/ADHD, işitme/görme/bedensel/zihinsel yetersizlik, gelişim geriliği, dil konuşma, erişilebilirlik, MEB ORGM, RAM, ÇÖZGER, bakım aylığı, ÖTV muafiyeti, EKPSS, işaret dili.
 
+Burs: relevant=true eğer burs/bursu/burslar/öğrenim bursu/scholarship ile birlikte çekirdek terim varsa
+(ör. engellilere burs, engelli öğrencilerine burs, özel gereksinimli öğrencilere burs, down sendromlu çocuklara burs).
+Burs tek başına veya KYK/üniversite/İŞKUR/belediye spor bursu çekirdek terim yoksa relevant=false. Burs kelimesini yok sayma.
+
 relevant=false:
 - Genel belediye / spor / konser / hava / imar / asfalt / ihale haberi
-- Herkese açık burs, İŞKUR iş ilanı, istihdam, kota, TÜBİTAK çağrısı (özel gereksinim/engelli vurgusu yoksa)
+- Çekirdek terimsiz burs, İŞKUR iş ilanı, istihdam, kota, TÜBİTAK çağrısı
 - Yalnız "rehabilitasyon", "rapor", "hak", "evde bakım" (engellilik/özel gereksinim bağlamı yoksa)
 - "Bursa" şehri, genel istihdam, genel kota
 

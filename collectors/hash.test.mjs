@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   hasRelevanceKeyword,
+  hasScholarshipTerm,
   isDisabilityOpportunity,
   isDuplicate,
   stripHtml,
@@ -93,5 +94,22 @@ describe('hash/dedup', () => {
     assert.equal(hasRelevanceKeyword('Genel istihdam ve kota duyurusu'), false);
     assert.equal(hasRelevanceKeyword('Rehabilitasyon merkezi fizik tedavi'), false);
     assert.equal(hasRelevanceKeyword('Evde bakım hizmeti yaşlılara'), false);
+  });
+
+  it('keeps burs only with a disability / özel gereksinim core term', () => {
+    assert.equal(isDisabilityOpportunity('engellilere burs'), true);
+    assert.equal(isDisabilityOpportunity('engellilere burs başvurusu'), true);
+    assert.equal(isDisabilityOpportunity('engelli öğrencilerine burs'), true);
+    assert.equal(isDisabilityOpportunity('özel gereksinimli burs'), true);
+    assert.equal(isDisabilityOpportunity('özel gereksinimli öğrencilere burs'), true);
+    assert.equal(isDisabilityOpportunity('down sendromlu çocuklara burs'), true);
+    assert.equal(isDisabilityOpportunity('serebral palsili öğrencilere burs'), true);
+    assert.equal(hasScholarshipTerm('engellilere burs başvurusu'), true);
+    assert.equal(isDisabilityOpportunity('üniversite burs başvurusu'), false);
+    assert.equal(isDisabilityOpportunity('KYK burs sonuçları açıklandı'), false);
+    assert.equal(isDisabilityOpportunity('İŞKUR burs başvurusu'), false);
+    assert.equal(isDisabilityOpportunity('belediye spor bursu'), false);
+    assert.equal(hasScholarshipTerm('üniversite burs başvurusu'), true);
+    assert.equal(hasScholarshipTerm("Bursa Büyükşehir Belediyespor’dan galibiyet"), false);
   });
 });

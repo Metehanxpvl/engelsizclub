@@ -142,16 +142,38 @@ const CORE_WORD_RE = [
 
 export const RELEVANCE_KEYWORDS = DISABILITY_CORE_KEYWORDS;
 
-export function hasRelevanceKeyword(text) {
-  return isDisabilityOpportunity(text);
+/** burs/bursu/burslar/scholarship — not the city "Bursa". Alone this is NOT enough. */
+const SCHOLARSHIP_RE = [
+  /\bburs(u|lar|lari)?\b/,
+  /\bscholarship\b/,
+  /ogrenim burs/,
+];
+
+export function hasScholarshipTerm(text) {
+  const hay = foldTr(text);
+  if (!hay) return false;
+  return SCHOLARSHIP_RE.some((re) => re.test(hay));
 }
 
-export function isDisabilityOpportunity(text) {
-  const raw = String(text ?? '');
-  if (!raw.trim()) return false;
-  const hay = foldTr(raw);
+export function hasDisabilityCore(text) {
+  const hay = foldTr(text);
   if (!hay) return false;
   if (DISABILITY_CORE_KEYWORDS.some((k) => hay.includes(k))) return true;
   if (CORE_WORD_RE.some((re) => re.test(hay))) return true;
   return false;
+}
+
+export function hasRelevanceKeyword(text) {
+  return isDisabilityOpportunity(text);
+}
+
+/**
+ * Keep disability/özel gereksinim news (with or without burs).
+ * burs + core (engellilere burs, özel gereksinimli öğrencilere burs) is KEEP
+ * because of the core term — never because burs stands alone.
+ */
+export function isDisabilityOpportunity(text) {
+  const raw = String(text ?? '');
+  if (!raw.trim()) return false;
+  return hasDisabilityCore(raw);
 }
