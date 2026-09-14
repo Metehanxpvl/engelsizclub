@@ -41,6 +41,7 @@ import 'data/more_menu_data.dart';
 import 'more_menu_store.dart';
 import 'pages/in_app_web_page.dart';
 import 'pages/boyama_page.dart';
+import 'features/scientific_research/admin_science_review_screen.dart';
 import 'remote/app_screen_config.dart';
 import 'pages/gelisim_etkinlikleri_page.dart';
 import 'pages/barcode_scanner_screen.dart';
@@ -4193,6 +4194,23 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               sub: 'Anlık aktif · üye listesi',
               highlight: true,
               onTap: () => setState(() => _showAdminUsers = true),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '🔬',
+              label: S.t('science_admin_title'),
+              sub: S.t('science_admin_sub'),
+              highlight: true,
+              onTap: () {
+                unawaited(
+                  AdminScienceReviewScreen.open(
+                    context,
+                    adminEmail: widget.user.email,
+                  ),
+                );
+              },
             ),
           ),
           Padding(
