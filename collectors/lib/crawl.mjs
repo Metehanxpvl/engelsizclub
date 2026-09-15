@@ -1,4 +1,5 @@
 import { classifyKeep, foldTr, stripHtml } from './hash.mjs';
+import { extractPageDates, toIsoDate } from './content_dates.mjs';
 import { discoverRssLinks, robotsBlocksAll } from './discover.mjs';
 import {
   fetchText as defaultFetchText,
@@ -171,6 +172,8 @@ export function extractArticleLinks(html, baseUrl, { limit = MAX_ARTICLES_PER_SO
       externalId: a.href,
       imageUrl: '',
       publishedAt: null,
+      updatedAt: null,
+      dateSource: 'listing',
     });
     if (out.length >= limit) break;
   }
@@ -224,18 +227,7 @@ export function paginationUrls(html, pageUrl, { maxExtra = MAX_PAGINATION_EXTRA 
 }
 
 export function parseFlexibleDate(raw) {
-  const s = String(raw || '').trim();
-  if (!s) return null;
-  const iso = Date.parse(s);
-  if (Number.isFinite(iso)) return new Date(iso).toISOString();
-  const dmy = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})/);
-  if (dmy) {
-    const t = Date.parse(
-      `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}T00:00:00Z`,
-    );
-    if (Number.isFinite(t)) return new Date(t).toISOString();
-  }
-  return null;
+  return toIsoDate(raw);
 }
 
 export function extractDetailMeta(html) {
@@ -264,16 +256,14 @@ export function extractDetailMeta(html) {
         /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i,
       ) ||
       [])[1];
-  const time =
-    (html.match(
-      /<meta[^>]+property=["']article:published_time["'][^>]+content=["']([^"']+)["']/i,
-    ) ||
-      html.match(/<time[^>]+datetime=["']([^"']+)["']/i) ||
-      [])[1];
+  const dates = extractPageDates(html);
   return {
     title: pick(ogTitle, h1, titleTag),
     summary: stripHtml(desc || '').slice(0, 1200),
-    publishedAt: parseFlexibleDate(time),
+    publishedAt: dates.publishedAt || dates.visibleDate,
+    updatedAt: dates.updatedAt,
+    deadlineAt: dates.deadlineAt,
+    eventAt: dates.eventAt,
   };
 }
 
@@ -290,6 +280,7 @@ export function shouldFetchDetail(item) {
   if (!title || title.length < 12) return true;
   const folded = foldTr(title);
   if (/^(haberler|duyurular|ilanlar|detay|devamini oku)$/.test(folded)) return true;
+  if (!item?.publishedAt && !item?.updatedAt) return true;
   return false;
 }
 
@@ -548,7 +539,9 @@ export async function crawlMunicipality(
       sourceUrl: e.loc,
       externalId: e.loc,
       imageUrl: '',
-      publishedAt: parseFlexibleDate(e.lastmod),
+      publishedAt: null,
+      sitemapLastmod: parseFlexibleDate(e.lastmod),
+      dateSource: 'sitemap_lastmod',
     });
   }
 
@@ -565,12 +558,17 @@ export async function crawlMunicipality(
     const meta = extractDetailMeta(html);
     if (meta.title && meta.title.length >= 8) item.title = meta.title;
     if (meta.summary) item.summary = meta.summary;
-    if (meta.publishedAt && !item.publishedAt) item.publishedAt = meta.publishedAt;
+    if (meta.publishedAt) {
+      item.publishedAt = meta.publishedAt;
+      if (item.dateSource === 'sitemap_lastmod') item.dateSource = 'page';
+    }
+    if (meta.updatedAt) item.updatedAt = meta.updatedAt;
+    if (meta.deadlineAt) item.deadlineAt = meta.deadlineAt;
+    if (meta.eventAt) item.eventAt = meta.eventAt;
   });
 
   candidates = candidates.filter((item) => {
     if (!item.title || !item.sourceUrl) return false;
-    if (isStaleDated(item.publishedAt, lastFetchedAt)) return false;
     return true;
   });
 
