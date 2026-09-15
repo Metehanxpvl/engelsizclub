@@ -1,5 +1,6 @@
 import { MISSING, sleep } from './config.mjs';
 import { preferSourceStudyPhase } from './filter.mjs';
+import { foldTr } from './hash.mjs';
 
 const MODELS = [
   'gemini-flash-latest',
@@ -76,8 +77,27 @@ export function withinBudget(
   return now - startedAt < budgetMs;
 }
 
-export function titleTranslateOutcome(title) {
-  return looksEnglishTitle(title) ? 'english_left' : 'translated';
+export function titleTranslateOutcome(title, originalTitle) {
+  return isSuccessfulTurkishTitle(title, originalTitle)
+    ? 'translated'
+    : 'english_left';
+}
+
+/** Never persist an English string as `title`. Stub is Turkish, not a finished translation. */
+export function turkishTitleOrFallback(title, originalTitle) {
+  const t = String(title || '').trim();
+  if (!t || t.toLowerCase() === 'null') return TITLE_TR_FALLBACK;
+  if (t === TITLE_TR_FALLBACK) return TITLE_TR_FALLBACK;
+  if (looksEnglishTitle(t, originalTitle)) return TITLE_TR_FALLBACK;
+  if (!looksTurkishText(t)) return TITLE_TR_FALLBACK;
+  return t;
+}
+
+export function isSuccessfulTurkishTitle(title, originalTitle) {
+  const t = String(title || '').trim();
+  if (!t || t === TITLE_TR_FALLBACK) return false;
+  if (looksEnglishTitle(t, originalTitle)) return false;
+  return looksTurkishText(t);
 }
 
 /** All English/stub pending_review+published rows; no cap of 3 or 40. */
@@ -142,10 +162,18 @@ function asciiLetterRatio(s) {
 }
 
 /** ASCII-heavy, common English words, no Turkish chars — not a primary `title`. */
-export function looksEnglishTitle(s) {
+export function looksEnglishTitle(s, originalTitle) {
   const t = String(s || '').trim();
   if (!t) return false;
   if (looksTurkishText(t)) return false;
+  const orig = String(originalTitle || '').trim();
+  if (
+    orig &&
+    foldTr(t) === foldTr(orig) &&
+    (EN_WORDS.test(orig) || EN_WORDS.test(t))
+  ) {
+    return true;
+  }
   if (!EN_WORDS.test(t)) return false;
   const letterCount = [...t].filter((c) => /\p{L}/u.test(c)).length;
   if (letterCount < 8) return false;
@@ -178,11 +206,9 @@ export function forceTurkishPrimary(copy, item) {
     item?.originalTitle || item?.title || copy?.original_title || '',
   ).trim();
   const next = { ...copy };
-  if (!String(next.title || '').trim() || looksEnglishTitle(next.title)) {
-    next.title = TITLE_TR_FALLBACK;
-  }
+  next.title = turkishTitleOrFallback(next.title, src);
   if (src) next.original_title = src.slice(0, 400);
-  if (looksEnglishTitle(next.summary)) next.summary = TITLE_TR_FALLBACK;
+  if (looksEnglishTitle(next.summary, src)) next.summary = TITLE_TR_FALLBACK;
   if (looksEnglishTitle(next.why_important)) next.why_important = MISSING;
   if (looksEnglishTitle(next.limitations)) next.limitations = MISSING;
   return next;
@@ -349,10 +375,14 @@ function asStringList(raw) {
 }
 
 export function applyTranslatedCopy(item, parsed) {
+  const original = sourceOriginalTitle(item, parsed);
+  const title = turkishTitleOrFallback(parsed?.title, original).slice(0, 400);
+  let summary = turkishOrFallback(parsed?.summary).slice(0, 4000);
+  if (looksEnglishTitle(summary, original)) summary = TITLE_TR_FALLBACK;
   return {
-    title: turkishOrFallback(parsed?.title).slice(0, 400),
-    original_title: sourceOriginalTitle(item, parsed),
-    summary: turkishOrFallback(parsed?.summary).slice(0, 4000),
+    title,
+    original_title: original,
+    summary,
     why_important: textOrMissing(parsed?.why_important).slice(0, 2000),
     limitations: textOrMissing(parsed?.limitations).slice(0, 2000),
     conditions: asStringList(parsed?.conditions || item.conditions),
@@ -497,7 +527,9 @@ export async function runSerialTranslateQueue(
     try {
       const copy = await translateOne(item);
       lastHttpStatus = lastGeminiHttpStatus() ?? lastHttpStatus;
-      if (looksEnglishTitle(copy?.title)) {
+      const original =
+        item?.originalTitle || item?.original_title || item?.title;
+      if (!isSuccessfulTurkishTitle(copy?.title, original)) {
         leftover.push(item);
         continue;
       }
@@ -566,7 +598,9 @@ export async function translateResearchCopy(
         sleepFn: wait,
       });
       last = applyTranslatedCopy(source, parsed);
-      if (!looksEnglishTitle(last.title)) return last;
+      if (isSuccessfulTurkishTitle(last.title, source.originalTitle || source.title)) {
+        return last;
+      }
     } catch (e) {
       lastErr = e;
       if (e.status != null) geminiPace.lastStatus = e.status;
@@ -584,7 +618,7 @@ export async function scoreResearch(apiKey, item, { sleepFn } = {}) {
     const parsed = await generateJson(apiKey, buildScorePrompt(item), opts);
     let normalized = normalizeAiResult(parsed, item);
     if (!normalized) throw new Error('AI JSON yok veya treatment_potential geçersiz');
-    if (looksEnglishTitle(normalized.title) || normalized.title === TITLE_TR_FALLBACK) {
+    if (!isSuccessfulTurkishTitle(normalized.title, item.originalTitle || item.title)) {
       try {
         const copy = await translateResearchCopy(apiKey, item, opts);
         normalized = { ...normalized, ...copy };

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { parseMedlineRecords, toPubmedItem } from './pubmed.mjs';
 import { parseStudy, toTrialItem } from './clinicaltrials.mjs';
+import { filterRecentItems } from './dates.mjs';
 
 describe('parseMedlineRecords', () => {
   it('reads pmid, title, abstract, doi', () => {
@@ -25,6 +26,12 @@ PT  - Randomized Controlled Trial
     assert.equal(item.externalId, 'pmid:38700001');
     assert.equal(item.hasResults, true);
     assert.ok(item.publicationTypes.includes('Randomized Controlled Trial'));
+    const now = new Date('2026-09-15T12:00:00.000Z');
+    assert.equal(filterRecentItems([item], now).length, 1);
+    assert.equal(
+      filterRecentItems([{ ...item, publicationDate: '2018-01-15' }], now).length,
+      0,
+    );
   });
 });
 
@@ -41,6 +48,7 @@ describe('parseStudy', () => {
         statusModule: {
           overallStatus: 'COMPLETED',
           startDateStruct: { date: '2024-03-01' },
+          lastUpdatePostDateStruct: { date: '2025-03-01' },
           resultsFirstPostDateStruct: { date: '2025-02-01' },
         },
         descriptionModule: { briefSummary: 'Children with CP.' },
@@ -62,5 +70,6 @@ describe('parseStudy', () => {
     assert.equal(item.hasResults, true);
     assert.equal(item.humanOrAnimal, 'human');
     assert.equal(item.sourceUrl, 'https://clinicaltrials.gov/study/NCT01234567');
+    assert.equal(item.lastUpdatePostDate, '2025-03-01');
   });
 });

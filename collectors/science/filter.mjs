@@ -56,7 +56,15 @@ export function isOffTopicReject(text, config = loadConditions()) {
  * Drop clearly unrelated (adult oncology-only, random domains).
  * Conservative: no keep keyword → drop.
  */
+export function isFdaDrugItem(item) {
+  if (String(item?.studyType || '').toLowerCase() === 'drug_approval') return true;
+  if (/^fda:/i.test(String(item?.externalId || ''))) return true;
+  const blob = `${item?.sourceName || ''} ${item?.sourceUrl || ''}`;
+  return /api\.fda\.gov|accessdata\.fda\.gov|drugsfda/i.test(blob);
+}
+
 export function prefilterKeep(item, config = loadConditions()) {
+  if (isFdaDrugItem(item) && (item.conditions || []).length) return true;
   const blob = blobOf(item);
   if (!String(blob).trim()) return false;
   if (hasKeepKeyword(blob, config)) return true;
@@ -224,6 +232,9 @@ function isClinicalTrialItem(item) {
  * reason: phase2 | recruiting | no_results
  */
 export function classifyScienceKeep(item) {
+  if (isFdaDrugItem(item)) {
+    return { keep: true, reason: 'fda_approval' };
+  }
   const trial = isClinicalTrialItem(item);
   const recruitingAd =
     (isRecruitingStatus(item) && !hasPostedResults(item)) ||

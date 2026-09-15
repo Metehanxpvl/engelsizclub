@@ -1,4 +1,5 @@
 import { loadConditions, sleep } from './config.mjs';
+import { RELDATE_DAYS, filterRecentItems, pubmedMaxdate, pubmedMindate } from './dates.mjs';
 import { highestPhase } from './filter.mjs';
 import { normalizeDoi } from './hash.mjs';
 
@@ -151,15 +152,18 @@ function guessHumanOrAnimal(rec) {
   return '';
 }
 
-export async function esearchIds(term, { apiKey, retmax, reldateDays } = {}) {
+export async function esearchIds(term, { apiKey, retmax, reldateDays, mindate, maxdate } = {}) {
+  const rel = reldateDays ?? RELDATE_DAYS;
   const text = await eutilsGet('esearch.fcgi', {
     db: 'pubmed',
     term,
     retmax: retmax ?? 25,
     retmode: 'json',
     sort: 'pub date',
-    reldate: reldateDays ?? 90,
+    reldate: rel,
     datetype: 'pdat',
+    mindate: mindate || pubmedMindate(),
+    maxdate: maxdate || pubmedMaxdate(),
     tool: TOOL,
     email: EMAIL,
     api_key: apiKey,
@@ -256,7 +260,9 @@ export async function fetchPubmed(source, opts = {}) {
   const config = opts.config || loadConditions();
   const apiKey = (opts.apiKey || process.env.NCBI_API_KEY || '').trim();
   const retmax = Number(opts.retmax || config.retmax || 25);
-  const reldateDays = Number(opts.reldateDays || config.reldate_days || 90);
+  const reldateDays = Number(opts.reldateDays || config.reldate_days || RELDATE_DAYS);
+  const mindate = opts.mindate || pubmedMindate();
+  const maxdate = opts.maxdate || pubmedMaxdate();
   const queries = pubmedQueryList(source, config);
   const wait = opts.sleep || sleep;
   const seen = new Set();
@@ -267,11 +273,13 @@ export async function fetchPubmed(source, opts = {}) {
     throw new Error('PubMed: conditions.json pubmed_queries boş');
   }
 
+  console.log(`PubMed window reldate=${reldateDays} mindate=${mindate} maxdate=${maxdate}`);
+
   for (const q of queries) {
     const term = String(q.term || '').trim();
     if (!term) continue;
     try {
-      const ids = await esearchIds(term, { apiKey, retmax, reldateDays });
+      const ids = await esearchIds(term, { apiKey, retmax, reldateDays, mindate, maxdate });
       await wait(delayMs(apiKey));
       const fresh = ids.filter((id) => {
         if (seen.has(id)) return false;
@@ -297,5 +305,5 @@ export async function fetchPubmed(source, opts = {}) {
   if (!items.length) {
     console.warn('PubMed: esearch 0 id (reldate/sorgu). conditions.json pubmed_queries kontrol edin.');
   }
-  return items;
+  return filterRecentItems(items);
 }

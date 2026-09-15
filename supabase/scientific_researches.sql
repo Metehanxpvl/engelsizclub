@@ -237,6 +237,15 @@ values
     'ClinicalTrials.gov API v2. RECRUITING vb. overallStatus korunur. Collector pending_review yazar; FCM yok.'
   ),
   (
+    'FDA',
+    'https://api.fda.gov/drug/drugsfda.json',
+    'api',
+    '',
+    true,
+    6,
+    'openFDA Drugs@FDA (https://api.fda.gov/drug/drugsfda.json) + etiket endikasyonu. Onaylı / geçici onay / NDA-BLA inceleme (API’de varsa). Koşul eşlemesi collectors/science/conditions.json. Collector pending_review yazar; yayın/FCM yok. Satır source_url Drugs@FDA sayfasıdır.'
+  ),
+  (
     'Cochrane Library CDSR',
     'https://www.cochranelibrary.com/cdsr/reviews',
     'rss',
@@ -258,7 +267,8 @@ update public.scientific_sources
 set is_active = true, method = 'api'
 where url in (
   'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/',
-  'https://clinicaltrials.gov/api/v2/studies'
+  'https://clinicaltrials.gov/api/v2/studies',
+  'https://api.fda.gov/drug/drugsfda.json'
 );
 
 notify pgrst, 'reload schema';

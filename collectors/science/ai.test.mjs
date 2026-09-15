@@ -14,6 +14,7 @@ import {
   heuristicPendingScore,
   isRateLimitError,
   isRetryableGeminiStatus,
+  isSuccessfulTurkishTitle,
   looksEnglishTitle,
   looksTurkishText,
   needsTurkishBackfill,
@@ -25,6 +26,7 @@ import {
   selectBackfillRows,
   titleTranslateOutcome,
   translateResearchCopy,
+  turkishTitleOrFallback,
   withinBudget,
   WORKFLOW_BUDGET_MS,
 } from './ai.mjs';
@@ -238,6 +240,42 @@ describe('English title detection and backfill source', () => {
     assert.equal(looksEnglishTitle(TITLE_TR_FALLBACK), false);
     assert.equal(looksTurkishText('Serebral palside yürüyüş denemesi'), true);
     assert.equal(looksTurkishText('Gait trial in cerebral palsy'), false);
+    assert.equal(
+      turkishTitleOrFallback(
+        'Gait trial in cerebral palsy',
+        'Gait trial in cerebral palsy',
+      ),
+      TITLE_TR_FALLBACK,
+    );
+    assert.equal(
+      turkishTitleOrFallback(
+        'Serebral palside yürüyüş denemesi',
+        'Gait trial in cerebral palsy',
+      ),
+      'Serebral palside yürüyüş denemesi',
+    );
+    assert.equal(
+      isSuccessfulTurkishTitle(
+        'Serebral palside yürüyüş denemesi',
+        'Gait trial in cerebral palsy',
+      ),
+      true,
+    );
+    assert.equal(
+      isSuccessfulTurkishTitle(TITLE_TR_FALLBACK, 'Gait trial in cerebral palsy'),
+      false,
+    );
+    assert.equal(
+      isSuccessfulTurkishTitle(
+        'Gait trial in cerebral palsy',
+        'Gait trial in cerebral palsy',
+      ),
+      false,
+    );
+    assert.equal(
+      titleTranslateOutcome(TITLE_TR_FALLBACK, 'Gait trial in cerebral palsy'),
+      'english_left',
+    );
   });
 
   it('needs backfill for English pending/published titles only', () => {
@@ -527,6 +565,26 @@ describe('Gemini 429 retries and backfill cap', () => {
     assert.ok(seen.includes('5'));
     assert.ok(seen.length > 3);
     assert.ok(result.leftover.length >= 1);
+  });
+
+  it('does not count English or stub titles as translated; leftover continues', async () => {
+    const result = await runSerialTranslateQueue(
+      [{ id: 'en' }, { id: 'tr' }, { id: 'stub' }],
+      async (row) => {
+        if (row.id === 'tr') {
+          return { title: 'Serebral palside yürüyüş denemesi' };
+        }
+        if (row.id === 'stub') return { title: TITLE_TR_FALLBACK };
+        return { title: 'Gait trial in cerebral palsy' };
+      },
+      { sleepFn: async () => {}, startedAt: Date.now(), budgetMs: 60_000 },
+    );
+    assert.equal(result.translated, 1);
+    assert.equal(result.leftover.length, 2);
+    assert.deepEqual(
+      result.leftover.map((r) => r.id).sort(),
+      ['en', 'stub'],
+    );
   });
 
   it('generateJson 429 uses 15s backoff on the same model, not the next', async () => {

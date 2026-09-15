@@ -6,6 +6,7 @@ import {
   backfillUpdatePayload,
   forceTurkishPrimary,
   heuristicPendingScore,
+  isSuccessfulTurkishTitle,
   lastGeminiHttpStatus,
   looksEnglishTitle,
   needsTurkishBackfill,
@@ -14,6 +15,7 @@ import {
   selectBackfillRows,
   titleTranslateOutcome,
   translateResearchCopy,
+  turkishTitleOrFallback,
   withinBudget,
 } from './ai.mjs';
 import { fetchClinicalTrials } from './clinicaltrials.mjs';
@@ -24,8 +26,11 @@ import {
   loadConditions,
   sleep,
 } from './config.mjs';
+import { scienceDateWindow, shouldDropOlder } from './dates.mjs';
+import { fdaPendingScore, fetchFda } from './fda.mjs';
 import {
   classifyScienceKeep,
+  isFdaDrugItem,
   prefilterKeep,
   promoteKeepTopicPotential,
   shouldInsertResearch,
@@ -55,6 +60,7 @@ function emptyStats() {
     keptPhase2: 0,
     droppedRecruiting: 0,
     droppedNoResults: 0,
+    droppedOld: 0,
     neu: 0,
     dupes: 0,
     prefilter: 0,
@@ -184,6 +190,14 @@ function sourceKind(source) {
   if (blob.includes('pubmed') || blob.includes('ncbi') || blob.includes('eutils')) {
     return 'pubmed';
   }
+  if (
+    blob.includes('drugsfda') ||
+    blob.includes('api.fda.gov') ||
+    blob.includes('accessdata.fda') ||
+    /\bfda\b/.test(blob)
+  ) {
+    return 'fda';
+  }
   return String(source.method || 'api').toLowerCase();
 }
 
@@ -194,6 +208,9 @@ async function collectItems(source, config) {
   }
   if (kind === 'clinicaltrials') {
     return fetchClinicalTrials(source, { config });
+  }
+  if (kind === 'fda') {
+    return fetchFda(source, { config });
   }
   if (kind === 'rss') {
     console.warn(`rss atlandı (Phase A API only): ${source.name}`);
@@ -221,7 +238,7 @@ async function insertPending(row) {
 function printSummary(stats) {
   console.log('--- bilimsel araştırma özeti ---');
   console.log(
-    `found=${stats.found} kept_phase2=${stats.keptPhase2} dropped_recruiting=${stats.droppedRecruiting} dropped_no_results=${stats.droppedNoResults} saved=${stats.saved}`,
+    `found=${stats.found} kept_phase2=${stats.keptPhase2} dropped_recruiting=${stats.droppedRecruiting} dropped_no_results=${stats.droppedNoResults} dropped_old=${stats.droppedOld} saved=${stats.saved}`,
   );
   console.log(
     `sources=${stats.sources} new=${stats.neu} dupes=${stats.dupes} prefilter=${stats.prefilter} AI=${stats.ai} high=${stats.high} potential=${stats.potential} irrelevant=${stats.irrelevant} saved=${stats.saved} errors=${stats.errors} ai_fail_skip=${stats.aiFail} translated_count=${stats.translatedBackfill} english_remaining=${stats.englishLeft} last_http_status=${stats.lastHttpStatus ?? 'none'}`,
@@ -233,6 +250,10 @@ function applyQualityFilter(items, stats) {
   let dropRec = 0;
   let dropNo = 0;
   for (const item of items) {
+    if (!isFdaDrugItem(item) && shouldDropOlder(item)) {
+      stats.droppedOld += 1;
+      continue;
+    }
     const verdict = classifyScienceKeep(item);
     if (verdict.keep) {
       kept.push(item);
@@ -278,8 +299,8 @@ async function loadAllEnglishRows() {
   return english;
 }
 
-function logTitleOutcome(kind, id, title) {
-  const outcome = titleTranslateOutcome(title);
+function logTitleOutcome(kind, id, title, originalTitle) {
+  const outcome = titleTranslateOutcome(title, originalTitle);
   const line = `${outcome}: ${kind} ${id} ${String(title || '').slice(0, 120)}`;
   if (outcome === 'english_left') console.warn(line);
   else console.log(line);
@@ -308,15 +329,28 @@ async function translateAndPatchRow(row) {
     await translateResearchCopy(AI_KEY, item),
     item,
   );
-  const outcome = logTitleOutcome('backfill', row.id, copy.title);
-  if (outcome === 'english_left') {
+  copy.title = turkishTitleOrFallback(copy.title, item.originalTitle);
+  const payload = backfillUpdatePayload(row, copy);
+  if (!isSuccessfulTurkishTitle(copy.title, item.originalTitle)) {
+    payload.title = TITLE_TR_FALLBACK;
+    if (
+      looksEnglishTitle(row.title, item.originalTitle) ||
+      !String(row.title || '').trim()
+    ) {
+      await sb(`scientific_researches?id=eq.${row.id}`, {
+        method: 'PATCH',
+        body: payload,
+      });
+    }
+    logTitleOutcome('backfill', row.id, payload.title, item.originalTitle);
     const err = new Error('still English after translate');
     err.status = lastGeminiHttpStatus();
     throw err;
   }
+  logTitleOutcome('backfill', row.id, copy.title, item.originalTitle);
   await sb(`scientific_researches?id=eq.${row.id}`, {
     method: 'PATCH',
-    body: backfillUpdatePayload(row, copy),
+    body: payload,
   });
   return copy;
 }
@@ -370,13 +404,15 @@ async function backfillEnglishRows({
 }
 
 async function processItem(item, source, existing, stats, leftover, startedAt) {
-  const contentHash = researchContentHash({
-    title: item.title,
-    pmid: item.pmid,
-    nctId: item.nctId,
-    doi: item.doi,
-    sourceUrl: item.sourceUrl,
-  });
+  const contentHash =
+    item.fdaHash ||
+    researchContentHash({
+      title: item.originalTitle || item.title,
+      pmid: item.pmid,
+      nctId: item.nctId,
+      doi: item.doi,
+      sourceUrl: item.sourceUrl,
+    });
   if (
     isDuplicate(existing, {
       pmid: item.pmid,
@@ -398,7 +434,26 @@ async function processItem(item, source, existing, stats, leftover, startedAt) {
 
   let ai;
   let needsLeftover = false;
-  if (!AI_KEY) {
+  const original = item.originalTitle || item.title;
+  if (isFdaDrugItem(item)) {
+    ai = fdaPendingScore(item);
+    if (
+      !isSuccessfulTurkishTitle(ai.title, original) &&
+      AI_KEY &&
+      withinBudget(startedAt, Date.now(), TRANSLATE_BUDGET_MS)
+    ) {
+      try {
+        const copy = await translateResearchCopy(AI_KEY, item);
+        ai = { ...ai, ...copy };
+      } catch (e) {
+        stats.lastHttpStatus = e.status ?? lastGeminiHttpStatus() ?? stats.lastHttpStatus;
+        console.warn(`FDA çeviri hata: ${item.title} — ${e.message}`);
+        needsLeftover = true;
+      }
+    } else if (!isSuccessfulTurkishTitle(ai.title, original)) {
+      needsLeftover = true;
+    }
+  } else if (!AI_KEY) {
     console.warn(`AI anahtarı yok, Türkçe yedek POTENTIAL_VALUE: ${item.title}`);
     ai = heuristicPendingScore(item);
     stats.aiFail += 1;
@@ -418,7 +473,7 @@ async function processItem(item, source, existing, stats, leftover, startedAt) {
       ai = heuristicPendingScore(item);
       needsLeftover = true;
     }
-    if (looksEnglishTitle(ai.title) || ai.title === TITLE_TR_FALLBACK) {
+    if (!isSuccessfulTurkishTitle(ai.title, original)) {
       try {
         const copy = await translateResearchCopy(AI_KEY, item);
         ai = { ...ai, ...copy };
@@ -457,11 +512,17 @@ async function processItem(item, source, existing, stats, leftover, startedAt) {
   }
 
   const row = buildInsertRow(item, ai, source, contentHash);
-  if (looksEnglishTitle(row.title)) {
+  row.title = turkishTitleOrFallback(row.title, row.original_title);
+  if (!isSuccessfulTurkishTitle(row.title, row.original_title)) {
     row.title = TITLE_TR_FALLBACK;
     needsLeftover = true;
   }
-  const outcome = logTitleOutcome('insert', item.pmid || item.nctId || item.sourceUrl, row.title);
+  const outcome = logTitleOutcome(
+    'insert',
+    item.pmid || item.nctId || item.externalId || item.sourceUrl,
+    row.title,
+    row.original_title,
+  );
   if (outcome === 'english_left' || row.title === TITLE_TR_FALLBACK) {
     needsLeftover = true;
   }
@@ -499,6 +560,10 @@ async function main() {
   }
 
   const config = loadConditions();
+  const window = scienceDateWindow();
+  console.log(
+    `date_window years=${window.years} start=${window.start} end=${window.end} reldate=${window.reldateDays} pubmed_mindate=${window.pubmedMindate} pubmed_maxdate=${window.pubmedMaxdate}`,
+  );
   const existing = await loadExistingKeys();
   const stats = emptyStats();
   const startedAt = Date.now();

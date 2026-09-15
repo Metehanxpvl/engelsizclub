@@ -11,9 +11,11 @@
 #
 # İlk çalıştırmadan önce SQL Editor → supabase/scientific_researches.sql → Run.
 # Collector asla published yazmaz; FCM yok; tedavi vaadi yok.
+# Yalnız son 5 yıl (PubMed reldate=1825 / mindate-maxdate; ClinicalTrials startDate).
+# FDA: openFDA Drugs@FDA onaylı / geçici onay / inceleme (API’de varsa).
 # Her çalıştırmada pending_review + published İngilizce title satırlarını
 # sayfalayarak Türkçeye çevirir (seri Gemini, 429'da 15/30/60/90s backoff,
-# ~50 dk bütçe veya İngilizce kalmayana kadar). status değişmez; FCM yok.
+# leftover kuyruk; İngilizce title yazılmaz; ~50 dk bütçe). status değişmez; FCM yok.
 #
 # Cron yalnız default branch’te çalışır.
 #   Actions → Scientific research collector → Run workflow → branch main

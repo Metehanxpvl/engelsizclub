@@ -221,6 +221,22 @@ describe('phase 2 keep / phase 1 drop / recruiting-only drop', () => {
     );
   });
 
+  it('keeps FDA drug_approval rows without phase 2', () => {
+    assert.equal(
+      classifyScienceKeep({
+        studyType: 'drug_approval',
+        title: 'SMA için FDA ilacı (onaylandı)',
+        summary: 'FDA kaydı.',
+        conditions: ['SMA'],
+        sourceUrl:
+          'https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=overview.process&ApplNo=209531',
+        sourceName: 'FDA',
+        externalId: 'fda:NDA209531',
+      }).keep,
+      true,
+    );
+  });
+
   it('keeps PubMed RCT / results when phase is 2 plus or unstated', () => {
     assert.equal(
       classifyScienceKeep({
