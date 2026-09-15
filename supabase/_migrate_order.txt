@@ -65,3 +65,6 @@ kesfet_seed_videos.sql
 etkinlik_admin_notify.sql
 forum_ilan_social_notify.sql
 ilan_teklif_notify.sql
+destek_sorgu.sql
+daha_fazlasi_destek_sorgu.sql
+daha_fazlasi_evde_egitim.sql

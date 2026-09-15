@@ -28,6 +28,7 @@ class MoreMenuItem {
     'taramalar',
     'puzzle',
     'boyama',
+    'destek_sorgu',
     'folder',
   };
 
@@ -496,6 +497,28 @@ List<MoreMenuItem> defaultMoreMenuItems() => [
       defaultHaritaMenuItem,
       defaultTaramalarGroupItem,
       defaultBoyamaMenuItem,
+      MoreMenuItem(
+        id: -21,
+        title: 'Destek Sorgu',
+        subtitle: 'SUT taban fiyatı, SGK katkısı ve yenileme takvimi',
+        linkType: 'url',
+        link: '/destek-sorgu',
+        icon: 'calculate',
+        sortOrder: 22,
+        isActive: true,
+        isBuiltin: false,
+      ),
+      MoreMenuItem(
+        id: -22,
+        title: 'Evde Eğitim',
+        subtitle: 'Şartları adım adım görün — ad ve T.C. sorulmaz',
+        linkType: 'url',
+        link: '/evde-egitim',
+        icon: 'family',
+        sortOrder: 23,
+        isActive: true,
+        isBuiltin: false,
+      ),
       MoreMenuItem(
         id: -1,
         title: 'Aile Koçum',

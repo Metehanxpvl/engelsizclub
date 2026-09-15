@@ -204,6 +204,8 @@ $staticRoots = @(
   "web\daha-fazlasi",
   "web\fotografli-puzzle.html",
   "web\boyama.html",
+  "web\destek-sorgu.html",
+  "web\evde-egitim.html",
   "web\google_oauth_callback.html",
   "web\mobile_google_auth.html",
   "web\admin"

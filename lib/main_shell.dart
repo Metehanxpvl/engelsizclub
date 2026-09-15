@@ -41,6 +41,7 @@ import 'data/more_menu_data.dart';
 import 'more_menu_store.dart';
 import 'pages/in_app_web_page.dart';
 import 'pages/boyama_page.dart';
+import 'pages/destek_sorgu_page.dart';
 import 'features/scientific_research/admin_science_review_screen.dart';
 import 'remote/app_screen_config.dart';
 import 'pages/gelisim_etkinlikleri_page.dart';
@@ -865,6 +866,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       case 'barcode':
         icon = Icons.qr_code_scanner;
         color = MetoColors.primary;
+      case 'calculate':
+        icon = Icons.calculate_outlined;
+        color = MetoColors.primary;
       case 'apps':
       case 'folder':
         icon = Icons.folder_outlined;
@@ -1080,6 +1084,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         await BoyamaPage.open(
           context,
           title: item.title,
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(
+            'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
+          ),
+        );
+        return;
+      case 'destek_sorgu':
+        await DestekSorguPage.open(
+          context,
           isGuest: _isGuest,
           onRequireLogin: () => _requireLogin(
             'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
