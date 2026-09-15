@@ -57,6 +57,10 @@ play_ready.sql
 cvi_sessions.sql
 view_counts.sql
 daha_fazlasi_menu_harita.sql
+daha_fazlasi_destek_sorgu.sql
+destek_sorgu.sql
+evde_egitim.sql
+daha_fazlasi_evde_egitim.sql
 kesfet_schema.sql
 kesfet_scoring.sql
 kesfet_seed.sql

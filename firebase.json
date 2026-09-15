@@ -77,6 +77,22 @@
         "destination": "/boyama.html"
       },
       {
+        "source": "/destek-sorgu",
+        "destination": "/destek-sorgu.html"
+      },
+      {
+        "source": "/destek-sorgu/**",
+        "destination": "/destek-sorgu.html"
+      },
+      {
+        "source": "/evde-egitim",
+        "destination": "/evde-egitim.html"
+      },
+      {
+        "source": "/evde-egitim/**",
+        "destination": "/evde-egitim.html"
+      },
+      {
         "source": "/support",
         "destination": "/support.html"
       },
@@ -117,6 +133,42 @@
       },
       {
         "source": "/admin/daha_fazlasi_menu.json",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/destek-sorgu.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/destek-sorgu",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/evde-egitim.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/evde-egitim",
         "headers": [
           {
             "key": "Cache-Control",
