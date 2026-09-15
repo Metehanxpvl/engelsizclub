@@ -127,11 +127,11 @@ describe('phase 2 keep / phase 1 drop / recruiting-only drop', () => {
     );
   });
 
-  it('drops recruiting-only / işe alım listings without results', () => {
+  it('drops recruiting-only / ise alim listings without results', () => {
     const recruiting = classifyScienceKeep({
       nctId: 'NCT501',
       title: 'Now recruiting children with CP',
-      summary: 'We are recruiting participants. İşe alım.',
+      summary: 'We are recruiting participants. Ise alim.',
       studyPhase: 'PHASE2',
       recruitmentStatus: 'RECRUITING',
       hasResults: false,
@@ -221,7 +221,7 @@ describe('phase 2 keep / phase 1 drop / recruiting-only drop', () => {
     );
   });
 
-  it('keeps PubMed RCT / results when phase is 2+ or unstated', () => {
+  it('keeps PubMed RCT / results when phase is 2 plus or unstated', () => {
     assert.equal(
       classifyScienceKeep({
         pmid: '4',
@@ -264,7 +264,7 @@ describe('shouldInsertResearch', () => {
 });
 
 describe('promoteKeepTopicPotential', () => {
-  it('marks completed phase 2+ with outcomes HIGH_VALUE', () => {
+  it('marks completed phase 2 plus with outcomes HIGH_VALUE', () => {
     assert.equal(
       promoteKeepTopicPotential(
         {
@@ -301,7 +301,7 @@ describe('promoteKeepTopicPotential', () => {
         {
           nctId: 'NCT702',
           title: 'Cerebral palsy gait RCT',
-          summary: 'Now recruiting. İşe alım.',
+          summary: 'Now recruiting. Ise alim.',
           studyPhase: 'PHASE1',
           recruitmentStatus: 'RECRUITING',
         },

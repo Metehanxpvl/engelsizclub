@@ -127,6 +127,87 @@ Map<String, dynamic> scientificResearchUnpublishPatch() {
   return const {'status': 'rejected'};
 }
 
+int? _romanOrDigitPhase(String token) {
+  final t = token.trim().toLowerCase();
+  if (t == 'iv' || t == '4') return 4;
+  if (t == 'iii' || t == '3') return 3;
+  if (t == 'ii' || t == '2') return 2;
+  if (t == 'i' || t == '1') return 1;
+  final n = int.tryParse(t);
+  if (n != null && n >= 1 && n <= 4) return n;
+  return null;
+}
+
+/// Highest clinical phase mentioned on the row, or null.
+int? highestSciencePhaseNumber(ScientificResearch item) {
+  final s = [
+    item.studyPhase,
+    item.evidenceLevel,
+    item.title,
+    item.originalTitle,
+    item.summary,
+  ].join(' ');
+  if (s.trim().isEmpty) return null;
+  if (RegExp(
+        r'EARLY_PHASE1|EARLY\s*PHASE\s*1|FAZ\s*0',
+        caseSensitive: false,
+      ).hasMatch(s) &&
+      !RegExp(
+        r'PHASE\s*[2-4]|FAZ\s*[2-4]|PHASE\s*(II|III|IV)\b',
+        caseSensitive: false,
+      ).hasMatch(s)) {
+    return 1;
+  }
+  final nums = <int>[];
+  final word = RegExp(
+    r'(?:PHASE|FAZ)\s*[-_]?\s*(EARLY\s*)?(NA|N/A|IV|III|II|I|[1-4])(?:\s*/\s*(IV|III|II|I|[1-4]))?',
+    caseSensitive: false,
+  );
+  for (final m in word.allMatches(s)) {
+    if (RegExp(r'^NA|N/A$', caseSensitive: false).hasMatch(m.group(2) ?? '')) {
+      continue;
+    }
+    final a = _romanOrDigitPhase(m.group(2) ?? '');
+    final b = _romanOrDigitPhase(m.group(3) ?? '');
+    if (a != null) nums.add(a);
+    if (b != null) nums.add(b);
+  }
+  for (final m in RegExp(r'\bPHASE\s*([1-4])\b', caseSensitive: false)
+      .allMatches(s)) {
+    final n = int.tryParse(m.group(1) ?? '');
+    if (n != null) nums.add(n);
+  }
+  if (nums.isEmpty) {
+    if (RegExp(
+      r'^\s*(NA|N/A|NOT[_ ]APPLICABLE|Çalışmada belirtilmemiş)\s*$',
+      caseSensitive: false,
+    ).hasMatch(item.studyPhase)) {
+      return 0;
+    }
+    return null;
+  }
+  return nums.reduce((a, b) => a > b ? a : b);
+}
+
+bool isPhase2PlusResearch(ScientificResearch item) {
+  return (highestSciencePhaseNumber(item) ?? 0) >= 2;
+}
+
+bool isPhase1OnlyOrNaResearch(ScientificResearch item) {
+  final phase = highestSciencePhaseNumber(item);
+  if (phase == 0 || phase == 1) return true;
+  final raw = item.studyPhase;
+  if (RegExp(r'EARLY_PHASE1', caseSensitive: false).hasMatch(raw) &&
+      !isPhase2PlusResearch(item)) {
+    return true;
+  }
+  if (RegExp(r'^\s*(NA|N/A|NOT[_ ]APPLICABLE)\s*$', caseSensitive: false)
+      .hasMatch(raw)) {
+    return true;
+  }
+  return false;
+}
+
 bool isHighTreatmentPotential(ScientificResearch item) {
   if (normalizeTreatmentPotential(item.treatmentPotential) == 'HIGH_VALUE') {
     return true;
@@ -135,7 +216,13 @@ bool isHighTreatmentPotential(ScientificResearch item) {
     item.treatmentPotentialScore,
     item.clinicalReadinessScore,
   ];
-  return scores.any((s) => s != null && s >= kHighTreatmentScoreThreshold);
+  if (scores.any((s) => s != null && s >= kHighTreatmentScoreThreshold)) {
+    return true;
+  }
+  // Phase 2+ belongs here even when collector AI wrote POTENTIAL_VALUE.
+  // Phase 1 / early phase 1 / NA recruiting ads stay out.
+  if (isPhase1OnlyOrNaResearch(item)) return false;
+  return isPhase2PlusResearch(item);
 }
 
 bool isClinicalResearch(ScientificResearch item) {

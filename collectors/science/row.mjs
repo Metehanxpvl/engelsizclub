@@ -1,5 +1,6 @@
 import { TITLE_TR_FALLBACK } from './ai.mjs';
 import { MISSING } from './config.mjs';
+import { preferSourceStudyPhase } from './filter.mjs';
 
 function missingIfEmpty(v) {
   const s = String(v ?? '').trim();
@@ -21,7 +22,8 @@ export function buildInsertRow(item, ai, source, contentHash) {
     categories: Array.isArray(ai.categories) ? ai.categories : [],
     study_type: ai.study_type || item.studyType || null,
     evidence_level: ai.evidence_level || null,
-    study_phase: ai.study_phase || item.studyPhase || null,
+    study_phase:
+      preferSourceStudyPhase(ai.study_phase, item.studyPhase) || null,
     human_or_animal: ai.human_or_animal || item.humanOrAnimal || null,
     pediatric_relevance: ai.pediatric_relevance || null,
     relevance_score: ai.relevance_score,

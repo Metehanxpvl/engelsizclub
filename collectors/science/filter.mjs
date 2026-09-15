@@ -1,4 +1,4 @@
-import { loadConditions } from './config.mjs';
+import { loadConditions, MISSING } from './config.mjs';
 import { foldTr } from './hash.mjs';
 
 export function blobOf(item) {
@@ -121,6 +121,18 @@ export function highestPhase(item) {
 
 export function isPhase2Plus(item) {
   return (highestPhase(item) || 0) >= 2;
+}
+
+/** Keep ClinicalTrials PHASE2+ when AI leaves study_phase blank / MISSING. */
+export function preferSourceStudyPhase(aiPhase, itemPhase) {
+  const ai = String(aiPhase || '').trim();
+  const src = String(itemPhase || '').trim();
+  const aiBlank =
+    !ai ||
+    ai === MISSING ||
+    /^(unspecified|n\/a|na|null|belirtilmemiş)$/i.test(ai);
+  if (src && aiBlank) return src;
+  return ai || src || '';
 }
 
 export function isPhase1OnlyOrNa(item) {
@@ -254,14 +266,14 @@ export function classifyScienceKeep(item) {
 
 export function isCompletedPhase2WithOutcomes(item) {
   if (!isPhase2Plus(item)) return false;
+  if (isPhase1OnlyOrNa(item)) return false;
   if (!hasPostedResults(item) && !hasPubmedResultSignal(item)) return false;
-  if (item?.nctId) return isCompletedStatus(item);
   return true;
 }
 
 /**
  * AI override: no results and not phase 2+ → IRRELEVANT.
- * Completed phase 2+ with outcomes → HIGH_VALUE.
+ * Phase 2+ with posted results / outcomes → HIGH_VALUE (COMPLETED not required).
  * Topic-only IRRELEVANT is not promoted unless the results/phase gate passes.
  */
 export function applyResultsPhaseScore(

@@ -1,4 +1,5 @@
 import { MISSING, sleep } from './config.mjs';
+import { preferSourceStudyPhase } from './filter.mjs';
 
 const MODELS = [
   'gemini-flash-latest',
@@ -214,8 +215,8 @@ Kurallar:
 - categories ve conditions: Türkçe etiket veya kısa iki dilli etiket (ör. "serebral palsi").
 - Eksik bilgi uydurma. Bilinmeyen metin alanları için null değil "${MISSING}" kullan. Sayısal skor yoksa null.
 - treatment_potential yalnız: HIGH_VALUE | POTENTIAL_VALUE | IRRELEVANT
-  HIGH_VALUE: tamamlanmış faz 2+ insan çalışması, sonuç/outcome yayınlanmış (COMPLETED / hasResults / resultsFirstPostDate).
-  POTENTIAL_VALUE: faz 2+ ilgili ama sonuçlar sınırlı; RCT/sonuçlu makale (faz yazılmamış olabilir).
+  HIGH_VALUE: faz 2+ insan çalışması, sonuç/outcome yayınlanmış (hasResults / resultsFirstPostDate / COMPLETED). Faz 1 veya yalnızca işe alım (recruiting, results yok) HIGH_VALUE değildir.
+  POTENTIAL_VALUE: ilgili RCT/sonuçlu makale (faz yazılmamış olabilir); faz 2+ ama sonuçlar sınırlı.
   IRRELEVANT: sonuç yok ve en az faz 2 değil (faz 1, early phase 1, NA, yalnızca işe alım/recruiting ilanı, protokol-only, özet yok). Konumuzla alakasız (erişkin onkoloji) da IRRELEVANT. Faz 1 / recruiting-only / results yok → IRRELEVANT, konu eşleşse bile.
 - Skorlar 0-100 tamsayı.
 - PDF/tam metin yok; yalnız verilen başlık+özet.
@@ -373,7 +374,9 @@ export function normalizeAiResult(parsed, item) {
     ...copy,
     study_type: textOrMissing(parsed.study_type || item.studyType),
     evidence_level: textOrMissing(parsed.evidence_level),
-    study_phase: textOrMissing(parsed.study_phase || item.studyPhase),
+    study_phase: textOrMissing(
+      preferSourceStudyPhase(parsed.study_phase, item.studyPhase),
+    ),
     human_or_animal: textOrMissing(
       parsed.human_or_animal || item.humanOrAnimal,
     ),

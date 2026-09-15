@@ -133,6 +133,8 @@ void main() {
       int? clinicalScore,
       String nct = '',
       String studyType = '',
+      String studyPhase = '',
+      String recruitment = '',
       String pediatric = '',
       String title = 'Araştırma',
     }) =>
@@ -144,6 +146,8 @@ void main() {
           'clinical_readiness_score': clinicalScore,
           'nct_id': nct,
           'study_type': studyType,
+          'study_phase': studyPhase,
+          'recruitment_status': recruitment,
           'pediatric_relevance': pediatric,
           'status': 'pending_review',
         });
@@ -175,6 +179,67 @@ void main() {
           ScienceAdminFilter.highValue,
         ),
         isFalse,
+      );
+    });
+
+    test('includes Phase 2+ even when AI labeled POTENTIAL_VALUE', () {
+      expect(
+        isHighTreatmentPotential(
+          item(potential: 'POTENTIAL_VALUE', studyPhase: 'PHASE2', nct: 'NCT9'),
+        ),
+        isTrue,
+      );
+      expect(
+        isHighTreatmentPotential(
+          item(
+            potential: 'POTENTIAL_VALUE',
+            studyPhase: 'Phase 3',
+            treatmentScore: 40,
+          ),
+        ),
+        isTrue,
+      );
+      expect(
+        isHighTreatmentPotential(item(studyPhase: 'FAZ 4')),
+        isTrue,
+      );
+      expect(
+        matchesScienceAdminFilter(
+          item(potential: 'POTENTIAL_VALUE', studyPhase: 'PHASE2, PHASE3'),
+          ScienceAdminFilter.highValue,
+        ),
+        isTrue,
+      );
+    });
+
+    test('does not dump Phase 1 recruiting as high value', () {
+      expect(
+        isHighTreatmentPotential(
+          item(
+            potential: 'POTENTIAL_VALUE',
+            studyPhase: 'PHASE1',
+            recruitment: 'RECRUITING',
+            nct: 'NCT1',
+            treatmentScore: 40,
+          ),
+        ),
+        isFalse,
+      );
+      expect(
+        isHighTreatmentPotential(
+          item(
+            potential: 'POTENTIAL_VALUE',
+            studyPhase: 'EARLY_PHASE1',
+            recruitment: 'NOT_YET_RECRUITING',
+          ),
+        ),
+        isFalse,
+      );
+      expect(
+        isClinicalResearch(
+          item(nct: 'NCT1', studyPhase: 'PHASE1', recruitment: 'RECRUITING'),
+        ),
+        isTrue,
       );
     });
 

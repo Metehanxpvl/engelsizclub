@@ -93,6 +93,25 @@ describe('parser keeps original_title', () => {
     assert.notEqual(ai.title, ai.original_title);
   });
 
+  it('keeps ClinicalTrials PHASE2 when AI study_phase is missing', () => {
+    const ai = normalizeAiResult(
+      {
+        treatment_potential: 'POTENTIAL_VALUE',
+        title: 'Serebral palsi faz 2',
+        original_title: 'CP phase 2',
+        summary: 'Sonuçlar yayınlandı.',
+        why_important: 'önemli',
+        limitations: 'küçük n',
+        study_phase: 'Çalışmada belirtilmemiş',
+      },
+      {
+        title: 'CP phase 2',
+        studyPhase: 'PHASE2',
+      },
+    );
+    assert.equal(ai.study_phase, 'PHASE2');
+  });
+
   it('keeps original_title from JSON when item has no originalTitle', () => {
     const parsed = extractJson(
       '{"treatment_potential":"HIGH_VALUE","title":"PVL üzerine erken çalışma","original_title":"Early PVL cohort","summary":"Türkçe özet","why_important":"önemli","limitations":"küçük n"}',
