@@ -1094,7 +1094,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           );
           return;
         }
-        if (item.link.startsWith('http') || item.link.startsWith('/')) {
+        if (looksLikeWebLink(item.link)) {
           await InAppWebPage.open(
             context,
             title: item.title,

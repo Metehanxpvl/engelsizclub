@@ -50,8 +50,12 @@ class MoreMenuItem {
 
   bool get isKnownRoute => routeKey != null;
 
-  bool get isUrl => !isKnownRoute && linkType == 'url';
-  bool get isRoute => isKnownRoute || linkType == 'route';
+  /// `link_type` yanlış seçilse de web bağlantısı ise linki aç.
+  bool get isUrl =>
+      !isKnownRoute &&
+      !isFolder &&
+      (linkType == 'url' || looksLikeWebLink(link));
+  bool get isRoute => !isUrl && (isKnownRoute || linkType == 'route');
 
   /// Admin grubu veya yerleşik Taramalar klasörü.
   bool get isFolder {
@@ -155,6 +159,14 @@ class MoreMenuItem {
 }
 
 const Object _parentIdSentinel = Object();
+
+/// Route kimlikleri düz kelimedir; `.` veya `/` içeren her satır web bağlantısıdır.
+/// `destek-sorgu.html`, `daha-fazlasi/ozel`, `www.engelsizclub.com/x` → true.
+bool looksLikeWebLink(String raw) {
+  final s = raw.trim().toLowerCase();
+  if (s.isEmpty || s.startsWith('route:')) return false;
+  return s.contains('/') || s.contains('.');
+}
 
 /// `cvi2`, `/cvi2`, `route:cvi2` → `cvi2` (bilinmeyen route ise null).
 /// `boyama.html` / `/boyama` URL’leri in-app `boyama` route’una çevrilir.

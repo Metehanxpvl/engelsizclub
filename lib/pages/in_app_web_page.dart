@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
+import 'package:flutter/foundation.dart'
+    show debugPrint, kIsWeb, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -35,7 +36,7 @@ class InAppWebPage extends StatefulWidget {
     VoidCallback? onRequireLogin,
     String guestTab = 'daha_fazlasi',
   }) async {
-    final uri = _resolveUri(url);
+    final uri = resolveUri(url);
     if (uri == null) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -79,22 +80,46 @@ class InAppWebPage extends StatefulWidget {
     return path.endsWith('.pdf') || uri.query.toLowerCase().contains('pdf');
   }
 
-  static Uri? _resolveUri(String raw) {
+  /// Site içi yollar origin ile tamamlanır; şemasız dış adresler https olur.
+  /// Admin menüye `destek-sorgu.html` yazdığında da sayfa açılsın.
+  @visibleForTesting
+  static Uri? resolveUri(String raw) {
     final t = raw.trim();
     if (t.isEmpty) return null;
-    if (t.startsWith('/')) {
-      // Web'de mevcut origin: çapraz origin iframe iOS/Safari'de
-      // sağ üstte "yeni pencerede aç" ikonu çıkarıyor.
-      if (kIsWeb) {
-        return Uri.parse('${Uri.base.origin}$t');
-      }
-      return Uri.parse('https://www.engelsizclub.com$t');
-    }
+    if (t.startsWith('//')) return Uri.tryParse('https:$t');
+    if (t.startsWith('/')) return Uri.tryParse('$_siteOrigin$t');
+
     final u = Uri.tryParse(t);
-    if (u == null || !(u.hasScheme && (u.scheme == 'http' || u.scheme == 'https'))) {
-      return null;
+    if (u != null && u.hasScheme) {
+      return (u.scheme == 'http' || u.scheme == 'https') ? u : null;
     }
-    return u;
+    if (u == null) return null;
+    return _isExternalHost(t)
+        ? Uri.tryParse('https://$t')
+        : Uri.tryParse('$_siteOrigin/$t');
+  }
+
+  /// Web'de mevcut origin: çapraz origin iframe iOS/Safari'de
+  /// sağ üstte "yeni pencerede aç" ikonu çıkarıyor.
+  static String get _siteOrigin =>
+      kIsWeb ? Uri.base.origin : 'https://www.engelsizclub.com';
+
+  static const _pageExtensions = <String>{
+    'html',
+    'htm',
+    'php',
+    'pdf',
+    'json',
+    'txt',
+    'xml',
+  };
+
+  /// `www.meb.gov.tr/x` dış adres, `destek-sorgu.html` site içi dosyadır.
+  static bool _isExternalHost(String raw) {
+    final head = raw.split('/').first.split('?').first.toLowerCase();
+    if (!head.contains('.')) return false;
+    if (head.startsWith('www.')) return true;
+    return !_pageExtensions.contains(head.split('.').last);
   }
 
   @override
