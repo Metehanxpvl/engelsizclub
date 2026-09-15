@@ -13,38 +13,76 @@ export const ANIMAL_HUMAN_DISCLAIMER =
 export const TITLE_TR_FALLBACK =
   'Kaynak başlığı aşağıdadır; özet çevrilemedi.';
 
-/** Minimum gap between Gemini HTTP calls (serial; avoids 429 after the first paper). */
+/** Serial gap between Gemini calls. 429 uses RATE_LIMIT_BACKOFF_MS, not this. */
 export const GEMINI_MIN_GAP_MS = 2000;
+
+/** 429 / RESOURCE_EXHAUSTED waits — do not skip the rest of the queue. */
+export const RATE_LIMIT_BACKOFF_MS = [15_000, 30_000, 60_000, 90_000];
+
+/** Stop translating when this budget elapses; workflow timeout is longer. */
+export const WORKFLOW_BUDGET_MS = 50 * 60 * 1000;
 
 const geminiPace = {
   lastAt: 0,
   minGapMs: GEMINI_MIN_GAP_MS,
   sleepFn: sleep,
+  lastStatus: null,
 };
 
 export function resetGeminiPace({ minGapMs, sleepFn } = {}) {
   geminiPace.lastAt = 0;
+  geminiPace.lastStatus = null;
   if (minGapMs != null) geminiPace.minGapMs = minGapMs;
   if (sleepFn) geminiPace.sleepFn = sleepFn;
+}
+
+export function lastGeminiHttpStatus() {
+  return geminiPace.lastStatus;
 }
 
 export function isRetryableGeminiStatus(status) {
   return status === 429 || status === 503 || status === 500;
 }
 
+export function isRateLimitError(err) {
+  if (!err) return false;
+  if (isRetryableGeminiStatus(err.status)) return true;
+  return /RESOURCE_EXHAUSTED|Too Many Requests|rate.?limit|quota/i.test(
+    String(err.message || ''),
+  );
+}
+
+export function backoffDelayMs(attempt = 0) {
+  const i = Math.min(
+    Math.max(0, Number(attempt) || 0),
+    RATE_LIMIT_BACKOFF_MS.length - 1,
+  );
+  return RATE_LIMIT_BACKOFF_MS[i];
+}
+
 export function geminiRetryDelayMs(status, attempt = 0) {
-  const base = status === 429 ? 2500 : 800;
-  return Math.min(base * 2 ** Math.max(0, attempt), 20000);
+  if (status === 429 || isRetryableGeminiStatus(status)) {
+    return backoffDelayMs(attempt);
+  }
+  return backoffDelayMs(attempt);
+}
+
+export function withinBudget(
+  startedAt,
+  now = Date.now(),
+  budgetMs = WORKFLOW_BUDGET_MS,
+) {
+  return now - startedAt < budgetMs;
 }
 
 export function titleTranslateOutcome(title) {
   return looksEnglishTitle(title) ? 'english_left' : 'translated';
 }
 
-/** Cap 40 English/stub rows; never stop at the first match. */
-export function selectBackfillRows(rows, cap = 40) {
+/** All English/stub pending_review+published rows; no cap of 3 or 40. */
+export function selectBackfillRows(rows, cap = Number.POSITIVE_INFINITY) {
   const out = [];
-  const n = Math.max(0, Number(cap) || 0);
+  const n = Number.isFinite(cap) ? Math.max(0, Number(cap) || 0) : Infinity;
   for (const row of rows || []) {
     if (!needsTurkishBackfill(row)) continue;
     out.push(row);
@@ -54,11 +92,15 @@ export function selectBackfillRows(rows, cap = 40) {
 }
 
 function retryDelayFromGeminiError(err, attempt = 0) {
+  const scheduled = backoffDelayMs(attempt);
   const hinted = Number(err?.retryAfterMs);
   if (Number.isFinite(hinted) && hinted > 0) {
-    return Math.min(Math.ceil(hinted), 30000);
+    return Math.min(
+      Math.max(scheduled, Math.ceil(hinted)),
+      backoffDelayMs(RATE_LIMIT_BACKOFF_MS.length - 1),
+    );
   }
-  return geminiRetryDelayMs(err?.status, attempt);
+  return scheduled;
 }
 
 function retryAfterMsFromBody(json) {
@@ -249,6 +291,7 @@ async function generateOnce(apiKey, model, prompt, { maxOutputTokens = 1536 } = 
       signal: AbortSignal.timeout(45000),
     });
     const json = await res.json().catch(() => ({}));
+    geminiPace.lastStatus = res.status;
     if (!res.ok) {
       const msg = json?.error?.message || `Gemini HTTP ${res.status}`;
       const err = new Error(msg);
@@ -372,16 +415,28 @@ export function heuristicPendingScore(item) {
   };
 }
 
-/** Never `break` on 429 — that left only the first paper translated. */
+/**
+ * Serial Gemini only. On 429/RESOURCE_EXHAUSTED retry the SAME model with
+ * 15s/30s/60s/90s — do not hop models (they share quota) and do not `break`
+ * the caller's paper queue.
+ */
 export async function generateJson(
   apiKey,
   prompt,
-  { maxOutputTokens = 1536, sleepFn, maxAttemptsPerModel = 4 } = {},
+  {
+    maxOutputTokens = 1536,
+    sleepFn,
+    maxAttemptsPerModel = 4,
+    maxRateLimitRetries = RATE_LIMIT_BACKOFF_MS.length,
+  } = {},
 ) {
   const wait = sleepFn || geminiPace.sleepFn;
+  const rlMax = maxRateLimitRetries ?? maxAttemptsPerModel;
   let lastErr;
   for (const model of MODELS) {
-    for (let attempt = 0; attempt < maxAttemptsPerModel; attempt++) {
+    let rateAttempt = 0;
+    let otherAttempt = 0;
+    while (otherAttempt < maxAttemptsPerModel) {
       try {
         const text = await generateOnce(apiKey, model, prompt, { maxOutputTokens });
         const parsed = extractJson(text);
@@ -389,18 +444,93 @@ export async function generateJson(
         return parsed;
       } catch (e) {
         lastErr = e;
-        const status = e.status;
-        if (isRetryableGeminiStatus(status)) {
-          await wait(retryDelayFromGeminiError(e, attempt));
+        if (e.status != null) geminiPace.lastStatus = e.status;
+        if (e.status === 404) break;
+        if (isRateLimitError(e)) {
+          if (rateAttempt >= rlMax) {
+            throw e;
+          }
+          await wait(retryDelayFromGeminiError(e, rateAttempt));
+          rateAttempt += 1;
           continue;
         }
-        if (status === 404) break;
-        if (status) throw e;
-        break;
+        if (e.status === 500 || e.status === 503) {
+          if (rateAttempt >= rlMax) break;
+          await wait(retryDelayFromGeminiError(e, rateAttempt));
+          rateAttempt += 1;
+          continue;
+        }
+        if (e.status) throw e;
+        otherAttempt += 1;
       }
     }
   }
   throw lastErr || new Error('AI başarısız');
+}
+
+/**
+ * Translate items one-by-one. A 429 after N successes must NOT abort the rest;
+ * backoff and keep going until the queue or time budget is done.
+ */
+export async function runSerialTranslateQueue(
+  items,
+  translateOne,
+  {
+    sleepFn = sleep,
+    nowFn = Date.now,
+    startedAt = Date.now(),
+    budgetMs = WORKFLOW_BUDGET_MS,
+  } = {},
+) {
+  let translated = 0;
+  let lastHttpStatus = lastGeminiHttpStatus();
+  let backoffAttempt = 0;
+  const leftover = [];
+  const queue = [...(items || [])].filter(Boolean);
+  const rateTries = new WeakMap();
+
+  while (queue.length && withinBudget(startedAt, nowFn(), budgetMs)) {
+    const item = queue.shift();
+    try {
+      const copy = await translateOne(item);
+      lastHttpStatus = lastGeminiHttpStatus() ?? lastHttpStatus;
+      if (looksEnglishTitle(copy?.title)) {
+        leftover.push(item);
+        continue;
+      }
+      translated += 1;
+      backoffAttempt = 0;
+    } catch (e) {
+      lastHttpStatus = e.status ?? lastGeminiHttpStatus() ?? lastHttpStatus;
+      if (isRateLimitError(e) && withinBudget(startedAt, nowFn(), budgetMs)) {
+        const waitMs = backoffDelayMs(backoffAttempt);
+        console.warn(
+          `Gemini HTTP ${e.status || lastHttpStatus || 'RESOURCE_EXHAUSTED'}; backoff ${waitMs}ms — queue continues (${queue.length + 1} left)`,
+        );
+        await sleepFn(waitMs);
+        backoffAttempt = Math.min(
+          backoffAttempt + 1,
+          RATE_LIMIT_BACKOFF_MS.length - 1,
+        );
+        const n = (rateTries.get(item) || 0) + 1;
+        rateTries.set(item, n);
+        if (n < RATE_LIMIT_BACKOFF_MS.length) queue.unshift(item);
+        else {
+          rateTries.set(item, 0);
+          queue.push(item);
+        }
+        continue;
+      }
+      leftover.push(item);
+    }
+  }
+  leftover.push(...queue);
+  return {
+    translated,
+    leftover,
+    lastHttpStatus,
+    englishRemaining: leftover.length,
+  };
 }
 
 function sourceItemForTranslate(item) {
@@ -420,7 +550,7 @@ function jsonOpts(extra = {}) {
 export async function translateResearchCopy(
   apiKey,
   item,
-  { maxRetries = 5, sleepFn } = {},
+  { maxRetries = 3, sleepFn } = {},
 ) {
   const wait = sleepFn || geminiPace.sleepFn;
   const source = sourceItemForTranslate(item);
@@ -436,12 +566,10 @@ export async function translateResearchCopy(
       if (!looksEnglishTitle(last.title)) return last;
     } catch (e) {
       lastErr = e;
-      if (isRetryableGeminiStatus(e.status) && i < maxRetries - 1) {
-        await wait(retryDelayFromGeminiError(e, i));
-        continue;
-      }
+      if (e.status != null) geminiPace.lastStatus = e.status;
+      if (isRateLimitError(e)) throw e;
     }
-    if (i < maxRetries - 1) await wait(geminiRetryDelayMs(429, i));
+    if (i < maxRetries - 1) await wait(backoffDelayMs(i));
   }
   if (last) return forceTurkishPrimary(last, source);
   throw lastErr || new Error('AI çeviri yok');

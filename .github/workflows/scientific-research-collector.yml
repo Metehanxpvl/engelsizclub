@@ -12,7 +12,8 @@
 # İlk çalıştırmadan önce SQL Editor → supabase/scientific_researches.sql → Run.
 # Collector asla published yazmaz; FCM yok; tedavi vaadi yok.
 # Her çalıştırmada pending_review + published İngilizce title satırlarını
-# Türkçeye çevirir (en fazla 40, seri, 429'da gecikmeli retry); status değişmez.
+# sayfalayarak Türkçeye çevirir (seri Gemini, 429'da 15/30/60/90s backoff,
+# ~50 dk bütçe veya İngilizce kalmayana kadar). status değişmez; FCM yok.
 #
 # Cron yalnız default branch’te çalışır.
 #   Actions → Scientific research collector → Run workflow → branch main
@@ -30,7 +31,7 @@ permissions:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
