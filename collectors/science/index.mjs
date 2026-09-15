@@ -25,6 +25,7 @@ import {
   sleep,
 } from './config.mjs';
 import {
+  classifyScienceKeep,
   prefilterKeep,
   promoteKeepTopicPotential,
   shouldInsertResearch,
@@ -51,6 +52,9 @@ function emptyStats() {
   return {
     sources: 0,
     found: 0,
+    keptPhase2: 0,
+    droppedRecruiting: 0,
+    droppedNoResults: 0,
     neu: 0,
     dupes: 0,
     prefilter: 0,
@@ -217,8 +221,30 @@ async function insertPending(row) {
 function printSummary(stats) {
   console.log('--- bilimsel araştırma özeti ---');
   console.log(
+    `found=${stats.found} kept_phase2=${stats.keptPhase2} dropped_recruiting=${stats.droppedRecruiting} dropped_no_results=${stats.droppedNoResults} saved=${stats.saved}`,
+  );
+  console.log(
     `sources=${stats.sources} new=${stats.neu} dupes=${stats.dupes} prefilter=${stats.prefilter} AI=${stats.ai} high=${stats.high} potential=${stats.potential} irrelevant=${stats.irrelevant} saved=${stats.saved} errors=${stats.errors} ai_fail_skip=${stats.aiFail} translated_count=${stats.translatedBackfill} english_remaining=${stats.englishLeft} last_http_status=${stats.lastHttpStatus ?? 'none'}`,
   );
+}
+
+function applyQualityFilter(items, stats) {
+  const kept = [];
+  let dropRec = 0;
+  let dropNo = 0;
+  for (const item of items) {
+    const verdict = classifyScienceKeep(item);
+    if (verdict.keep) {
+      kept.push(item);
+      continue;
+    }
+    if (verdict.reason === 'recruiting') dropRec += 1;
+    else dropNo += 1;
+  }
+  stats.keptPhase2 += kept.length;
+  stats.droppedRecruiting += dropRec;
+  stats.droppedNoResults += dropNo;
+  return { kept, dropRec, dropNo };
 }
 
 async function loadBackfillPage(status, offset) {
@@ -488,8 +514,11 @@ async function main() {
     try {
       const items = await collectItems(source, config);
       stats.found += items.length;
-      console.log(`${source.name}: found=${items.length}`);
-      for (const item of items) {
+      const filtered = applyQualityFilter(items, stats);
+      console.log(
+        `${source.name}: found=${items.length} kept_phase2=${filtered.kept.length} dropped_recruiting=${filtered.dropRec} dropped_no_results=${filtered.dropNo}`,
+      );
+      for (const item of filtered.kept) {
         if (!item?.title || !item.sourceUrl) continue;
         await processItem(item, source, existing, stats, leftover, startedAt);
         if (AI_KEY) await sleep(AI_DELAY_MS);
@@ -520,7 +549,7 @@ async function main() {
   }
   if (stats.saved === 0 && stats.found > 0) {
     console.error(
-      `saved=0 (found=${stats.found} prefilter=${stats.prefilter} irrelevant=${stats.irrelevant} ai_fail=${stats.aiFail}).`,
+      `saved=0 (found=${stats.found} kept_phase2=${stats.keptPhase2} dropped_recruiting=${stats.droppedRecruiting} dropped_no_results=${stats.droppedNoResults} prefilter=${stats.prefilter} irrelevant=${stats.irrelevant} ai_fail=${stats.aiFail}).`,
     );
   }
 }

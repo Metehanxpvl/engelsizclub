@@ -45,7 +45,9 @@ describe('AI prompt disclaimer', () => {
     assert.match(ANIMAL_HUMAN_DISCLAIMER, /Animals are not humans/i);
     assert.match(prompt, /Animals are not humans/i);
     assert.match(prompt, /tedavi vaadi|NEVER claim a cure/i);
-    assert.match(prompt, /asla IRRELEVANT/);
+    assert.match(prompt, /IRRELEVANT/);
+    assert.match(prompt, /faz 2/);
+    assert.match(prompt, /recruiting-only|işe alım/);
     assert.equal(prompt.includes(ANIMAL_HUMAN_DISCLAIMER), true);
   });
 

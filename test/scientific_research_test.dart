@@ -204,6 +204,7 @@ void main() {
     expect(src.contains('item.displayTitle'), isTrue);
     expect(src.contains("'Orijinal başlık'"), isTrue);
     expect(src.contains('Başlık (TR)'), isTrue);
+    expect(src.contains('science_admin_count'), isTrue);
   });
 
   test('science admin is not in Daha Fazlası', () {

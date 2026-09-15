@@ -214,9 +214,9 @@ Kurallar:
 - categories ve conditions: Türkçe etiket veya kısa iki dilli etiket (ör. "serebral palsi").
 - Eksik bilgi uydurma. Bilinmeyen metin alanları için null değil "${MISSING}" kullan. Sayısal skor yoksa null.
 - treatment_potential yalnız: HIGH_VALUE | POTENTIAL_VALUE | IRRELEVANT
-  HIGH_VALUE: insan, hedef kitleyle ilgili, tedavi/rehabilitasyon/mekanizma açısından anlamlı klinik bağ.
-  POTENTIAL_VALUE: ilgili ama erken, hayvan, küçük örneklem, belirsiz.
-  IRRELEVANT: konumuzla alakasız (ör. yalnızca erişkin onkoloji). Serebral palsi, PVL, HIE, otizm, Down, pediatrik epilepsi, nöroplastisite/remiyelinizasyon/kök hücre-gen tedavisi (bu popülasyonlarda) asla IRRELEVANT değil — en az POTENTIAL_VALUE.
+  HIGH_VALUE: tamamlanmış faz 2+ insan çalışması, sonuç/outcome yayınlanmış (COMPLETED / hasResults / resultsFirstPostDate).
+  POTENTIAL_VALUE: faz 2+ ilgili ama sonuçlar sınırlı; RCT/sonuçlu makale (faz yazılmamış olabilir).
+  IRRELEVANT: sonuç yok ve en az faz 2 değil (faz 1, early phase 1, NA, yalnızca işe alım/recruiting ilanı, protokol-only, özet yok). Konumuzla alakasız (erişkin onkoloji) da IRRELEVANT. Faz 1 / recruiting-only / results yok → IRRELEVANT, konu eşleşse bile.
 - Skorlar 0-100 tamsayı.
 - PDF/tam metin yok; yalnız verilen başlık+özet.
 

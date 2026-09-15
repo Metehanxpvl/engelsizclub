@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { prefilterKeep, promoteKeepTopicPotential, shouldInsertResearch } from './filter.mjs';
+import {
+  classifyScienceKeep,
+  isPhase2Plus,
+  prefilterKeep,
+  promoteKeepTopicPotential,
+  shouldInsertResearch,
+} from './filter.mjs';
 
 describe('prefilterKeep', () => {
   it('keeps PVL and cerebral palsy', () => {
@@ -44,6 +50,209 @@ describe('prefilterKeep', () => {
   });
 });
 
+describe('phase 2 keep / phase 1 drop / recruiting-only drop', () => {
+  it('keeps completed phase 2 / 2/3 / 3 / 4 with results', () => {
+    assert.equal(
+      classifyScienceKeep({
+        nctId: 'NCT111',
+        title: 'MSC for cerebral palsy',
+        summary: 'Phase 2 outcomes posted.',
+        studyPhase: 'PHASE2',
+        recruitmentStatus: 'COMPLETED',
+        hasResults: true,
+      }).keep,
+      true,
+    );
+    assert.equal(
+      isPhase2Plus({ studyPhase: 'PHASE2, PHASE3', title: 'Phase 2/3 CP trial' }),
+      true,
+    );
+    assert.equal(
+      classifyScienceKeep({
+        nctId: 'NCT222',
+        title: 'Phase 2/3 CP trial',
+        summary: 'Completed.',
+        studyPhase: 'PHASE2, PHASE3',
+        recruitmentStatus: 'COMPLETED',
+        resultsFirstPostDate: '2025-01-15',
+      }).reason,
+      'phase2',
+    );
+    assert.equal(
+      classifyScienceKeep({
+        nctId: 'NCT333',
+        title: 'Phase 4 follow-up',
+        summary: 'Outcomes.',
+        studyPhase: 'PHASE4',
+        recruitmentStatus: 'COMPLETED',
+        hasResults: true,
+      }).keep,
+      true,
+    );
+  });
+
+  it('drops phase 1 only, early phase 1, and NA', () => {
+    assert.equal(
+      classifyScienceKeep({
+        nctId: 'NCT401',
+        title: 'Phase 1 CP safety',
+        summary: 'Dose escalation.',
+        studyPhase: 'PHASE1',
+        recruitmentStatus: 'COMPLETED',
+        hasResults: true,
+      }).keep,
+      false,
+    );
+    assert.equal(
+      classifyScienceKeep({
+        nctId: 'NCT402',
+        title: 'Early phase 1 HIE',
+        summary: 'First in human.',
+        studyPhase: 'EARLY_PHASE1',
+        recruitmentStatus: 'COMPLETED',
+        hasResults: true,
+      }).keep,
+      false,
+    );
+    assert.equal(
+      classifyScienceKeep({
+        nctId: 'NCT403',
+        title: 'Observational CP registry',
+        summary: 'No interventional phase.',
+        studyPhase: 'NA',
+        recruitmentStatus: 'COMPLETED',
+        hasResults: true,
+      }).keep,
+      false,
+    );
+  });
+
+  it('drops recruiting-only / işe alım listings without results', () => {
+    const recruiting = classifyScienceKeep({
+      nctId: 'NCT501',
+      title: 'Now recruiting children with CP',
+      summary: 'We are recruiting participants. İşe alım.',
+      studyPhase: 'PHASE2',
+      recruitmentStatus: 'RECRUITING',
+      hasResults: false,
+    });
+    assert.equal(recruiting.keep, false);
+    assert.equal(recruiting.reason, 'recruiting');
+
+    const notYet = classifyScienceKeep({
+      nctId: 'NCT502',
+      title: 'MSC for autism',
+      summary: 'Not yet open.',
+      studyPhase: 'PHASE3',
+      recruitmentStatus: 'NOT_YET_RECRUITING',
+      hasResults: false,
+    });
+    assert.equal(notYet.keep, false);
+    assert.equal(notYet.reason, 'recruiting');
+
+    const phase1Recruit = classifyScienceKeep({
+      nctId: 'NCT503',
+      title: 'Seeking participants phase 1',
+      summary: 'Currently recruiting.',
+      studyPhase: 'PHASE1',
+      recruitmentStatus: 'RECRUITING',
+    });
+    assert.equal(phase1Recruit.keep, false);
+    assert.equal(phase1Recruit.reason, 'recruiting');
+  });
+
+  it('drops completed phase 2 without posted results', () => {
+    const noResults = classifyScienceKeep({
+      nctId: 'NCT550',
+      title: 'Phase 2 CP trial completed',
+      summary: 'Completed, results not posted.',
+      studyPhase: 'PHASE2',
+      recruitmentStatus: 'COMPLETED',
+      hasResults: false,
+    });
+    assert.equal(noResults.keep, false);
+    assert.equal(noResults.reason, 'no_results');
+  });
+
+  it('keeps phase 2 recruiting only when results are posted', () => {
+    assert.equal(
+      classifyScienceKeep({
+        nctId: 'NCT601',
+        title: 'Phase 2 CP extension, currently recruiting',
+        summary: 'Primary outcomes posted; extension open.',
+        studyPhase: 'PHASE2',
+        recruitmentStatus: 'RECRUITING',
+        hasResults: true,
+        resultsFirstPostDate: '2024-11-01',
+      }).keep,
+      true,
+    );
+  });
+
+  it('drops PubMed protocol-only, no-abstract, and phase 1 papers', () => {
+    assert.equal(
+      classifyScienceKeep({
+        pmid: '1',
+        title: 'Study protocol: autism parent training RCT',
+        summary: 'This protocol describes a future trial.',
+        publicationTypes: ['Journal Article'],
+        studyType: 'Study Protocol',
+      }).keep,
+      false,
+    );
+    assert.equal(
+      classifyScienceKeep({
+        pmid: '2',
+        title: 'Autism review without abstract',
+        summary: '',
+        publicationTypes: ['Review'],
+      }).keep,
+      false,
+    );
+    assert.equal(
+      classifyScienceKeep({
+        pmid: '3',
+        title: 'Phase 1 stem cell trial in cerebral palsy',
+        summary: 'Safety results in 8 children.',
+        publicationTypes: ['Clinical Trial'],
+        studyPhase: 'Phase 1',
+      }).keep,
+      false,
+    );
+  });
+
+  it('keeps PubMed RCT / results when phase is 2+ or unstated', () => {
+    assert.equal(
+      classifyScienceKeep({
+        pmid: '4',
+        title: 'Randomized gait training in cerebral palsy',
+        summary: 'RCT results: 60 children, primary outcome improved.',
+        publicationTypes: ['Randomized Controlled Trial'],
+      }).keep,
+      true,
+    );
+    assert.equal(
+      classifyScienceKeep({
+        pmid: '5',
+        title: 'Phase 2 MSC trial in CP',
+        summary: 'Randomized efficacy findings in patients.',
+        studyPhase: 'Phase 2',
+        publicationTypes: ['Clinical Trial'],
+      }).keep,
+      true,
+    );
+    assert.equal(
+      classifyScienceKeep({
+        pmid: '6',
+        title: 'Autism prevalence in toddlers',
+        summary: 'Epidemiology survey of diagnosis rates.',
+        publicationTypes: ['Journal Article'],
+      }).keep,
+      false,
+    );
+  });
+});
+
 describe('shouldInsertResearch', () => {
   it('does not insert IRRELEVANT', () => {
     assert.equal(shouldInsertResearch('IRRELEVANT'), false);
@@ -55,34 +264,74 @@ describe('shouldInsertResearch', () => {
 });
 
 describe('promoteKeepTopicPotential', () => {
-  it('does not drop CP/PVL as IRRELEVANT', () => {
+  it('marks completed phase 2+ with outcomes HIGH_VALUE', () => {
     assert.equal(
       promoteKeepTopicPotential(
-        { title: 'Cerebral palsy stem cell trial', summary: 'Children with CP' },
+        {
+          nctId: 'NCT700',
+          title: 'Cerebral palsy stem cell trial',
+          summary: 'Children with CP, outcomes posted.',
+          studyPhase: 'PHASE2',
+          recruitmentStatus: 'COMPLETED',
+          hasResults: true,
+        },
         'IRRELEVANT',
       ),
-      'POTENTIAL_VALUE',
+      'HIGH_VALUE',
     );
     assert.equal(
       promoteKeepTopicPotential(
-        { title: 'PVL oligodendrocyte study', summary: 'Preterm' },
-        'irrelevant',
+        {
+          nctId: 'NCT701',
+          title: 'PVL oligodendrocyte phase 3',
+          summary: 'Completed trial.',
+          studyPhase: 'PHASE3',
+          recruitmentStatus: 'COMPLETED',
+          resultsFirstPostDate: '2025-06-01',
+        },
+        'POTENTIAL_VALUE',
       ),
-      'POTENTIAL_VALUE',
+      'HIGH_VALUE',
     );
+  });
+
+  it('does not promote phase 1 or recruiting-only topic matches', () => {
     assert.equal(
       promoteKeepTopicPotential(
-        { title: 'Metastatic breast cancer chemotherapy trial', summary: '' },
-        'IRRELEVANT',
+        {
+          nctId: 'NCT702',
+          title: 'Cerebral palsy gait RCT',
+          summary: 'Now recruiting. İşe alım.',
+          studyPhase: 'PHASE1',
+          recruitmentStatus: 'RECRUITING',
+        },
+        'POTENTIAL_VALUE',
       ),
       'IRRELEVANT',
     );
     assert.equal(
       promoteKeepTopicPotential(
-        { title: 'Cerebral palsy gait RCT', summary: '' },
-        'HIGH_VALUE',
+        {
+          title: 'Metastatic breast cancer chemotherapy trial',
+          summary: '',
+        },
+        'IRRELEVANT',
       ),
-      'HIGH_VALUE',
+      'IRRELEVANT',
+    );
+  });
+
+  it('keeps PubMed RCT topic as POTENTIAL when AI said IRRELEVANT', () => {
+    assert.equal(
+      promoteKeepTopicPotential(
+        {
+          title: 'Cerebral palsy gait RCT',
+          summary: 'Randomized trial results in children.',
+          publicationTypes: ['Randomized Controlled Trial'],
+        },
+        'IRRELEVANT',
+      ),
+      'POTENTIAL_VALUE',
     );
   });
 });

@@ -55,6 +55,16 @@ export function parseStudy(study) {
   );
   const stdAges = asList(elig.stdAges);
   const start = status.startDateStruct?.date || status.startDate || '';
+  const resultsFirst =
+    status.resultsFirstPostDateStruct?.date ||
+    status.resultsFirstPostDate ||
+    status.resultsFirstSubmitDateStruct?.date ||
+    '';
+  const hasResults = Boolean(
+    study.hasResults === true ||
+      resultsFirst ||
+      (study.resultsSection && typeof study.resultsSection === 'object'),
+  );
 
   return {
     nctId,
@@ -68,6 +78,8 @@ export function parseStudy(study) {
     countries,
     stdAges,
     startDate: String(start).slice(0, 10) || null,
+    hasResults,
+    resultsFirstPostDate: String(resultsFirst).slice(0, 10) || null,
   };
 }
 
@@ -90,7 +102,10 @@ export function toTrialItem(parsed, source) {
     country: (parsed.countries || []).join(', '),
     studyType: parsed.studyType || '',
     studyPhase: (parsed.phases || []).join(', '),
+    phases: parsed.phases || [],
     recruitmentStatus: parsed.overallStatus || '',
+    hasResults: Boolean(parsed.hasResults),
+    resultsFirstPostDate: parsed.resultsFirstPostDate || null,
     humanOrAnimal: 'human',
     conditions: parsed.conditions || [],
     pediatricHint: pediatric,
@@ -103,6 +118,7 @@ export function toTrialItem(parsed, source) {
 export async function fetchClinicalTrialsPage(term, { pageSize = 25, retries = 3 } = {}) {
   const url = new URL(API);
   url.searchParams.set('query.cond', term);
+  url.searchParams.set('filter.phase', 'PHASE2,PHASE3,PHASE4');
   url.searchParams.set('pageSize', String(pageSize));
   url.searchParams.set('sort', 'LastUpdatePostDate:desc');
   url.searchParams.set('format', 'json');

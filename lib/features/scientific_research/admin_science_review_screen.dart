@@ -267,6 +267,18 @@ class _AdminScienceReviewScreenState extends State<AdminScienceReviewScreen> {
                     ),
                   ),
                 ),
+                if (!_loading && _error == null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                    child: Text(
+                      S.n('science_admin_count', {'n': '${_items.length}'}),
+                      style: GoogleFonts.nunito(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: MetoColors.foreground,
+                      ),
+                    ),
+                  ),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),

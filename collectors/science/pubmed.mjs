@@ -1,4 +1,5 @@
 import { loadConditions, sleep } from './config.mjs';
+import { highestPhase } from './filter.mjs';
 import { normalizeDoi } from './hash.mjs';
 
 const EUTILS = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
@@ -197,10 +198,17 @@ export async function efetchMedline(ids, { apiKey } = {}) {
 export function toPubmedItem(rec, source) {
   const pmid = String(rec.pmid || '').trim();
   const title = String(rec.title || '').trim();
+  const summary = String(rec.abstract || '').trim();
+  const publicationTypes = rec.publicationTypes || [];
+  const phaseHint = highestPhase({
+    title,
+    summary,
+    studyPhase: publicationTypes.join(' '),
+  });
   return {
     title,
     originalTitle: title,
-    summary: String(rec.abstract || '').trim(),
+    summary,
     sourceUrl: pmid ? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/` : '',
     pmid,
     nctId: '',
@@ -208,15 +216,29 @@ export function toPubmedItem(rec, source) {
     journal: rec.journal || '',
     publicationDate: rec.publicationDate || null,
     country: rec.country || '',
-    studyType: (rec.publicationTypes || [])[0] || '',
-    studyPhase: '',
+    studyType: publicationTypes[0] || '',
+    studyPhase: phaseHint != null ? `PHASE${phaseHint}` : '',
+    publicationTypes,
     recruitmentStatus: '',
+    hasResults: /\b(Randomized Controlled Trial|Clinical Trial|results|outcomes?|efficacy)\b/i.test(
+      `${publicationTypes.join(' ')} ${summary}`,
+    ),
     humanOrAnimal: guessHumanOrAnimal(rec),
     conditions: [],
     sourceName: source?.name || 'PubMed',
     sourceId: source?.id || null,
     externalId: pmid ? `pmid:${pmid}` : '',
   };
+}
+
+const PUBMED_RESULTS_FILTER =
+  '(Clinical Trial[Publication Type] OR Randomized Controlled Trial[Publication Type] OR "Clinical Trial, Phase II"[Publication Type] OR "Clinical Trial, Phase III"[Publication Type] OR "Clinical Trial, Phase IV"[Publication Type] OR "phase 2"[Title/Abstract] OR "phase 3"[Title/Abstract] OR "phase 4"[Title/Abstract] OR "phase II"[Title/Abstract] OR "phase III"[Title/Abstract] OR randomized[Title/Abstract] OR randomised[Title/Abstract]) AND hasabstract[text] NOT protocol[Title]';
+
+function withResultsFilter(term) {
+  const t = String(term || '').trim();
+  if (!t) return t;
+  if (/hasabstract\[text\]/i.test(t)) return t;
+  return `(${t}) AND ${PUBMED_RESULTS_FILTER}`;
 }
 
 function pubmedQueryList(source, config) {
@@ -227,7 +249,7 @@ function pubmedQueryList(source, config) {
   if (extra && !queries.some((q) => String(q.term || '').trim() === extra)) {
     queries.unshift({ id: 'source_query', term: extra });
   }
-  return queries;
+  return queries.map((q) => ({ ...q, term: withResultsFilter(q.term) }));
 }
 
 export async function fetchPubmed(source, opts = {}) {
