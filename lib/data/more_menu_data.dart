@@ -116,6 +116,22 @@ class MoreMenuItem {
       );
     }
 
+    final wizard = hostedHtmlWizardUrl(rawLink);
+    if (wizard != null) {
+      return MoreMenuItem(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        title: json['title']?.toString() ?? '',
+        subtitle: json['subtitle']?.toString() ?? '',
+        linkType: 'url',
+        link: wizard,
+        icon: json['icon']?.toString() ?? 'link',
+        sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
+        isActive: json['is_active'] != false,
+        isBuiltin: json['is_builtin'] == true,
+        parentId: safeParent,
+      );
+    }
+
     final route = normalizeMoreMenuRoute(rawLink);
     if (route != null) linkType = route == 'folder' ? 'folder' : 'route';
 
@@ -156,9 +172,43 @@ class MoreMenuItem {
 
 const Object _parentIdSentinel = Object();
 
+const kEngelsizClubOrigin = 'https://www.engelsizclub.com';
+const kDestekSorguHtmlUrl = '$kEngelsizClubOrigin/destek-sorgu.html';
+const kEvdeEgitimHtmlUrl = '$kEngelsizClubOrigin/evde-egitim.html';
+
+/// Destek Sorgu / Evde Eğitim: gerçek `.html` dosyası (Flutter route değil).
+String? hostedHtmlWizardUrl(String raw) {
+  var s = raw.trim().toLowerCase().replaceAll('\\', '/');
+  if (s.isEmpty) return null;
+  if (s.startsWith('route:')) s = s.substring(6).trim();
+  final q = s.indexOf('?');
+  if (q >= 0) s = s.substring(0, q);
+  final hash = s.indexOf('#');
+  if (hash >= 0) s = s.substring(0, hash);
+
+  var path = s;
+  if (s.contains('://')) {
+    final u = Uri.tryParse(s);
+    if (u != null) path = u.path;
+  }
+  if (path.startsWith('/')) path = path.substring(1);
+  if (path.endsWith('/')) path = path.substring(0, path.length - 1);
+
+  final compact = path.replaceAll('_', '-').replaceAll('.html', '');
+  if (compact == 'destek-sorgu' || compact == 'desteksorgu') {
+    return kDestekSorguHtmlUrl;
+  }
+  if (compact == 'evde-egitim' || compact == 'evdeegitim') {
+    return kEvdeEgitimHtmlUrl;
+  }
+  return null;
+}
+
 /// `cvi2`, `/cvi2`, `route:cvi2` → `cvi2` (bilinmeyen route ise null).
 /// `boyama.html` / `/boyama` URL’leri in-app `boyama` route’una çevrilir.
+/// Destek / Evde eğitim `.html` dosyaları Flutter route değildir.
 String? normalizeMoreMenuRoute(String raw) {
+  if (hostedHtmlWizardUrl(raw) != null) return null;
   var s = raw.trim().toLowerCase();
   if (s.isEmpty) return null;
   if (s.startsWith('route:')) s = s.substring(6).trim();
@@ -517,6 +567,28 @@ List<MoreMenuItem> defaultMoreMenuItems() => [
         sortOrder: 20,
         isActive: true,
         isBuiltin: true,
+      ),
+      MoreMenuItem(
+        id: -16,
+        title: 'Destek Sorgulama',
+        subtitle: 'SUT taban fiyatı, SGK katkısı ve yenileme takvimi',
+        linkType: 'url',
+        link: kDestekSorguHtmlUrl,
+        icon: 'calculate',
+        sortOrder: 22,
+        isActive: true,
+        isBuiltin: false,
+      ),
+      MoreMenuItem(
+        id: -17,
+        title: 'Evde eğitim sorgu',
+        subtitle: 'Şartları adım adım görün — ad ve T.C. sorulmaz',
+        linkType: 'url',
+        link: kEvdeEgitimHtmlUrl,
+        icon: 'family',
+        sortOrder: 23,
+        isActive: true,
+        isBuiltin: false,
       ),
       MoreMenuItem(
         id: -3,

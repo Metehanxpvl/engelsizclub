@@ -934,6 +934,17 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   }
 
   Future<void> _openMoreMenuItem(MoreMenuItem item) async {
+    final wizard = hostedHtmlWizardUrl(item.link);
+    if (wizard != null) {
+      if (!mounted) return;
+      await InAppWebPage.open(
+        context,
+        title: item.title,
+        url: wizard,
+      );
+      return;
+    }
+
     final route = item.routeKey;
     final link = route ?? item.link.trim();
 
