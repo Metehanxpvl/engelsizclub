@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a6b4a" />
+  <meta name="description" content="Engelsiz Club Destek Sorgu: 2026 SUT taban fiyatı, SGK katkısı ve rapor bitiş tarihi." />
+  <title>Destek Sorgu — Engelsiz Club</title>
+  <style>
+    :root {
+      --fg: #0f2f24;
+      --muted: #5a7168;
+      --bg: #f4faf7;
+      --card: #ffffff;
+      --accent: #1a6b4a;
+      --accent-soft: #e7f4ee;
+      --line: #d7e6de;
+      --warn: #8a4b12;
+      --warn-bg: #fff6eb;
+      --danger: #8c1d18;
+      --danger-bg: #fdecea;
+      --ok: #0f5132;
+      --ok-bg: #e8f6ee;
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.55;
+    }
+    main { max-width: 760px; margin: 0 auto; padding: 24px 16px 72px; }
+    h1 { font-size: 1.55rem; margin: 0 0 6px; color: var(--accent); }
+    h2 { font-size: 1.05rem; margin: 0 0 12px; }
+    p { color: var(--muted); }
+    .lead { margin: 0 0 14px; }
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+      margin-bottom: 14px;
+    }
+    label {
+      display: block;
+      font-weight: 700;
+      font-size: .92rem;
+      margin: 0 0 6px;
+      color: var(--fg);
+    }
+    .hint { display: block; font-weight: 400; color: var(--muted); font-size: .82rem; margin-top: 4px; }
+    select, input[type="text"], input[type="date"] {
+      width: 100%;
+      min-height: 48px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      color: var(--fg);
+      font: inherit;
+    }
+    select:focus, input:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+    .field { margin-bottom: 14px; }
+    .grid { display: grid; gap: 10px; }
+    @media (min-width: 560px) {
+      .grid-3 { grid-template-columns: repeat(3, 1fr); }
+      .grid-2 { grid-template-columns: 1fr 1fr; }
+    }
+    .stat {
+      background: var(--accent-soft);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .stat strong { display: block; font-size: 1.15rem; color: var(--fg); }
+    .stat span { font-size: .8rem; color: var(--muted); }
+    .stat.pocket { background: var(--danger-bg); }
+    .stat.pocket strong { color: var(--danger); }
+    .stat.sgk { background: var(--ok-bg); }
+    .stat.sgk strong { color: var(--ok); }
+    .renew {
+      margin: 12px 0 16px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #fff;
+    }
+    .renew span { display: block; font-size: .82rem; opacity: .9; }
+    .renew strong { font-size: 1.25rem; }
+    .note {
+      background: var(--warn-bg);
+      color: var(--warn);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: .9rem;
+      margin: 0;
+    }
+    footer { font-size: .82rem; color: var(--muted); margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="card">
+      <h1>Destek Sorgu</h1>
+      <p class="lead">
+        Kategoriden ürünü seçin. Resmi SUT fiyatı ve (varsa) miat hemen görünür.
+        Firma teklifini yazınca SGK katkısı ile cebinizden çıkacak fark hesaplanır.
+      </p>
+      <p class="note">
+        Gösterilen tutar, <strong>SGK Sağlık Uygulama Tebliği</strong> eki listelerin
+        <strong>SUT FİYATI (TL)</strong> sütunudur
+        (EK-3/C-2, EK-3/C-3, EK-3/C-4, EK-3/C-5; Yür. 24.01.2026).
+        Sağlık Bakanlığı Kamu Sağlık Hizmetleri Fiyat Tarifesi değildir.
+        Adlar ve kodlar tablo satırının aynısıdır; yuvarlama veya KDV ekleme yapılmamıştır.
+        KDV’nin faturaya nasıl yansıyacağı tebliğ ve fatura rejimine bağlıdır.
+        Aynı ailede başka SUT kodları farklı tutarlıdır. Tebliğ değişirse tebliğ esas alınır.
+        Bu sayfa resmi bir ödeme kararı değildir.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="field">
+        <label for="item">Malzeme / cihaz</label>
+        <select id="item"></select>
+      </div>
+
+      <div class="renew" id="renewBox" role="status" aria-live="polite">
+        <span>Yenileme süresi</span>
+        <strong id="renewLabel">—</strong>
+      </div>
+
+      <div class="grid grid-3">
+        <div class="stat">
+          <span>SUT fiyatı (tablo)</span>
+          <strong id="sutPrice">—</strong>
+        </div>
+        <div class="stat sgk">
+          <span>SGK katkısı (üst sınır)</span>
+          <strong id="sgkPay">—</strong>
+        </div>
+        <div class="stat pocket">
+          <span>Cebinizden çıkacak fark</span>
+          <strong id="pocket">—</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Firma teklifi</h2>
+      <div class="field">
+        <label for="quote">Teklif fiyatı (TL)</label>
+        <input id="quote" type="text" inputmode="decimal" autocomplete="off" placeholder="Örn. 18.500,00" />
+        <span class="hint">SGK katkısı, teklif ile SUT tutarının küçüğü olarak hesaplanır. Fark = teklif − SUT (eksi olmaz).</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Sağlık Kurulu Raporu</h2>
+      <p class="lead" id="renewHint"></p>
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="startDate">Teslim / rapor başlangıcı</label>
+          <input id="startDate" type="date" />
+        </div>
+        <div class="field">
+          <label for="endDate">Rapor bitiş tarihi</label>
+          <input id="endDate" type="date" />
+          <span class="hint" id="remainHint"></span>
+        </div>
+      </div>
+    </div>
+
+    <footer>Engelsiz Club · Destek Sorgu · SGK SUT EK-3/C (Yür. 24.01.2026) · Bilgilendirme amaçlıdır.</footer>
+  </main>
+
+  <script>
+    const ITEMS = [
+      { id: "std-manuel", cat: "Tekerlekli sandalye (EK-3/C-2)", name: "OP1342 — STANDART MANUEL TEKERLEKLİ SANDALYE", sut: 1848.00, months: 60 },
+      { id: "hafif-ped", cat: "Tekerlekli sandalye (EK-3/C-2)", name: "OP1343 — HAFİF MANUEL TEKERLEKLİ SANDALYE", sut: 4435.20, months: 60 },
+      { id: "pediatrik", cat: "Tekerlekli sandalye (EK-3/C-2)", name: "OP1344 — PEDİATRİK TEKERLEKLİ SANDALYE", sut: 4435.20, months: 60 },
+      { id: "std-akulu", cat: "Tekerlekli sandalye (EK-3/C-2)", name: "OP1345 — STANDART AKÜLÜ TEKERLEKLİ SANDALYE", sut: 12600.00, months: 60 },
+      { id: "aktif", cat: "Özel hallerde karşılanan (EK-3/C-5)", name: "100072 — AKTİF TEKERLEKLİ SANDALYE", sut: 16934.40, months: 60 },
+      { id: "ozellikli-akulu", cat: "Özel hallerde karşılanan (EK-3/C-5)", name: "100005 — ÖZELLİKLİ AKÜLÜ TEKERLEKLİ SANDALYE", sut: 47040.00, months: 60 },
+      { id: "havali-yatak", cat: "Bakım malzemeleri (EK-3/C-2)", name: "OP1300 — HAVALI YATAK", sut: 840.00, months: 60 },
+      { id: "havali-minder", cat: "Bakım malzemeleri (EK-3/C-2)", name: "OP1301 — HAVALI MİNDER", sut: 295.68, months: 60 },
+      { id: "ayakta", cat: "Bakım malzemeleri (EK-3/C-2)", name: "OP1297 — AYAKTA DİK POZİSYONLAMA CİHAZI (STAND UP WHEELCHAİR) (MANUEL KALKIŞ MANUEL SÜRÜŞ)", sut: 13104.00, months: 60 },
+      { id: "bez-yetiskin", cat: "Sarf malzemeler (EK-3/C-4)", name: "A10049 — HASTA ALT BEZİ/KÜLOTLU HASTA ALT BEZİ", sut: 6.31, months: 0 },
+      { id: "bez-cocuk", cat: "Sarf malzemeler (EK-3/C-4)", name: "A10118 — ÇOCUK HASTA ALT BEZİ/ÇOCUK KÜLOTLU HASTA ALT BEZİ", sut: 4.93, months: 0 },
+      { id: "kafo", cat: "Ortez (EK-3/C-2)", name: "OP1545 — UZUN YÜRÜME ORTEZİ MEKANİK EKLEMLİ (YETİŞKİN)", sut: 5312.16, months: 24 },
+      { id: "kafo-cocuk", cat: "Ortez (EK-3/C-2)", name: "OP1548 — UZUN YÜRÜME ORTEZİ MEKANİK EKLEMLİ (2-18 YAŞ ARASI HASTALAR İÇİN)", sut: 3719.52, months: 12 },
+      { id: "afo", cat: "Ortez (EK-3/C-2)", name: "OP1066 — YÜKSEK YOĞUNLUKLU PLASTİK YÜRÜYÜŞ MOLDU (HARİCİ EKLEMLİ) (PAFO)", sut: 934.08, months: 12 },
+      { id: "dafo", cat: "Ortez (EK-3/C-2)", name: "OP1062 — YÜKSEK YOĞUNLUKLU PLASTİK YÜRÜYÜŞ MOLDU (SUPRA MALLEOLAR) (AFO/DAFO/SMAFO)", sut: 554.40, months: 12 },
+      { id: "hkafo", cat: "Ortez (EK-3/C-2)", name: "OP1546 — UZUN YÜRÜME ORTEZİ MEKANİK EKLEMLİ BEL KEMERLİ (YETİŞKİN)", sut: 6021.12, months: 24 },
+      { id: "hkafo-cocuk", cat: "Ortez (EK-3/C-2)", name: "OP1549 — UZUN YÜRÜME ORTEZİ MEKANİK EKLEMLİ BEL KEMERLİ (2-18 YAŞ ARASI HASTALAR İÇİN)", sut: 4213.44, months: 12 },
+      { id: "korse", cat: "Ortez (EK-3/C-2)", name: "OP1274 — SKOLYOZ ORTEZLERİ (BOSTON, MİAMİ VB TİP PLASTİK TLSO)", sut: 1313.76, months: 6 },
+      { id: "el-atel", cat: "Ortez (EK-3/C-2)", name: "OP1122 — DİNAMİK EL-BİLEK-PARMAK SPLİNTİ", sut: 628.32, months: 6 },
+      { id: "trans-tibial", cat: "Protez (EK-3/C-2)", name: "OP1166 — DİZ ALTI PROTEZİ (MODÜLER)", sut: 10735.20, months: 60 },
+      { id: "transfemoral", cat: "Protez (EK-3/C-2)", name: "OP1189 — DİZ ÜSTÜ PROTEZİ (MEKANİK-MODÜLER)", sut: 17307.36, months: 60 },
+      { id: "transradial", cat: "Protez (EK-3/C-2)", name: "OP1225 — DİRSEK ALTI PROTEZİ (MEKANİK FONKSİYONEL-MODULER)", sut: 11880.96, months: 60 },
+      { id: "transhumeral", cat: "Protez (EK-3/C-2)", name: "OP1233 — DİRSEK ÜSTÜ PROTEZİ (MEKANİK FONKSİYONEL-MODULER)", sut: 17895.36, months: 60 },
+      { id: "cpap", cat: "Solunum cihazları (EK-3/C-3)", name: "DO1011 — CPAP CİHAZI", sut: 3265.92, months: 120 },
+      { id: "auto-cpap", cat: "Solunum cihazları (EK-3/C-3)", name: "DO1012 — AUTO CPAP", sut: 6531.84, months: 120 },
+      { id: "bpap-s", cat: "Solunum cihazları (EK-3/C-3)", name: "DO1013 — BPAP S CİHAZI", sut: 7920.00, months: 120 },
+      { id: "bpap", cat: "Solunum cihazları (EK-3/C-3)", name: "DO1014 — BPAP S/T", sut: 9389.52, months: 120 },
+      { id: "oksijen", cat: "Solunum cihazları (EK-3/C-3)", name: "DO1009 — OKSİJEN KONSANTRATÖRÜ", sut: 9391.20, months: 120 },
+      { id: "tasinabilir-oksijen", cat: "Solunum cihazları (EK-3/C-3)", name: "DO1071 — TAŞINABİLİR (PORTABLE) OKSİJEN KONSANTRATÖRÜ (5 KG ALTINDA, ŞARJLI VE YEDEK BATARYA İLE BİRLİKTE)", sut: 30159.36, months: 120 },
+      { id: "ventilator", cat: "Solunum cihazları (EK-3/C-3)", name: "DO1017 — EV TİPİ MEKANİK VENTİLATÖR (EN AZ BASINÇ DESTEKLİ VENTİLASYON (PSV) İLE BİRLİKTE VOLÜM VE/VEYA BASINÇ KONTROLLÜ VENTİLASYON (VCV, PCV) SAĞLAYAN VENTİLATÖRLER)", sut: 63360.00, months: 60 }
+    ];
+
+    const SUPABASE_URL = "https://qycrkqwqrysypvqaipqn.supabase.co";
+    const SUPABASE_ANON = "sb_publishable_N7UfnXDF97YsuDTsFTq9zQ_lhnNtMgF";
+    const STORE = "ec-destek-sorgu-v2";
+    const money = new Intl.NumberFormat("tr-TR", {
+      style: "currency", currency: "TRY", minimumFractionDigits: 2, maximumFractionDigits: 2
+    });
+
+    const itemEl = document.getElementById("item");
+    const quoteEl = document.getElementById("quote");
+    const startEl = document.getElementById("startDate");
+    const endEl = document.getElementById("endDate");
+    let endTouched = false;
+    let items = ITEMS.slice();
+
+    function renewLabel(item) {
+      const m = Number(item.months) || 0;
+      if (m <= 0) return "SUT’ta miat belirtilmemiş";
+      if (m % 12 === 0) {
+        const y = m / 12;
+        return y === 1 ? "1 yıl" : y + " yıl";
+      }
+      return m === 1 ? "1 ay" : m + " ay";
+    }
+
+    function parseTRY(raw) {
+      let s = String(raw || "").trim().replace(/\s/g, "").replace(/₺/g, "").replace(/tl/gi, "");
+      if (!s) return NaN;
+      if (s.includes(",")) return Number(s.replace(/\./g, "").replace(",", "."));
+      const groupedDecimal = s.match(/^(\d{1,3}(?:\.\d{3})+)\.(\d{2})$/);
+      if (groupedDecimal) return Number(groupedDecimal[1].replace(/\./g, "") + "." + groupedDecimal[2]);
+      if (/^\d+\.\d{1,2}$/.test(s)) return Number(s);
+      if (/^\d{1,3}(\.\d{3})+$/.test(s)) return Number(s.replace(/\./g, ""));
+      const n = Number(s);
+      return Number.isFinite(n) ? n : NaN;
+    }
+
+    function currentItem() {
+      return items.find((x) => x.id === itemEl.value) || items[0];
+    }
+
+    function addMonths(date, months) {
+      return new Date(date.getFullYear(), date.getMonth() + months, date.getDate());
+    }
+
+    function ymd(date) {
+      return date.getFullYear() + "-" +
+        String(date.getMonth() + 1).padStart(2, "0") + "-" +
+        String(date.getDate()).padStart(2, "0");
+    }
+
+    function parseDate(value) {
+      if (!value) return null;
+      const p = value.split("-").map(Number);
+      if (p.length !== 3) return null;
+      return new Date(p[0], p[1] - 1, p[2]);
+    }
+
+    function fillSelect() {
+      const groups = [];
+      for (const item of items) {
+        let g = groups.find((x) => x.cat === item.cat);
+        if (!g) {
+          g = { cat: item.cat, rows: [] };
+          groups.push(g);
+        }
+        g.rows.push(item);
+      }
+      itemEl.innerHTML = groups.map((g) =>
+        '<optgroup label="' + g.cat + '">' +
+        g.rows.map((item) => '<option value="' + item.id + '">' + item.name + "</option>").join("") +
+        "</optgroup>"
+      ).join("");
+    }
+
+    function calc() {
+      const item = currentItem();
+      document.getElementById("renewLabel").textContent = renewLabel(item);
+      document.getElementById("renewHint").textContent =
+        item.name + " için yenileme süresi " + renewLabel(item) +
+        ". Teslim tarihinden rapor bitişi otomatik önerilir; siz değiştirebilirsiniz.";
+      document.getElementById("sutPrice").textContent = money.format(item.sut);
+
+      const quote = parseTRY(quoteEl.value);
+      if (!Number.isFinite(quote) || quote <= 0) {
+        document.getElementById("sgkPay").textContent = "Teklif girin";
+        document.getElementById("pocket").textContent = "Teklif girin";
+      } else {
+        document.getElementById("sgkPay").textContent = money.format(Math.min(quote, item.sut));
+        document.getElementById("pocket").textContent = money.format(Math.max(0, quote - item.sut));
+      }
+
+      const start = parseDate(startEl.value);
+      if (start && !endTouched && Number(item.months) > 0) {
+        endEl.value = ymd(addMonths(start, item.months));
+      }
+
+      const end = parseDate(endEl.value);
+      const remain = document.getElementById("remainHint");
+      if (!end) {
+        remain.textContent = "";
+      } else {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const left = Math.round((end - today) / 86400000);
+        remain.textContent = left > 0
+          ? "Rapora " + left + " gün var."
+          : left === 0
+            ? "Rapor bitiş tarihi bugün."
+            : "Rapor bitiş tarihi " + Math.abs(left) + " gün önce geçti.";
+      }
+
+      try {
+        localStorage.setItem(STORE, JSON.stringify({
+          id: item.id, quote: quoteEl.value, start: startEl.value, end: endEl.value
+        }));
+      } catch (e) {}
+    }
+
+    async function loadCatalog() {
+      try {
+        const res = await fetch(
+          SUPABASE_URL + "/rest/v1/destek_sorgu_urunler?select=id,category,name,sut_price,renew_months&is_active=eq.true&order=category_sort.asc,sort_order.asc",
+          { headers: { apikey: SUPABASE_ANON, Authorization: "Bearer " + SUPABASE_ANON } }
+        );
+        if (!res.ok) return;
+        const rows = await res.json();
+        if (!Array.isArray(rows) || !rows.length) return;
+        const byId = Object.fromEntries(rows.map((r) => [r.id, Number(r.sut_price)]));
+        if (byId.cpap !== 3265.92 || byId["bez-yetiskin"] !== 6.31) return;
+        items = rows.map((r) => ({
+          id: r.id, cat: r.category, name: r.name,
+          sut: Number(r.sut_price), months: Number(r.renew_months) || 0
+        }));
+        fillSelect();
+      } catch (e) {}
+    }
+
+    fillSelect();
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORE) || "null");
+      if (saved && saved.id && items.some((x) => x.id === saved.id)) itemEl.value = saved.id;
+      if (saved && saved.quote) quoteEl.value = saved.quote;
+      if (saved && saved.start) startEl.value = saved.start;
+      if (saved && saved.end) {
+        endEl.value = saved.end;
+        endTouched = true;
+      }
+    } catch (e) {}
+    if (!startEl.value) startEl.value = ymd(new Date());
+
+    itemEl.addEventListener("change", () => {
+      endTouched = false;
+      calc();
+    });
+    quoteEl.addEventListener("input", calc);
+    startEl.addEventListener("change", () => {
+      endTouched = false;
+      calc();
+    });
+    endEl.addEventListener("change", () => {
+      endTouched = true;
+      calc();
+    });
+    calc();
+    loadCatalog().then(() => {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORE) || "null");
+        if (saved && saved.id && items.some((x) => x.id === saved.id)) itemEl.value = saved.id;
+      } catch (e) {}
+      calc();
+    });
+  </script>
+</body>
+</html>
