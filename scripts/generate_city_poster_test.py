@@ -7,7 +7,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from generate_city_poster import (
     CITIES,
+    IMAGE_MODELS,
+    TEXT_MODELS,
     cities_from_input,
+    extract_inline_image_bytes,
     headline,
     is_all_cities,
     locative,
@@ -69,6 +72,46 @@ class CityPosterHelpersTest(unittest.TestCase):
             poster_filename("Gaziantep", when=date(2026, 9, 16)),
             "gaziantep_muze_gezisi_2026-09-16.jpg",
         )
+
+    def test_current_model_names(self):
+        self.assertEqual(TEXT_MODELS[0], "gemini-2.5-flash")
+        self.assertNotIn("gemini-2.0-flash", TEXT_MODELS)
+        self.assertEqual(IMAGE_MODELS[0], "gemini-2.5-flash-image")
+        self.assertIn("gemini-3.1-flash-image", IMAGE_MODELS)
+        self.assertNotIn("imagen-3.0-generate-002", IMAGE_MODELS)
+        self.assertNotIn("gemini-2.0-flash-preview-image-generation", IMAGE_MODELS)
+
+    def test_no_legacy_imagen_calls(self):
+        src = Path(__file__).with_name("generate_city_poster.py").read_text(encoding="utf-8")
+        self.assertNotIn(".generate_images(", src)
+        self.assertNotIn("IMAGEN_REST", src)
+        self.assertNotIn("imagen-3.0-generate-002", src)
+        self.assertIn("generate_content", src)
+        self.assertIn(":generateContent", src)
+
+    def test_extract_inline_image_bytes(self):
+        png = b"\x89PNG\r\n\x1a\n" + b"fake"
+
+        class Obj:
+            def __init__(self, **kw):
+                self.__dict__.update(kw)
+
+        part = Obj(inline_data=Obj(data=png, mime_type="image/png"), text=None)
+        resp = Obj(parts=[part], candidates=[Obj(content=Obj(parts=[part]))])
+        self.assertEqual(extract_inline_image_bytes(resp), png)
+
+        rest = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {"inlineData": {"mimeType": "image/png", "data": png}},
+                        ]
+                    }
+                }
+            ]
+        }
+        self.assertEqual(extract_inline_image_bytes(rest), png)
 
 
 if __name__ == "__main__":
