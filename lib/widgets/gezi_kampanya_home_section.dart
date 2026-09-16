@@ -9,6 +9,7 @@ import '../section_editors.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
+import '../pages/engelsiz_kariyer_page.dart';
 import '../pages/etkinlikler_page.dart';
 import '../pages/gezi_rehberi_page.dart';
 import '../pages/kampanyalar_page.dart';
@@ -16,7 +17,8 @@ import '../services/image_optimize_service.dart';
 import '../services/r2_storage_service.dart';
 import 'catalog_media.dart';
 
-/// Ana sayfa: Bilgi Kütüphanesi üstü — Gezi Rehberi | Kampanyalar | Etkinlikler.
+/// Ana sayfa: Bilgi Kütüphanesi üstü — üstte Kariyer | Gezi, altta Kampanya | Etkinlik.
+/// Kariyer kutusu [kShowEngelsizKariyerTile] ile açılıp kapanır.
 class GeziKampanyaHomeSection extends StatefulWidget {
   const GeziKampanyaHomeSection({
     super.key,
@@ -36,6 +38,7 @@ class GeziKampanyaHomeSection extends StatefulWidget {
 
 class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
   Map<String, String> _covers = const {
+    kKariyerTileKey: '',
     kGeziTileKey: '',
     kKampanyaTileKey: '',
     kEtkinlikTileKey: '',
@@ -92,7 +95,9 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: L10nText(
-              'Gezi Rehberi & Kampanyalar & Etkinlikler',
+              kShowEngelsizKariyerTile
+                  ? 'Engelsiz Kariyer & Gezi Rehberi & Kampanyalar & Etkinlikler'
+                  : 'Gezi Rehberi & Kampanyalar & Etkinlikler',
               style: GoogleFonts.nunito(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
@@ -105,17 +110,15 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 const gap = 12.0;
-                const minCard = 96.0;
                 const tileH = 120.0;
                 final w = constraints.maxWidth;
-                final threeW = (w - 2 * gap) / 3;
-                final useThree = threeW >= minCard;
-                final cardW =
-                    (useThree ? threeW : (w - gap) / 2).floorToDouble();
+                final twoColW = ((w - gap) / 2).floorToDouble();
                 Widget tile({
                   required String title,
                   required String tileKey,
                   required VoidCallback onTap,
+                  IconData? emptyIcon,
+                  required double cardW,
                 }) {
                   return SizedBox(
                     width: cardW,
@@ -128,6 +131,7 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
                           child: _Box(
                             coverUrl: _covers[tileKey] ?? '',
                             isAdmin: _canEditTile(tileKey),
+                            emptyIcon: emptyIcon,
                             onTap: onTap,
                             onEditCover: () => _editCover(tileKey, title),
                           ),
@@ -160,21 +164,92 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
                   );
                 }
 
-                return Wrap(
-                  spacing: gap,
-                  runSpacing: gap,
+                final kariyer = tile(
+                  title: 'Engelsiz Kariyer',
+                  tileKey: kKariyerTileKey,
+                  emptyIcon: Icons.work_outline,
+                  cardW: twoColW,
+                  onTap: () => EngelsizKariyerPage.open(
+                    context,
+                    userEmail: widget.userEmail,
+                  ),
+                );
+                final gezi = tile(
+                  title: 'Gezi Rehberi',
+                  tileKey: kGeziTileKey,
+                  cardW: twoColW,
+                  onTap: () => GeziRehberiPage.open(
+                    context,
+                    userEmail: widget.userEmail,
+                  ),
+                );
+                final kampanya = tile(
+                  title: 'Kampanyalar',
+                  tileKey: kKampanyaTileKey,
+                  cardW: twoColW,
+                  onTap: () => KampanyalarPage.open(
+                    context,
+                    userEmail: widget.userEmail,
+                    isGuest: widget.isGuest,
+                    onRequireLogin: widget.onRequireLogin,
+                  ),
+                );
+                final etkinlik = tile(
+                  title: 'Etkinlikler',
+                  tileKey: kEtkinlikTileKey,
+                  cardW: twoColW,
+                  onTap: () => EtkinliklerPage.open(
+                    context,
+                    userEmail: widget.userEmail,
+                    isGuest: widget.isGuest,
+                    onRequireLogin: widget.onRequireLogin,
+                  ),
+                );
+
+                Widget pair(Widget left, Widget right) {
+                  return Row(
+                    children: [
+                      left,
+                      const SizedBox(width: gap),
+                      right,
+                    ],
+                  );
+                }
+
+                if (kShowEngelsizKariyerTile) {
+                  return Column(
+                    children: [
+                      pair(kariyer, gezi),
+                      const SizedBox(height: 12),
+                      pair(kampanya, etkinlik),
+                    ],
+                  );
+                }
+
+                const minCard = 88.0;
+                final threeW = (w - 2 * gap) / 3;
+                final useEven = threeW >= minCard;
+                final cardW = useEven
+                    ? threeW.floorToDouble()
+                    : ((w - 2 * gap) / 3.15)
+                        .floorToDouble()
+                        .clamp(minCard, 160.0);
+                final row = Row(
                   children: [
                     tile(
                       title: 'Gezi Rehberi',
                       tileKey: kGeziTileKey,
+                      cardW: cardW,
                       onTap: () => GeziRehberiPage.open(
                         context,
                         userEmail: widget.userEmail,
                       ),
                     ),
+                    SizedBox(width: gap),
                     tile(
                       title: 'Kampanyalar',
                       tileKey: kKampanyaTileKey,
+                      cardW: cardW,
                       onTap: () => KampanyalarPage.open(
                         context,
                         userEmail: widget.userEmail,
@@ -182,9 +257,11 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
                         onRequireLogin: widget.onRequireLogin,
                       ),
                     ),
+                    SizedBox(width: gap),
                     tile(
                       title: 'Etkinlikler',
                       tileKey: kEtkinlikTileKey,
+                      cardW: cardW,
                       onTap: () => EtkinliklerPage.open(
                         context,
                         userEmail: widget.userEmail,
@@ -193,6 +270,11 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
                       ),
                     ),
                   ],
+                );
+                if (useEven) return row;
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: row,
                 );
               },
             ),
@@ -209,12 +291,14 @@ class _Box extends StatelessWidget {
     required this.isAdmin,
     required this.onTap,
     required this.onEditCover,
+    this.emptyIcon,
   });
 
   final String coverUrl;
   final bool isAdmin;
   final VoidCallback onTap;
   final VoidCallback onEditCover;
+  final IconData? emptyIcon;
 
   bool get _hasCover => coverUrl.trim().isNotEmpty;
 
@@ -251,6 +335,19 @@ class _Box extends StatelessWidget {
                     height: double.infinity,
                     errorBuilder: (_, __, ___) => const ColoredBox(
                       color: MetoColors.card,
+                    ),
+                  ),
+                )
+              else if (emptyIcon != null)
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: MetoColors.primary.withValues(alpha: 0.08),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      emptyIcon,
+                      size: 36,
+                      color: MetoColors.primary,
                     ),
                   ),
                 ),
