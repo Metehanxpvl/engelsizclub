@@ -48,9 +48,10 @@ class InAppWebPage extends StatefulWidget {
     }
 
     if (!context.mounted) return;
-    // Destek / Evde eğitim: leave the SPA so Firebase serves the .html file.
-    // Always return — never iframe/router, even if assign is intercepted.
-    if (kIsWeb && hostedHtmlWizardUrl(uri.toString()) != null) {
+    final wizardPage = hostedHtmlWizardUrl(uri.toString()) != null;
+    // Web: leave the SPA so Firebase serves the .html file.
+    // Android: in-app WebView, never GuestTimedGuard (misafir girişi).
+    if (kIsWeb && wizardPage) {
       openTopLevelUrl(uri.toString());
       return;
     }
@@ -74,8 +75,8 @@ class InAppWebPage extends StatefulWidget {
         builder: (_) => InAppWebPage(
           title: title,
           url: uri.toString(),
-          isGuest: isGuest,
-          onRequireLogin: onRequireLogin,
+          isGuest: wizardPage ? false : isGuest,
+          onRequireLogin: wizardPage ? null : onRequireLogin,
           guestTab: guestTab,
         ),
       ),
