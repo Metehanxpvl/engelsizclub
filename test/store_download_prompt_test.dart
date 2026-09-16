@@ -37,4 +37,21 @@ void main() {
     expect(webStorePromptConsumed(prefs), isTrue);
     expect(prefs.getBool(kWebStorePromptPrefsKey), isTrue);
   });
+
+  test('web store prompt is home-path only', () {
+    expect(webStorePromptIsHomePath(Uri.parse('https://www.engelsizclub.com/')),
+        isTrue);
+    expect(
+        webStorePromptIsHomePath(
+            Uri.parse('https://www.engelsizclub.com/index.html')),
+        isTrue);
+    expect(
+        webStorePromptIsHomePath(
+            Uri.parse('https://www.engelsizclub.com/destek-sorgu.html')),
+        isFalse);
+    expect(
+        webStorePromptIsHomePath(
+            Uri.parse('https://www.engelsizclub.com/evde-egitim.html')),
+        isFalse);
+  });
 }

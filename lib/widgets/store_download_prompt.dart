@@ -26,6 +26,12 @@ bool webStorePromptConsumed(SharedPreferences prefs) =>
 Future<void> webStorePromptMarkConsumed(SharedPreferences prefs) =>
     prefs.setBool(kWebStorePromptPrefsKey, true);
 
+/// Flutter SPA can load at leftover HTML paths; keep the popup on home only.
+bool webStorePromptIsHomePath(Uri uri) {
+  final path = uri.path;
+  return path.isEmpty || path == '/' || path == '/index.html';
+}
+
 /// Home-page-only web popup: first visit, then never again after dismiss.
 /// Native apps skip this. Destek Sorgu / Evde Eğitim HTML pages do not
 /// mount [HomePage], so they never show it.
@@ -62,6 +68,7 @@ class _WebStoreDownloadPromptState extends State<WebStoreDownloadPrompt> {
   Future<void> _maybeShow() async {
     await Future<void>.delayed(kWebStorePromptDelay);
     if (!mounted || !kIsWeb || _dialogOpen) return;
+    if (!webStorePromptIsHomePath(Uri.base)) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       if (webStorePromptConsumed(prefs)) return;
