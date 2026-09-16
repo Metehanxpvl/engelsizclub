@@ -79,14 +79,15 @@ class CityPosterHelpersTest(unittest.TestCase):
     def test_current_model_names(self):
         self.assertEqual(TEXT_MODELS[0], "gemini-2.5-flash")
         self.assertNotIn("gemini-2.0-flash", TEXT_MODELS)
-        self.assertEqual(IMAGE_MODELS[0], "gemini-2.5-flash-image")
-        self.assertIn("gemini-3.1-flash-image", IMAGE_MODELS)
+        self.assertEqual(IMAGE_MODELS[0], "gemini-3.1-flash-image")
+        self.assertIn("gemini-2.5-flash-image", IMAGE_MODELS)
         self.assertNotIn("imagen-3.0-generate-002", IMAGE_MODELS)
         self.assertNotIn("gemini-2.0-flash-preview-image-generation", IMAGE_MODELS)
         src = Path(__file__).with_name("generate_city_poster.py").read_text(encoding="utf-8")
-        self.assertIn('["IMAGE"]', src)
+        self.assertIn("interactions.create", src)
+        self.assertIn("/v1beta/interactions", src)
+        self.assertIn("render_fallback_poster", src)
         self.assertIn("index.json", src)
-        self.assertIn("scan_output_posters", src)
 
     def test_no_legacy_imagen_calls(self):
         src = Path(__file__).with_name("generate_city_poster.py").read_text(encoding="utf-8")
@@ -139,6 +140,15 @@ class CityPosterHelpersTest(unittest.TestCase):
             self.assertEqual(payload["ok"], 2)
             self.assertEqual(len(payload["posters"]), 2)
             self.assertEqual(payload["posters"][0]["city"], "Adana")
+
+    def test_fallback_poster_is_jpeg(self):
+        try:
+            from generate_city_poster import render_fallback_poster
+        except Exception:  # noqa: BLE001
+            self.skipTest("Pillow yok")
+        data = render_fallback_poster("Adana")
+        self.assertTrue(data.startswith(b"\xff\xd8"))
+        self.assertGreater(len(data), 2000)
 
 
 if __name__ == "__main__":

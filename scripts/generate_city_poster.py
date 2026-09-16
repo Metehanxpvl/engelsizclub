@@ -29,12 +29,17 @@ TEXT_MODELS = (
     "gemini-flash-latest",
     "gemini-2.5-flash-lite",
 )
-# Görsel: yalnızca generate_content. Imagen 3 kapatıldı.
-# gemini-2.5-flash-image GA (Nano Banana); gemini-3.1-flash-image Nano Banana 2.
+# Görsel: 2026 docs Interactions API (generate_content artık görsel dönmeyebilir).
+# gemini-3.1-flash-image = Nano Banana 2; lite = hızlı; 2.5 = eski Nano Banana.
 IMAGE_MODELS = (
-    "gemini-2.5-flash-image",
     "gemini-3.1-flash-image",
     "gemini-3.1-flash-lite-image",
+    "gemini-2.5-flash-image",
+    "gemini-3-pro-image",
+)
+INTERACTIONS_URLS = (
+    "https://generativelanguage.googleapis.com/v1beta/interactions",
+    "https://generativelanguage.googleapis.com/v1/interactions",
 )
 API_VERSIONS = ("v1beta", "v1")
 
@@ -174,6 +179,19 @@ def generate_content_urls(model: str) -> tuple[str, ...]:
 
 def env(name: str) -> str:
     return os.environ.get(name, "").strip()
+
+
+_LAST_IMAGE_ERROR = ""
+_GEMINI_FAIL_STREAK = 0
+
+
+def note_image_error(msg: str) -> None:
+    global _LAST_IMAGE_ERROR
+    text = (msg or "").strip()[:400]
+    if not text:
+        return
+    _LAST_IMAGE_ERROR = text
+    print(text, file=sys.stderr)
 
 
 def fold_city(raw: str) -> str:
@@ -521,6 +539,115 @@ def _log_finish_reason(response: Any, model: str) -> None:
         print(f"{model} generate_content görsel yok", file=sys.stderr)
 
 
+def extract_interaction_image_bytes(payload: Any) -> bytes | None:
+    """interactions.create / REST yanıtından görsel al."""
+    if payload is None:
+        return None
+    img = getattr(payload, "output_image", None)
+    if img is None and isinstance(payload, dict):
+        img = payload.get("output_image") or payload.get("outputImage")
+    raw = None
+    if img is not None:
+        if isinstance(img, dict):
+            raw = _as_bytes(img.get("data") or img.get("image_bytes"))
+        else:
+            raw = _as_bytes(getattr(img, "data", None) or getattr(img, "image_bytes", None))
+        if raw:
+            return raw
+    if not isinstance(payload, dict):
+        payload = {
+            "steps": getattr(payload, "steps", None),
+            "outputs": getattr(payload, "outputs", None),
+        }
+    for step in payload.get("steps") or []:
+        if isinstance(step, dict):
+            blocks = step.get("content") or step.get("contents") or []
+        else:
+            blocks = getattr(step, "content", None) or []
+        for block in blocks or []:
+            btype = (
+                block.get("type")
+                if isinstance(block, dict)
+                else getattr(block, "type", "")
+            )
+            if str(btype).lower() not in {"image", "image_blob", "inline_image"}:
+                continue
+            data = (
+                block.get("data")
+                if isinstance(block, dict)
+                else getattr(block, "data", None)
+            )
+            raw = _as_bytes(data)
+            if raw:
+                return raw
+    return extract_inline_image_bytes(payload)
+
+
+def generate_image_interactions_sdk(api_key: str, prompt: str) -> bytes | None:
+    try:
+        from google import genai
+    except ImportError:
+        return None
+    try:
+        client = genai.Client(api_key=api_key)
+        create = getattr(getattr(client, "interactions", None), "create", None)
+    except Exception as exc:  # noqa: BLE001
+        note_image_error(f"interactions client: {exc}")
+        return None
+    if not callable(create):
+        return None
+    for model in IMAGE_MODELS:
+        try:
+            interaction = create(model=model, input=prompt)
+            data = extract_interaction_image_bytes(interaction)
+            if data:
+                print(f"görsel modeli: {model} (interactions)")
+                return data
+            note_image_error(f"{model} interactions görsel yok")
+        except Exception as exc:  # noqa: BLE001
+            note_image_error(f"{model} interactions hata: {exc}")
+    return None
+
+
+def generate_image_interactions_rest(api_key: str, prompt: str) -> bytes | None:
+    try:
+        import requests
+    except ImportError:
+        return None
+    for model in IMAGE_MODELS:
+        body = {
+            "model": model,
+            "input": [{"type": "text", "text": prompt}],
+        }
+        for url in INTERACTIONS_URLS:
+            try:
+                res = requests.post(
+                    url,
+                    headers={
+                        "x-goog-api-key": api_key,
+                        "Content-Type": "application/json",
+                    },
+                    json=body,
+                    timeout=120,
+                )
+                if res.status_code >= 400:
+                    snippet = (res.text or "").replace("\n", " ")[:220]
+                    note_image_error(
+                        f"{model} interactions HTTP {res.status_code} {snippet}"
+                    )
+                    continue
+                data = extract_interaction_image_bytes(
+                    res.json() if res.content else {}
+                )
+                if data:
+                    print(f"görsel modeli: {model} (interactions REST)")
+                    return data
+                note_image_error(f"{model} interactions REST görsel yok")
+            except Exception as exc:  # noqa: BLE001
+                note_image_error(f"{model} interactions REST hata: {exc}")
+    return None
+
+
 def generate_image_sdk(api_key: str, prompt: str) -> bytes | None:
     try:
         from google import genai
@@ -560,57 +687,61 @@ def generate_image_sdk(api_key: str, prompt: str) -> bytes | None:
 
 
 def generate_image_rest(api_key: str, prompt: str) -> bytes | None:
-    """generateContent REST (Imagen predict ucu kullanilmaz)."""
+    """generateContent REST yedek (Interactions yoksa)."""
     try:
         import requests
     except ImportError:
         return None
-    modality_sets = (["IMAGE"], ["TEXT", "IMAGE"])
+    modality_sets = (["TEXT", "IMAGE"], ["IMAGE"])
+    configs = (
+        {"responseModalities": None},  # placeholder, filled below
+    )
     for model in IMAGE_MODELS:
         for url in generate_content_urls(model):
             for modalities in modality_sets:
-                body = {
-                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                    "generationConfig": {
-                        "responseModalities": modalities,
-                        "imageConfig": {"aspectRatio": "3:4"},
-                    },
-                }
-                try:
-                    res = requests.post(
-                        url,
-                        headers={
-                            "x-goog-api-key": api_key,
-                            "Content-Type": "application/json",
-                        },
-                        json=body,
-                        timeout=120,
-                    )
-                    if res.status_code >= 400:
-                        snippet = (res.text or "").replace("\n", " ")[:220]
-                        print(
-                            f"{model} generateContent HTTP {res.status_code} "
-                            f"mods={modalities} {url} {snippet}",
-                            file=sys.stderr,
+                for with_ratio in (False, True):
+                    gen: dict[str, Any] = {"responseModalities": modalities}
+                    if with_ratio:
+                        gen["imageConfig"] = {"aspectRatio": "3:4"}
+                    body = {
+                        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                        "generationConfig": gen,
+                    }
+                    try:
+                        res = requests.post(
+                            url,
+                            headers={
+                                "x-goog-api-key": api_key,
+                                "Content-Type": "application/json",
+                            },
+                            json=body,
+                            timeout=120,
                         )
-                        continue
-                    data = extract_inline_image_bytes_rest(
-                        res.json() if res.content else {}
-                    )
-                    if data:
-                        print(f"görsel modeli: {model} (REST)")
-                        return data
-                    print(
-                        f"{model} REST görsel yok mods={modalities} {url}",
-                        file=sys.stderr,
-                    )
-                except Exception:  # noqa: BLE001
-                    print(f"görsel REST hata: {model}", file=sys.stderr)
-                    traceback.print_exc()
+                        if res.status_code >= 400:
+                            snippet = (res.text or "").replace("\n", " ")[:220]
+                            note_image_error(
+                                f"{model} generateContent HTTP {res.status_code} {snippet}"
+                            )
+                            continue
+                        data = extract_inline_image_bytes_rest(
+                            res.json() if res.content else {}
+                        )
+                        if data:
+                            print(f"görsel modeli: {model} (REST)")
+                            return data
+                        note_image_error(f"{model} REST görsel yok")
+                    except Exception as exc:  # noqa: BLE001
+                        note_image_error(f"{model} REST hata: {exc}")
     return None
 
 
 def generate_image(api_key: str, prompt: str) -> bytes | None:
+    data = generate_image_interactions_sdk(api_key, prompt)
+    if data:
+        return data
+    data = generate_image_interactions_rest(api_key, prompt)
+    if data:
+        return data
     data = generate_image_sdk(api_key, prompt)
     if data:
         return data
@@ -619,6 +750,90 @@ def generate_image(api_key: str, prompt: str) -> bytes | None:
 
 def looks_jpeg(data: bytes) -> bool:
     return data.startswith(b"\xff\xd8")
+
+
+def _poster_font(size: int):
+    from PIL import ImageFont
+
+    for path in (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "C:\\Windows\\Fonts\\segoeui.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf",
+    ):
+        if Path(path).is_file():
+            return ImageFont.truetype(path, size)
+    return ImageFont.load_default()
+
+
+def _wrap_text(draw, text: str, font, max_width: int) -> list[str]:
+    words = (text or "").split()
+    if not words:
+        return [""]
+    lines: list[str] = []
+    current = words[0]
+    for word in words[1:]:
+        trial = f"{current} {word}"
+        bbox = draw.textbbox((0, 0), trial, font=font)
+        if bbox[2] - bbox[0] <= max_width:
+            current = trial
+        else:
+            lines.append(current)
+            current = word
+    lines.append(current)
+    return lines
+
+
+def render_fallback_poster(city: str) -> bytes:
+    """Gemini görsel veremezse yerel 3:4 Engelsiz Club posteri."""
+    from io import BytesIO
+
+    from PIL import Image, ImageDraw
+
+    w, h = 768, 1024
+    img = Image.new("RGB", (w, h), "#0F3D2C")
+    draw = ImageDraw.Draw(img)
+    draw.rectangle((0, 0, w, int(h * 0.42)), fill="#1A6B4A")
+    draw.ellipse((-120, -160, 320, 280), fill="#2F9B6A")
+    draw.rounded_rectangle((48, 220, w - 48, h - 88), radius=28, fill="#F2F7F4")
+    title_font = _poster_font(42)
+    sub_font = _poster_font(28)
+    body_font = _poster_font(22)
+    foot_font = _poster_font(20)
+    title = headline(city)
+    max_w = w - 120
+    y = 260
+    for line in _wrap_text(draw, title, title_font, max_w):
+        bbox = draw.textbbox((0, 0), line, font=title_font)
+        tw = bbox[2] - bbox[0]
+        draw.text(((w - tw) / 2, y), line, font=title_font, fill="#1A6B4A")
+        y += 52
+    y += 16
+    badge = "Özel gereksinimli bireyler için ücretsiz"
+    for line in _wrap_text(draw, badge, sub_font, max_w):
+        bbox = draw.textbbox((0, 0), line, font=sub_font)
+        tw = bbox[2] - bbox[0]
+        draw.text(((w - tw) / 2, y), line, font=sub_font, fill="#B45309")
+        y += 36
+    y += 18
+    details = (
+        "MüzeKart devlet müzelerinde geçerli. "
+        "Engelli ziyaretçi ve bir refakatçi ücretsiz. "
+        "Rampa · asansör · erişilebilir tuvalet"
+    )
+    for line in _wrap_text(draw, details, body_font, max_w):
+        bbox = draw.textbbox((0, 0), line, font=body_font)
+        tw = bbox[2] - bbox[0]
+        draw.text(((w - tw) / 2, y), line, font=body_font, fill="#334155")
+        y += 32
+    footer = "— engelsizclub.com —"
+    bbox = draw.textbbox((0, 0), footer, font=foot_font)
+    tw = bbox[2] - bbox[0]
+    draw.text(((w - tw) / 2, h - 58), footer, font=foot_font, fill="#F2F7F4")
+    buf = BytesIO()
+    img.save(buf, format="JPEG", quality=86, optimize=True)
+    return buf.getvalue()
 
 
 def save_poster(dest: Path, data: bytes) -> Path:
@@ -650,6 +865,7 @@ def generate_one(
     skip_existing: bool,
 ) -> str:
     """ok | skip | fail"""
+    global _GEMINI_FAIL_STREAK
     title = headline(city)
     dest = output_dir / poster_filename(city)
     print(f"il={city} baslik={title} dosya={dest.name}")
@@ -664,13 +880,31 @@ def generate_one(
             print(f"atlandi (var) {found}")
             return "skip"
 
+    prompt = fallback_imagen_prompt(city)
     try:
-        prompt = gemini_writer_prompt(api_key, city)
-        data = generate_image(api_key, prompt)
+        data = None
+        if _GEMINI_FAIL_STREAK < 2:
+            data = generate_image(api_key, prompt)
+            if data:
+                _GEMINI_FAIL_STREAK = 0
+            else:
+                _GEMINI_FAIL_STREAK += 1
+                print(
+                    f"Gemini görsel yok ({_GEMINI_FAIL_STREAK}/2), yerel poster: {city}",
+                    file=sys.stderr,
+                )
+        if not data:
+            data = render_fallback_poster(city)
+            print(f"yerel poster {city} ({len(data)} bytes)")
     except Exception:  # noqa: BLE001
         print(f"görsel üretim istisnası: {city}", file=sys.stderr)
         traceback.print_exc()
-        return "fail"
+        try:
+            data = render_fallback_poster(city)
+            print(f"yerel poster (istisna sonrası) {city}")
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
+            return "fail"
     if not data:
         print(f"görsel üretmedi: {city}", file=sys.stderr)
         return "fail"
@@ -732,6 +966,7 @@ def write_index(
         "skip": skip,
         "total": total,
         "status": "ok" if posters else "empty",
+        "error": _LAST_IMAGE_ERROR or None,
         "posters": posters,
     }
     dest = output_dir / "index.json"
@@ -883,7 +1118,10 @@ def run(argv: list[str] | None = None) -> int:
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
         if i + 1 < len(cities) and not dry_run and status != "skip":
-            time.sleep(wait)
+            if _GEMINI_FAIL_STREAK >= 2:
+                time.sleep(0.05)
+            else:
+                time.sleep(wait)
 
     print(f"ozet ok={ok} skip={skip} fail={fail} total={len(cities)}")
     try:
@@ -901,7 +1139,12 @@ def run(argv: list[str] | None = None) -> int:
     except Exception:  # noqa: BLE001
         traceback.print_exc()
     if fail and ok + skip == 0:
-        print("hiç poster üretilmedi; iş 0 ile biter (tek API hatası job'u düşürmez).", file=sys.stderr)
+        print("hiç poster üretilmedi.", file=sys.stderr)
+        return 1
+    posters = scan_output_posters(args.output_dir)
+    if not posters:
+        print("output/ içinde jpg/png yok; job başarısız.", file=sys.stderr)
+        return 1
     return 0
 
 

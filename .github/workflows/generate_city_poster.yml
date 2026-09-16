@@ -37,7 +37,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install Python deps
-        run: pip install -U google-genai requests
+        pip install -U google-genai requests pillow
       - name: Helper tests
         working-directory: scripts
         run: python generate_city_poster_test.py
