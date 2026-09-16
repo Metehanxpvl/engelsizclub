@@ -17,6 +17,9 @@ import 'instagram_embed.dart';
 import 'story_marquee.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n_text.dart';
+import '../l10n/locale_controller.dart';
+
+part 'duyurular_all_screen.dart';
 
 /// Ana sayfa: disclaimer altı / hastalıklar üstü — story tarzı duyurular.
 class DuyurularSection extends StatefulWidget {
@@ -42,12 +45,15 @@ class _DuyurularSectionState extends State<DuyurularSection> {
   bool get _isAdmin =>
       canEditSection(widget.userEmail, SectionKey.duyurular);
 
-  List<DuyuruItem> get _sorted => sortDuyurular(_items, _seen);
+  bool get _hasAllScreenItems =>
+      duyurularForAllScreen(_items, isEditor: _isAdmin).isNotEmpty;
 
   void _syncStripCache() {
-    final sorted = _sorted.where((d) => !d.isPopup).toList();
-    final visible =
-        _isAdmin ? sorted.where((d) => d.isActive).toList() : sorted;
+    final visible = duyurularForHomeStrip(
+      _items,
+      seenIds: _seen,
+      isEditor: _isAdmin,
+    );
     final version = visible
         .map(
           (d) =>
@@ -299,46 +305,21 @@ class _DuyurularSectionState extends State<DuyurularSection> {
     }
   }
 
+  Future<void> _openAll() async {
+    await DuyurularAllScreen.open(context, userEmail: widget.userEmail);
+    if (!mounted) return;
+    await _reload(silent: true);
+  }
+
   Future<void> _openViewer(DuyuruItem item) async {
-    final items = List<DuyuruItem>.from(_visibleForStrip);
-    if (items.isEmpty) return;
-    var start = items.indexWhere((d) => d.id == item.id);
-    if (start < 0) start = 0;
-
-    await showGeneralDialog<void>(
+    await _showDuyuruStoryViewer(
       context: context,
-      barrierDismissible: true,
-      barrierLabel: 'Kapat',
-      barrierColor: Colors.black.withValues(alpha: 0.72),
-      transitionDuration: const Duration(milliseconds: 220),
-      pageBuilder: (ctx, anim, secondary) {
-        return _DuyuruFullscreen(
-          items: items,
-          initialIndex: start,
-          isAdmin: _isAdmin,
-          onClose: () => Navigator.of(ctx).pop(),
-          onSeen: _onStorySeen,
-          onDelete: (current) async {
-            Navigator.of(ctx).pop();
-            await _confirmDelete(current);
-          },
-        );
-      },
-      transitionBuilder: (ctx, anim, secondary, child) {
-        final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
-        return FadeTransition(
-          opacity: curved,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, 0.06),
-              end: Offset.zero,
-            ).animate(curved),
-            child: child,
-          ),
-        );
-      },
+      items: List<DuyuruItem>.from(_visibleForStrip),
+      item: item,
+      isAdmin: _isAdmin,
+      onSeen: _onStorySeen,
+      onDelete: _confirmDelete,
     );
-
     if (mounted) setState(() {});
   }
 
@@ -351,19 +332,51 @@ class _DuyurularSectionState extends State<DuyurularSection> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: L10nText(
-                    'Güncel Duyurular & Haberler',
-                    style: GoogleFonts.nunito(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: MetoColors.foreground,
+            child: ListenableBuilder(
+              listenable: LocaleController.instance,
+              builder: (context, _) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          S.t('duyuru_section_title'),
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.nunito(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: MetoColors.foreground,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                if (_isAdmin) ...[
+                    TextButton(
+                        onPressed: _openAll,
+                        style: TextButton.styleFrom(
+                          foregroundColor: MetoColors.primary,
+                          visualDensity: VisualDensity.compact,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          minimumSize: Size.zero,
+                        ),
+                        child: Text(
+                          S.t('duyuru_view'),
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.nunito(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    if (_isAdmin) ...[
                   IconButton(
                     tooltip: S.auto('Story yönetimi'),
                     onPressed: _openAdminManage,
@@ -382,8 +395,10 @@ class _DuyurularSectionState extends State<DuyurularSection> {
                     ),
                     icon: const Icon(Icons.add_circle_outline, size: 22),
                   ),
-                ],
-              ],
+                    ],
+                  ],
+                );
+              },
             ),
           ),
           if (_loading)
@@ -398,7 +413,9 @@ class _DuyurularSectionState extends State<DuyurularSection> {
               ),
             )
           else if (_visibleForStrip.isEmpty)
-            Padding(
+            _hasAllScreenItems
+                ? const SizedBox.shrink()
+                : Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
                 width: double.infinity,
@@ -453,6 +470,55 @@ class _DuyurularSectionState extends State<DuyurularSection> {
       ),
     );
   }
+}
+
+Future<void> _showDuyuruStoryViewer({
+  required BuildContext context,
+  required List<DuyuruItem> items,
+  required DuyuruItem item,
+  required bool isAdmin,
+  required ValueChanged<DuyuruItem> onSeen,
+  Future<void> Function(DuyuruItem current)? onDelete,
+}) async {
+  if (items.isEmpty) return;
+  var start = items.indexWhere((d) => d.id == item.id);
+  if (start < 0) start = 0;
+
+  await showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'Kapat',
+    barrierColor: Colors.black.withValues(alpha: 0.72),
+    transitionDuration: const Duration(milliseconds: 220),
+    pageBuilder: (ctx, anim, secondary) {
+      return _DuyuruFullscreen(
+        items: items,
+        initialIndex: start,
+        isAdmin: isAdmin,
+        onClose: () => Navigator.of(ctx).pop(),
+        onSeen: onSeen,
+        onDelete: onDelete == null
+            ? null
+            : (current) {
+                Navigator.of(ctx).pop();
+                onDelete(current);
+              },
+      );
+    },
+    transitionBuilder: (ctx, anim, secondary, child) {
+      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.06),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
 }
 
 class _StoryCircle extends StatelessWidget {

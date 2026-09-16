@@ -143,6 +143,13 @@ const _tables = <AppLang, Map<String, String>>{
     'city_poster_admin_empty':
         'Henüz kayıtlı poster yok. Actions → Generate city museum posters çalıştırın; görseller output/ klasörüne düşünce burada görünür.',
     'city_poster_admin_run': 'Action’ı aç',
+    'duyuru_section_title': 'Güncel Duyurular & Haberler',
+    'duyuru_view': 'Tümünü gör',
+    'duyuru_view_all': 'Tümünü gör',
+    'duyuru_all_title': 'Güncel Duyurular ve Haberler',
+    'duyuru_sort_newest': 'Yeniden eskiye',
+    'duyuru_sort_oldest': 'Eskiden yeniye',
+    'duyuru_all_empty': 'Şu an görüntülenecek duyuru yok.',
   },
   AppLang.en: {
     'nav_home': 'Home',
@@ -259,6 +266,13 @@ const _tables = <AppLang, Map<String, String>>{
     'city_poster_admin_empty':
         'No posters saved yet. Run Actions → Generate city museum posters; files in output/ will appear here.',
     'city_poster_admin_run': 'Open Action',
+    'duyuru_section_title': 'Latest announcements & news',
+    'duyuru_view': 'View all',
+    'duyuru_view_all': 'View all',
+    'duyuru_all_title': 'Latest announcements and news',
+    'duyuru_sort_newest': 'Newest first',
+    'duyuru_sort_oldest': 'Oldest first',
+    'duyuru_all_empty': 'No announcements to show right now.',
   },
   AppLang.de: {
     'nav_home': 'Start',
@@ -375,6 +389,13 @@ const _tables = <AppLang, Map<String, String>>{
     'city_poster_admin_empty':
         'Noch keine Poster. Actions → Generate city museum posters starten; Dateien in output/ erscheinen hier.',
     'city_poster_admin_run': 'Action öffnen',
+    'duyuru_section_title': 'Aktuelle Mitteilungen & News',
+    'duyuru_view': 'Alle anzeigen',
+    'duyuru_view_all': 'Alle anzeigen',
+    'duyuru_all_title': 'Aktuelle Mitteilungen und News',
+    'duyuru_sort_newest': 'Neueste zuerst',
+    'duyuru_sort_oldest': 'Älteste zuerst',
+    'duyuru_all_empty': 'Derzeit keine Mitteilungen.',
   },
   AppLang.ar: {
     'nav_home': 'الرئيسية',
@@ -491,6 +512,13 @@ const _tables = <AppLang, Map<String, String>>{
     'city_poster_admin_empty':
         'لا ملصقات بعد. شغّل Actions → Generate city museum posters وستظهر ملفات output/ هنا.',
     'city_poster_admin_run': 'افتح الإجراء',
+    'duyuru_section_title': 'الإعلانات والأخبار الحالية',
+    'duyuru_view': 'عرض الكل',
+    'duyuru_view_all': 'عرض الكل',
+    'duyuru_all_title': 'الإعلانات والأخبار الحالية',
+    'duyuru_sort_newest': 'الأحدث أولاً',
+    'duyuru_sort_oldest': 'الأقدم أولاً',
+    'duyuru_all_empty': 'لا توجد إعلانات للعرض حالياً.',
   },
   AppLang.fr: {
     'nav_home': 'Accueil',
@@ -607,5 +635,12 @@ const _tables = <AppLang, Map<String, String>>{
     'city_poster_admin_empty':
         'Aucune affiche. Lancez Actions → Generate city museum posters ; les fichiers output/ apparaîtront ici.',
     'city_poster_admin_run': 'Ouvrir l’Action',
+    'duyuru_section_title': 'Annonces & actualités',
+    'duyuru_view': 'Tout voir',
+    'duyuru_view_all': 'Tout voir',
+    'duyuru_all_title': 'Annonces et actualités',
+    'duyuru_sort_newest': 'Plus récent',
+    'duyuru_sort_oldest': 'Plus ancien',
+    'duyuru_all_empty': 'Aucune annonce à afficher pour le moment.',
   },
 };
