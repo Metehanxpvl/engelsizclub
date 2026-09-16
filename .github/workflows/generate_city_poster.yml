@@ -1,4 +1,4 @@
-# Engelsiz Club müze gezi rehberi posteri (Imagen 3).
+# Engelsiz Club müze gezi rehberi posteri (Gemini generate_content).
 #
 # Varsayılan: 81 il, kCityNames / CITIES sırası (Adana → … → Ardahan).
 # Tek il: city_name = Gaziantep (veya Antep / İstanbul …).
@@ -37,7 +37,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install Python deps
-        run: pip install google-genai requests
+        run: pip install -U google-genai requests
       - name: Helper tests
         working-directory: scripts
         run: python generate_city_poster_test.py

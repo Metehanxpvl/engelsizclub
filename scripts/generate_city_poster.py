@@ -14,20 +14,25 @@ import os
 import re
 import sys
 import time
+import traceback
 import unicodedata
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
+# Metin: Google AI Studio güncel kararlı Flash.
 TEXT_MODELS = (
     "gemini-2.5-flash",
     "gemini-flash-latest",
     "gemini-2.0-flash",
 )
-IMAGEN_MODEL = "imagen-3.0-generate-002"
-IMAGEN_REST = (
-    "https://generativelanguage.googleapis.com/v1beta/models/"
-    f"{IMAGEN_MODEL}:predict"
+# Görsel: generate_content (Imagen :predict / generate_images yok — 404).
+# gemini-2.5-flash-image = GA Nano Banana; 3:4 aspect AI Studio'da desteklenir.
+# gemini-3.1-flash-image = 2026 Nano Banana 2 yedek.
+IMAGE_MODELS = (
+    "gemini-2.5-flash-image",
+    "gemini-3.1-flash-image",
+    "gemini-2.0-flash-preview-image-generation",
 )
 GEMINI_GENERATE = (
     "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -282,7 +287,7 @@ def fallback_imagen_prompt(city: str) -> str:
 def writer_brief(city: str) -> str:
     mark = LANDMARKS.get(city, f"{city}'s best-known castle or historic monument")
     title = headline(city)
-    return f"""You write ONE detailed English image-generation prompt for Imagen.
+    return f"""You write ONE detailed English image-generation prompt.
 Return only the prompt text. No markdown, no quotes around the whole prompt.
 
 Poster must match this structure:
@@ -307,11 +312,49 @@ def extract_text(payload: dict[str, Any]) -> str:
     return "\n".join(bits).strip()
 
 
-def gemini_writer_prompt(api_key: str, city: str) -> str:
-    import requests
+def _clean_writer_text(text: str) -> str:
+    return re.sub(r"^```(?:\w+)?\s*|\s*```$", "", (text or "").strip()).strip()
 
+
+def gemini_writer_prompt_sdk(api_key: str, city: str) -> str:
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError:
+        return ""
     brief = writer_brief(city)
-    last_err = ""
+    try:
+        client = genai.Client(api_key=api_key)
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
+        return ""
+    for model in TEXT_MODELS:
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=brief,
+                config=types.GenerateContentConfig(
+                    temperature=0.4,
+                    max_output_tokens=900,
+                ),
+            )
+            text = _clean_writer_text(getattr(response, "text", None) or "")
+            if len(text) > 80:
+                print(f"prompt modeli: {model}")
+                return text
+            print(f"{model} kısa yanıt", file=sys.stderr)
+        except Exception:  # noqa: BLE001
+            print(f"metin generate_content hata: {model}", file=sys.stderr)
+            traceback.print_exc()
+    return ""
+
+
+def gemini_writer_prompt_rest(api_key: str, city: str) -> str:
+    try:
+        import requests
+    except ImportError:
+        return ""
+    brief = writer_brief(city)
     for model in TEXT_MODELS:
         try:
             url = GEMINI_GENERATE.format(model=model)
@@ -328,92 +371,196 @@ def gemini_writer_prompt(api_key: str, city: str) -> str:
                 timeout=45,
             )
             if res.status_code >= 400:
-                last_err = f"{model} HTTP {res.status_code}"
+                print(f"{model} HTTP {res.status_code}", file=sys.stderr)
                 continue
-            text = extract_text(res.json() if res.content else {})
-            text = re.sub(r"^```(?:\w+)?\s*|\s*```$", "", text).strip()
+            text = _clean_writer_text(extract_text(res.json() if res.content else {}))
             if len(text) > 80:
                 print(f"prompt modeli: {model}")
                 return text
-            last_err = f"{model} kısa yanıt"
-        except Exception as exc:  # noqa: BLE001
-            last_err = f"{model} {type(exc).__name__}"
-    print(f"metin prompt yedek şablon ({last_err})", file=sys.stderr)
+        except Exception:  # noqa: BLE001
+            print(f"metin REST hata: {model}", file=sys.stderr)
+            traceback.print_exc()
+    return ""
+
+
+def gemini_writer_prompt(api_key: str, city: str) -> str:
+    text = gemini_writer_prompt_sdk(api_key, city)
+    if text:
+        return text
+    text = gemini_writer_prompt_rest(api_key, city)
+    if text:
+        return text
+    print("metin prompt yedek şablon", file=sys.stderr)
     return fallback_imagen_prompt(city)
 
 
-def imagen_sdk(api_key: str, prompt: str) -> bytes | None:
-    try:
-        from google import genai
-        from google.genai import types
-    except ImportError:
+def _as_bytes(data: Any) -> bytes | None:
+    if data is None:
         return None
-    try:
-        client = genai.Client(api_key=api_key)
-        cfg = types.GenerateImagesConfig(
-            number_of_images=1,
-            aspect_ratio="3:4",
-            person_generation="DONT_ALLOW",
-        )
-        result = client.models.generate_images(
-            model=IMAGEN_MODEL,
-            prompt=prompt,
-            config=cfg,
-        )
-        images = getattr(result, "generated_images", None) or []
-        if not images:
+    if isinstance(data, (bytes, bytearray, memoryview)):
+        raw = bytes(data)
+        return raw or None
+    if isinstance(data, str) and data.strip():
+        import base64
+
+        try:
+            return base64.b64decode(data)
+        except Exception:  # noqa: BLE001
             return None
-        image = getattr(images[0], "image", None)
-        if image is None:
-            return None
-        for attr in ("image_bytes", "data", "_bytes"):
-            raw = getattr(image, attr, None)
-            if raw:
-                return bytes(raw)
-    except Exception as exc:  # noqa: BLE001
-        print(f"google-genai Imagen hata: {type(exc).__name__}", file=sys.stderr)
     return None
 
 
-def imagen_rest(api_key: str, prompt: str) -> bytes | None:
-    import base64
+def extract_inline_image_bytes(response: Any) -> bytes | None:
+    """google-genai generate_content yanıtından ilk inline görseli al."""
+    parts: list[Any] = []
+    if isinstance(response, dict):
+        top_parts = response.get("parts")
+        cands = response.get("candidates") or []
+    else:
+        top_parts = getattr(response, "parts", None)
+        cands = getattr(response, "candidates", None) or []
+    if top_parts:
+        parts.extend(list(top_parts))
+    for cand in cands:
+        if isinstance(cand, dict):
+            nested = ((cand.get("content") or {}) or {}).get("parts") or []
+            parts.extend(nested)
+            continue
+        content = getattr(cand, "content", None)
+        cand_parts = getattr(content, "parts", None) if content is not None else None
+        if cand_parts:
+            parts.extend(list(cand_parts))
+    seen: set[int] = set()
+    for part in parts:
+        ident = id(part)
+        if ident in seen:
+            continue
+        seen.add(ident)
+        inline = None
+        if isinstance(part, dict):
+            inline = part.get("inline_data") or part.get("inlineData")
+        else:
+            inline = getattr(part, "inline_data", None) or getattr(part, "inlineData", None)
+        if inline is None:
+            continue
+        data = None
+        if isinstance(inline, dict):
+            data = inline.get("data") or inline.get("image_bytes")
+        else:
+            data = getattr(inline, "data", None) or getattr(inline, "image_bytes", None)
+        raw = _as_bytes(data)
+        if raw:
+            return raw
+        as_image = getattr(part, "as_image", None)
+        if callable(as_image):
+            try:
+                image = as_image()
+                for attr in ("image_bytes", "data", "_bytes"):
+                    raw = _as_bytes(getattr(image, attr, None) if image is not None else None)
+                    if raw:
+                        return raw
+            except Exception:  # noqa: BLE001
+                continue
+    return None
 
-    import requests
 
+def extract_inline_image_bytes_rest(payload: dict[str, Any]) -> bytes | None:
+    return extract_inline_image_bytes(
+        {
+            "candidates": payload.get("candidates") or [],
+        }
+    )
+
+
+def build_image_gen_config() -> Any:
+    from google.genai import types
+
+    kwargs: dict[str, Any] = {"response_modalities": ["IMAGE", "TEXT"]}
+    image_config_cls = getattr(types, "ImageConfig", None)
+    if image_config_cls is not None:
+        try:
+            kwargs["image_config"] = image_config_cls(aspect_ratio="3:4")
+        except TypeError:
+            pass
     try:
-        res = requests.post(
-            IMAGEN_REST,
-            params={"key": api_key},
-            json={
-                "instances": [{"prompt": prompt}],
-                "parameters": {
-                    "sampleCount": 1,
-                    "aspectRatio": "3:4",
-                    "personGeneration": "dont_allow",
-                },
-            },
-            timeout=120,
-        )
-        if res.status_code >= 400:
-            print(f"Imagen REST HTTP {res.status_code}", file=sys.stderr)
-            return None
-        preds = (res.json() or {}).get("predictions") or []
-        if not preds:
-            return None
-        b64 = preds[0].get("bytesBase64Encoded") or preds[0].get("bytes")
-        if not b64:
-            return None
-        return base64.b64decode(b64)
-    except Exception as exc:  # noqa: BLE001
-        print(f"Imagen REST hata: {type(exc).__name__}", file=sys.stderr)
+        return types.GenerateContentConfig(**kwargs)
+    except TypeError:
+        return types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
+
+
+def generate_image_sdk(api_key: str, prompt: str) -> bytes | None:
+    try:
+        from google import genai
+    except ImportError:
+        print("google-genai yok", file=sys.stderr)
         return None
+    try:
+        client = genai.Client(api_key=api_key)
+        cfg = build_image_gen_config()
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
+        return None
+    for model in IMAGE_MODELS:
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=[prompt],
+                config=cfg,
+            )
+            data = extract_inline_image_bytes(response)
+            if data:
+                print(f"görsel modeli: {model}")
+                return data
+            print(f"{model} generate_content görsel yok", file=sys.stderr)
+        except Exception:  # noqa: BLE001
+            print(f"görsel generate_content hata: {model}", file=sys.stderr)
+            traceback.print_exc()
+    return None
+
+
+def generate_image_rest(api_key: str, prompt: str) -> bytes | None:
+    """Aynı generateContent uç noktası (eski Imagen :predict değil)."""
+    try:
+        import requests
+    except ImportError:
+        return None
+    body = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "responseModalities": ["IMAGE", "TEXT"],
+            "imageConfig": {"aspectRatio": "3:4"},
+        },
+    }
+    for model in IMAGE_MODELS:
+        try:
+            url = GEMINI_GENERATE.format(model=model)
+            res = requests.post(
+                url,
+                headers={
+                    "x-goog-api-key": api_key,
+                    "Content-Type": "application/json",
+                },
+                json=body,
+                timeout=120,
+            )
+            if res.status_code >= 400:
+                print(f"{model} generateContent HTTP {res.status_code}", file=sys.stderr)
+                continue
+            data = extract_inline_image_bytes_rest(res.json() if res.content else {})
+            if data:
+                print(f"görsel modeli: {model} (REST)")
+                return data
+        except Exception:  # noqa: BLE001
+            print(f"görsel REST hata: {model}", file=sys.stderr)
+            traceback.print_exc()
+    return None
 
 
 def generate_image(api_key: str, prompt: str) -> bytes | None:
-    png = imagen_sdk(api_key, prompt)
-    if png:
-        return png
-    return imagen_rest(api_key, prompt)
+    data = generate_image_sdk(api_key, prompt)
+    if data:
+        return data
+    return generate_image_rest(api_key, prompt)
 
 
 def looks_jpeg(data: bytes) -> bool:
@@ -463,15 +610,25 @@ def generate_one(
             print(f"atlandi (var) {found}")
             return "skip"
 
-    prompt = gemini_writer_prompt(api_key, city)
-    data = generate_image(api_key, prompt)
+    try:
+        prompt = gemini_writer_prompt(api_key, city)
+        data = generate_image(api_key, prompt)
+    except Exception:  # noqa: BLE001
+        print(f"görsel üretim istisnası: {city}", file=sys.stderr)
+        traceback.print_exc()
+        return "fail"
     if not data:
-        print(f"Imagen görsel üretmedi: {city}", file=sys.stderr)
+        print(f"görsel üretmedi: {city}", file=sys.stderr)
         return "fail"
 
-    saved = save_poster(dest, data)
-    prompt_path = saved.with_suffix(".prompt.txt")
-    prompt_path.write_text(prompt + "\n", encoding="utf-8")
+    try:
+        saved = save_poster(dest, data)
+        prompt_path = saved.with_suffix(".prompt.txt")
+        prompt_path.write_text(prompt + "\n", encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        print(f"kayıt istisnası: {city}", file=sys.stderr)
+        traceback.print_exc()
+        return "fail"
     print(f"kaydedildi {saved} ({len(data)} bytes)")
     return "ok"
 
@@ -582,8 +739,9 @@ def run(argv: list[str] | None = None) -> int:
                 dry_run=dry_run,
                 skip_existing=skip_existing,
             )
-        except Exception as exc:  # noqa: BLE001
-            print(f"{city} hata: {type(exc).__name__}: {exc}", file=sys.stderr)
+        except Exception:  # noqa: BLE001
+            print(f"{city} hata (devam)", file=sys.stderr)
+            traceback.print_exc()
             status = "fail"
         if status == "ok":
             ok += 1
@@ -593,14 +751,20 @@ def run(argv: list[str] | None = None) -> int:
             fail += 1
             print(f"devam (tek il başarısız): {city}")
         if not dry_run:
-            git_checkpoint(i + 1)
+            try:
+                git_checkpoint(i + 1)
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
         if i + 1 < len(cities) and not dry_run and status != "skip":
             time.sleep(wait)
 
     print(f"ozet ok={ok} skip={skip} fail={fail} total={len(cities)}")
-    write_github_output(cities=cities, ok=ok, fail=fail, skip=skip)
-    if ok + skip == 0:
-        return 1
+    try:
+        write_github_output(cities=cities, ok=ok, fail=fail, skip=skip)
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
+    if fail and ok + skip == 0:
+        print("hiç poster üretilmedi; iş 0 ile biter (tek API hatası job'u düşürmez).", file=sys.stderr)
     return 0
 
 
