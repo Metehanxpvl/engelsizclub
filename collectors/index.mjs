@@ -23,6 +23,11 @@ import {
   isAileEyhgmSourceUrl,
 } from './lib/aile_eyhgm.mjs';
 import {
+  aileCocukDergiListingUrls,
+  extractAileCocukDergiListings,
+  isAileCocukDergiSourceUrl,
+} from './lib/aile_cocuk_dergi.mjs';
+import {
   extractResmiGazeteListings,
   isResmiGazeteSourceUrl,
   resmiGazeteListingUrls,
@@ -45,6 +50,7 @@ const AILE_EYHGM_HTML_MAX_BYTES = 300_000;
 const RESMI_GAZETE_HTML_MAX_BYTES = 300_000;
 const XML_MAX_BYTES = 250_000;
 const MAX_ITEMS_AILE_EYHGM = 20;
+const MAX_ITEMS_AILE_COCUK_DERGI = 8;
 const MAX_ITEMS_RESMI_GAZETE = 20;
 const EXISTING_PAGE = 1000;
 const TBB_INDEX_RE =
@@ -241,7 +247,8 @@ async function refineItem(item, stats) {
   if (!title || !item.sourceUrl) return null;
 
   const blob = `${title} ${summary}`;
-  const keep = classifyKeep(blob);
+  const keep =
+    item.listingKind === 'magazine_issue' ? 'potential' : classifyKeep(blob);
   if (!keep) {
     console.log(`süzgeç elendi: ${title}`);
     return null;
@@ -535,11 +542,13 @@ async function main() {
       stats.neu = items.filter((it) => !known.has(String(it.sourceUrl || ''))).length;
       const cap = isAileEyhgmSourceUrl(source.url)
         ? MAX_ITEMS_AILE_EYHGM
-        : isResmiGazeteSourceUrl(source.url)
-          ? MAX_ITEMS_RESMI_GAZETE
-          : method === 'scrape'
-            ? MAX_ITEMS_SCRAPE
-            : MAX_ITEMS_RSS;
+        : isAileCocukDergiSourceUrl(source.url)
+          ? MAX_ITEMS_AILE_COCUK_DERGI
+          : isResmiGazeteSourceUrl(source.url)
+            ? MAX_ITEMS_RESMI_GAZETE
+            : method === 'scrape'
+              ? MAX_ITEMS_SCRAPE
+              : MAX_ITEMS_RSS;
       let n = 0;
       for (const item of items) {
         if (n >= cap) break;
@@ -594,6 +603,34 @@ async function collectAileEyhgm(source) {
   return items.slice(0, MAX_ITEMS_AILE_EYHGM);
 }
 
+async function collectAileCocukDergi(source) {
+  const pages = aileCocukDergiListingUrls(source.url);
+  const items = [];
+  const seen = new Set();
+  for (const pageUrl of pages) {
+    const html = await fetchText(pageUrl, {
+      maxBytes: AILE_EYHGM_HTML_MAX_BYTES,
+      timeoutMs: 20000,
+      accept: 'text/html, application/xhtml+xml, */*;q=0.5',
+    });
+    const listings = extractAileCocukDergiListings(html, pageUrl, {
+      limit: MAX_ITEMS_AILE_COCUK_DERGI,
+    });
+    for (const item of listings) {
+      if (seen.has(item.sourceUrl)) continue;
+      seen.add(item.sourceUrl);
+      items.push({
+        ...item,
+        sourceName: source.name,
+        sourceId: source.id,
+      });
+    }
+    await sleep(200);
+  }
+  console.log(`aile çocuk dergi: ${source.name} ${items.length}`);
+  return items.slice(0, MAX_ITEMS_AILE_COCUK_DERGI);
+}
+
 async function collectResmiGazete(source) {
   const pages = resmiGazeteListingUrls(source.url);
   const items = [];
@@ -625,6 +662,9 @@ async function collectResmiGazete(source) {
 async function collectSourceItems(source, method, existing) {
   if (method === 'scrape' && isAileEyhgmSourceUrl(source.url)) {
     return collectAileEyhgm(source);
+  }
+  if (method === 'scrape' && isAileCocukDergiSourceUrl(source.url)) {
+    return collectAileCocukDergi(source);
   }
   if (method === 'scrape' && isResmiGazeteSourceUrl(source.url)) {
     return collectResmiGazete(source);

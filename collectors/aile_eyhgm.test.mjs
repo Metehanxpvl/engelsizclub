@@ -29,11 +29,17 @@ const FIXTURE = `
 `;
 
 describe('isAileEyhgmSourceUrl', () => {
-  it('accepts only aile.gov.tr /eyhgm paths', () => {
+  it('accepts EYHGM paths and bakanlık /duyurular, not homepage', () => {
     assert.equal(isAileEyhgmSourceUrl('https://www.aile.gov.tr/eyhgm'), true);
     assert.equal(isAileEyhgmSourceUrl('https://www.aile.gov.tr/eyhgm/haberler'), true);
+    assert.equal(isAileEyhgmSourceUrl('https://www.aile.gov.tr/duyurular'), true);
+    assert.equal(isAileEyhgmSourceUrl('https://aile.gov.tr/duyurular'), true);
     assert.equal(isAileEyhgmSourceUrl('https://www.aile.gov.tr/'), false);
     assert.equal(isAileEyhgmSourceUrl('https://orgm.meb.gov.tr/'), false);
+    assert.equal(
+      isAileEyhgmSourceUrl('https://ailecocuk.aile.gov.tr/dergimiz?lang=tr'),
+      false,
+    );
   });
 });
 
@@ -45,6 +51,9 @@ describe('aileEyhgmListingUrls', () => {
     ]);
     assert.deepEqual(aileEyhgmListingUrls('https://www.aile.gov.tr/eyhgm/haberler'), [
       'https://www.aile.gov.tr/eyhgm/haberler',
+    ]);
+    assert.deepEqual(aileEyhgmListingUrls('https://aile.gov.tr/duyurular'), [
+      'https://www.aile.gov.tr/duyurular',
     ]);
   });
 });
@@ -77,5 +86,40 @@ describe('extractAileEyhgmListings', () => {
       false,
     );
     assert.equal(items.every((i) => isDisabilityOpportunity(i.title)), true);
+  });
+
+  it('parses bakanlık /duyurular cards and keeps EKPSS, drops personel alımı', () => {
+    const html = `
+<article id="anouncements-list">
+  <div class="announcement-col">
+    <a href="/duyurular/2026-1-ekpss-kura-ile-engelli-kamu-personeli-yerlestirme-sonucu/" title="2026-1 EKPSS/Kura ile Engelli Kamu Personeli Yerleştirme Sonucu">
+      <div class="date">
+        <span class="day">14</span>
+        <span class="moon">Eylül</span>
+        <span class="year">2026</span>
+      </div>
+      <span class="title">2026-1 EKPSS/Kura ile Engelli Kamu Personeli Yerleştirme Sonucu</span>
+    </a>
+  </div>
+  <div class="announcement-col">
+    <a href="/duyurular/aile-ve-sosyal-hizmetler-bakanligi-680-sozlesmeli-personel-alim-ilani/" title="680 Sözleşmeli Personel Alım İlanı">
+      <span class="title">680 Sözleşmeli Personel Alım İlanı</span>
+    </a>
+  </div>
+  <a href="/duyurular">Duyurular</a>
+</article>`;
+    const items = extractAileEyhgmListings(html, 'https://www.aile.gov.tr/duyurular');
+    const urls = items.map((i) => i.sourceUrl);
+    assert.ok(
+      urls.includes(
+        'https://www.aile.gov.tr/duyurular/2026-1-ekpss-kura-ile-engelli-kamu-personeli-yerlestirme-sonucu/',
+      ),
+    );
+    assert.equal(
+      urls.some((u) => u.includes('sozlesmeli-personel')),
+      false,
+    );
+    assert.equal(urls.includes('https://www.aile.gov.tr/duyurular'), false);
+    assert.equal(items[0].publishedAt.slice(0, 10), '2026-09-14');
   });
 });

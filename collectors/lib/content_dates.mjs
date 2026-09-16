@@ -330,6 +330,21 @@ export function looksLikeEventText(text) {
  * }}
  */
 export function evaluateFreshness(item = {}, { now = new Date(), html = '' } = {}) {
+  if (item.listingKind === 'magazine_issue') {
+    const today = utcYmd(now);
+    return {
+      action: 'keep',
+      reason: 'magazine_listing',
+      dateStatus: 'recent',
+      contentKind: 'recent',
+      publishedAt: today ? `${today}T00:00:00.000Z` : null,
+      updatedAt: null,
+      deadlineAt: null,
+      eventAt: null,
+      isRecent: true,
+      isActiveOpportunity: false,
+    };
+  }
   const page = html ? extractPageDates(html) : {};
   const picked = pickContentDate({ ...item, ...page });
   const blob = `${item.title || ''} ${item.summary || ''} ${
