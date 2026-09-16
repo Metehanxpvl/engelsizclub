@@ -137,6 +137,12 @@ const _tables = <AppLang, Map<String, String>>{
     'science_admin_filter_high': 'Tedavi umudu yüksek',
     'science_admin_filter_clinical': 'Klinik çalışma',
     'science_admin_filter_pediatric': 'Çocuk',
+    'city_poster_admin_title': 'Müze gezi posterleri',
+    'city_poster_admin_sub': '81 il · GitHub Actions çıktısı',
+    'city_poster_admin_count': '{n} / {total} hazır',
+    'city_poster_admin_empty':
+        'Henüz kayıtlı poster yok. Actions → Generate city museum posters çalıştırın; görseller output/ klasörüne düşünce burada görünür.',
+    'city_poster_admin_run': 'Action’ı aç',
   },
   AppLang.en: {
     'nav_home': 'Home',
@@ -247,6 +253,12 @@ const _tables = <AppLang, Map<String, String>>{
     'science_admin_filter_high': 'High treatment potential',
     'science_admin_filter_clinical': 'Clinical trial',
     'science_admin_filter_pediatric': 'Pediatric',
+    'city_poster_admin_title': 'Museum travel posters',
+    'city_poster_admin_sub': '81 provinces · GitHub Actions output',
+    'city_poster_admin_count': '{n} / {total} ready',
+    'city_poster_admin_empty':
+        'No posters saved yet. Run Actions → Generate city museum posters; files in output/ will appear here.',
+    'city_poster_admin_run': 'Open Action',
   },
   AppLang.de: {
     'nav_home': 'Start',
@@ -357,6 +369,12 @@ const _tables = <AppLang, Map<String, String>>{
     'science_admin_filter_high': 'Hohes Behandlungspotenzial',
     'science_admin_filter_clinical': 'Klinische Studie',
     'science_admin_filter_pediatric': 'Kinder',
+    'city_poster_admin_title': 'Museum-Reiseposter',
+    'city_poster_admin_sub': '81 Provinzen · GitHub Actions',
+    'city_poster_admin_count': '{n} / {total} fertig',
+    'city_poster_admin_empty':
+        'Noch keine Poster. Actions → Generate city museum posters starten; Dateien in output/ erscheinen hier.',
+    'city_poster_admin_run': 'Action öffnen',
   },
   AppLang.ar: {
     'nav_home': 'الرئيسية',
@@ -467,6 +485,12 @@ const _tables = <AppLang, Map<String, String>>{
     'science_admin_filter_high': 'إمكانية علاجية عالية',
     'science_admin_filter_clinical': 'دراسة سريرية',
     'science_admin_filter_pediatric': 'أطفال',
+    'city_poster_admin_title': 'ملصقات زيارة المتاحف',
+    'city_poster_admin_sub': '81 محافظة · GitHub Actions',
+    'city_poster_admin_count': '{n} / {total} جاهز',
+    'city_poster_admin_empty':
+        'لا ملصقات بعد. شغّل Actions → Generate city museum posters وستظهر ملفات output/ هنا.',
+    'city_poster_admin_run': 'افتح الإجراء',
   },
   AppLang.fr: {
     'nav_home': 'Accueil',
@@ -577,5 +601,11 @@ const _tables = <AppLang, Map<String, String>>{
     'science_admin_filter_high': 'Fort potentiel thérapeutique',
     'science_admin_filter_clinical': 'Essai clinique',
     'science_admin_filter_pediatric': 'Pédiatrie',
+    'city_poster_admin_title': 'Affiches musée',
+    'city_poster_admin_sub': '81 provinces · GitHub Actions',
+    'city_poster_admin_count': '{n} / {total} prêts',
+    'city_poster_admin_empty':
+        'Aucune affiche. Lancez Actions → Generate city museum posters ; les fichiers output/ apparaîtront ici.',
+    'city_poster_admin_run': 'Ouvrir l’Action',
   },
 };
