@@ -15,6 +15,22 @@ void main() {
       hostedHtmlWizardUrl('https://www.engelsizclub.com/destek-sorgu.html'),
       kDestekSorguHtmlUrl,
     );
+    expect(
+      hostedHtmlWizardUrl('https://engelsizclub.com/destek-sorgu.html'),
+      kDestekSorguHtmlUrl,
+    );
+
+    final fromUrlCol = MoreMenuItem.fromJson({
+      'id': 15,
+      'title': 'Destek Sorgulama',
+      'link_type': 'url',
+      'url': 'https://www.engelsizclub.com/destek-sorgu.html',
+      'icon': 'calculate',
+      'sort_order': 22,
+      'is_active': true,
+    });
+    expect(fromUrlCol.isUrl, isTrue);
+    expect(fromUrlCol.link, kDestekSorguHtmlUrl);
 
     final item = MoreMenuItem.fromJson({
       'id': 40,

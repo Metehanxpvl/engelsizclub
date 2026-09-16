@@ -49,8 +49,10 @@ class InAppWebPage extends StatefulWidget {
 
     if (!context.mounted) return;
     // Destek / Evde eğitim: leave the SPA so Firebase serves the .html file.
+    // Always return — never iframe/router, even if assign is intercepted.
     if (kIsWeb && hostedHtmlWizardUrl(uri.toString()) != null) {
-      if (openTopLevelUrl(uri.toString())) return;
+      openTopLevelUrl(uri.toString());
+      return;
     }
     if (_isPdfUrl(uri)) {
       try {

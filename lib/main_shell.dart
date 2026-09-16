@@ -947,6 +947,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
     final route = item.routeKey;
     final link = route ?? item.link.trim();
+    final wizardFromRoute = hostedHtmlWizardUrl(link);
+    if (wizardFromRoute != null) {
+      if (!mounted) return;
+      await InAppWebPage.open(
+        context,
+        title: item.title,
+        url: wizardFromRoute,
+      );
+      return;
+    }
 
     final extraApp = item.isUrl ||
         link == 'aile_kocu' ||
@@ -955,8 +965,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         link == 'boyama' ||
         link.startsWith('http') ||
         link.startsWith('/');
-    if (_isGuest && extraApp && link != 'haklar' && link != 'kartlar' &&
-        link != 'mchat' && link != 'cvi' && link != 'cvi2') {
+    if (_isGuest &&
+        extraApp &&
+        hostedHtmlWizardUrl(item.link) == null &&
+        hostedHtmlWizardUrl(link) == null &&
+        link != 'haklar' &&
+        link != 'kartlar' &&
+        link != 'mchat' &&
+        link != 'cvi' &&
+        link != 'cvi2') {
       final ok = await GuestLimitStore.allowTimedTab('daha_fazlasi');
       if (!ok) {
         if (mounted) {

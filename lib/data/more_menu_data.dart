@@ -91,7 +91,8 @@ class MoreMenuItem {
   }
 
   factory MoreMenuItem.fromJson(Map<String, dynamic> json) {
-    final rawLink = json['link']?.toString() ?? '';
+    final rawLink =
+        json['link']?.toString() ?? json['url']?.toString() ?? '';
     var linkType =
         (json['link_type']?.toString() ?? 'url').trim().toLowerCase();
     final parentRaw = json['parent_id'];
@@ -177,6 +178,7 @@ const kDestekSorguHtmlUrl = '$kEngelsizClubOrigin/destek-sorgu.html';
 const kEvdeEgitimHtmlUrl = '$kEngelsizClubOrigin/evde-egitim.html';
 
 /// Destek Sorgu / Evde Eğitim: gerçek `.html` dosyası (Flutter route değil).
+/// Matches live Supabase `link` values (absolute https, /path, or .html).
 String? hostedHtmlWizardUrl(String raw) {
   var s = raw.trim().toLowerCase().replaceAll('\\', '/');
   if (s.isEmpty) return null;
@@ -195,10 +197,11 @@ String? hostedHtmlWizardUrl(String raw) {
   if (path.endsWith('/')) path = path.substring(0, path.length - 1);
 
   final compact = path.replaceAll('_', '-').replaceAll('.html', '');
-  if (compact == 'destek-sorgu' || compact == 'desteksorgu') {
+  final hay = '$compact $path $s'.replaceAll('_', '-');
+  if (hay.contains('destek-sorgu') || hay.contains('desteksorgu')) {
     return kDestekSorguHtmlUrl;
   }
-  if (compact == 'evde-egitim' || compact == 'evdeegitim') {
+  if (hay.contains('evde-egitim') || hay.contains('evdeegitim')) {
     return kEvdeEgitimHtmlUrl;
   }
   return null;
