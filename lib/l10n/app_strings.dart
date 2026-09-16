@@ -150,6 +150,10 @@ const _tables = <AppLang, Map<String, String>>{
     'duyuru_sort_newest': 'Yeniden eskiye',
     'duyuru_sort_oldest': 'Eskiden yeniye',
     'duyuru_all_empty': 'Şu an görüntülenecek duyuru yok.',
+    'download_app_prompt': 'Uygulamayı indirmek ister misiniz?',
+    'download_app_later': 'Şimdi değil',
+    'download_on_google_play': 'Google Play\'den indir',
+    'download_on_app_store': 'App Store\'dan indir',
   },
   AppLang.en: {
     'nav_home': 'Home',
@@ -273,6 +277,10 @@ const _tables = <AppLang, Map<String, String>>{
     'duyuru_sort_newest': 'Newest first',
     'duyuru_sort_oldest': 'Oldest first',
     'duyuru_all_empty': 'No announcements to show right now.',
+    'download_app_prompt': 'Would you like to download the app?',
+    'download_app_later': 'Not now',
+    'download_on_google_play': 'Get it on Google Play',
+    'download_on_app_store': 'Download on the App Store',
   },
   AppLang.de: {
     'nav_home': 'Start',
@@ -396,6 +404,10 @@ const _tables = <AppLang, Map<String, String>>{
     'duyuru_sort_newest': 'Neueste zuerst',
     'duyuru_sort_oldest': 'Älteste zuerst',
     'duyuru_all_empty': 'Derzeit keine Mitteilungen.',
+    'download_app_prompt': 'Möchten Sie die App herunterladen?',
+    'download_app_later': 'Jetzt nicht',
+    'download_on_google_play': 'Jetzt bei Google Play',
+    'download_on_app_store': 'Laden im App Store',
   },
   AppLang.ar: {
     'nav_home': 'الرئيسية',
@@ -519,6 +531,10 @@ const _tables = <AppLang, Map<String, String>>{
     'duyuru_sort_newest': 'الأحدث أولاً',
     'duyuru_sort_oldest': 'الأقدم أولاً',
     'duyuru_all_empty': 'لا توجد إعلانات للعرض حالياً.',
+    'download_app_prompt': 'هل تريد تنزيل التطبيق؟',
+    'download_app_later': 'ليس الآن',
+    'download_on_google_play': 'احصل عليه من Google Play',
+    'download_on_app_store': 'حمّل من App Store',
   },
   AppLang.fr: {
     'nav_home': 'Accueil',
@@ -642,5 +658,9 @@ const _tables = <AppLang, Map<String, String>>{
     'duyuru_sort_newest': 'Plus récent',
     'duyuru_sort_oldest': 'Plus ancien',
     'duyuru_all_empty': 'Aucune annonce à afficher pour le moment.',
+    'download_app_prompt': 'Souhaitez-vous télécharger l’application ?',
+    'download_app_later': 'Pas maintenant',
+    'download_on_google_play': 'Disponible sur Google Play',
+    'download_on_app_store': 'Télécharger dans l’App Store',
   },
 };
