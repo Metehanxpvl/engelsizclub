@@ -7,10 +7,16 @@ import '../../data/turkish_cities_data.dart';
 const kCityPosterGithubRepo = 'Metehanxpvl/engelsizclub';
 const kCityPosterWorkflowUrl =
     'https://github.com/$kCityPosterGithubRepo/actions/workflows/generate_city_poster.yml';
-const kCityPosterContentsUrl =
-    'https://api.github.com/repos/$kCityPosterGithubRepo/contents/output';
-const kCityPosterRunsUrl =
-    'https://api.github.com/repos/$kCityPosterGithubRepo/actions/workflows/generate_city_poster.yml/runs?per_page=1';
+const kCityPosterIndexRawUrl =
+    'https://raw.githubusercontent.com/$kCityPosterGithubRepo/main/output/index.json';
+const kCityPosterIndexCdnUrl =
+    'https://cdn.jsdelivr.net/gh/$kCityPosterGithubRepo@main/output/index.json';
+
+/// CORS-friendly index URLs (no GitHub Contents API — browser preflight fails).
+const kCityPosterIndexUrls = <String>[
+  kCityPosterIndexRawUrl,
+  kCityPosterIndexCdnUrl,
+];
 
 final _fileRe = RegExp(
   r'^([a-z0-9]+)_muze_gezisi_(\d{4}-\d{2}-\d{2})\.(jpg|jpeg|png)$',
@@ -47,6 +53,11 @@ String cityPosterCdnUrl(String filename) {
   return 'https://cdn.jsdelivr.net/gh/$kCityPosterGithubRepo@main/output/$safe';
 }
 
+String cityPosterRawUrl(String filename) {
+  final safe = Uri.encodeComponent(filename);
+  return 'https://raw.githubusercontent.com/$kCityPosterGithubRepo/main/output/$safe';
+}
+
 class CityPosterItem {
   const CityPosterItem({
     required this.city,
@@ -72,6 +83,8 @@ class CityPosterRunStatus {
     this.headSha,
     this.updatedAt,
     this.runNumber,
+    this.ok,
+    this.fail,
   });
 
   final String conclusion;
@@ -79,8 +92,12 @@ class CityPosterRunStatus {
   final String? headSha;
   final DateTime? updatedAt;
   final int? runNumber;
+  final int? ok;
+  final int? fail;
 
-  bool get succeeded => conclusion.toLowerCase() == 'success';
+  bool get succeeded => conclusion.toLowerCase() == 'success' ||
+      conclusion.toLowerCase() == 'ok' ||
+      conclusion.toLowerCase() == 'ready';
 }
 
 class CityPosterSnapshot {
@@ -95,43 +112,72 @@ class CityPosterSnapshot {
   int get readyCount => items.where((e) => e.hasImage).length;
 }
 
+class CityPosterIndexParse {
+  const CityPosterIndexParse({
+    required this.posters,
+    this.run,
+  });
+
+  final List<CityPosterItem> posters;
+  final CityPosterRunStatus? run;
+}
+
 typedef CityPosterHttpGet = Future<String> Function(Uri uri);
 
 class CityPosterCatalog {
-  CityPosterCatalog({CityPosterHttpGet? get}) : _get = get ?? _githubGet;
+  CityPosterCatalog({CityPosterHttpGet? get}) : _get = get ?? _plainGet;
 
   final CityPosterHttpGet _get;
 
-  static Future<String> _githubGet(Uri uri) async {
-    final res = await http.get(
-      uri,
-      headers: const {
-        'Accept': 'application/vnd.github+json',
-        'User-Agent': 'engelsizclub-city-posters',
-      },
-    );
+  /// No GitHub-specific headers — those trigger a CORS preflight that
+  /// api.github.com / raw.githubusercontent.com may reject from engelsizclub.com.
+  static Future<String> _plainGet(Uri uri) async {
+    final res = await http.get(uri);
     if (res.statusCode >= 400) {
-      throw StateError('GitHub HTTP ${res.statusCode}');
+      throw StateError('HTTP ${res.statusCode} ${uri.path}');
     }
     return res.body;
   }
 
+  List<String> _indexUrls() {
+    final out = [...kCityPosterIndexUrls];
+    try {
+      if (Uri.base.hasScheme &&
+          (Uri.base.scheme == 'http' || Uri.base.scheme == 'https')) {
+        out.add(Uri.base.resolve('output/index.json').toString());
+      }
+    } catch (_) {}
+    return out;
+  }
+
   Future<CityPosterSnapshot> load() async {
-    List<CityPosterItem> files = const [];
-    try {
-      files = parseGithubOutputListing(await _get(Uri.parse(kCityPosterContentsUrl)));
-    } catch (_) {
-      files = const [];
-    }
-    CityPosterRunStatus? run;
-    try {
-      run = parseLatestWorkflowRun(await _get(Uri.parse(kCityPosterRunsUrl)));
-    } catch (_) {
-      run = null;
+    final bust = DateTime.now().millisecondsSinceEpoch.toString();
+    Object? lastErr;
+    for (final raw in _indexUrls()) {
+      try {
+        final parsedBase = Uri.parse(raw);
+        final uri = parsedBase.replace(
+          queryParameters: {
+            ...parsedBase.queryParameters,
+            't': bust,
+          },
+        );
+        final parsed = parseCityPosterIndex(await _get(uri));
+        return CityPosterSnapshot(
+          items: mergeCityPosters(cities: kCityNames, files: parsed.posters),
+          run: parsed.run,
+        );
+      } catch (e) {
+        lastErr = e;
+      }
     }
     return CityPosterSnapshot(
-      items: mergeCityPosters(cities: kCityNames, files: files),
-      run: run,
+      items: mergeCityPosters(cities: kCityNames, files: const []),
+      run: CityPosterRunStatus(
+        conclusion: 'index-error',
+        htmlUrl: kCityPosterWorkflowUrl,
+        headSha: lastErr?.toString(),
+      ),
     );
   }
 }
@@ -153,12 +199,60 @@ List<CityPosterItem> parseGithubOutputListing(String body) {
         city: slug,
         slug: slug,
         filename: name,
-        imageUrl: download.isNotEmpty ? download : cityPosterCdnUrl(name),
+        imageUrl: download.isNotEmpty ? download : cityPosterRawUrl(name),
         date: date,
       ),
     );
   }
   return out;
+}
+
+CityPosterIndexParse parseCityPosterIndex(String body) {
+  final decoded = jsonDecode(body);
+  if (decoded is List) {
+    return CityPosterIndexParse(posters: parseGithubOutputListing(body));
+  }
+  if (decoded is! Map) {
+    return const CityPosterIndexParse(posters: []);
+  }
+  final postersRaw = decoded['posters'];
+  final files = <CityPosterItem>[];
+  if (postersRaw is List) {
+    for (final row in postersRaw) {
+      if (row is! Map) continue;
+      final file =
+          (row['file'] ?? row['filename'] ?? row['name'])?.toString() ?? '';
+      final match = _fileRe.firstMatch(file.toLowerCase());
+      var slug = (row['slug']?.toString() ?? '').trim().toLowerCase();
+      if (slug.isEmpty && match != null) slug = match.group(1)!;
+      if (slug.isEmpty || file.isEmpty) continue;
+      final date = (row['date']?.toString() ?? match?.group(2) ?? '').trim();
+      final url = (row['url']?.toString() ?? '').trim();
+      files.add(
+        CityPosterItem(
+          city: row['city']?.toString() ?? slug,
+          slug: slug,
+          filename: file,
+          imageUrl: url.isNotEmpty ? url : cityPosterRawUrl(file),
+          date: date.isEmpty ? null : date,
+        ),
+      );
+    }
+  }
+  final generatedAt = decoded['generated_at']?.toString() ?? '';
+  final status = decoded['status']?.toString() ??
+      decoded['conclusion']?.toString() ??
+      (files.isEmpty ? 'empty' : 'ok');
+  return CityPosterIndexParse(
+    posters: files,
+    run: CityPosterRunStatus(
+      conclusion: status,
+      htmlUrl: kCityPosterWorkflowUrl,
+      updatedAt: DateTime.tryParse(generatedAt),
+      ok: (decoded['ok'] as num?)?.toInt(),
+      fail: (decoded['fail'] as num?)?.toInt(),
+    ),
+  );
 }
 
 CityPosterRunStatus? parseLatestWorkflowRun(String body) {

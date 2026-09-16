@@ -1,3 +1,4 @@
+import json
 import sys
 import unittest
 from datetime import date
@@ -16,8 +17,10 @@ from generate_city_poster import (
     locative,
     poster_filename,
     resolve_city,
+    scan_output_posters,
     slug_city,
     tr_upper,
+    write_index,
 )
 
 
@@ -80,6 +83,10 @@ class CityPosterHelpersTest(unittest.TestCase):
         self.assertIn("gemini-3.1-flash-image", IMAGE_MODELS)
         self.assertNotIn("imagen-3.0-generate-002", IMAGE_MODELS)
         self.assertNotIn("gemini-2.0-flash-preview-image-generation", IMAGE_MODELS)
+        src = Path(__file__).with_name("generate_city_poster.py").read_text(encoding="utf-8")
+        self.assertIn('["IMAGE"]', src)
+        self.assertIn("index.json", src)
+        self.assertIn("scan_output_posters", src)
 
     def test_no_legacy_imagen_calls(self):
         src = Path(__file__).with_name("generate_city_poster.py").read_text(encoding="utf-8")
@@ -112,6 +119,26 @@ class CityPosterHelpersTest(unittest.TestCase):
             ]
         }
         self.assertEqual(extract_inline_image_bytes(rest), png)
+
+    def test_index_latest_date_wins(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as raw:
+            out = Path(raw)
+            (out / "adana_muze_gezisi_2026-09-01.jpg").write_bytes(b"old")
+            (out / "adana_muze_gezisi_2026-09-16.jpg").write_bytes(b"new")
+            (out / "gaziantep_muze_gezisi_2026-09-16.png").write_bytes(b"g")
+            (out / "index.json").write_text("{}", encoding="utf-8")
+            posters = scan_output_posters(out)
+            by_slug = {row["slug"]: row for row in posters}
+            self.assertEqual(by_slug["adana"]["date"], "2026-09-16")
+            self.assertEqual(by_slug["adana"]["file"], "adana_muze_gezisi_2026-09-16.jpg")
+            self.assertTrue(by_slug["gaziantep"]["file"].endswith(".png"))
+            path = write_index(out, ok=2, fail=0, skip=0, total=81)
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["ok"], 2)
+            self.assertEqual(len(payload["posters"]), 2)
+            self.assertEqual(payload["posters"][0]["city"], "Adana")
 
 
 if __name__ == "__main__":

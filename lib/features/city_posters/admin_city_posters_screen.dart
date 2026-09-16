@@ -104,6 +104,20 @@ class _AdminCityPostersScreenState extends State<AdminCityPostersScreen> {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  String _runLabel(CityPosterRunStatus run) {
+    if (run.conclusion == 'index-error') {
+      return 'Katalog okunamadı. Action çıktısı: output/index.json';
+    }
+    final bits = <String>['Katalog: ${run.conclusion}'];
+    if (run.ok != null) bits.add('${run.ok} görsel');
+    if (run.fail != null && run.fail! > 0) bits.add('${run.fail} eksik');
+    if (run.updatedAt != null) {
+      bits.add(run.updatedAt!.toUtc().toIso8601String().split('T').first);
+    }
+    if (run.runNumber != null) bits.add('#${run.runNumber}');
+    return bits.join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final ready = _snap.readyCount;
@@ -167,9 +181,7 @@ class _AdminCityPostersScreenState extends State<AdminCityPostersScreen> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
                     child: Text(
-                      'Son Action: ${_snap.run!.conclusion}'
-                      '${_snap.run!.runNumber != null ? ' · #${_snap.run!.runNumber}' : ''}'
-                      '${_snap.run!.headSha != null && _snap.run!.headSha!.length >= 7 ? ' · ${_snap.run!.headSha!.substring(0, 7)}' : ''}',
+                      _runLabel(_snap.run!),
                       style: GoogleFonts.nunito(
                         fontSize: 12,
                         color: MetoColors.mutedFg,
