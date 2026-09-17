@@ -285,6 +285,73 @@ void main() {
     );
   });
 
+  test('app search helpers share admin table fields', () {
+    final pubmed = ScientificResearch.fromJson({
+      'id': 'p',
+      'title': 'Serebral palside yürüyüş denemesi',
+      'original_title': 'Gait trial in cerebral palsy',
+      'summary': 'Faz 2 insan çalışması',
+      'pmid': '12345678',
+      'source_url': 'https://pubmed.ncbi.nlm.nih.gov/12345678/',
+      'treatment_potential': 'HIGH_VALUE',
+      'status': 'pending_review',
+    });
+    final trial = ScientificResearch.fromJson({
+      'id': 't',
+      'title': 'Klinik deneme',
+      'nct_id': 'NCT00000001',
+      'source_name': 'ClinicalTrials.gov',
+      'treatment_potential': 'POTENTIAL_VALUE',
+      'status': 'published',
+    });
+    final rejected = ScientificResearch.fromJson({
+      'id': 'r',
+      'title': 'Red',
+      'treatment_potential': 'IRRELEVANT',
+      'status': 'rejected',
+    });
+
+    expect(isScienceAppVisible(pubmed), isTrue);
+    expect(isScienceAppVisible(trial), isTrue);
+    expect(isScienceAppVisible(rejected), isFalse);
+    expect(matchesScienceSearchQuery(pubmed, 'yürüyüş'), isTrue);
+    expect(matchesScienceSearchQuery(pubmed, 'gait'), isTrue);
+    expect(matchesScienceSearchQuery(pubmed, 'otizm'), isFalse);
+    expect(isScienceTrialCard(trial), isTrue);
+    expect(isScienceTrialCard(pubmed), isFalse);
+    expect(scienceResultLink(pubmed), contains('pubmed.ncbi.nlm.nih.gov'));
+    expect(scienceResultLink(trial), contains('clinicaltrials.gov'));
+    expect(kScientificResearchListLimit, 300);
+  });
+
+  test('app and admin read the same scientific_researches table', () {
+    final repo = File(
+      'lib/features/scientific_research/scientific_research_repository.dart',
+    ).readAsStringSync();
+    expect(repo.contains("static const _table = 'scientific_researches';"), isTrue);
+    expect(repo.contains('loadForAdmin('), isTrue);
+    expect(repo.contains('loadForApp('), isTrue);
+    expect(repo.contains(".inFilter('status', const ['pending_review', 'published'])"), isTrue);
+    expect(repo.contains('kScientificResearchListLimit'), isTrue);
+    expect(repo.contains('eutils.ncbi.nlm.nih.gov'), isFalse);
+    expect(RegExp("['\"]papers\\.json['\"]").hasMatch(repo), isFalse);
+    final start = repo.indexOf('Future<List<ScientificResearch>> loadForApp');
+    final next = repo.indexOf('Future<void> updateCopy', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(next, greaterThan(start));
+    final loadForApp = repo.substring(start, next);
+    expect(loadForApp.contains('_requireAdmin()'), isFalse);
+  });
+
+  test('home search uses live scientific_researches not NCBI eutils', () {
+    final src = File('lib/home_page.dart').readAsStringSync();
+    expect(src.contains('ScientificResearchRepository'), isTrue);
+    expect(src.contains('loadForApp('), isTrue);
+    expect(src.contains('eutils.ncbi.nlm.nih.gov'), isFalse);
+    expect(src.contains('clinicaltrials.gov/api/v2'), isFalse);
+    expect(RegExp("['\"]papers\\.json['\"]").hasMatch(src), isFalse);
+  });
+
   test('missing table message points at scientific_researches.sql', () {
     expect(
       isScientificResearchesTableMissing(

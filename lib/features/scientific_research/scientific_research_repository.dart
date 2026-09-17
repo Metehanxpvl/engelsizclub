@@ -39,12 +39,35 @@ class ScientificResearchRepository {
           break;
       }
       final rows = await withNetworkTimeout<List<dynamic>>(
-        q.order('created_at', ascending: false).limit(300),
+        q.order('created_at', ascending: false).limit(kScientificResearchListLimit),
       );
       return rows
           .whereType<Map>()
           .map((e) => ScientificResearch.fromJson(Map<String, dynamic>.from(e)))
           .where((e) => matchesScienceAdminFilter(e, filter))
+          .toList();
+    } catch (e) {
+      throw StateError(scientificResearchLoadError(e));
+    }
+  }
+
+  /// Ana sayfa araması: admin ile aynı tablo, taze select (liste önbelleği yok).
+  /// NCBI / ClinicalTrials canlı API ve papers.json kullanılmaz.
+  Future<List<ScientificResearch>> loadForApp({String query = ''}) async {
+    try {
+      final rows = await withNetworkTimeout<List<dynamic>>(
+        _db
+            .from(_table)
+            .select(_cols)
+            .inFilter('status', const ['pending_review', 'published'])
+            .order('created_at', ascending: false)
+            .limit(kScientificResearchListLimit),
+      );
+      return rows
+          .whereType<Map>()
+          .map((e) => ScientificResearch.fromJson(Map<String, dynamic>.from(e)))
+          .where(isScienceAppVisible)
+          .where((e) => matchesScienceSearchQuery(e, query))
           .toList();
     } catch (e) {
       throw StateError(scientificResearchLoadError(e));
