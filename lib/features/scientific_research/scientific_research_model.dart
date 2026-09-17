@@ -1,11 +1,20 @@
-// Bilimsel araştırma satırı + admin kuyruk yardımcıları.
-// Kullanıcı kütüphanesi (Phase C) burada yok.
+// Bilimsel araştırma satırı + admin kuyruk + uygulama araması.
+// Tek kaynak: public.scientific_researches (collector). papers.json / NCBI yok.
 
 const kScientificResearchStatuses = <String>{
   'pending_review',
   'published',
   'rejected',
 };
+
+/// Uygulama listesi: reddedilmeyen kuyruk. RLS kullanıcıya yalnız published verir.
+const kScientificResearchAppStatuses = <String>{
+  'pending_review',
+  'published',
+};
+
+/// Admin ve uygulama aynı limiti kullanır (taze select, önbellek yok).
+const kScientificResearchListLimit = 300;
 
 /// Onayla asla addDuyuru / FCM çağırmaz.
 const kScientificResearchApproveCreatesDuyuru = false;
@@ -270,6 +279,54 @@ bool isPediatricResearch(ScientificResearch item) {
       p.contains('yes') ||
       p.contains('evet') ||
       p.contains('relevant');
+}
+
+bool isScienceAppVisible(ScientificResearch item) {
+  return kScientificResearchAppStatuses.contains(item.status);
+}
+
+bool matchesScienceSearchQuery(ScientificResearch item, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return true;
+  final hay = [
+    item.title,
+    item.originalTitle,
+    item.summary,
+    item.whyImportant,
+    item.conditions.join(' '),
+    item.categories.join(' '),
+    item.journal,
+    item.sourceName,
+    item.pmid,
+    item.nctId,
+    item.doi,
+  ].join(' ').toLowerCase();
+  return hay.contains(q);
+}
+
+bool isScienceTrialCard(ScientificResearch item) {
+  if (item.nctId.trim().isNotEmpty) return true;
+  return item.sourceName.toLowerCase().contains('clinicaltrial');
+}
+
+String scienceResultLink(ScientificResearch item) {
+  final url = item.sourceUrl.trim();
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  final pmid = item.pmid.trim();
+  if (pmid.isNotEmpty) return 'https://pubmed.ncbi.nlm.nih.gov/$pmid/';
+  final nct = item.nctId.trim();
+  if (nct.isNotEmpty) return 'https://clinicaltrials.gov/study/$nct';
+  final doi = item.doi.trim();
+  if (doi.isNotEmpty) return 'https://doi.org/$doi';
+  return '';
+}
+
+String sciencePaperYear(ScientificResearch item) {
+  final d = item.publicationDate;
+  if (d != null) return '${d.year}';
+  final c = item.createdAt;
+  if (c != null) return '${c.year}';
+  return '';
 }
 
 bool matchesScienceAdminFilter(
