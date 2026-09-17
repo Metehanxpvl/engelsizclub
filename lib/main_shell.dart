@@ -42,6 +42,7 @@ import 'more_menu_store.dart';
 import 'pages/in_app_web_page.dart';
 import 'pages/boyama_page.dart';
 import 'features/scientific_research/admin_science_review_screen.dart';
+import 'features/useful_opportunities/opportunities_screen.dart';
 import 'features/city_posters/admin_city_posters_screen.dart';
 import 'remote/app_screen_config.dart';
 import 'pages/gelisim_etkinlikleri_page.dart';
@@ -4228,9 +4229,26 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: _menuTile(
+              emoji: '🎁',
+              label: 'Fırsatlar ve Destekler',
+              sub: 'Onay kuyruğu · onaylanınca ana sayfa story',
+              highlight: true,
+              onTap: () {
+                unawaited(
+                  OpportunitiesScreen.open(
+                    context,
+                    adminEmail: widget.user.email,
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
               emoji: '🔬',
-              label: S.t('science_admin_title'),
-              sub: S.t('science_admin_sub'),
+              label: 'Bilimsel Araştırmalar',
+              sub: 'Onay kuyruğu · onaylanınca ana sayfa story',
               highlight: true,
               onTap: () {
                 unawaited(
