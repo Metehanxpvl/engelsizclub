@@ -134,8 +134,6 @@ class UsefulContentRepository {
       isActive: true,
       isPopup: false,
       expiresAt: draft.expiresAt,
-      requireImage: draft.requireImage,
-      notify: draft.notify,
     );
     final photo = draft.imageUrl;
     final now = DateTime.now().toUtc().toIso8601String();
