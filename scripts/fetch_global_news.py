@@ -26,8 +26,10 @@ GEMINI_GENERATE = (
     "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 )
 TEXT_MODELS = (
-    "gemini-2.5-flash",
     "gemini-flash-latest",
+    "gemini-3.8-flash",
+    "gemini-flash-lite-latest",
+    "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
 )
 MAX_ITEMS = 180
@@ -111,6 +113,12 @@ SOURCES: tuple[dict[str, Any], ...] = (
 )
 
 _TR_CHARS = re.compile(r"[çğıöşüÇĞİÖŞÜ]")
+_TR_WORDS = re.compile(
+    r"\b(ve|bir|ile|bu|için|icin|olan|olanlar|tedavi|hak|erişilebilir|"
+    r"erisilebilir|engelli|özet|ozet|çalışma|calisma|klinik|genetik|"
+    r"araştırma|arastirma|duyuru|başlık|baslik)\b",
+    re.I,
+)
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")
 
@@ -131,7 +139,29 @@ def strip_html(raw: str) -> str:
 
 
 def looks_turkish(text: str) -> bool:
-    return bool(_TR_CHARS.search(text or ""))
+    t = (text or "").strip()
+    if not t:
+        return False
+    if _TR_CHARS.search(t):
+        return True
+    return bool(_TR_WORDS.search(t))
+
+
+def extract_json_object(text: str) -> dict[str, Any] | None:
+    raw = (text or "").strip()
+    if not raw:
+        return None
+    fenced = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw, re.I)
+    body = (fenced.group(1) if fenced else raw).strip()
+    start = body.find("{")
+    end = body.rfind("}")
+    if start < 0 or end <= start:
+        return None
+    try:
+        data = json.loads(body[start : end + 1])
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def guess_category(title: str, summary: str) -> str:
@@ -289,6 +319,42 @@ def api_key() -> str:
     ).strip()
 
 
+def _candidate_text(payload: dict[str, Any]) -> str:
+    cands = payload.get("candidates") or []
+    if not cands or not isinstance(cands[0], dict):
+        return ""
+    parts = ((cands[0].get("content") or {}).get("parts")) or []
+    chunks: list[str] = []
+    for part in parts:
+        if not isinstance(part, dict):
+            continue
+        text = str(part.get("text") or "").strip()
+        if text:
+            chunks.append(text)
+    return "\n".join(chunks).strip()
+
+
+def _parsed_translation(
+    data: dict[str, Any] | None, title: str, summary: str
+) -> dict[str, str]:
+    if not data:
+        return {}
+    tr_title = str(data.get("title") or "").strip()
+    tr_sum = str(data.get("summary") or "").strip()
+    cat = str(data.get("category") or "").strip().lower()
+    if cat not in CATEGORIES:
+        cat = guess_category(title, summary)
+    if len(tr_title) < 5 or not looks_turkish(tr_title):
+        return {}
+    if tr_sum and not looks_turkish(tr_sum):
+        tr_sum = ""
+    return {
+        "title": tr_title[:280],
+        "summary": tr_sum[:800],
+        "category": cat,
+    }
+
+
 def gemini_translate(key: str, title: str, summary: str) -> dict[str, str]:
     if not key:
         return {}
@@ -299,59 +365,80 @@ def gemini_translate(key: str, title: str, summary: str) -> dict[str, str]:
             "category": guess_category(title, summary),
         }
     brief = (
-        "Translate this disability/accessibility/medical news into Turkish. "
-        "Return ONLY compact JSON: "
+        "Bu engellilik / erişilebilirlik / tıbbi haberi TÜRKÇEYE çevir. "
+        "İngilizce başlığı kopyalama. title ve summary zorunlu Türkçe. "
+        "Yalnız JSON: "
         '{"title":"...","summary":"...","category":'
         '"erisilebilirlik|haklar|tedavi|genetik|noroteknoloji|klinik|diger"}. '
-        "Summary max 400 characters, factual, no medical advice.\n"
+        "Özet en fazla 400 karakter, olgusal, tıbbi tavsiye yok.\n"
         f"Title: {title}\nSummary: {summary}"
     )
+    sdk = _gemini_translate_sdk(key, brief, title, summary)
+    if sdk:
+        return sdk
     try:
         import requests
     except ImportError:
         return {}
+    body = {
+        "contents": [{"role": "user", "parts": [{"text": brief}]}],
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 1024,
+            "responseMimeType": "application/json",
+        },
+    }
     for model in TEXT_MODELS:
         try:
             res = requests.post(
-                GEMINI_GENERATE.format(model=model),
-                headers={
-                    "x-goog-api-key": key,
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "contents": [{"role": "user", "parts": [{"text": brief}]}],
-                    "generationConfig": {
-                        "temperature": 0.2,
-                        "maxOutputTokens": 500,
-                    },
-                },
+                GEMINI_GENERATE.format(model=model) + f"?key={key}",
+                headers={"Content-Type": "application/json"},
+                json=body,
                 timeout=45,
             )
             if res.status_code >= 400:
                 print(f"çeviri HTTP {res.status_code} {model}", file=sys.stderr)
                 continue
             payload = res.json() if res.content else {}
-            cands = payload.get("candidates") or []
-            parts = ((cands[0] or {}).get("content") or {}).get("parts") or []
-            text = "\n".join(
-                str(p.get("text") or "") for p in parts if isinstance(p, dict)
-            )
-            text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
-            data = json.loads(text)
-            tr_title = str(data.get("title") or "").strip()
-            tr_sum = str(data.get("summary") or "").strip()
-            cat = str(data.get("category") or "").strip().lower()
-            if cat not in CATEGORIES:
-                cat = guess_category(title, summary)
-            if len(tr_title) > 4:
-                return {
-                    "title": tr_title[:280],
-                    "summary": tr_sum[:800],
-                    "category": cat,
-                }
+            parsed = extract_json_object(_candidate_text(payload))
+            out = _parsed_translation(parsed, title, summary)
+            if out:
+                return out
         except Exception:  # noqa: BLE001
             print(f"çeviri hata {model}", file=sys.stderr)
             traceback.print_exc()
+    return {}
+
+
+def _gemini_translate_sdk(
+    key: str, brief: str, title: str, summary: str
+) -> dict[str, str]:
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError:
+        return {}
+    try:
+        client = genai.Client(api_key=key)
+    except Exception:  # noqa: BLE001
+        return {}
+    for model in TEXT_MODELS:
+        try:
+            resp = client.models.generate_content(
+                model=model,
+                contents=brief,
+                config=types.GenerateContentConfig(
+                    temperature=0.2,
+                    max_output_tokens=1024,
+                    response_mime_type="application/json",
+                ),
+            )
+            text = str(getattr(resp, "text", None) or "").strip()
+            out = _parsed_translation(extract_json_object(text), title, summary)
+            if out:
+                return out
+        except Exception as exc:  # noqa: BLE001
+            print(f"çeviri sdk {model}: {type(exc).__name__}", file=sys.stderr)
     return {}
 
 
@@ -422,17 +509,45 @@ def build_record(
     }
 
 
+def _source_fields(raw: dict[str, Any]) -> tuple[str, str]:
+    title = str(raw.get("title_original") or raw.get("title") or "").strip()
+    summary = str(
+        raw.get("summary_original") or raw.get("summary") or ""
+    ).strip()
+    return title, summary
+
+
+def _translate_or_empty(key: str, source_name: str, raw: dict[str, str]) -> dict[str, Any] | None:
+    url = (raw.get("url") or "").strip()
+    if not url.startswith("http"):
+        return None
+    translated = gemini_translate(key, raw["title"], raw.get("summary") or "")
+    if not translated:
+        print(f"çeviri yok, atlandı: {raw.get('title', '')[:80]}", file=sys.stderr)
+        return None
+    rec = build_record(source_name, raw, translated)
+    if not looks_turkish(str(rec.get("title") or "")):
+        print(f"hâlâ İngilizce, atlandı: {raw.get('title', '')[:80]}", file=sys.stderr)
+        return None
+    rec["lang"] = "tr"
+    return rec
+
+
 def run(argv: list[str] | None = None) -> int:
     del argv
     out_path = Path(os.environ.get("GLOBAL_NEWS_OUT") or DEFAULT_OUT)
     key = api_key()
     if not key:
-        print("GEMINI_API_KEY yok; İngilizce başlıklarla devam", file=sys.stderr)
+        print("GEMINI_API_KEY yok; Türkçe çeviri yapılamaz.", file=sys.stderr)
+        return 1
     existing = load_existing(out_path)
     collected: list[dict[str, Any]] = []
     seen: set[str] = set()
+    translated_n = 0
+    skipped_n = 0
 
     def add_raw(source_name: str, rows: list[dict[str, str]]) -> None:
+        nonlocal translated_n, skipped_n
         for raw in rows:
             url = (raw.get("url") or "").strip()
             if not url or not url.startswith("http"):
@@ -465,11 +580,16 @@ def run(argv: list[str] | None = None) -> int:
                     )
                 )
                 continue
-            translated = gemini_translate(key, raw["title"], raw.get("summary") or "")
-            if translated:
-                time.sleep(0.8)
-            rec = merge_item(prev, build_record(source_name, raw, translated))
-            collected.append(rec)
+            if prev and looks_turkish(str(prev.get("title") or "")):
+                collected.append(prev)
+                continue
+            rec = _translate_or_empty(key, source_name, raw)
+            if rec is None:
+                skipped_n += 1
+                continue
+            translated_n += 1
+            time.sleep(1.2)
+            collected.append(merge_item(prev, rec))
 
     for source in SOURCES:
         try:
@@ -483,8 +603,32 @@ def run(argv: list[str] | None = None) -> int:
         traceback.print_exc()
 
     for nid, prev in existing.items():
-        if nid not in seen:
+        if nid in seen:
+            continue
+        status = str(prev.get("status") or "")
+        if status in ("published", "rejected") or looks_turkish(
+            str(prev.get("title") or "")
+        ):
             collected.append(prev)
+            continue
+        src_title, src_sum = _source_fields(prev)
+        rec = _translate_or_empty(
+            key,
+            str(prev.get("source_name") or ""),
+            {
+                "title": src_title,
+                "url": str(prev.get("source_url") or ""),
+                "summary": src_sum,
+                "published": str(prev.get("published_at") or ""),
+            },
+        )
+        if rec is None:
+            skipped_n += 1
+            continue
+        translated_n += 1
+        time.sleep(1.2)
+        rec["status"] = status or "pending_review"
+        collected.append(merge_item(prev, rec))
 
     collected.sort(key=lambda e: str(e.get("published_at") or ""), reverse=True)
     collected = collected[:MAX_ITEMS]
@@ -500,7 +644,10 @@ def run(argv: list[str] | None = None) -> int:
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    print(f"yazildi {out_path} count={len(collected)}")
+    print(
+        f"yazildi {out_path} count={len(collected)} "
+        f"ceviri_ok={translated_n} ceviri_atlandi={skipped_n}"
+    )
     return 0
 
 
@@ -509,4 +656,4 @@ if __name__ == "__main__":
         raise SystemExit(run())
     except Exception:  # noqa: BLE001
         traceback.print_exc()
-        raise SystemExit(0)
+        raise SystemExit(1)

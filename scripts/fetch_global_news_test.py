@@ -7,8 +7,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from fetch_global_news import (
     SOURCES,
+    extract_json_object,
     guess_category,
     item_id,
+    looks_turkish,
     merge_item,
     parse_rss,
     strip_html,
@@ -68,6 +70,18 @@ class GlobalNewsHelpersTest(unittest.TestCase):
 
     def test_strip_html(self):
         self.assertEqual(strip_html("<p>Hello &amp; x</p>"), "Hello &amp; x")
+
+    def test_looks_turkish(self):
+        self.assertTrue(looks_turkish("Kafatasındaki gizli bağışıklık organı"))
+        self.assertTrue(looks_turkish("Engelli hakları için yeni yasa"))
+        self.assertFalse(looks_turkish("Hidden immune organ in the skull"))
+
+    def test_extract_json_object(self):
+        data = extract_json_object(
+            'ön\n```json\n{"title":"Türkçe başlık ve özet","summary":"kısa","category":"tedavi"}\n```'
+        )
+        self.assertIsNotNone(data)
+        self.assertEqual(data["title"], "Türkçe başlık ve özet")
 
 
 if __name__ == "__main__":
