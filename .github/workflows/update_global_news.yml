@@ -1,0 +1,53 @@
+# Küresel engelsiz / erişilebilirlik / tedavi haberleri → web/engelsiz-haberler.json
+#
+# Cron 06:30 UTC = 09:30 Türkiye. Kariyer (05:00) ve useful-content (07:30) ile çakışmaz.
+# Elle: Actions → Update global news → Run workflow (main).
+# Secret: GEMINI_API_KEY (yoksa AI_API_KEY) — başlık/özet TR çevirisi.
+# Repo Settings → Actions → Workflow permissions → Read and write.
+name: Update global news
+
+on:
+  schedule:
+    - cron: '30 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-global-news
+  cancel-in-progress: true
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install Python deps
+        run: pip install -U requests google-genai
+      - name: Helper tests
+        working-directory: scripts
+        run: python fetch_global_news_test.py
+      - name: Fetch + translate
+        env:
+          PYTHONUNBUFFERED: '1'
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+        run: python scripts/fetch_global_news.py
+      - name: Commit catalog if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- web/engelsiz-haberler.json
+          if git diff --staged --quiet; then
+            echo "Katalog değişmedi."
+          else
+            git commit -m "chore: refresh global accessibility news catalog"
+            git push
+          fi

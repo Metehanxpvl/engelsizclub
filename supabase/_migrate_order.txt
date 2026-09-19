@@ -65,3 +65,4 @@ kesfet_seed_videos.sql
 etkinlik_admin_notify.sql
 forum_ilan_social_notify.sql
 ilan_teklif_notify.sql
+global_news_overrides.sql

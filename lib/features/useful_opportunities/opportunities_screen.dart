@@ -27,8 +27,9 @@ class OpportunitiesScreen extends StatefulWidget {
     String? adminEmail,
     bool isGuest = false,
     VoidCallback? onRequireLogin,
+    bool reviewQueue = false,
   }) {
-    final child = isAppAdmin(adminEmail)
+    final child = reviewQueue && isAppAdmin(adminEmail)
         ? AdminReviewScreen(adminEmail: adminEmail)
         : OpportunitiesScreen(adminEmail: adminEmail);
     return Navigator.of(context).push<void>(
@@ -149,7 +150,7 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
               controller: _search,
               onSubmitted: (_) => _reload(),
               decoration: InputDecoration(
-                hintText: 'Ara: burs, hak, şehir…',
+                hintText: 'Ara: burs, hak, haber, şehir…',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: IconButton(
                   onPressed: _reload,
@@ -308,6 +309,16 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                                               style: GoogleFonts.nunito(
                                                 height: 1.35,
                                                 color: MetoColors.mutedFg,
+                                              ),
+                                            ),
+                                          ],
+                                          if (item.sourceName.isNotEmpty) ...[
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              item.sourceName,
+                                              style: GoogleFonts.nunito(
+                                                color: MetoColors.mutedFg,
+                                                fontWeight: FontWeight.w700,
                                               ),
                                             ),
                                           ],

@@ -293,6 +293,8 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
   var _uploading = false;
 
   bool get _isInstagram => isInstagramUrl(widget.item.sourceUrl);
+  bool get _skipStoryImage =>
+      _isInstagram || isGlobalNewsUsefulItem(widget.item);
 
   @override
   void initState() {
@@ -440,6 +442,22 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                Chip(
+                  label: Text(item.categoryLabel),
+                  visualDensity: VisualDensity.compact,
+                ),
+                if (isGlobalNewsUsefulItem(item))
+                  Chip(
+                    label: const Text('Küresel haber'),
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
             Text(
               item.title,
               style: GoogleFonts.nunito(
@@ -493,8 +511,10 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
             ),
             const SizedBox(height: 4),
             Text(
-              _isInstagram
-                  ? 'Instagram kaynak — görsel gerekmez (gömülü story). İstersen yine foto yükleyebilirsin.'
+              _skipStoryImage
+                  ? (isGlobalNewsUsefulItem(item)
+                      ? 'Küresel haber — görsel gerekmez. Kaynak bağlantısı kullanıcıya açılır.'
+                      : 'Instagram kaynak — görsel gerekmez (gömülü story). İstersen yine foto yükleyebilirsin.')
                   : 'Güncel Duyurular’daki gibi dairesel görsel gerekir.',
               style: GoogleFonts.nunito(
                 fontSize: 12,
@@ -517,8 +537,8 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
                                 errorBuilder: (_, __, ___) => ColoredBox(
                                   color: MetoColors.muted,
                                   child: Icon(
-                                    _isInstagram
-                                        ? Icons.camera_alt_outlined
+                                    _skipStoryImage
+                                        ? Icons.public
                                         : Icons.campaign_outlined,
                                     color: MetoColors.primary,
                                   ),
@@ -527,8 +547,8 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
                             : ColoredBox(
                                 color: MetoColors.muted,
                                 child: Icon(
-                                  _isInstagram
-                                      ? Icons.camera_alt_outlined
+                                  _skipStoryImage
+                                      ? Icons.public
                                       : Icons.campaign_outlined,
                                   color: MetoColors.primary,
                                 ),
@@ -551,7 +571,7 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
                 ),
               ],
             ),
-            if (!_isInstagram) ...[
+            if (!_skipStoryImage) ...[
               const SizedBox(height: 10),
               TextField(
                 controller: _imageUrl,

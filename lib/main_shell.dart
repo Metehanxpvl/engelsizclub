@@ -4238,6 +4238,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   OpportunitiesScreen.open(
                     context,
                     adminEmail: widget.user.email,
+                    reviewQueue: true,
                   ),
                 );
               },
@@ -4308,6 +4309,24 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             ),
           ),
         ],
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _menuTile(
+            emoji: '🎁',
+            label: 'Fırsatlar ve Destekler',
+            sub: 'Burs, hak, destek ve haberler',
+            onTap: () {
+              unawaited(
+                OpportunitiesScreen.open(
+                  context,
+                  adminEmail: widget.user.email,
+                  isGuest: _isGuest,
+                  onRequireLogin: widget.onRequireLogin,
+                ),
+              );
+            },
+          ),
+        ),
         if (canEditSection(widget.user.email, SectionKey.gezi))
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
