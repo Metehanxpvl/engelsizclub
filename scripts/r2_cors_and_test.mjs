@@ -24,7 +24,7 @@ await client.send(
       CORSRules: [
         {
           AllowedOrigins: ["*"],
-          AllowedMethods: ["GET", "HEAD"],
+          AllowedMethods: ["GET", "HEAD", "PUT"],
           AllowedHeaders: ["*"],
           ExposeHeaders: [
             "ETag",

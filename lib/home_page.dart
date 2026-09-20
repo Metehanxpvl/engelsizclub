@@ -1,11 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
-
-import 'features/scientific_research/scientific_research_model.dart';
-import 'features/scientific_research/scientific_research_repository.dart';
 
 import 'admin_config.dart';
 import 'data/diseases_data.dart';
@@ -22,6 +21,7 @@ import 'widgets/duyurular_section.dart';
 import 'widgets/gezi_kampanya_home_section.dart';
 import 'widgets/hastaliklar_section.dart';
 import 'widgets/home_social_footer.dart';
+import 'widgets/store_download_prompt.dart';
 import 'pages/premature_gelisim_rehberi_page.dart';
 import 'pages/yas02_gelisim_rehberi_page.dart';
 import 'widgets/admin_disease_edit_sheet.dart';
@@ -253,9 +253,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildHome() {
-    return ColoredBox(
-      color: MetoColors.background,
-      child: ListView(
+    return WebStoreDownloadPrompt(
+      child: ColoredBox(
+        color: MetoColors.background,
+        child: ListView(
         key: const ValueKey('home_feed'),
         primary: false,
         padding: EdgeInsets.zero,
@@ -412,6 +413,7 @@ class _HomePageState extends State<HomePage> {
 
           HomeSocialFooter(adminEmail: widget.userEmail),
         ],
+        ),
       ),
     );
   }
@@ -1310,9 +1312,9 @@ class PubMedSearchBar extends StatefulWidget {
 class _PubMedSearchBarState extends State<PubMedSearchBar> {
   final _controller = TextEditingController();
   final _focus = FocusNode();
-  final _repo = ScientificResearchRepository();
   bool _loading = false;
   bool _searched = false;
+  String _translatedQ = '';
   String _tab = 'pubmed';
   List<_PubMedItem> _pubmed = [];
   List<_TrialItem> _trials = [];
@@ -1323,6 +1325,12 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
 
   /// Sayfa başına gösterilen kart sayısı.
   static const _pageSize = 6;
+
+  /// API'den tek seferde çekilen maksimum sonuç (en güncelden eskiye).
+  static const _fetchMax = 500;
+
+  /// Çeviri önbelleği — aynı metni iki kez çevirmeyi önler.
+  final Map<String, String> _trCache = {};
 
   static const _dict = {
     'otizm': 'autism',
@@ -1386,9 +1394,6 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
       } else {
         _onQueryChanged();
       }
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_reloadFromLive());
     });
   }
 
@@ -1460,12 +1465,21 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
     _search();
   }
 
+  String _toEnglish(String text) {
+    var t = text.toLowerCase().trim();
+    final typo = _typoHints[t];
+    if (typo != null) t = typo;
+    final keys = _dict.keys.toList()
+      ..sort((a, b) => b.length.compareTo(a.length));
+    for (final k in keys) {
+      t = t.replaceAll(k, _dict[k]!);
+    }
+    return t;
+  }
+
   Future<void> _search() async {
     final raw = _controller.text.trim();
-    if (raw.isEmpty) {
-      await _reloadFromLive();
-      return;
-    }
+    if (raw.isEmpty) return;
     final allowed = await ensureGuestSearchAllowed(
       context,
       isGuest: widget.isGuest,
@@ -1473,75 +1487,470 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
     );
     if (!allowed) return;
     if (!mounted) return;
-    await _reloadFromLive(query: raw);
-  }
-
-  bool _still(int gen) => mounted && gen == _searchGen;
-
-  Future<void> _reloadFromLive({String query = ''}) async {
     final gen = ++_searchGen;
     setState(() {
       _loading = true;
       _searched = true;
+      _pubmed = [];
+      _trials = [];
       _pubmedPage = 0;
       _trialsPage = 0;
     });
+
+    final eng = await _queryToEnglish(raw);
+    if (!_still(gen)) return;
+    _translatedQ = eng;
+
     try {
-      final items = await _repo.loadForApp(query: query);
-      if (!_still(gen)) return;
-      final pubmed = <_PubMedItem>[];
-      final trials = <_TrialItem>[];
-      for (final e in items) {
-        if (isScienceTrialCard(e)) {
-          trials.add(_trialFromResearch(e));
-        } else {
-          pubmed.add(_pubmedFromResearch(e));
-        }
-      }
-      setState(() {
-        _pubmed = pubmed;
-        _trials = trials;
-      });
-    } catch (_) {
-      if (!_still(gen)) return;
-      setState(() {
-        _pubmed = [];
-        _trials = [];
-      });
+      await Future.wait([
+        _fetchPubmed(eng, gen),
+        _fetchTrials(eng, gen),
+      ]);
     } finally {
       if (_still(gen)) setState(() => _loading = false);
     }
   }
 
-  _PubMedItem _pubmedFromResearch(ScientificResearch e) {
-    return _PubMedItem(
-      pmid: e.pmid.trim(),
-      title: e.displayTitle,
-      titleEn: e.originalTitle.trim(),
-      authors: e.sourceName.trim(),
-      journal: e.journal.trim().isNotEmpty ? e.journal.trim() : e.sourceName.trim(),
-      year: sciencePaperYear(e),
-      link: scienceResultLink(e),
+  bool _still(int gen) => mounted && gen == _searchGen;
+
+  /// Türkçe sorguyu İngilizceye çevirir (Google → sözlük yedeği).
+  Future<String> _queryToEnglish(String raw) async {
+    final lowered = raw.toLowerCase().trim();
+    final g = await _translate(raw, from: 'tr', to: 'en');
+    if (g.isNotEmpty && g.toLowerCase() != lowered) return g;
+    return _toEnglish(raw);
+  }
+
+  /// Tek bir metni çevirir. Başarısız yanıtlar önbelleğe yazılmaz.
+  Future<String> _translate(String text,
+      {required String from, required String to}) async {
+    final t = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (t.isEmpty) return t;
+    final cacheKey = '$from|$to|$t';
+    final cached = _trCache[cacheKey];
+    if (cached != null) return cached;
+
+    final out = await _translateUncached(t, from: from, to: to);
+    if (out != null && out.isNotEmpty) {
+      _trCache[cacheKey] = out;
+      return out;
+    }
+    return t;
+  }
+
+  Future<String?> _translateUncached(String t,
+      {required String from, required String to}) async {
+    try {
+      final r = await http.get(Uri.parse(
+        'https://clients5.google.com/translate_a/t'
+        '?client=dict-chrome-ex&sl=$from&tl=$to&q=${Uri.encodeComponent(t)}',
+      ));
+      if (r.statusCode == 200) {
+        final parsed = _parseClients5(r.body);
+        if (parsed != null && parsed.isNotEmpty) return parsed;
+      }
+    } catch (_) {}
+
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final gtx = await _gtxTranslate(t, from: from, to: to);
+      if (gtx == 429) {
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+        continue;
+      }
+      if (gtx is String && gtx.isNotEmpty) return gtx;
+      break;
+    }
+
+    try {
+      final q = t.length > 480 ? t.substring(0, 480) : t;
+      final r = await http.get(Uri.parse(
+        'https://api.mymemory.translated.net/get'
+        '?q=${Uri.encodeComponent(q)}&langpair=$from|$to',
+      ));
+      if (r.statusCode == 200) {
+        final data = jsonDecode(r.body) as Map;
+        final translated =
+            (data['responseData'] as Map?)?['translatedText']?.toString() ?? '';
+        if (translated.isNotEmpty &&
+            !translated.toUpperCase().contains('MYMEMORY')) {
+          return translated.trim();
+        }
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  /// Google gtx: 200+metin, 429, veya null.
+  Future<Object?> _gtxTranslate(String t,
+      {required String from, required String to}) async {
+    try {
+      final r = await http.get(Uri.parse(
+        'https://translate.googleapis.com/translate_a/single'
+        '?client=gtx&sl=$from&tl=$to&dt=t&q=${Uri.encodeComponent(t)}',
+      ));
+      if (r.statusCode == 429) return 429;
+      if (r.statusCode == 200) {
+        final parsed = _parseGtx(r.body);
+        if (parsed != null) return parsed;
+      }
+    } catch (_) {}
+
+    try {
+      final r = await http.post(
+        Uri.parse(
+          'https://translate.googleapis.com/translate_a/single'
+          '?client=gtx&sl=$from&tl=$to&dt=t',
+        ),
+        headers: const {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'q=${Uri.encodeQueryComponent(t)}',
+      );
+      if (r.statusCode == 429) return 429;
+      if (r.statusCode == 200) return _parseGtx(r.body);
+    } catch (_) {}
+    return null;
+  }
+
+  String? _parseGtx(String body) {
+    try {
+      final data = jsonDecode(body);
+      if (data is! List || data.isEmpty) return null;
+      final segs = data[0];
+      if (segs is! List) return null;
+      final buf = StringBuffer();
+      for (final s in segs) {
+        if (s is List && s.isNotEmpty) buf.write(s[0]?.toString() ?? '');
+      }
+      final out = buf.toString().trim();
+      return out.isEmpty ? null : out;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _parseClients5(String body) {
+    try {
+      final data = jsonDecode(body);
+      if (data is String) {
+        final t = data.trim();
+        return t.isEmpty ? null : t;
+      }
+      if (data is List && data.isNotEmpty) {
+        final first = data[0];
+        if (first is String) {
+          final t = first.trim();
+          return t.isEmpty ? null : t;
+        }
+        if (first is List && first.isNotEmpty) {
+          final t = first[0]?.toString().trim() ?? '';
+          return t.isEmpty ? null : t;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Başlıkları tek tek, sınırlı eşzamanlılıkla çevirir (kota kırılmaz).
+  Future<List<String>> _translateMany(List<String> texts,
+      {String from = 'en', String to = 'tr'}) async {
+    if (texts.isEmpty) return const [];
+    final out = List<String>.from(texts);
+    const conc = 2;
+    var next = 0;
+    Future<void> worker() async {
+      while (true) {
+        final i = next;
+        next += 1;
+        if (i >= texts.length) return;
+        final src = texts[i].replaceAll(RegExp(r'\s+'), ' ').trim();
+        if (src.isEmpty) {
+          out[i] = texts[i];
+          continue;
+        }
+        out[i] = await _translate(src, from: from, to: to);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    }
+
+    await Future.wait([
+      for (var w = 0; w < conc && w < texts.length; w++) worker(),
+    ]);
+    return out;
+  }
+
+  Future<void> _fetchPubmed(String eng, int gen) async {
+    try {
+      final sr = await http.get(Uri.parse(
+        'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi'
+        '?db=pubmed&term=${Uri.encodeComponent('$eng children special needs')}'
+        '&retmax=$_fetchMax&retmode=json&sort=pub_date',
+      ));
+      final ids =
+          ((jsonDecode(sr.body) as Map)['esearchresult']?['idlist'] as List?)
+                  ?.cast<String>() ??
+              [];
+      if (ids.isEmpty || !_still(gen)) return;
+
+      final items = <_PubMedItem>[];
+
+      Future<void> fetchBatch(int start) async {
+        final batch = ids.sublist(start, (start + 20).clamp(0, ids.length));
+        final sumR = await http.get(Uri.parse(
+          'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi'
+          '?db=pubmed&id=${batch.join(',')}&retmode=json',
+        ));
+        final result = (jsonDecode(sumR.body) as Map)['result'] as Map? ?? {};
+        for (final id in batch) {
+          final d = result[id] as Map? ?? {};
+          final authors = ((d['authors'] as List?) ?? [])
+              .take(2)
+              .map((a) => (a as Map)['name']?.toString() ?? '')
+              .where((n) => n.isNotEmpty)
+              .join(', ');
+          final title = d['title']?.toString() ?? '—';
+          items.add(_PubMedItem(
+            pmid: id,
+            title: title,
+            titleEn: title,
+            authors: authors,
+            journal: d['fulljournalname']?.toString() ??
+                d['source']?.toString() ??
+                '',
+            year: (d['pubdate']?.toString() ?? '')
+                .padRight(4)
+                .substring(0, 4)
+                .trim(),
+          ));
+        }
+      }
+
+      await fetchBatch(0);
+      if (items.isEmpty || !_still(gen)) return;
+      await _translatePubmedRange(items, gen, 0, _pageSize);
+      if (!_still(gen)) return;
+      setState(() => _pubmed = items);
+
+      unawaited(() async {
+        var translatedUpTo = _pageSize;
+        for (var i = 20; i < ids.length; i += 20) {
+          if (!_still(gen)) return;
+          await fetchBatch(i);
+          if (!_still(gen)) return;
+          if (items.length > translatedUpTo) {
+            await _translatePubmedRange(
+              items,
+              gen,
+              translatedUpTo,
+              items.length,
+              notify: true,
+            );
+            translatedUpTo = items.length;
+          } else {
+            setState(() {});
+          }
+        }
+      }());
+    } catch (_) {}
+  }
+
+  Future<void> _translatePubmedRange(
+    List<_PubMedItem> items,
+    int gen,
+    int start,
+    int end, {
+    bool notify = false,
+  }) async {
+    final last = end.clamp(0, items.length);
+    for (var i = start; i < last; i += _pageSize) {
+      if (!_still(gen)) return;
+      final sliceEnd = (i + _pageSize).clamp(0, last);
+      final idxs = <int>[];
+      final texts = <String>[];
+      for (var j = i; j < sliceEnd; j++) {
+        if (j >= items.length) break;
+        final src = items[j].titleEn.isNotEmpty ? items[j].titleEn : items[j].title;
+        if (items[j].title == src) {
+          idxs.add(j);
+          texts.add(src);
+        }
+      }
+      if (texts.isNotEmpty) {
+        final tr = await _translateMany(texts);
+        if (!_still(gen)) return;
+        for (var k = 0; k < idxs.length; k++) {
+          final j = idxs[k];
+          final src = items[j];
+          final titleTr = tr[k].trim().isEmpty ? src.title : tr[k].trim();
+          items[j] = _PubMedItem(
+            pmid: src.pmid,
+            title: titleTr,
+            titleEn: src.titleEn.isEmpty ? src.title : src.titleEn,
+            authors: src.authors,
+            journal: src.journal,
+            year: src.year,
+          );
+        }
+      }
+      if (notify && _still(gen)) setState(() {});
+    }
+  }
+
+  Future<void> _ensurePubmedPageTranslated(int page) async {
+    final gen = _searchGen;
+    final start = page * _pageSize;
+    await _translatePubmedRange(
+      _pubmed,
+      gen,
+      start,
+      start + _pageSize,
+      notify: true,
     );
   }
 
-  _TrialItem _trialFromResearch(ScientificResearch e) {
-    return _TrialItem(
-      nctId: e.nctId.trim(),
-      title: e.displayTitle,
-      titleEn: e.originalTitle.trim(),
-      status: e.recruitmentStatus.trim(),
-      phase: e.stageLabel,
-      conditions: e.conditions.take(2).join(', '),
-      sponsor: e.sourceName.trim(),
-      link: scienceResultLink(e),
+  Future<void> _fetchTrials(String eng, int gen) async {
+    try {
+      final r = await http.get(Uri.parse(
+        'https://clinicaltrials.gov/api/v2/studies'
+        '?query.term=${Uri.encodeComponent(eng)}&pageSize=$_fetchMax'
+        '&sort=${Uri.encodeComponent('LastUpdatePostDate:desc')}&format=json',
+      ));
+      final studies = ((jsonDecode(r.body) as Map)['studies'] as List?) ?? [];
+      final items = studies.map((s) {
+        final p = (s as Map)['protocolSection'] as Map? ?? {};
+        final id = p['identificationModule'] as Map? ?? {};
+        final st = p['statusModule'] as Map? ?? {};
+        final des = p['designModule'] as Map? ?? {};
+        final cond = p['conditionsModule'] as Map? ?? {};
+        final sp = p['sponsorCollaboratorsModule'] as Map? ?? {};
+        final phases = ((des['phases'] as List?) ?? []).join(', ');
+        final conditions =
+            ((cond['conditions'] as List?) ?? []).take(2).join(', ');
+        final title = id['briefTitle']?.toString() ?? '—';
+        return _TrialItem(
+          nctId: id['nctId']?.toString() ?? '',
+          title: title,
+          titleEn: title,
+          status: st['overallStatus']?.toString() ?? '',
+          phase: phases.isEmpty ? '—' : phases,
+          conditions: conditions,
+          sponsor: (sp['leadSponsor'] as Map?)?['name']?.toString() ?? '',
+        );
+      }).toList();
+      if (items.isEmpty || !_still(gen)) return;
+
+      await _translateTrialsRange(items, gen, 0, _pageSize);
+      if (!_still(gen)) return;
+      setState(() => _trials = items);
+
+      if (items.length > _pageSize) {
+        unawaited(_translateTrialsRange(
+          items,
+          gen,
+          _pageSize,
+          items.length,
+          notify: true,
+        ));
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _translateTrialsRange(
+    List<_TrialItem> items,
+    int gen,
+    int start,
+    int end, {
+    bool notify = false,
+  }) async {
+    final last = end.clamp(0, items.length);
+    for (var i = start; i < last; i += _pageSize) {
+      if (!_still(gen)) return;
+      final sliceEnd = (i + _pageSize).clamp(0, last);
+      final idxs = <int>[];
+      final titles = <String>[];
+      final condIdxs = <int>[];
+      final conds = <String>[];
+      for (var j = i; j < sliceEnd; j++) {
+        if (j >= items.length) break;
+        final src = items[j].titleEn.isNotEmpty ? items[j].titleEn : items[j].title;
+        if (items[j].title == src) {
+          idxs.add(j);
+          titles.add(src);
+        }
+        final c = items[j].conditions.trim();
+        if (c.isNotEmpty && !_looksMostlyTurkish(c)) {
+          condIdxs.add(j);
+          conds.add(c);
+        }
+      }
+      List<String> titlesTr = const [];
+      List<String> condsTr = const [];
+      if (titles.isNotEmpty) titlesTr = await _translateMany(titles);
+      if (conds.isNotEmpty) condsTr = await _translateMany(conds);
+      if (!_still(gen)) return;
+
+      final condMap = <int, String>{};
+      for (var k = 0; k < condIdxs.length; k++) {
+        condMap[condIdxs[k]] = condsTr[k];
+      }
+      for (var k = 0; k < idxs.length; k++) {
+        final j = idxs[k];
+        final src = items[j];
+        final titleTr = titlesTr[k].trim().isEmpty ? src.title : titlesTr[k].trim();
+        items[j] = _TrialItem(
+          nctId: src.nctId,
+          title: titleTr,
+          titleEn: src.titleEn.isEmpty ? src.title : src.titleEn,
+          status: src.status,
+          phase: src.phase,
+          conditions: condMap[j] ?? src.conditions,
+          sponsor: src.sponsor,
+        );
+      }
+      for (final j in condIdxs) {
+        if (idxs.contains(j)) continue;
+        final src = items[j];
+        items[j] = _TrialItem(
+          nctId: src.nctId,
+          title: src.title,
+          titleEn: src.titleEn,
+          status: src.status,
+          phase: src.phase,
+          conditions: condMap[j] ?? src.conditions,
+          sponsor: src.sponsor,
+        );
+      }
+      if (notify && _still(gen)) setState(() {});
+    }
+  }
+
+  Future<void> _ensureTrialsPageTranslated(int page) async {
+    final gen = _searchGen;
+    final start = page * _pageSize;
+    await _translateTrialsRange(
+      _trials,
+      gen,
+      start,
+      start + _pageSize,
+      notify: true,
     );
   }
+
+  static bool _looksMostlyTurkish(String s) =>
+      RegExp(r'[çğıöşüÇĞİÖŞÜ]').hasMatch(s);
 
   void _clear() {
+    _searchGen++;
     _controller.clear();
-    setState(() => _suggestions = const []);
-    unawaited(_reloadFromLive());
+    setState(() {
+      _pubmed = [];
+      _trials = [];
+      _searched = false;
+      _translatedQ = '';
+      _pubmedPage = 0;
+      _trialsPage = 0;
+    });
   }
 
   List<T> _pageSlice<T>(List<T> all, int page) {
@@ -1567,11 +1976,13 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
           margin: const EdgeInsets.only(bottom: 10),
           dismissKey: kDismissPubmedInfo,
           title: 'Bilgilendirme',
-          body: 'Sonuçlar Engelsiz Club bilimsel araştırma kuyruğundan gelir '
-              '(PubMed, ClinicalTrials.gov ve FDA; son 1 yıl). '
-              'Canlı admin paneli ile aynı kaynaktır.\n\n'
-              'Engelsiz Club araştırmaları değerlendirmez, önermez veya yorumlamaz. '
-              'Makaleler tavsiye niteliğinde değildir.',
+          body: _tab == 'trials'
+              ? 'Bu bölüm ClinicalTrials.gov üzerinde herkese açık araştırmalarda '
+                  'arama yapmanızı sağlar.\n\n'
+                  'Engelsiz Club araştırmaları değerlendirmez, önermez veya yorumlamaz.'
+              : 'Bu bölüm yalnızca PubMed veri tabanında arama yapmanızı sağlar.\n\n'
+                  'Gösterilen sonuçlar Engelsiz Club tarafından oluşturulmaz.\n\n'
+                  'Makaleler tavsiye niteliğinde değildir.',
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -1715,7 +2126,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                 ),
                 SizedBox(height: 8),
                 L10nText(
-                  'Güncel bilimsel araştırmalar yükleniyor...',
+                  "Aranıyor ve Türkçe'ye çevriliyor...",
                   style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -1741,16 +2152,33 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                       color: MetoColors.foreground),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'Farklı bir kelime deneyin.',
+                Text(
+                  _translatedQ.isNotEmpty
+                      ? 'İngilizce olarak "$_translatedQ" arandı. Farklı bir kelime deneyin.'
+                      : 'Farklı bir kelime deneyin.',
                   textAlign: TextAlign.center,
                   style:
-                      TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+                      const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
                 ),
               ],
             ),
           ),
         if (!_loading && hasAny) ...[
+          if (_translatedQ.isNotEmpty &&
+              _translatedQ.toLowerCase() != _controller.text.toLowerCase())
+            Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: L10nText(
+                '"${_controller.text}" → İngilizce: "$_translatedQ" olarak arandı',
+                style: const TextStyle(fontSize: 11, color: Color(0xFF92400E)),
+              ),
+            ),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -1784,6 +2212,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                       total: _pubmed.length,
                       onChanged: (p) {
                         setState(() => _pubmedPage = p);
+                        unawaited(_ensurePubmedPageTranslated(p));
                       },
                     ),
                   ])
@@ -1808,6 +2237,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                       total: _trials.length,
                       onChanged: (p) {
                         setState(() => _trialsPage = p);
+                        unawaited(_ensureTrialsPageTranslated(p));
                       },
                     ),
                   ]),
@@ -1969,8 +2399,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
   }
 
   Widget _pubmedCard(_PubMedItem r) {
-    final parsed = Uri.tryParse(r.link);
-    final url = parsed != null && parsed.hasScheme ? parsed : null;
+    final url = Uri.parse('https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/');
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -1983,17 +2412,15 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
-            onTap: url == null
-                ? null
-                : () => launchUrl(url, mode: LaunchMode.externalApplication),
+            onTap: () => launchUrl(url, mode: LaunchMode.externalApplication),
             child: L10nText(
               r.title,
               from: r.titleEn.isNotEmpty && r.title == r.titleEn ? 'en' : 'tr',
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
-                color: url == null ? MetoColors.foreground : MetoColors.primary,
-                decoration: url == null ? null : TextDecoration.underline,
+                color: MetoColors.primary,
+                decoration: TextDecoration.underline,
                 decorationColor: MetoColors.primary,
               ),
             ),
@@ -2048,12 +2475,9 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
   }
 
   Widget _trialCard(_TrialItem t) {
-    final parsed = Uri.tryParse(t.link);
-    final url = parsed != null && parsed.hasScheme
-        ? parsed
-        : (t.nctId.isEmpty
-            ? null
-            : Uri.parse('https://clinicaltrials.gov/study/${t.nctId}'));
+    final url = t.nctId.isEmpty
+        ? null
+        : Uri.parse('https://clinicaltrials.gov/study/${t.nctId}');
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -2328,7 +2752,6 @@ class _PubMedItem {
     required this.journal,
     required this.year,
     this.titleEn = '',
-    this.link = '',
   });
   final String pmid;
   final String title;
@@ -2336,7 +2759,6 @@ class _PubMedItem {
   final String journal;
   final String year;
   final String titleEn;
-  final String link;
 }
 
 class _TrialItem {
@@ -2348,7 +2770,6 @@ class _TrialItem {
     required this.conditions,
     required this.sponsor,
     this.titleEn = '',
-    this.link = '',
   });
   final String nctId;
   final String title;
@@ -2357,5 +2778,4 @@ class _TrialItem {
   final String conditions;
   final String sponsor;
   final String titleEn;
-  final String link;
 }

@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1A6B4A" />
+  <meta name="description" content="Engelsiz Club Evde Eğitim Sihirbazı: MEB evde eğitim şartlarını adım adım görün. Ad, soyad ve T.C. kimlik sorulmaz." />
+  <title>Evde Eğitim — Engelsiz Club</title>
+  <style>
+    :root {
+      --bg: #F2F7F4;
+      --fg: #0D2B1F;
+      --card: #ffffff;
+      --primary: #1A6B4A;
+      --primary-dark: #1A5C51;
+      --muted: #DCEEE4;
+      --muted-fg: #4D7A62;
+      --border: rgba(26, 107, 74, 0.18);
+      --selected: #1a6b4a12;
+      --warn: #B45309;
+      --warn-bg: #FFFBEB;
+      --warn-border: #FDE68A;
+      --danger: #8C1D18;
+      --danger-bg: #FDECEA;
+      --ok: #0F5132;
+      --ok-bg: #E8F6EE;
+      --purple: #6B21A8;
+      --purple-bg: #F5EEFB;
+      --purple-border: #D4B3F0;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      min-height: 100dvh;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: "Segoe UI", system-ui, -apple-system, Roboto, "Noto Sans", Arial, sans-serif;
+      line-height: 1.5;
+      letter-spacing: normal;
+      font-synthesis: none;
+      font-variant-ligatures: none;
+      font-feature-settings: "liga" 0, "clig" 0;
+      font-kerning: normal;
+      text-rendering: auto;
+      -webkit-font-smoothing: antialiased;
+      -webkit-text-size-adjust: 100%;
+    }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    a { color: var(--primary); font-weight: 700; }
+    .hidden { display: none !important; }
+
+    #landing {
+      max-width: 560px;
+      margin: 0 auto;
+      padding: 24px 16px calc(40px + env(safe-area-inset-bottom));
+    }
+    .page-head { margin: 0 0 16px; }
+    .page-head h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.35;
+      letter-spacing: normal;
+      font-variant-ligatures: none;
+      color: var(--fg);
+    }
+    .page-head p {
+      margin: 4px 0 0;
+      font-size: 12px;
+      color: var(--muted-fg);
+    }
+    .wizard-banner {
+      border-radius: 16px;
+      overflow: hidden;
+      background: linear-gradient(135deg, #1A6B4A, #1A5C51);
+      color: #fff;
+    }
+    .wizard-banner-body {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+    }
+    .wizard-icon {
+      width: 56px;
+      height: 56px;
+      flex: 0 0 auto;
+      border-radius: 16px;
+      background: rgba(255,255,255,.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+    }
+    .wizard-banner h2 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.35;
+      letter-spacing: normal;
+      font-variant-ligatures: none;
+    }
+    .wizard-banner p {
+      margin: 4px 0 0;
+      font-size: 12px;
+      color: rgba(255,255,255,.7);
+    }
+    .wizard-start {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      min-height: 48px;
+      border: 0;
+      border-top: 1px solid rgba(255,255,255,.2);
+      background: rgba(255,255,255,.15);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .disclaimer {
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: 16px;
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      color: var(--warn);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .disclaimer strong { color: #92400e; }
+    .landing-foot {
+      margin-top: 16px;
+      font-size: 13px;
+      color: var(--muted-fg);
+      line-height: 1.55;
+    }
+
+    #wizard {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+    }
+    .wiz-head {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: calc(16px + env(safe-area-inset-top)) 16px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border: 0;
+      border-radius: 999px;
+      background: var(--muted);
+      color: var(--fg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+    }
+    .wiz-head h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.35;
+      letter-spacing: normal;
+      font-variant-ligatures: none;
+    }
+    .progress {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .progress span.bar {
+      flex: 1;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--muted);
+    }
+    .progress span.bar.on { background: var(--primary); }
+    .wiz-body {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+    }
+    .wiz-inner { max-width: 520px; margin: 0 auto; }
+    .q-emoji { font-size: 48px; text-align: center; line-height: 1; margin: 0 0 16px; }
+    .q-title {
+      margin: 0;
+      padding: 0 8px;
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.35;
+      letter-spacing: normal;
+      text-align: center;
+      color: var(--fg);
+      overflow-wrap: break-word;
+      font-variant-ligatures: none;
+    }
+    .q-sub {
+      margin: 8px 0 28px;
+      font-size: 15px;
+      text-align: center;
+      color: var(--muted-fg);
+      line-height: 1.5;
+    }
+    .q-sub.tight { margin-bottom: 12px; }
+    .info {
+      border-radius: 16px;
+      padding: 14px 16px;
+      font-size: 13px;
+      line-height: 1.55;
+      margin: 0 0 20px;
+    }
+    .info.purple {
+      background: var(--purple-bg);
+      border: 1px solid var(--purple-border);
+      color: var(--purple);
+    }
+    .info.green {
+      background: var(--selected);
+      color: var(--primary);
+    }
+    .info.warn {
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      color: var(--warn);
+    }
+    .tile {
+      width: 100%;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      text-align: left;
+      border: 2px solid var(--muted);
+      border-radius: 16px;
+      background: var(--card);
+      padding: 16px 20px;
+      margin: 0 0 12px;
+      color: inherit;
+      min-height: 72px;
+    }
+    .tile.selected {
+      border-color: var(--primary);
+      background: var(--selected);
+    }
+    .tile .copy { flex: 1; min-width: 0; }
+    .tile .t {
+      display: block;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.35;
+      letter-spacing: normal;
+      color: var(--fg);
+      overflow-wrap: break-word;
+      font-variant-ligatures: none;
+    }
+    .tile.selected .t { color: var(--primary); }
+    .tile .s { display: block; margin: 4px 0 0; font-size: 13px; color: var(--muted-fg); line-height: 1.45; }
+    .dot {
+      width: 24px;
+      height: 24px;
+      margin-top: 2px;
+      border-radius: 999px;
+      border: 2px solid var(--muted);
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .tile.selected .dot {
+      border-color: var(--primary);
+      background: var(--primary);
+    }
+    .btn-continue, .btn-ghost, .btn-outline {
+      width: 100%;
+      min-height: 56px;
+      border-radius: 16px;
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn-continue {
+      margin-top: 24px;
+      border: 0;
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-continue:disabled { opacity: .4; }
+    .btn-ghost {
+      margin-top: 10px;
+      border: 0;
+      background: transparent;
+      color: var(--muted-fg);
+      min-height: 48px;
+      font-size: 14px;
+    }
+    .btn-outline {
+      margin-top: 8px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--fg);
+      font-size: 14px;
+    }
+    .msg {
+      border-radius: 16px;
+      padding: 12px 14px;
+      font-size: 13px;
+      margin: 0 0 16px;
+    }
+    .msg.err { background: var(--danger-bg); color: var(--danger); }
+    .msg.note { background: var(--warn-bg); color: var(--warn); }
+    .msg.ok { background: var(--ok-bg); color: var(--ok); }
+
+    .sartlar {
+      margin: 8px 0 0;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      overflow: hidden;
+      animation: unfold .22s ease-out;
+    }
+    .sartlar h4 {
+      margin: 0;
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      background: var(--muted);
+      color: var(--fg);
+    }
+    .sart-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      animation: unfold .22s ease-out;
+    }
+    .sart-row .mark {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      font-style: normal;
+      line-height: 1;
+      color: #fff;
+    }
+    .sart-row.ok { background: var(--ok-bg); }
+    .sart-row.ok .mark { background: var(--ok); }
+    .sart-row.no { background: var(--danger-bg); }
+    .sart-row.no .mark { background: var(--danger); }
+    .sart-row.maybe { background: var(--warn-bg); }
+    .sart-row.maybe .mark { background: var(--warn); }
+    .sart-text { flex: 1; min-width: 0; }
+    .sart-text strong {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.35;
+      letter-spacing: normal;
+      color: var(--fg);
+      overflow-wrap: break-word;
+    }
+    .sart-text span {
+      display: block;
+      margin-top: 2px;
+      font-size: 12px;
+      color: var(--muted-fg);
+      line-height: 1.4;
+    }
+    .sart-badge {
+      flex: 0 0 auto;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      padding: 3px 8px;
+      border-radius: 999px;
+    }
+    .sart-row.ok .sart-badge { background: #c6ebd4; color: var(--ok); }
+    .sart-row.no .sart-badge { background: #f8c9c6; color: var(--danger); }
+    .sart-row.maybe .sart-badge { background: #fde68a; color: var(--warn); }
+    .sart-row.info { background: var(--purple-bg); }
+    .sart-row.info .mark {
+      background: var(--purple);
+      font-family: Arial, "Segoe UI", sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      font-style: normal;
+      line-height: 1;
+    }
+    .sart-row.info .sart-badge { background: #e9d5ff; color: var(--purple); }
+    @keyframes unfold {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .found {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 16px;
+      padding: 12px 16px;
+      background: var(--selected);
+      color: var(--primary);
+      font-size: 13px;
+      font-weight: 700;
+      margin: 0 0 12px;
+    }
+    .found.warn { background: var(--warn-bg); color: var(--warn); }
+    .found.no { background: var(--danger-bg); color: var(--danger); }
+    .result-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      margin: 0 0 12px;
+    }
+    .result-card .row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .result-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex: 0 0 auto;
+    }
+    .result-card h3 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .badge {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .result-card p {
+      margin: 6px 0 0;
+      font-size: 13px;
+      color: var(--muted-fg);
+      line-height: 1.45;
+    }
+    .steps-list { margin: 14px 0 0; padding: 0; list-style: none; }
+    .steps-list li {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      font-size: 13px;
+      color: var(--muted-fg);
+      margin: 0 0 8px;
+      line-height: 1.4;
+    }
+    .check-ico { color: var(--primary); flex: 0 0 auto; }
+    .where {
+      margin-top: 8px;
+      border-radius: 12px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+  </style>
+</head>
+<body>
+  <div id="landing">
+    <header class="page-head">
+      <h1>Evde Eğitim</h1>
+      <p>Şartları adım adım görün — ad, soyad ve T.C. sorulmaz</p>
+    </header>
+
+    <div class="wizard-banner">
+      <div class="wizard-banner-body">
+        <div class="wizard-icon" aria-hidden="true">✨</div>
+        <div>
+          <h2>Evde Eğitim Sihirbazı</h2>
+          <p>Birkaç soru. Her yanıtta şartlarınız açılır: sağlıyor / sağlamıyor.</p>
+        </div>
+      </div>
+      <button type="button" class="wizard-start" id="startBtn">
+        Sihirbazı Başlat <span aria-hidden="true">→</span>
+      </button>
+    </div>
+
+    <div class="disclaimer">
+      <strong>Engelsiz Club başvuru yeri değildir.</strong>
+      Kararı okul, RAM (Rehberlik ve Araştırma Merkezi) ve il/ilçe özel eğitim hizmetleri kurulu verir.
+      Kaynaklar:
+      <a href="https://orgm.meb.gov.tr/meb_iys_dosyalar/2025_05/27125050_evdeegitimhizmetlerikilavuzu2025.pdf" target="_blank" rel="noopener">MEB Evde Eğitim Kılavuzu 2025</a>
+      ·
+      <a href="https://resmigazete.gov.tr/eskiler/2025/07/20250711-4.htm" target="_blank" rel="noopener">11 Temmuz 2025</a>
+      (kurum evde destek, m.25/10).
+    </div>
+    <p class="landing-foot">
+      Evde Sağlık (Sağlık Bakanlığı, 444 38 33) ayrı bir hizmettir; bu sihirbazda seçilmez.
+    </p>
+  </div>
+
+  <div id="wizard" class="hidden" role="dialog" aria-labelledby="wizTitle">
+    <header class="wiz-head">
+      <button type="button" class="icon-btn" id="closeBtn" aria-label="Kapat">✕</button>
+      <div style="flex:1;min-width:0">
+        <h2 id="wizTitle">Evde Eğitim Sihirbazı</h2>
+        <div class="progress" id="progress" aria-hidden="true"></div>
+      </div>
+    </header>
+    <div class="wiz-body">
+      <div class="wiz-inner" id="wizInner"></div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://qycrkqwqrysypvqaipqn.supabase.co";
+    const SUPABASE_ANON = "sb_publishable_N7UfnXDF97YsuDTsFTq9zQ_lhnNtMgF";
+    const STORE = "ec-evde-egitim-wizard-v6";
+    const KILAVUZ = "https://orgm.meb.gov.tr/meb_iys_dosyalar/2025_05/27125050_evdeegitimhizmetlerikilavuzu2025.pdf";
+    const RG_KURUM = "https://resmigazete.gov.tr/eskiler/2025/07/20250711-4.htm";
+
+    const $ = (id) => document.getElementById(id);
+    const MEB_STEPS = ["hizmet", "sure", "rapor", "raporYazi", "kayit", "model", "kademe", "ortam", "results"];
+    const KURUM_STEPS = ["hizmet", "kurumYetersizlik", "kurumSkr", "kurumOdeme", "kurumRam", "kurum", "results"];
+
+    const state = {
+      step: "hizmet",
+      hizmet: "",
+      sure: "",
+      rapor: "",
+      raporYazi: "",
+      kayit: "",
+      egitim: "",
+      kademe: "",
+      ortam: "",
+      kurumYetersizlik: "",
+      kurumSkr: "",
+      kurumOdeme: "",
+      kurumRam: "",
+      saved: false,
+      saveNote: "",
+      formError: ""
+    };
+
+    function isKurum() { return state.hizmet === "evde_destek_kurum"; }
+    function steps() {
+      if (isKurum()) return KURUM_STEPS;
+      return MEB_STEPS;
+    }
+    function stepIndex() {
+      const i = steps().indexOf(state.step);
+      return i < 0 ? 0 : i;
+    }
+    function isResults() { return state.step === "results"; }
+    function minHours(kademe) {
+      if (kademe === "ortaogretim") return 16;
+      if (kademe === "ilkogretim" || kademe === "ortaogretim_ozel") return 10;
+      return 0;
+    }
+    function kademeLabel(k) {
+      if (k === "ilkogretim") return "İlköğretim — haftada en az 10 ders saati";
+      if (k === "ortaogretim_ozel") return "Özel eğitim ortaöğretim — haftada en az 10 ders saati";
+      if (k === "ortaogretim") return "Diğer ortaöğretim — haftada en az 16 ders saati";
+      return "";
+    }
+
+    function readSession() {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k || !/sb-.*-auth-token/i.test(k)) continue;
+          const data = JSON.parse(localStorage.getItem(k) || "null");
+          const session = (data && data.currentSession) || data;
+          const token = session && session.access_token;
+          const userId = session && session.user && session.user.id;
+          if (token && userId) return { token: token, userId: userId };
+        }
+      } catch (e) {}
+      return null;
+    }
+    function saveDraft() {
+      try {
+        localStorage.setItem(STORE, JSON.stringify({
+          hizmet: state.hizmet,
+          sure: state.sure,
+          rapor: state.rapor,
+          raporYazi: state.raporYazi,
+          kayit: state.kayit,
+          egitim: state.egitim,
+          kademe: state.kademe,
+          ortam: state.ortam,
+          kurumYetersizlik: state.kurumYetersizlik,
+          kurumSkr: state.kurumSkr,
+          kurumOdeme: state.kurumOdeme,
+          kurumRam: state.kurumRam
+        }));
+      } catch (e) {}
+    }
+    function loadDraft() {
+      try {
+        const d = JSON.parse(localStorage.getItem(STORE) || "null");
+        if (!d) return;
+        ["hizmet", "sure", "rapor", "raporYazi", "kayit", "egitim", "kademe", "ortam",
+          "kurumYetersizlik", "kurumSkr", "kurumOdeme", "kurumRam"].forEach(function (k) {
+          if (d[k]) state[k] = d[k];
+        });
+        if (state.hizmet === "evde_saglik") state.hizmet = "";
+      } catch (e) {}
+    }
+    function raporYaziOk() {
+      return state.raporYazi === "evet" || state.raporYazi === "risk" || state.raporYazi === "ikisi";
+    }
+
+    function tile(opts) {
+      const selected = !!opts.selected;
+      return (
+        '<button type="button" class="tile' + (selected ? " selected" : "") + '" data-act="' + opts.act + '">' +
+          '<span class="copy"><span class="t">' + opts.title + "</span>" +
+          (opts.sub ? '<span class="s">' + opts.sub + "</span>" : "") +
+          "</span><span class=\"dot\">" + (selected ? "✓" : "") + "</span></button>"
+      );
+    }
+    function continueBtn(label, enabled) {
+      return '<button type="button" class="btn-continue" data-act="next"' +
+        (enabled ? "" : " disabled") + ">" + label + " →</button>";
+    }
+    function backBtn() {
+      if (state.step === "hizmet") return "";
+      return '<button type="button" class="btn-ghost" data-act="back">← Geri</button>';
+    }
+    function currentError() {
+      if (state.formError) return '<p class="msg err" role="status">' + state.formError + "</p>";
+      return "";
+    }
+
+    function sartRows() {
+      const rows = [];
+      if (state.hizmet === "evde_egitim_meb") {
+        rows.push({
+          cls: "ok", mark: "✓", badge: "Sağlıyor",
+          title: "MEB evde eğitim yolu",
+          note: "Öğretmeni okul veya milli eğitim müdürlüğü görevlendirir."
+        });
+      } else if (state.hizmet === "evde_destek_kurum") {
+        rows.push({
+          cls: "ok", mark: "✓", badge: "Ayrıldı",
+          title: "Kurum evde destek (rehabilitasyon merkezi)",
+          note: "Bu yol MEB evde eğitimin yerine geçmez."
+        });
+        rows.push({
+          cls: "info", mark: "i", badge: "Bilgi",
+          title: "Aylık saat oranla değişmez",
+          note: "Devlet ödemeli destek: ayda 8 saat bireysel ve/veya 4 saat grup. Hafif/orta/ağır veya %40/%70 bu saati değiştirmez."
+        });
+        if (state.kurumYetersizlik === "evet") {
+          rows.push({
+            cls: "ok", mark: "✓", badge: "Sağlıyor",
+            title: "Bedensel yetersizlik",
+            note: "Özel Eğitim Kurumları Yönetmeliği m.25/10 (RG 11.07.2025) evde desteği buna bağlar."
+          });
+        } else if (state.kurumYetersizlik === "hayir") {
+          rows.push({
+            cls: "no", mark: "✕", badge: "Sağlamıyor",
+            title: "Bedensel yetersizlik",
+            note: "Güncel m.25/10 evde desteği bedensel yetersizliğe bağlar. Merkez veya RAM ile teyit edin."
+          });
+        } else if (state.kurumYetersizlik === "emin") {
+          rows.push({
+            cls: "maybe", mark: "!", badge: "Belirsiz",
+            title: "Bedensel yetersizlik",
+            note: "RAM veya merkezle teyit edin."
+          });
+        }
+        if (state.kurumSkr === "evet") {
+          rows.push({
+            cls: "ok", mark: "✓", badge: "Sağlıyor",
+            title: "Durum Bildirir Sağlık Kurulu Raporu (SKR) — merkeze gidememe",
+            note: "Hastane sağlık kurulu: 5580 kurumundan yararlanamama veya sağlık riski. Yüzde belgesi değildir."
+          });
+        } else if (state.kurumSkr === "hayir") {
+          rows.push({
+            cls: "no", mark: "✕", badge: "Sağlamıyor",
+            title: "Durum Bildirir Sağlık Kurulu Raporu (SKR) — merkeze gidememe",
+            note: "m.25/10 bu belgeyi ister. Engelsiz Club rapor vermez."
+          });
+        } else if (state.kurumSkr === "emin") {
+          rows.push({
+            cls: "maybe", mark: "!", badge: "Belirsiz",
+            title: "Durum Bildirir Sağlık Kurulu Raporu (SKR) — merkeze gidememe",
+            note: "Hastane sağlık kurulundan alınır."
+          });
+        }
+        if (state.kurumOdeme === "cocuk_cozger") {
+          rows.push({
+            cls: "ok", mark: "✓", badge: "Sağlıyor",
+            title: "18 yaş altı — ÇÖZGER (Çocuklar İçin Özel Gereksinim Raporu)",
+            note: "652 sayılı KHK m.43 çocukta yüzde istemez; özel gereksinim yazması yeter. Saat değişmez."
+          });
+        } else if (state.kurumOdeme === "yetiskin_20") {
+          rows.push({
+            cls: "ok", mark: "✓", badge: "Sağlıyor",
+            title: "18+ — Erişkin Engellilik Sağlık Kurulu Raporu (ESKR) en az %20",
+            note: "652 sayılı KHK m.43'teki tek resmi yüzde bandı. Evde destek saatini değiştirmez; MEB evde eğitime taşınmaz."
+          });
+        } else if (state.kurumOdeme === "yok") {
+          rows.push({
+            cls: "maybe", mark: "!", badge: "Belirsiz",
+            title: "Devlet ödemeli destek belgesi",
+            note: "Yoksa devlet ödemesi açılmayabilir; ücretli kayıt ayrıdır. %40/%70 uydurulmaz."
+          });
+        } else if (state.kurumOdeme === "emin") {
+          rows.push({
+            cls: "maybe", mark: "!", badge: "Belirsiz",
+            title: "Devlet ödemeli destek belgesi",
+            note: "18 altı ÇÖZGER (Çocuklar İçin Özel Gereksinim Raporu), 18+ en az %20 ESKR (Erişkinler İçin Engellilik Sağlık Kurulu Raporu). RAM veya merkezle sorun."
+          });
+        }
+        if (state.kurumRam === "evet") {
+          rows.push({
+            cls: "ok", mark: "✓", badge: "Sağlıyor",
+            title: "RAM (Rehberlik ve Araştırma Merkezi) — Özel Eğitim Değerlendirme Kurulu Raporu",
+            note: "Destek eğitimi önerilmiş olmalı. Başvuru RAM'adır; Engelsiz Club rapor vermez."
+          });
+        } else if (state.kurumRam === "hayir") {
+          rows.push({
+            cls: "no", mark: "✕", badge: "Sağlamıyor",
+            title: "RAM (Rehberlik ve Araştırma Merkezi) — Özel Eğitim Değerlendirme Kurulu Raporu",
+            note: "m.25/10 ve 652 KHK m.43 bu raporu ister."
+          });
+        } else if (state.kurumRam === "emin") {
+          rows.push({
+            cls: "maybe", mark: "!", badge: "Belirsiz",
+            title: "RAM (Rehberlik ve Araştırma Merkezi) — Özel Eğitim Değerlendirme Kurulu Raporu",
+            note: "RAM'a eğitsel değerlendirme için gidin."
+          });
+        }
+        return rows;
+      }
+      if (!state.hizmet || isKurum()) return rows;
+
+      rows.push({
+        cls: "info", mark: "i", badge: "Bilgi",
+        title: "Yüzde (%) şartı yok",
+        note: "Kılavuz 2025 bölüm 2 ve Yönetmelik m.14 %40/%70 istemez. Aranan, Durum Bildirir Sağlık Kurulu Raporu'nda (SKR) en az 12 hafta veya sağlık riskidir."
+      });
+
+      if (state.sure === "evet") {
+        rows.push({
+          cls: "ok", mark: "✓", badge: "Sağlıyor",
+          title: "En az 12 hafta okula gidememe veya sağlık riski",
+          note: "Kılavuz bunu sağlık kurulu raporuyla belgelemenizi ister."
+        });
+      } else if (state.sure === "hayir") {
+        rows.push({
+          cls: "no", mark: "✕", badge: "Sağlamıyor",
+          title: "En az 12 hafta okula gidememe veya sağlık riski",
+          note: "Bu gerekçe yoksa MEB evde eğitim bu kılavuza göre açılmaz."
+        });
+      } else if (state.sure === "emin") {
+        rows.push({
+          cls: "maybe", mark: "!", badge: "Belirsiz",
+          title: "En az 12 hafta okula gidememe veya sağlık riski",
+          note: "Okul veya RAM ile teyit edin."
+        });
+      }
+
+      if (state.rapor === "var") {
+        rows.push({
+          cls: "ok", mark: "✓", badge: "Sağlıyor",
+          title: "Durum Bildirir Sağlık Kurulu Raporu",
+          note: "Hastane sağlık kurulundan çıkar. Engelsiz Club rapor vermez."
+        });
+      } else if (state.rapor === "yok") {
+        rows.push({
+          cls: "no", mark: "✕", badge: "Sağlamıyor",
+          title: "Durum Bildirir Sağlık Kurulu Raporu",
+          note: "Bu belge olmadan resmi başvuru tamamlanmaz."
+        });
+      } else if (state.rapor === "alinacak") {
+        rows.push({
+          cls: "maybe", mark: "!", badge: "Belirsiz",
+          title: "Durum Bildirir Sağlık Kurulu Raporu",
+          note: "Raporu aldıktan sonra okul veya RAM'a verin."
+        });
+      }
+
+      if (raporYaziOk()) {
+        rows.push({
+          cls: "ok", mark: "✓", badge: "Sağlıyor",
+          title: "Raporda 12 hafta veya sağlık riski yazıyor",
+          note: "Yönetmelik m.14 ve Kılavuz bölüm 2 bunu ister. Yüzde yazması gerekmez."
+        });
+      } else if (state.raporYazi === "hayir") {
+        rows.push({
+          cls: "no", mark: "✕", badge: "Sağlamıyor",
+          title: "Raporda 12 hafta veya sağlık riski yazıyor",
+          note: "Engelli raporu yüzdesi bu şartın yerine geçmez. Hastaneden Durum Bildirir Sağlık Kurulu Raporu (SKR) alın."
+        });
+      } else if (state.raporYazi === "emin") {
+        rows.push({
+          cls: "maybe", mark: "!", badge: "Belirsiz",
+          title: "Raporda 12 hafta veya sağlık riski yazıyor",
+          note: "Belgeyi okuyun veya hastane / RAM ile teyit edin. Yüzde aranmaz."
+        });
+      }
+
+      if (state.kayit === "evet") {
+        rows.push({
+          cls: "ok", mark: "✓", badge: "Sağlıyor",
+          title: "Okula kayıt",
+          note: "Dilekçeyi kayıtlı okul müdürlüğüne verin; okul RAM'a iletir."
+        });
+      } else if (state.kayit === "hayir") {
+        rows.push({
+          cls: "maybe", mark: "!", badge: "Belirsiz",
+          title: "Okula kayıt",
+          note: "Kayıt yoksa yazılı talebi doğrudan RAM'a götürün."
+        });
+      }
+
+      if (state.egitim === "yuz_yuze") {
+        rows.push({
+          cls: "ok", mark: "✓", badge: "Sağlıyor",
+          title: "Yüz yüze eğitim (öncelikli yol)",
+          note: "Öğretmen eve gelir. Ev ortamının elverişli olması beklenir."
+        });
+      } else if (state.egitim === "uzaktan_canli") {
+        rows.push({
+          cls: "maybe", mark: "!", badge: "Belirsiz",
+          title: "Uzaktan canlı ders",
+          note: "Tek başına seçmek yetmez; il/ilçe özel eğitim hizmetleri kurulu karar vermelidir."
+        });
+      }
+
+      if (state.kademe) {
+        rows.push({
+          cls: "ok", mark: "✓", badge: "Sağlıyor",
+          title: kademeLabel(state.kademe),
+          note: "Saati sizin yazmanız gerekmez. Planı kurul ve okul yapar; kayıtlı okulun haftalık saatini aşamaz."
+        });
+      }
+
+      if (state.ortam === "evet") {
+        rows.push({
+          cls: "ok", mark: "✓", badge: "Sağlıyor",
+          title: "Ev ortamı elverişli",
+          note: "Temizlik, ısınma, ışık ve havalandırma yüz yüze ders için yeterli görünüyor."
+        });
+      } else if (state.ortam === "hayir") {
+        rows.push({
+          cls: "no", mark: "✕", badge: "Sağlamıyor",
+          title: "Ev ortamı elverişli",
+          note: "Yüz yüze için ortam uygun değilse kurul uzaktan ders önerebilir."
+        });
+      }
+
+      return rows;
+    }
+
+    function renderSartlar() {
+      const rows = sartRows();
+      if (!rows.length) return "";
+      return (
+        '<section class="sartlar" aria-live="polite">' +
+          "<h4>Şartlarınız</h4>" +
+          rows.map(function (r) {
+            return (
+              '<div class="sart-row ' + r.cls + '">' +
+                '<span class="mark" aria-hidden="true">' + r.mark + "</span>" +
+                '<div class="sart-text"><strong>' + r.title + "</strong>" +
+                (r.note ? "<span>" + r.note + "</span>" : "") +
+                "</div>" +
+                '<span class="sart-badge">' + r.badge + "</span>" +
+              "</div>"
+            );
+          }).join("") +
+        "</section>"
+      );
+    }
+
+    function outcome() {
+      if (isKurum()) {
+        if (state.kurumYetersizlik === "hayir" || state.kurumSkr === "hayir") {
+          return {
+            kind: "no",
+            title: "Kurum evde destek bu yönetmeliğe göre açılmaz",
+            text: "m.25/10 bedensel yetersizlik ve Durum Bildirir Sağlık Kurulu Raporu'nda (SKR) merkeze gidememe veya sağlık riski ister. Saat veya yüzde uydurulmaz."
+          };
+        }
+        if (state.kurumYetersizlik === "emin" || state.kurumSkr === "emin" || state.kurumOdeme === "emin" || state.kurumOdeme === "yok" || state.kurumRam !== "evet" || !state.kurumYetersizlik || !state.kurumSkr) {
+          return {
+            kind: "warn",
+            title: "Kurum evde destek için teyit gerekir",
+            text: "Yanıtlarınıza göre belge veya şart belirsiz. Kararı merkez ve RAM verir; Engelsiz Club hak vaat etmez."
+          };
+        }
+        return {
+          kind: "ok",
+          title: "Bu yol rehabilitasyon merkezine aittir",
+          text: "Özel eğitim ve rehabilitasyon merkezi, merkeze gelemeyen çocuğa evde destek verebilir. Bu, MEB evde eğitim değildir."
+        };
+      }
+      if (state.sure === "hayir" || state.raporYazi === "hayir") {
+        return {
+          kind: "no",
+          title: "MEB evde eğitim bu kılavuza göre açılmaz",
+          text: "En az 12 haftalık süre veya sağlık riski Durum Bildirir Sağlık Kurulu Raporu'nda (SKR) yoksa okul öğretmeninin eve gelmesi bu yolla planlanmaz. Engelli raporu yüzdesi yeterli sayılmaz."
+        };
+      }
+      if (state.sure === "emin" || state.rapor === "alinacak" || state.raporYazi === "emin" || !state.sure || !state.rapor || !state.raporYazi) {
+        const missing = missingDocs();
+        return {
+          kind: "warn",
+          title: missing.length ? "Şu belgeler eksik veya belirsiz" : "Okul veya RAM ile teyit edin",
+          text: "Yanıtlarınıza göre henüz net bir uygunluk görünmüyor. Resmi kararı Engelsiz Club veremez."
+        };
+      }
+      if (state.rapor === "yok") {
+        return {
+          kind: "warn",
+          title: "Yola yakınsınız; sağlık kurulu raporu eksik",
+          text: "12 haftalık gerekçe var görünüyor ama Durum Bildirir Sağlık Kurulu Raporu olmadan başvuru tamamlanmaz. Yüzde belgesi bu raporun yerine geçmez."
+        };
+      }
+      return {
+        kind: "ok",
+        title: "Bu yola uygun görünüyor",
+        text: "Yanıtlarınız MEB evde eğitim kılavuzundaki ana şartlarla örtüşüyor. Karar yine okul, RAM ve kurulundadır."
+      };
+    }
+
+    function missingDocs() {
+      const list = [];
+      if (!isKurum()) {
+        if (state.rapor !== "var") list.push("Durum Bildirir Sağlık Kurulu Raporu");
+        list.push("Veli veya vasi dilekçesi (okul veya RAM'a yazılı talep)");
+        if (state.kayit === "evet") list.push("Eğitsel Değerlendirme İstek Formu (okula kayıtlı öğrenciler için)");
+      }
+      return list;
+    }
+
+    function basvuruNereye() {
+      if (isKurum()) return "Çocuğunuzun gittiği veya gideceği özel eğitim ve rehabilitasyon merkezi";
+      if (state.kayit === "evet") return "Kayıtlı okul müdürlüğü (okul RAM'a iletir)";
+      if (state.kayit === "hayir") return "Doğrudan RAM (Rehberlik ve Araştırma Merkezi)";
+      return "Kayıtlıysa okul müdürlüğü, değilse RAM";
+    }
+
+    function renderProgress() {
+      const list = steps();
+      const qCount = list.length - 1;
+      const idx = isResults() ? qCount : Math.min(stepIndex(), qCount - 1);
+      $("progress").innerHTML = isResults() ? "" : list.slice(0, -1).map(function (_, i) {
+        return "<span class=\"" + (i <= idx ? "bar on" : "bar") + "\"></span>";
+      }).join("");
+      $("wizTitle").textContent = isResults() ? "Sonucunuz" : "Evde Eğitim Sihirbazı";
+    }
+
+    function renderStep(opts) {
+      const keepScroll = opts && opts.keepScroll;
+      const s = state.step;
+      let html = "";
+      if (s === "hizmet") {
+        html =
+          '<p class="q-emoji">🏠</p>' +
+          '<h3 class="q-title">Hangi hizmet?</h3>' +
+          '<p class="q-sub">İki yol: okul öğretmeninin eve gelmesi veya rehabilitasyon merkezinin evde desteği.</p>' +
+          currentError() +
+          tile({
+            act: "hizmet:evde_egitim_meb",
+            selected: state.hizmet === "evde_egitim_meb",
+            title: "1) MEB Evde Eğitim",
+            sub: "Okul öğretmeni eve gelir. 12 hafta + Durum Bildirir Sağlık Kurulu Raporu (SKR). Yüzde aranmaz. Başvuru okul veya RAM."
+          }) +
+          tile({
+            act: "hizmet:evde_destek_kurum",
+            selected: state.hizmet === "evde_destek_kurum",
+            title: "2) Kurum Evde Destek Eğitimi",
+            sub: "Özel eğitim ve rehabilitasyon merkezi eve gelir. MEB evde eğitimin yerine geçmez."
+          }) +
+          renderSartlar() +
+          continueBtn("Devam", !!state.hizmet) + backBtn();
+      } else if (s === "sure") {
+        html =
+          '<p class="q-emoji">🩺</p>' +
+          '<h3 class="q-title">Okula gidememe 12 haftayı buluyor mu?</h3>' +
+          '<p class="q-sub">Sağlık nedeniyle en az 12 hafta okula gidemeyecek mi, ya da gitmesi sağlığını riske atar mı?</p>' +
+          currentError() +
+          tile({ act: "sure:evet", selected: state.sure === "evet", title: "Evet", sub: "Uzun süre okula gidemeyecek veya gitmesi riskli" }) +
+          tile({ act: "sure:hayir", selected: state.sure === "hayir", title: "Hayır", sub: "12 haftalık sağlık gerekçesi yok" }) +
+          tile({ act: "sure:emin", selected: state.sure === "emin", title: "Emin değilim", sub: "Okul veya RAM ile soracağız" }) +
+          renderSartlar() +
+          continueBtn("Devam", !!state.sure) + backBtn();
+      } else if (s === "rapor") {
+        html =
+          '<p class="q-emoji">📋</p>' +
+          '<h3 class="q-title">Sağlık kurulu raporu var mı?</h3>' +
+          '<p class="q-sub">İstenen belge Durum Bildirir Sağlık Kurulu Raporu\'dur. Hastaneden çıkar. Engelli sağlık kurulu yüzdesi (%40, %70) bu yol için aranmaz.</p>' +
+          currentError() +
+          '<div class="info purple">Kılavuz 2025 bölüm 2 ve Özel Eğitim Hizmetleri Yönetmeliği m.14 yüzde istemez. Aranan, en az 12 hafta okula gidememe veya gitmenin sağlık riskidir. ÇÖZGER (Çocuklar İçin Özel Gereksinim Raporu) veya RAM raporu bu belgenin yerine geçmez.</div>' +
+          tile({ act: "rapor:var", selected: state.rapor === "var", title: "Var (Durum Bildirir Sağlık Kurulu Raporu elimizde)", sub: "Hastane sağlık kurulundan çıkar" }) +
+          tile({ act: "rapor:alinacak", selected: state.rapor === "alinacak", title: "Henüz yok, alacağız", sub: "Hastane sağlık kuruluna başvuracağız; Engelsiz Club rapor vermez" }) +
+          tile({ act: "rapor:yok", selected: state.rapor === "yok", title: "Yok (Durum Bildirir Sağlık Kurulu Raporu yok)", sub: "Bu belge olmadan resmi başvuru tamamlanmaz" }) +
+          renderSartlar() +
+          continueBtn("Devam", !!state.rapor) + backBtn();
+      } else if (s === "raporYazi") {
+        html =
+          '<p class="q-emoji">📝</p>' +
+          '<h3 class="q-title">Raporda 12 hafta veya sağlık riski yazıyor mu?</h3>' +
+          '<p class="q-sub">Durum Bildirir Sağlık Kurulu Raporu (SKR) süre veya risk belgesidir; yüzde belgesi değildir. Engelli raporu yüzdesi bu şartın yerine geçmez.</p>' +
+          currentError() +
+          '<div class="info purple">Yönetmelik m.14 (RG 25.10.2022 ile üç hekim ibaresi kalktı) ve Kılavuz bölüm 2: belgede en az on iki hafta veya sağlık riski yazmalıdır.</div>' +
+          tile({ act: "raporYazi:evet", selected: state.raporYazi === "evet", title: "Evet, en az 12 hafta yazıyor", sub: "Hastane raporunda süre belirtilmiş" }) +
+          tile({ act: "raporYazi:risk", selected: state.raporYazi === "risk", title: "Evet, sağlık riski yazıyor", sub: "Okula gitmenin sağlığı riske attığı yazıyor" }) +
+          tile({ act: "raporYazi:ikisi", selected: state.raporYazi === "ikisi", title: "İkisi de yazıyor", sub: "Hem süre hem risk belirtilmiş" }) +
+          tile({ act: "raporYazi:hayir", selected: state.raporYazi === "hayir", title: "Bunlar yazmıyor", sub: "Yalnızca yüzde veya başka tanı var; 12 hafta/risk yok" }) +
+          tile({ act: "raporYazi:emin", selected: state.raporYazi === "emin", title: "Emin değilim", sub: "Belgeyi okuyacağız veya hastane / RAM'a soracağız" }) +
+          renderSartlar() +
+          continueBtn("Devam", !!state.raporYazi) + backBtn();
+      } else if (s === "kayit") {
+        html =
+          '<p class="q-emoji">🏫</p>' +
+          '<h3 class="q-title">Okula kayıtlı mı?</h3>' +
+          '<p class="q-sub">Kayıtlıysa dilekçeyi okul müdürlüğüne verin. Kayıt yoksa doğrudan RAM\'a gidin.</p>' +
+          currentError() +
+          tile({ act: "kayit:evet", selected: state.kayit === "evet", title: "Evet, kayıtlı", sub: "Okul, talebi RAM'a iletir" }) +
+          tile({ act: "kayit:hayir", selected: state.kayit === "hayir", title: "Hayır, kayıtlı değil", sub: "Yazılı talebi RAM'a götürün" }) +
+          renderSartlar() +
+          continueBtn("Devam", !!state.kayit) + backBtn();
+      } else if (s === "model") {
+        html =
+          '<p class="q-emoji">👩‍🏫</p>' +
+          '<h3 class="q-title">Dersler yüz yüze mi, uzaktan mı?</h3>' +
+          '<p class="q-sub">Öncelik evde yüz yüze derstir. Uzaktan canlı ders ancak kurul kararıyla olur.</p>' +
+          currentError() +
+          tile({
+            act: "egitim:yuz_yuze",
+            selected: state.egitim === "yuz_yuze",
+            title: "Yüz yüze",
+            sub: "Öğretmen eve gelir. Evde temizlik, ısınma, ışık ve havalandırma yeterli olmalıdır."
+          }) +
+          tile({
+            act: "egitim:uzaktan_canli",
+            selected: state.egitim === "uzaktan_canli",
+            title: "Uzaktan canlı ders",
+            sub: "Veli talebi, sağlık riski veya öğretmen bulunamaması halinde kurul karar verir."
+          }) +
+          renderSartlar() +
+          continueBtn("Devam", !!state.egitim) + backBtn();
+      } else if (s === "kademe") {
+        html =
+          '<p class="q-emoji">📚</p>' +
+          '<h3 class="q-title">Hangi kademe?</h3>' +
+          '<p class="q-sub">Haftalık saat kılavuza göredir. Sizin sayı yazmanız gerekmez; planı kurul ve okul yapar.</p>' +
+          currentError() +
+          tile({ act: "kademe:ilkogretim", selected: state.kademe === "ilkogretim", title: "İlköğretim", sub: "Haftada en az 10 ders saati" }) +
+          tile({ act: "kademe:ortaogretim_ozel", selected: state.kademe === "ortaogretim_ozel", title: "Özel eğitim ortaöğretim", sub: "Haftada en az 10 ders saati" }) +
+          tile({ act: "kademe:ortaogretim", selected: state.kademe === "ortaogretim", title: "Diğer ortaöğretim", sub: "Haftada en az 16 ders saati" }) +
+          renderSartlar() +
+          continueBtn("Devam", !!state.kademe) + backBtn();
+      } else if (s === "ortam") {
+        html =
+          '<p class="q-emoji">🏡</p>' +
+          '<h3 class="q-title">Ev ortamı elverişli mi?</h3>' +
+          '<p class="q-sub">Yüz yüze ders için evin temiz, ılık, aydınlık ve havalandırılabilir olması beklenir. İsterseniz atlayabilirsiniz.</p>' +
+          currentError() +
+          tile({ act: "ortam:evet", selected: state.ortam === "evet", title: "Evet, elverişli", sub: "Ders için uygun bir yer var" }) +
+          tile({ act: "ortam:hayir", selected: state.ortam === "hayir", title: "Hayır, şu an elverişli değil", sub: "Kurul uzaktan ders önerebilir" }) +
+          renderSartlar() +
+          continueBtn("Sonucu göster", true) +
+          '<button type="button" class="btn-ghost" data-act="skip-ortam">Bu soruyu atla</button>' +
+          backBtn();
+      } else if (s === "kurumYetersizlik") {
+        html =
+          '<p class="q-emoji">♿</p>' +
+          '<h3 class="q-title">Bedensel yetersizlik var mı?</h3>' +
+          '<p class="q-sub">Kurum evde destek, 11 Temmuz 2025 değişikliğiyle bedensel yetersizliğe bağlanır. Saat, yüzdeye veya hafif/orta/ağıra göre değişmez.</p>' +
+          currentError() +
+          '<div class="info purple">Özel Eğitim Kurumları Yönetmeliği m.25/10: evde destek, Bedensel Yetersizliği Olan Bireyler İçin Destek Eğitim Programı ile verilir. Başvuru rehabilitasyon merkezinedir.</div>' +
+          tile({ act: "kurumYetersizlik:evet", selected: state.kurumYetersizlik === "evet", title: "Evet", sub: "Bedensel yetersizlik tanısı var" }) +
+          tile({ act: "kurumYetersizlik:hayir", selected: state.kurumYetersizlik === "hayir", title: "Hayır", sub: "Bedensel yetersizlik yok" }) +
+          tile({ act: "kurumYetersizlik:emin", selected: state.kurumYetersizlik === "emin", title: "Emin değilim", sub: "RAM veya merkezle soracağız" }) +
+          renderSartlar() +
+          continueBtn("Devam", !!state.kurumYetersizlik) + backBtn();
+      } else if (s === "kurumSkr") {
+        html =
+          '<p class="q-emoji">📋</p>' +
+          '<h3 class="q-title">Merkeze gidememe raporu var mı?</h3>' +
+          '<p class="q-sub">Durum Bildirir Sağlık Kurulu Raporu\'nda, 5580 kapsamındaki merkeze gidemeyeceği veya gitmesinin sağlık riski olduğu yazmalıdır. Bu da yüzde belgesi değildir.</p>' +
+          currentError() +
+          '<div class="info purple">Belge hastane sağlık kurulundan çıkar. Engelsiz Club rapor vermez. Eski metindeki "en az %20 bedensel" ibaresi 11.07.2025 ile kalkmıştır; güncel metin yüzde yazmaz.</div>' +
+          tile({ act: "kurumSkr:evet", selected: state.kurumSkr === "evet", title: "Var (Durum Bildirir Sağlık Kurulu Raporu elimizde)", sub: "Raporda merkeze gidememe veya sağlık riski yazıyor" }) +
+          tile({ act: "kurumSkr:hayir", selected: state.kurumSkr === "hayir", title: "Yok (Durum Bildirir Sağlık Kurulu Raporu yok)", sub: "Bu belge yok veya merkeze gidememe yazılmamış" }) +
+          tile({ act: "kurumSkr:emin", selected: state.kurumSkr === "emin", title: "Emin değilim", sub: "Hastane veya merkezle soracağız" }) +
+          renderSartlar() +
+          continueBtn("Devam", !!state.kurumSkr) + backBtn();
+      } else if (s === "kurumOdeme") {
+        html =
+          '<p class="q-emoji">📑</p>' +
+          '<h3 class="q-title">Devlet ödemeli destek için hangi belge?</h3>' +
+          '<p class="q-sub">652 sayılı KHK m.43 devlet ödemesini belgeler. Bu yüzde evde destek saatini değiştirmez; MEB evde eğitime de taşınmaz.</p>' +
+          currentError() +
+          '<div class="info purple">18 yaş altı: ÇÖZGER (Çocuklar İçin Özel Gereksinim Raporu) ile özel gereksinim — yüzde yok. 18+: Erişkinler İçin Engellilik Sağlık Kurulu Raporu\'nda (ESKR) asgari %20. Hafif/orta/ağır veya %40/%70 saat bandı mevzuatta yoktur.</div>' +
+          tile({ act: "kurumOdeme:cocuk_cozger", selected: state.kurumOdeme === "cocuk_cozger", title: "18 yaş altı — ÇÖZGER (Çocuklar İçin Özel Gereksinim Raporu)", sub: "Özel gereksinim yazması yeter; yüzde aranmaz. Hastaneden çıkar." }) +
+          tile({ act: "kurumOdeme:yetiskin_20", selected: state.kurumOdeme === "yetiskin_20", title: "18+ — en az %20 ESKR (Erişkinler İçin Engellilik Sağlık Kurulu Raporu)", sub: "652 sayılı KHK m.43'teki tek resmi yüzde. Evde destek saatini değiştirmez." }) +
+          tile({ act: "kurumOdeme:yok", selected: state.kurumOdeme === "yok", title: "Bu belgeler yok", sub: "Devlet ödemesi açılmayabilir; ücretli kayıt ayrıdır" }) +
+          tile({ act: "kurumOdeme:emin", selected: state.kurumOdeme === "emin", title: "Emin değilim", sub: "RAM veya merkezle soracağız" }) +
+          renderSartlar() +
+          continueBtn("Devam", !!state.kurumOdeme) + backBtn();
+      } else if (s === "kurumRam") {
+        html =
+          '<p class="q-emoji">🏫</p>' +
+          '<h3 class="q-title">RAM (Rehberlik ve Araştırma Merkezi) destek eğitimi öneriyor mu?</h3>' +
+          '<p class="q-sub">Özel Eğitim Değerlendirme Kurulu Raporu (RAM) destek eğitimi önermelidir. Kurum kaydı ve evde destek için bu rapor gerekir.</p>' +
+          currentError() +
+          '<div class="info purple">Başvuru RAM\'adır. Engelsiz Club eğitsel rapor vermez. Saat yine 8 bireysel ve/veya 4 grup; oranla değişmez.</div>' +
+          tile({ act: "kurumRam:evet", selected: state.kurumRam === "evet", title: "Evet, öneriyor", sub: "RAM raporu destek eğitimi yazıyor" }) +
+          tile({ act: "kurumRam:hayir", selected: state.kurumRam === "hayir", title: "Hayır / rapor yok", sub: "RAM değerlendirmesi yok veya destek önermiyor" }) +
+          tile({ act: "kurumRam:emin", selected: state.kurumRam === "emin", title: "Emin değilim", sub: "RAM'a soracağız" }) +
+          renderSartlar() +
+          continueBtn("Devam", !!state.kurumRam) + backBtn();
+      } else if (s === "kurum") {
+        html =
+          '<p class="q-emoji">🏥</p>' +
+          '<h3 class="q-title">Kurum evde destek nedir?</h3>' +
+          '<p class="q-sub">Rehabilitasyon merkezi, merkeze gelemeyen çocuğa evde destek verebilir. Bu, okul öğretmeninin eve gelmesi değildir.</p>' +
+          '<div class="info purple">Başvuru ilgili özel eğitim ve rehabilitasyon merkezinedir. Aylık işler merkezin Özel Eğitim Modülü\'ne girilir. Kamera / biyometrik evde aranmaz (m.25/10).</div>' +
+          '<div class="info green">Aylık devlet ödemeli destek: 8 saat bireysel ve/veya 4 saat grup. Rapor oranı veya yetersizlik derecesi bu saati değiştirmez.</div>' +
+          renderSartlar() +
+          continueBtn("Sonucu göster", true) + backBtn();
+      } else if (s === "results") {
+        html = renderResults();
+      }
+      $("wizInner").innerHTML = html;
+      if (!keepScroll) {
+        $("wizInner").closest(".wiz-body").scrollTop = 0;
+      } else {
+        const last = document.querySelector(".sart-row:last-child");
+        if (last) last.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    }
+
+    function resultCard(icon, bg, color, title, badge, desc, items, where) {
+      return (
+        '<article class="result-card"><div class="row">' +
+          '<div class="result-icon" style="background:' + bg + '">' + icon + "</div>" +
+          "<div><h3>" + title + "</h3>" +
+          (badge ? '<span class="badge" style="background:' + bg + ";color:" + color + '">' + badge + "</span>" : "") +
+          (desc ? "<p>" + desc + "</p>" : "") +
+          "</div></div>" +
+          (items && items.length
+            ? '<ul class="steps-list">' + items.map(function (x) {
+                return '<li><span class="check-ico">✓</span><span>' + x + "</span></li>";
+              }).join("") + "</ul>"
+            : "") +
+          (where ? '<div class="where" style="background:' + bg + ";color:" + color + '">📄 ' + where + "</div>" : "") +
+        "</article>"
+      );
+    }
+
+    function renderResults() {
+      const out = outcome();
+      const foundCls = out.kind === "ok" ? "found" : out.kind === "no" ? "found no" : "found warn";
+      const cards = [];
+      cards.push('<div class="' + foundCls + '">' + (out.kind === "ok" ? "✓ " : out.kind === "no" ? "✕ " : "⚠ ") + out.title + "</div>");
+      cards.push('<p class="q-sub tight" style="text-align:left;margin:0 0 12px">' + out.text + "</p>");
+      if (state.saveNote) {
+        cards.push('<p class="msg ' + (state.saved ? "ok" : "note") + '" role="status">' + state.saveNote + "</p>");
+      }
+      cards.push(renderSartlar());
+
+      if (isKurum()) {
+        cards.push(resultCard("🏥", "#F5EEFB", "#6B21A8", "Kurum Evde Destek Eğitimi", "Rehabilitasyon merkezi",
+          "5580 sayılı Kanun kapsamındaki özel eğitim ve rehabilitasyon merkezinin evde verdiği destektir. Saat: ayda 8 bireysel ve/veya 4 grup — oranla değişmez.",
+          [
+            "MEB evde eğitimin yerine geçmez.",
+            "m.25/10: bedensel yetersizlik + Durum Bildirir Sağlık Kurulu Raporu (SKR) (merkeze gidememe).",
+            "Devlet ödemesi: 652 KHK m.43 — 18 altı ÇÖZGER (Çocuklar İçin Özel Gereksinim Raporu, yüzde yok), 18+ en az %20 ESKR (Erişkinler İçin Engellilik Sağlık Kurulu Raporu).",
+            "Başvuruyu merkeze ve gerekirse RAM'a yapın."
+          ],
+          basvuruNereye()));
+      } else {
+        const docs = missingDocs();
+        cards.push(resultCard("📍", "#E0F2FE", "#075985", "Resmi başvuru nereye?",
+          state.kayit === "hayir" ? "RAM" : "Okul / RAM",
+          "Engelsiz Club dilekçe kabul etmez. Yazılı talebi aşağıdaki yere verin.",
+          docs.length
+            ? docs.map(function (d) { return "Gerekli: " + d; })
+            : ["Veli dilekçesi ve sağlık kurulu raporu ile başvurun."],
+          basvuruNereye()));
+        cards.push(resultCard("💻", "#FEF3C7", "#B45309", "e-Okul uyarısı", "Yalnızca okul müdürlüğü",
+          "Kabul sonrası okul, e-Okul'da öğrenci dosyasında \"Özel Eğitim Durumu: Evde Eğitim Alıyor\" işaretini koyar. Bu işaret olmadan devam-devamsızlık işlemleri oluşmaz.",
+          ["Engelsiz Club bu işareti koyamaz."],
+          "Yalnızca kayıtlı okul müdürlüğü"));
+      }
+
+      cards.push(
+        '<p class="disclaimer" style="margin:8px 0 16px">Bu bir ön kontrolüdür; hak veya tutar vaadi yoktur. Güncel işlem için ' +
+        '<a href="' + KILAVUZ + '" target="_blank" rel="noopener">Kılavuz 2025</a> ve ' +
+        '<a href="' + RG_KURUM + '" target="_blank" rel="noopener">11 Temmuz 2025 m.25/10</a>.</p>'
+      );
+      if (!state.saved) {
+        cards.push('<button type="button" class="btn-continue" data-act="save" style="margin-top:8px">Özeti kaydet →</button>');
+      }
+      cards.push('<button type="button" class="btn-outline" data-act="reset">↻ Yeniden Sorgula</button>');
+      cards.push('<button type="button" class="btn-ghost" data-act="back">← Geri</button>');
+      return cards.join("");
+    }
+
+    function validateCurrent() {
+      state.formError = "";
+      const s = state.step;
+      if (s === "hizmet" && !state.hizmet) return "Hizmet türünü seçin.";
+      if (s === "sure" && !state.sure) return "Bir seçenek işaretleyin.";
+      if (s === "rapor" && !state.rapor) return "Bir seçenek işaretleyin.";
+      if (s === "raporYazi" && !state.raporYazi) return "Bir seçenek işaretleyin.";
+      if (s === "kayit" && !state.kayit) return "Bir seçenek işaretleyin.";
+      if (s === "model" && !state.egitim) return "Eğitim modelini seçin.";
+      if (s === "kademe" && !state.kademe) return "Kademe seçin.";
+      if (s === "kurumYetersizlik" && !state.kurumYetersizlik) return "Bir seçenek işaretleyin.";
+      if (s === "kurumSkr" && !state.kurumSkr) return "Bir seçenek işaretleyin.";
+      if (s === "kurumOdeme" && !state.kurumOdeme) return "Bir seçenek işaretleyin.";
+      if (s === "kurumRam" && !state.kurumRam) return "Bir seçenek işaretleyin.";
+      return "";
+    }
+
+    function goNext() {
+      const err = validateCurrent();
+      if (err) {
+        state.formError = err;
+        renderProgress();
+        renderStep();
+        return;
+      }
+      const list = steps();
+      const i = list.indexOf(state.step);
+      if (i >= 0 && i < list.length - 1) state.step = list[i + 1];
+      saveDraft();
+      renderProgress();
+      renderStep();
+    }
+    function goBack() {
+      const list = steps();
+      const i = list.indexOf(state.step);
+      if (i > 0) state.step = list[i - 1];
+      state.formError = "";
+      renderProgress();
+      renderStep();
+    }
+    function resetWizard() {
+      Object.assign(state, {
+        step: "hizmet", hizmet: "", sure: "", rapor: "", raporYazi: "", kayit: "",
+        egitim: "", kademe: "", ortam: "",
+        kurumYetersizlik: "", kurumSkr: "", kurumOdeme: "", kurumRam: "",
+        saved: false, saveNote: "", formError: ""
+      });
+      try { localStorage.removeItem(STORE); } catch (e) {}
+      renderProgress();
+      renderStep();
+    }
+
+    async function submitCloud(session) {
+      const body = {
+        user_id: session.userId,
+        hizmet_turu: state.hizmet,
+        egitim_turu: isKurum() ? null : (state.egitim || null),
+        kademe: isKurum() ? null : (state.kademe || null),
+        haftalik_ders_saati: isKurum() ? null : (minHours(state.kademe) || null),
+        durum: "taslak",
+        ek1_veli_sozlesmesi_onaylandi: false,
+        updated_at: new Date().toISOString()
+      };
+      const res = await fetch(SUPABASE_URL + "/rest/v1/evde_egitim_basvurulari", {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_ANON,
+          Authorization: "Bearer " + session.token,
+          "Content-Type": "application/json",
+          Prefer: "return=representation"
+        },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) throw new Error("cloud");
+    }
+
+    async function onSave() {
+      const session = readSession();
+      saveDraft();
+      if (!session) {
+        state.saved = true;
+        state.saveNote = "Özet bu cihaza kaydedildi. Ad, soyad ve T.C. alınmaz. Hesaba yazmak için Engelsiz Club'a giriş yapın.";
+        renderStep();
+        return;
+      }
+      try {
+        await submitCloud(session);
+        state.saved = true;
+        state.saveNote = "Özet hesabınıza kaydedildi. Ad, soyad ve T.C. yazılmaz. Resmi başvuru okul, RAM veya ilgili kurumadır.";
+        saveDraft();
+      } catch (e) {
+        state.saved = true;
+        state.saveNote = "Bulut kayıt olmadı; özet cihazda duruyor.";
+      }
+      renderProgress();
+      renderStep();
+    }
+
+    $("wizInner").addEventListener("click", function (ev) {
+      const btn = ev.target.closest("[data-act]");
+      if (!btn) return;
+      const act = btn.getAttribute("data-act");
+      if (act === "next") return goNext();
+      if (act === "back") return goBack();
+      if (act === "reset") return resetWizard();
+      if (act === "save") return onSave();
+      if (act === "skip-ortam") {
+        state.ortam = "";
+        state.step = "results";
+        saveDraft();
+        renderProgress();
+        renderStep();
+        return;
+      }
+      if (act.indexOf("hizmet:") === 0) { state.hizmet = act.slice(7); saveDraft(); renderStep({ keepScroll: true }); return; }
+      if (act.indexOf("sure:") === 0) { state.sure = act.slice(5); saveDraft(); renderStep({ keepScroll: true }); return; }
+      if (act.indexOf("raporYazi:") === 0) { state.raporYazi = act.slice(10); saveDraft(); renderStep({ keepScroll: true }); return; }
+      if (act.indexOf("rapor:") === 0) { state.rapor = act.slice(6); saveDraft(); renderStep({ keepScroll: true }); return; }
+      if (act.indexOf("kayit:") === 0) { state.kayit = act.slice(6); saveDraft(); renderStep({ keepScroll: true }); return; }
+      if (act.indexOf("egitim:") === 0) { state.egitim = act.slice(7); saveDraft(); renderStep({ keepScroll: true }); return; }
+      if (act.indexOf("kademe:") === 0) { state.kademe = act.slice(7); saveDraft(); renderStep({ keepScroll: true }); return; }
+      if (act.indexOf("ortam:") === 0) { state.ortam = act.slice(6); saveDraft(); renderStep({ keepScroll: true }); return; }
+      if (act.indexOf("kurumYetersizlik:") === 0) { state.kurumYetersizlik = act.slice(17); saveDraft(); renderStep({ keepScroll: true }); return; }
+      if (act.indexOf("kurumSkr:") === 0) { state.kurumSkr = act.slice(9); saveDraft(); renderStep({ keepScroll: true }); return; }
+      if (act.indexOf("kurumOdeme:") === 0) { state.kurumOdeme = act.slice(11); saveDraft(); renderStep({ keepScroll: true }); return; }
+      if (act.indexOf("kurumRam:") === 0) { state.kurumRam = act.slice(9); saveDraft(); renderStep({ keepScroll: true }); return; }
+    });
+
+    $("startBtn").addEventListener("click", function () {
+      $("wizard").classList.remove("hidden");
+      $("landing").classList.add("hidden");
+      state.step = "hizmet";
+      renderProgress();
+      renderStep();
+    });
+    $("closeBtn").addEventListener("click", function () {
+      saveDraft();
+      $("wizard").classList.add("hidden");
+      $("landing").classList.remove("hidden");
+    });
+
+    loadDraft();
+  </script>
+</body>
+</html>

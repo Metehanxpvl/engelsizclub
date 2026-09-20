@@ -41,12 +41,25 @@ import {
   researchContentHash,
 } from './hash.mjs';
 import { fetchPubmed } from './pubmed.mjs';
+import {
+  paperForImageQueue,
+  writeGithubPapersJson,
+  writePapersJson,
+} from './papers_queue.mjs';
 import { buildInsertRow } from './row.mjs';
 
 const EXISTING_PAGE = 1000;
 const AI_DELAY_MS = 2000;
 const BACKFILL_PAGE = 200;
 const TRANSLATE_BUDGET_MS = WORKFLOW_BUDGET_MS;
+const CATALOG_PAGE = 300;
+const CATALOG_SELECT =
+  'id,title,original_title,summary,why_important,limitations,conditions,' +
+  'categories,study_type,evidence_level,study_phase,human_or_animal,' +
+  'pediatric_relevance,relevance_score,scientific_importance_score,' +
+  'treatment_potential_score,clinical_readiness_score,treatment_potential,' +
+  'recruitment_status,publication_date,country,journal,doi,pmid,nct_id,' +
+  'source_name,source_url,external_id,content_hash,status,ai_notes,created_at';
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -403,7 +416,7 @@ async function backfillEnglishRows({
   return { translated, englishLeft: remaining, lastHttpStatus };
 }
 
-async function processItem(item, source, existing, stats, leftover, startedAt) {
+async function processItem(item, source, existing, stats, leftover, startedAt, imageQueue) {
   const contentHash =
     item.fdaHash ||
     researchContentHash({
@@ -537,6 +550,9 @@ async function processItem(item, source, existing, stats, leftover, startedAt) {
       contentHash,
     });
     console.log(`pending_review ${ai.treatment_potential}: ${row.title}`);
+    if (Array.isArray(imageQueue)) {
+      imageQueue.push(paperForImageQueue(row, created));
+    }
     if (needsLeftover || needsTurkishBackfill({ ...row, ...(created.id ? created : {}), status: 'pending_review' })) {
       const queued = leftoverFromRow(
         {
@@ -548,6 +564,25 @@ async function processItem(item, source, existing, stats, leftover, startedAt) {
       );
       if (queued) leftover.push(queued);
     }
+  }
+}
+
+async function loadCatalogStatus(status) {
+  const rows =
+    (await sb(
+      `scientific_researches?status=eq.${status}&select=${CATALOG_SELECT}&limit=${CATALOG_PAGE}&order=created_at.desc`,
+    )) || [];
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function loadGithubCatalogRows() {
+  try {
+    const pending = await loadCatalogStatus('pending_review');
+    const published = await loadCatalogStatus('published');
+    return [...pending, ...published];
+  } catch (e) {
+    console.warn(`github catalog dump skipped: ${e.message}`);
+    return [];
   }
 }
 
@@ -568,6 +603,7 @@ async function main() {
   const stats = emptyStats();
   const startedAt = Date.now();
   const leftover = [];
+  const imageQueue = [];
   const firstPass = await backfillEnglishRows({ startedAt, leftover });
   stats.translatedBackfill += firstPass.translated;
   stats.lastHttpStatus = firstPass.lastHttpStatus ?? stats.lastHttpStatus;
@@ -585,7 +621,7 @@ async function main() {
       );
       for (const item of filtered.kept) {
         if (!item?.title || !item.sourceUrl) continue;
-        await processItem(item, source, existing, stats, leftover, startedAt);
+        await processItem(item, source, existing, stats, leftover, startedAt, imageQueue);
         if (AI_KEY) await sleep(AI_DELAY_MS);
       }
       await touchSource(source);
@@ -606,6 +642,12 @@ async function main() {
   );
 
   printSummary(stats);
+  const papersPath = writePapersJson(imageQueue);
+  console.log(`imagen queue count=${imageQueue.length} ${papersPath}`);
+  const catalogRows = await loadGithubCatalogRows();
+  const githubRows = catalogRows.length ? catalogRows : imageQueue;
+  const githubPath = writeGithubPapersJson(githubRows);
+  console.log(`github catalog count=${githubRows.length} ${githubPath}`);
   if (stats.found === 0) {
     console.error(
       'found=0. SQL seed (scientific_sources) çalıştı mı? PubMed/ClinicalTrials hatalarına bakın. ' +

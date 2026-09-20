@@ -443,6 +443,7 @@ class _GeziRehberiPageState extends State<GeziRehberiPage> {
                               itemBuilder: (context, i) {
                                 final item = items[i];
                                 return GeziKampanyaFeedCard(
+                                  key: ValueKey('gezi-${item.id}-${item.imageUrl}'),
                                   imageUrl: item.imageUrl,
                                   title: _cardTitle(item),
                                   description: item.description,

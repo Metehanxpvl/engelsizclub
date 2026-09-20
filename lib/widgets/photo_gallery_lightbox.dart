@@ -77,11 +77,12 @@ class FillPhoto extends StatelessWidget {
     if (src.startsWith('http://') || src.startsWith('https://')) {
       return Image.network(
         src,
+        key: ValueKey(src),
         fit: fit,
         width: width,
         height: height,
-        gaplessPlayback: true,
-        webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+        gaplessPlayback: false,
+        webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
         errorBuilder: (_, __, ___) =>
             placeholder ?? const SizedBox.shrink(),
         loadingBuilder: (context, child, progress) {
@@ -89,13 +90,14 @@ class FillPhoto extends StatelessWidget {
           return SizedBox(
             width: width,
             height: height,
-            child: const Center(
-              child: SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
+            child: placeholder ??
+                const Center(
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
           );
         },
       );
@@ -105,10 +107,11 @@ class FillPhoto extends StatelessWidget {
     if (provider == null) return placeholder ?? const SizedBox.shrink();
     return Image(
       image: provider,
+      key: ValueKey(src),
       fit: fit,
       width: width,
       height: height,
-      gaplessPlayback: true,
+      gaplessPlayback: false,
       errorBuilder: (_, __, ___) =>
           placeholder ?? const SizedBox.shrink(),
     );

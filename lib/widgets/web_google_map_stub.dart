@@ -9,6 +9,7 @@ class WebGoogleMapHost extends StatelessWidget {
     required this.zoom,
     required this.markers,
     this.onMarkerTap,
+    this.onMapTap,
     this.height = 220,
   });
 
@@ -17,6 +18,7 @@ class WebGoogleMapHost extends StatelessWidget {
   final double zoom;
   final List<WebMapMarker> markers;
   final ValueChanged<String>? onMarkerTap;
+  final void Function(double lat, double lng)? onMapTap;
   final double height;
 
   @override

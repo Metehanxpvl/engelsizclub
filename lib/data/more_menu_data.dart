@@ -28,6 +28,7 @@ class MoreMenuItem {
     'taramalar',
     'puzzle',
     'boyama',
+    'metobot',
     'folder',
   };
 
@@ -91,7 +92,8 @@ class MoreMenuItem {
   }
 
   factory MoreMenuItem.fromJson(Map<String, dynamic> json) {
-    final rawLink = json['link']?.toString() ?? '';
+    final rawLink =
+        json['link']?.toString() ?? json['url']?.toString() ?? '';
     var linkType =
         (json['link_type']?.toString() ?? 'url').trim().toLowerCase();
     final parentRaw = json['parent_id'];
@@ -109,6 +111,22 @@ class MoreMenuItem {
         linkType: 'folder',
         link: rawLink.trim().isEmpty ? 'folder' : rawLink.trim(),
         icon: json['icon']?.toString() ?? 'folder',
+        sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
+        isActive: json['is_active'] != false,
+        isBuiltin: json['is_builtin'] == true,
+        parentId: safeParent,
+      );
+    }
+
+    final wizard = hostedHtmlWizardUrl(rawLink);
+    if (wizard != null) {
+      return MoreMenuItem(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        title: json['title']?.toString() ?? '',
+        subtitle: json['subtitle']?.toString() ?? '',
+        linkType: 'url',
+        link: wizard,
+        icon: json['icon']?.toString() ?? 'link',
         sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
         isActive: json['is_active'] != false,
         isBuiltin: json['is_builtin'] == true,
@@ -156,9 +174,44 @@ class MoreMenuItem {
 
 const Object _parentIdSentinel = Object();
 
+const kEngelsizClubOrigin = 'https://www.engelsizclub.com';
+const kDestekSorguHtmlUrl = '$kEngelsizClubOrigin/destek-sorgu.html';
+const kEvdeEgitimHtmlUrl = '$kEngelsizClubOrigin/evde-egitim.html';
+
+/// Destek Sorgu / Evde Eğitim: gerçek `.html` dosyası (Flutter route değil).
+String? hostedHtmlWizardUrl(String raw) {
+  var s = raw.trim().toLowerCase().replaceAll('\\', '/');
+  if (s.isEmpty) return null;
+  if (s.startsWith('route:')) s = s.substring(6).trim();
+  final q = s.indexOf('?');
+  if (q >= 0) s = s.substring(0, q);
+  final hash = s.indexOf('#');
+  if (hash >= 0) s = s.substring(0, hash);
+
+  var path = s;
+  if (s.contains('://')) {
+    final u = Uri.tryParse(s);
+    if (u != null) path = u.path;
+  }
+  if (path.startsWith('/')) path = path.substring(1);
+  if (path.endsWith('/')) path = path.substring(0, path.length - 1);
+
+  final compact = path.replaceAll('_', '-').replaceAll('.html', '');
+  final hay = '$compact $path $s'.replaceAll('_', '-');
+  if (hay.contains('destek-sorgu') || hay.contains('desteksorgu')) {
+    return kDestekSorguHtmlUrl;
+  }
+  if (hay.contains('evde-egitim') || hay.contains('evdeegitim')) {
+    return kEvdeEgitimHtmlUrl;
+  }
+  return null;
+}
+
 /// `cvi2`, `/cvi2`, `route:cvi2` → `cvi2` (bilinmeyen route ise null).
 /// `boyama.html` / `/boyama` URL’leri in-app `boyama` route’una çevrilir.
+/// Destek / Evde eğitim `.html` dosyaları Flutter route değildir.
 String? normalizeMoreMenuRoute(String raw) {
+  if (hostedHtmlWizardUrl(raw) != null) return null;
   var s = raw.trim().toLowerCase();
   if (s.isEmpty) return null;
   if (s.startsWith('route:')) s = s.substring(6).trim();
@@ -262,7 +315,7 @@ bool wouldCreateMoreMenuCycle(
 
 const defaultHaritaMenuItem = MoreMenuItem(
   id: -9,
-  title: 'Harita',
+  title: 'Engelsiz Haritalar',
   subtitle: 'Destek merkezleri ve yakındaki hizmet noktaları',
   linkType: 'route',
   link: 'harita',
@@ -272,9 +325,171 @@ const defaultHaritaMenuItem = MoreMenuItem(
   isBuiltin: true,
 );
 
+const defaultHaklarMenuItem = MoreMenuItem(
+  id: -2,
+  title: 'Hak Sorgulama',
+  subtitle: 'Devlet hakları ve rehber',
+  linkType: 'route',
+  link: 'haklar',
+  icon: 'balance',
+  sortOrder: 20,
+  isActive: true,
+  isBuiltin: true,
+);
+
+const defaultDestekSorguMenuItem = MoreMenuItem(
+  id: -16,
+  title: 'Destek Sorgulama',
+  subtitle: 'SUT taban fiyatı, SGK katkısı ve yenileme takvimi',
+  linkType: 'url',
+  link: kDestekSorguHtmlUrl,
+  icon: 'calculate',
+  sortOrder: 22,
+  isActive: true,
+  isBuiltin: false,
+);
+
+const defaultEvdeEgitimMenuItem = MoreMenuItem(
+  id: -17,
+  title: 'Evde eğitim sorgu',
+  subtitle: 'Şartları adım adım görün — ad ve T.C. sorulmaz',
+  linkType: 'url',
+  link: kEvdeEgitimHtmlUrl,
+  icon: 'family',
+  sortOrder: 23,
+  isActive: true,
+  isBuiltin: false,
+);
+
+const defaultKartlarMenuItem = MoreMenuItem(
+  id: -3,
+  title: 'İletişim Kartları',
+  subtitle: 'Görsel destek kartları',
+  linkType: 'route',
+  link: 'kartlar',
+  icon: 'grid',
+  sortOrder: 30,
+  isActive: true,
+  isBuiltin: true,
+);
+
+const defaultAileKocuMenuItem = MoreMenuItem(
+  id: -1,
+  title: 'Aile Koçum',
+  subtitle: 'Ders, ilaç ve not takibi (çevrimdışı)',
+  linkType: 'route',
+  link: 'aile_kocu',
+  icon: 'family',
+  sortOrder: 10,
+  isActive: true,
+  isBuiltin: true,
+);
+
+const defaultMetoBotMenuItem = MoreMenuItem(
+  id: -18,
+  title: 'MetoBot',
+  subtitle: 'Yardımcı asistan',
+  linkType: 'route',
+  link: 'metobot',
+  icon: 'smart_toy',
+  sortOrder: 80,
+  isActive: true,
+  isBuiltin: true,
+);
+
+/// Kullanıcı Daha Fazlası sırası (ekran görüntüsü).
+enum UserMoreMenuSlot {
+  harita,
+  taramalar,
+  haklar,
+  destekSorgu,
+  evdeEgitim,
+  kartlar,
+  aileKocu,
+  metobot,
+}
+
 bool isHaritaMenuItem(MoreMenuItem e) {
   final k = (e.routeKey ?? e.link.trim().toLowerCase());
   return k == 'harita' || k == 'merkezler';
+}
+
+bool isMetoBotMenuItem(MoreMenuItem e) {
+  final k = (e.routeKey ?? e.link.trim().toLowerCase());
+  if (k == 'metobot') return true;
+  return e.title.trim().toLowerCase() == 'metobot';
+}
+
+UserMoreMenuSlot? userMoreMenuSlot(MoreMenuItem e) {
+  if (isHaritaMenuItem(e)) return UserMoreMenuSlot.harita;
+  if (isTaramalarGroupItem(e)) return UserMoreMenuSlot.taramalar;
+  if (e.routeKey == 'haklar') return UserMoreMenuSlot.haklar;
+  final wizard = hostedHtmlWizardUrl(e.link);
+  if (wizard == kDestekSorguHtmlUrl) return UserMoreMenuSlot.destekSorgu;
+  if (wizard == kEvdeEgitimHtmlUrl) return UserMoreMenuSlot.evdeEgitim;
+  if (e.routeKey == 'kartlar') return UserMoreMenuSlot.kartlar;
+  if (e.routeKey == 'aile_kocu') return UserMoreMenuSlot.aileKocu;
+  if (isMetoBotMenuItem(e)) return UserMoreMenuSlot.metobot;
+  return null;
+}
+
+String moreMenuDisplayTitle(MoreMenuItem e) {
+  switch (userMoreMenuSlot(e)) {
+    case UserMoreMenuSlot.harita:
+      return 'Engelsiz Haritalar';
+    case UserMoreMenuSlot.taramalar:
+      return 'Taramalar & Egzersizler & Oyun';
+    case UserMoreMenuSlot.haklar:
+      return 'Hak Sorgulama';
+    case UserMoreMenuSlot.destekSorgu:
+      return 'Destek Sorgulama';
+    case UserMoreMenuSlot.evdeEgitim:
+      return 'Evde eğitim sorgu';
+    case UserMoreMenuSlot.kartlar:
+      return 'İletişim Kartları';
+    case UserMoreMenuSlot.aileKocu:
+      return 'Aile Koçum';
+    case UserMoreMenuSlot.metobot:
+      return 'MetoBot';
+    case null:
+      return e.title;
+  }
+}
+
+MoreMenuItem defaultItemForUserMoreMenuSlot(UserMoreMenuSlot slot) {
+  switch (slot) {
+    case UserMoreMenuSlot.harita:
+      return defaultHaritaMenuItem;
+    case UserMoreMenuSlot.taramalar:
+      return defaultTaramalarGroupItem;
+    case UserMoreMenuSlot.haklar:
+      return defaultHaklarMenuItem;
+    case UserMoreMenuSlot.destekSorgu:
+      return defaultDestekSorguMenuItem;
+    case UserMoreMenuSlot.evdeEgitim:
+      return defaultEvdeEgitimMenuItem;
+    case UserMoreMenuSlot.kartlar:
+      return defaultKartlarMenuItem;
+    case UserMoreMenuSlot.aileKocu:
+      return defaultAileKocuMenuItem;
+    case UserMoreMenuSlot.metobot:
+      return defaultMetoBotMenuItem;
+  }
+}
+
+/// Kullanıcı listesini ekran görüntüsü sırasına kilitler; fazladan kökleri gizler.
+List<MoreMenuItem> withCanonicalUserMoreMenu(List<MoreMenuItem> roots) {
+  MoreMenuItem? pick(UserMoreMenuSlot slot) {
+    for (final e in roots) {
+      if (userMoreMenuSlot(e) == slot) return e;
+    }
+    return null;
+  }
+
+  return [
+    for (final slot in UserMoreMenuSlot.values)
+      pick(slot) ?? defaultItemForUserMoreMenuSlot(slot),
+  ];
 }
 
 /// Harita artık alt menüde değil; Daha Fazlası’nda üstte dursun.
@@ -469,13 +684,16 @@ List<MoreMenuItem> withTaramalarGroup(
 /// Sütun yoksa eski Taramalar gruplamasına düşer (çift satır olmasın).
 List<MoreMenuItem> prepareUserMoreMenu(List<MoreMenuItem> items) {
   final cleaned = withoutMovedLibraryItems(items);
+  final List<MoreMenuItem> roots;
   if (hasMoreMenuNesting(cleaned)) {
-    return moreMenuRoots(cleaned);
+    roots = moreMenuRoots(cleaned);
+  } else {
+    roots = withTaramalarGroup(
+      withProminentHarita(cleaned, pinTop: true),
+      pinTop: true,
+    );
   }
-  return withTaramalarGroup(
-    withProminentHarita(cleaned, pinTop: true),
-    pinTop: true,
-  );
+  return withCanonicalUserMoreMenu(roots);
 }
 
 /// Admin: tüm satırlar (ağaç UI’da indent). parent_id sırası korunur.
@@ -496,39 +714,12 @@ List<MoreMenuItem> defaultMoreMenuItems() => [
       defaultHaritaMenuItem,
       defaultTaramalarGroupItem,
       defaultBoyamaMenuItem,
-      MoreMenuItem(
-        id: -1,
-        title: 'Aile Koçum',
-        subtitle: 'Ders, ilaç ve not takibi (çevrimdışı)',
-        linkType: 'route',
-        link: 'aile_kocu',
-        icon: 'family',
-        sortOrder: 10,
-        isActive: true,
-        isBuiltin: true,
-      ),
-      MoreMenuItem(
-        id: -2,
-        title: 'Haklar',
-        subtitle: 'Devlet hakları ve rehber',
-        linkType: 'route',
-        link: 'haklar',
-        icon: 'balance',
-        sortOrder: 20,
-        isActive: true,
-        isBuiltin: true,
-      ),
-      MoreMenuItem(
-        id: -3,
-        title: 'Kartlar',
-        subtitle: 'Görsel destek kartları',
-        linkType: 'route',
-        link: 'kartlar',
-        icon: 'grid',
-        sortOrder: 30,
-        isActive: true,
-        isBuiltin: true,
-      ),
+      defaultAileKocuMenuItem,
+      defaultHaklarMenuItem,
+      defaultDestekSorguMenuItem,
+      defaultEvdeEgitimMenuItem,
+      defaultKartlarMenuItem,
+      defaultMetoBotMenuItem,
       MoreMenuItem(
         id: -6,
         title: 'Gelişim Etkinlikleri',

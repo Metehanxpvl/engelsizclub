@@ -122,6 +122,11 @@ npx wrangler deploy
 - `R2_WORKER_URL=https://engelsizclub-r2.<hesap>.workers.dev`
 - `GEMINI_PROXY_URL=https://engelsizclub-r2.<hesap>.workers.dev/gemini`
 
+Harita fotoğrafları (`map-photos/`): tarayıcı doğrudan R2’ye PUT eder; Postgres’te yalnız URL.
+1. Supabase SQL Editor → `supabase/harita_place_photos.sql`
+2. Bucket CORS PUT açık olmalı: `node scripts/r2_cors_and_test.mjs` (AllowedMethods GET, HEAD, PUT)
+3. Worker’ı yeniden yayınlayın (`npx wrangler deploy`) — `POST /sign` `{ purpose: "map-photo" }`
+
 ### B) Supabase Edge Function (yedek, ücretsiz)
 ```bash
 npx supabase login

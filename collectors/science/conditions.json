@@ -1,6 +1,6 @@
 {
-  "lookback_years": 5,
-  "reldate_days": 1825,
+  "lookback_years": 1,
+  "reldate_days": 365,
   "clinicaltrials_page_size": 25,
   "conditions": [
     {

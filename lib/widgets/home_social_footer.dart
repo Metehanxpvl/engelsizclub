@@ -5,9 +5,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../admin_config.dart';
+import '../l10n/app_strings.dart';
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
 import '../social_links_store.dart';
+import 'store_download_prompt.dart';
 
 /// Ana sayfa en altı: mağaza rozetleri + Instagram / Facebook.
 class HomeSocialFooter extends StatefulWidget {
@@ -38,6 +40,11 @@ class _HomeSocialFooterState extends State<HomeSocialFooter> {
       _cfg = cfg;
       _loading = false;
     });
+  }
+
+  String _resolved(String configured, String fallback) {
+    final u = configured.trim();
+    return u.isEmpty ? fallback : u;
   }
 
   Future<void> _open(String url) async {
@@ -75,11 +82,18 @@ class _HomeSocialFooterState extends State<HomeSocialFooter> {
 
     final isIosApp =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
-    final hasApp = _cfg.appStoreUrl.trim().isNotEmpty;
-    final hasPlay = _cfg.playStoreUrl.trim().isNotEmpty;
     // iOS incelemesi: Google Play rozeti Guideline 2.3.10 ihlali.
-    final showPlay = !isIosApp && (hasPlay || _isAdmin);
-    final showApp = !isIosApp && (hasApp || _isAdmin);
+    // Native iOS uygulamasında mağaza rozetleri yok; web + Android’de göster.
+    final showPlay = !isIosApp;
+    final showApp = !isIosApp;
+    final appUrl = _resolved(
+      _cfg.appStoreUrl,
+      SocialLinksConfig.kDefaultAppStoreUrl,
+    );
+    final playUrl = _resolved(
+      _cfg.playStoreUrl,
+      SocialLinksConfig.kDefaultPlayStoreUrl,
+    );
     final showStores = showApp || showPlay;
 
     return Padding(
@@ -146,20 +160,22 @@ class _HomeSocialFooterState extends State<HomeSocialFooter> {
               children: [
                 if (showApp)
                   Expanded(
-                    child: _StoreBadge(
+                    child: StoreBadgeButton(
                       assetPng: 'assets/images/badge_app_store.png',
                       assetSvgFallback: 'assets/images/badge_app_store.svg',
-                      onTap: () => _open(_cfg.appStoreUrl),
+                      semanticLabel: S.t('download_on_app_store'),
+                      onTap: () => _open(appUrl),
                     ),
                   ),
                 if (showApp && showPlay)
                   const SizedBox(width: 10),
                 if (showPlay)
                   Expanded(
-                    child: _StoreBadge(
+                    child: StoreBadgeButton(
                       assetPng: 'assets/images/badge_google_play.png',
                       assetSvgFallback: 'assets/images/badge_google_play.svg',
-                      onTap: () => _open(_cfg.playStoreUrl),
+                      semanticLabel: S.t('download_on_google_play'),
+                      onTap: () => _open(playUrl),
                     ),
                   ),
               ],
@@ -212,42 +228,6 @@ class _SocialTile extends StatelessWidget {
               ),
               const Icon(Icons.open_in_new, size: 16, color: MetoColors.mutedFg),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StoreBadge extends StatelessWidget {
-  const _StoreBadge({
-    required this.assetPng,
-    required this.assetSvgFallback,
-    required this.onTap,
-  });
-
-  final String assetPng;
-  final String assetSvgFallback;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: AspectRatio(
-          aspectRatio: 3.1,
-          child: Image.asset(
-            assetPng,
-            fit: BoxFit.contain,
-            alignment: Alignment.centerLeft,
-            errorBuilder: (_, __, ___) => SvgPicture.asset(
-              assetSvgFallback,
-              fit: BoxFit.contain,
-              alignment: Alignment.centerLeft,
-            ),
           ),
         ),
       ),

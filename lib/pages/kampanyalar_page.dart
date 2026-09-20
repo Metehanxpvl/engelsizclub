@@ -15,6 +15,8 @@ import '../widgets/etkinlik_pending_sheet.dart';
 import '../widgets/gezi_kampanya_admin_sheet.dart';
 import '../widgets/gezi_kampanya_feed_card.dart';
 import '../widgets/guest_gate.dart';
+import '../widgets/kampanya_category_tile.dart';
+import '../widgets/kampanya_detail_sheet.dart';
 
 enum _KampanyaFilter { all, nationwide, city }
 
@@ -764,23 +766,6 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
                     selected: _filter == _KampanyaFilter.nationwide,
                     onTap: _selectNationwide,
                   ),
-                if (!_isEtkinlik)
-                  for (final e in _kampanyaCategoryOptions.entries)
-                    _chip(
-                      label: e.value,
-                      selected: _category == e.key,
-                      onTap: () => setState(() {
-                        _category = _category == e.key
-                            ? kKampanyaCategoryTumu
-                            : e.key;
-                      }),
-                    ),
-                if (!_isEtkinlik && _isAdmin)
-                  _chip(
-                    label: '+ Kategori',
-                    selected: false,
-                    onTap: _addKampanyaCategory,
-                  ),
                 if (_city != null)
                   Material(
                     color: MetoColors.primary,
@@ -820,6 +805,55 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
               ],
             ),
           ),
+          if (!_isEtkinlik)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
+              child: SizedBox(
+                height: 112,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _kampanyaCategoryOptions.length +
+                      1 +
+                      (_isAdmin ? 1 : 0),
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, i) {
+                    if (i == 0) {
+                      return KampanyaCategoryTile(
+                        categoryKey: kKampanyaCategoryTumu,
+                        label: 'Tümü',
+                        selected:
+                            normalizeKampanyaCategory(_category).isEmpty,
+                        onTap: () => setState(
+                          () => _category = kKampanyaCategoryTumu,
+                        ),
+                      );
+                    }
+                    final entries = _kampanyaCategoryOptions.entries.toList();
+                    final catIndex = i - 1;
+                    if (catIndex < entries.length) {
+                      final e = entries[catIndex];
+                      return KampanyaCategoryTile(
+                        categoryKey: e.key,
+                        label: e.value,
+                        selected: _category == e.key,
+                        onTap: () => setState(() {
+                          _category = _category == e.key
+                              ? kKampanyaCategoryTumu
+                              : e.key;
+                        }),
+                      );
+                    }
+                    return KampanyaCategoryTile(
+                      categoryKey: '_add',
+                      label: 'Kategori',
+                      icon: Icons.add,
+                      onTap: _addKampanyaCategory,
+                    );
+                  },
+                ),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
             child: TextField(
@@ -922,6 +956,7 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
     required int length,
   }) {
     return GeziKampanyaFeedCard(
+      key: ValueKey('kampanya-${item.id}-${item.imageUrl}'),
       imageUrl: item.imageUrl,
       title: item.title,
       description: _isEtkinlik ? item.cardDescription : item.description,
@@ -955,6 +990,9 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
           : (_isAdmin ? item.campaignCode : ''),
       codeBusy: _codeBusyId == item.id,
       onCreateCampaignCode: () => _issueCampaignCode(item),
+      onOpen: _isEtkinlik
+          ? null
+          : () => showKampanyaDetailSheet(context, item: item),
       statusBadge: _isEtkinlik && isEtkinlikPending(item)
           ? 'Onay bekliyor'
           : '',

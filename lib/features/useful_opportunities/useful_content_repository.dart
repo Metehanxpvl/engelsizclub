@@ -3,13 +3,39 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../admin_config.dart';
 import '../../duyuru_store.dart';
 import '../../utils/async_timeout.dart';
+import '../global_news/global_news_model.dart';
+import '../global_news/global_news_repository.dart';
 import 'useful_content_model.dart';
 
+UsefulContentItem usefulContentFromGlobalNews(GlobalNewsItem n) {
+  return UsefulContentItem(
+    id: '$kGlobalNewsUsefulPrefix${n.id}',
+    title: n.title,
+    summary: n.summary,
+    body: '',
+    category: 'kuresel',
+    city: '',
+    sourceName: n.sourceName,
+    sourceUrl: n.sourceUrl,
+    imageUrl: n.imageUrl,
+    externalId: n.id,
+    contentHash: n.id,
+    status: n.status,
+    createdAt: n.publishedAt,
+    publishedAt: n.publishedAt,
+    contentKind: 'global_news',
+  );
+}
+
 class UsefulContentRepository {
-  UsefulContentRepository({SupabaseClient? client})
-      : _db = client ?? Supabase.instance.client;
+  UsefulContentRepository({
+    SupabaseClient? client,
+    GlobalNewsRepository? news,
+  })  : _db = client ?? Supabase.instance.client,
+        _news = news ?? GlobalNewsRepository(client: client);
 
   final SupabaseClient _db;
+  final GlobalNewsRepository _news;
 
   static const _colsCore =
       'id, title, summary, body, category, city, source_name, source_url, '
@@ -32,37 +58,57 @@ class UsefulContentRepository {
       );
     }
 
-    final rows = await _withImageUrlColumn(run);
     final qn = query.trim().toLowerCase();
-    return rows
-        .whereType<Map>()
-        .map((e) => UsefulContentItem.fromJson(Map<String, dynamic>.from(e)))
-        .where((e) => isUserVisibleUsefulContent(e.status))
-        .where((e) {
-          if (qn.isEmpty) return true;
-          return e.title.toLowerCase().contains(qn) ||
-              e.summary.toLowerCase().contains(qn) ||
-              e.city.toLowerCase().contains(qn);
-        })
-        .toList();
+    List<UsefulContentItem> local = const [];
+    if (cat != 'kuresel') {
+      try {
+        final rows = await _withImageUrlColumn(run);
+        local = rows
+            .whereType<Map>()
+            .map((e) => UsefulContentItem.fromJson(Map<String, dynamic>.from(e)))
+            .where((e) => isUserVisibleUsefulContent(e.status))
+            .where((e) {
+              if (qn.isEmpty) return true;
+              return e.title.toLowerCase().contains(qn) ||
+                  e.summary.toLowerCase().contains(qn) ||
+                  e.city.toLowerCase().contains(qn);
+            })
+            .toList();
+      } catch (_) {}
+    }
+    final global = (cat.isEmpty || cat == 'tumu' || cat == 'kuresel')
+        ? await _loadGlobalAsUseful(
+            pending: false,
+            category: cat == 'kuresel' ? '' : cat,
+            query: qn,
+          )
+        : const <UsefulContentItem>[];
+    return _mergeByDate([...local, ...global]);
   }
 
   Future<List<UsefulContentItem>> loadPendingReview() async {
     _requireAdmin();
-    final rows = await _withImageUrlColumn(
-      (cols) => withNetworkTimeout<List<dynamic>>(
-        _db
-            .from('useful_content')
-            .select(cols)
-            .eq('status', 'pending_review')
-            .order('created_at', ascending: false),
-      ),
-    );
-    return rows
-        .whereType<Map>()
-        .map((e) => UsefulContentItem.fromJson(Map<String, dynamic>.from(e)))
-        .where((e) => isPendingReviewStatus(e.status))
-        .toList();
+    List<UsefulContentItem> local = const [];
+    try {
+      final rows = await _withImageUrlColumn(
+        (cols) => withNetworkTimeout<List<dynamic>>(
+          _db
+              .from('useful_content')
+              .select(cols)
+              .eq('status', 'pending_review')
+              .order('created_at', ascending: false),
+        ),
+      );
+      local = rows
+          .whereType<Map>()
+          .map((e) => UsefulContentItem.fromJson(Map<String, dynamic>.from(e)))
+          .where((e) => isPendingReviewStatus(e.status))
+          .toList();
+    } catch (_) {}
+    return _mergeByDate([
+      ...local,
+      ...await _loadGlobalAsUseful(pending: true),
+    ]);
   }
 
   Future<void> updateCopy({
@@ -71,6 +117,14 @@ class UsefulContentRepository {
     required String summary,
   }) async {
     _requireAdmin();
+    if (id.startsWith(kGlobalNewsUsefulPrefix)) {
+      await _news.updateCopy(
+        id: globalNewsRawId(id),
+        title: title,
+        summary: summary,
+      );
+      return;
+    }
     await withNetworkTimeout(
       _db.from('useful_content').update({
         'title': title.trim(),
@@ -84,6 +138,9 @@ class UsefulContentRepository {
     required String imageUrl,
   }) async {
     _requireAdmin();
+    if (id.startsWith(kGlobalNewsUsefulPrefix)) {
+      return;
+    }
     final photo = imageUrl.trim();
     try {
       await withNetworkTimeout(
@@ -104,6 +161,15 @@ class UsefulContentRepository {
     String? summary,
   }) async {
     _requireAdmin();
+    if (id.startsWith(kGlobalNewsUsefulPrefix)) {
+      await _news.approve(
+        globalNewsRawId(id),
+        adminEmail: adminEmail,
+        title: title,
+        summary: summary,
+      );
+      return;
+    }
     final row = await _withImageUrlColumn(
       (cols) => withNetworkTimeout<Map<String, dynamic>?>(
         _db
@@ -134,8 +200,6 @@ class UsefulContentRepository {
       isActive: true,
       isPopup: false,
       expiresAt: draft.expiresAt,
-      requireImage: draft.requireImage,
-      notify: draft.notify,
     );
     final photo = draft.imageUrl;
     final now = DateTime.now().toUtc().toIso8601String();
@@ -166,6 +230,10 @@ class UsefulContentRepository {
 
   Future<void> reject(String id) async {
     _requireAdmin();
+    if (id.startsWith(kGlobalNewsUsefulPrefix)) {
+      await _news.reject(globalNewsRawId(id));
+      return;
+    }
     final now = DateTime.now().toUtc().toIso8601String();
     await withNetworkTimeout(
       _db.from('useful_content').update({
@@ -174,6 +242,39 @@ class UsefulContentRepository {
         'reviewed_by': _db.auth.currentUser?.id,
       }).eq('id', id).eq('status', 'pending_review'),
     );
+  }
+
+  Future<List<UsefulContentItem>> _loadGlobalAsUseful({
+    required bool pending,
+    String category = '',
+    String query = '',
+  }) async {
+    try {
+      final news = pending
+          ? await _news.loadPendingReview()
+          : await _news.loadPublished();
+      final cat = category.trim().toLowerCase();
+      final qn = query.trim().toLowerCase();
+      return news.map(usefulContentFromGlobalNews).where((e) {
+        if (cat.isNotEmpty && cat != 'tumu' && e.category != cat) return false;
+        if (qn.isEmpty) return true;
+        return e.title.toLowerCase().contains(qn) ||
+            e.summary.toLowerCase().contains(qn) ||
+            e.sourceName.toLowerCase().contains(qn);
+      }).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  List<UsefulContentItem> _mergeByDate(List<UsefulContentItem> items) {
+    final copy = [...items];
+    copy.sort((a, b) {
+      final da = a.createdAt ?? a.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final db = b.createdAt ?? b.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return db.compareTo(da);
+    });
+    return copy;
   }
 
   Future<T> _withImageUrlColumn<T>(Future<T> Function(String cols) run) async {

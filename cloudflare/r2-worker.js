@@ -1,5 +1,5 @@
 /**
- * Engelsiz Club — R2 etiket yükleme (presigned PUT) + Gemini CORS proxy.
+ * Engelsiz Club — R2 etiket + harita fotoğraf yükleme (presigned PUT) + Gemini CORS proxy.
  * Flutter sır tutmaz; üretimde bu Worker kullanılır (Firebase Blaze gerekmez).
  *
  * Cloudflare Dashboard → Workers → bu dosyayı yapıştırın
@@ -386,10 +386,32 @@ export default {
       } catch (_) {
         body = {};
       }
-      const contentType = String(body.contentType || "image/jpeg");
-      const key = sanitizeKey(
-        body.key || `product-labels/${crypto.randomUUID()}/${Date.now()}.jpg`,
-      );
+      let contentType = String(body.contentType || "image/jpeg");
+      const purpose = String(body.purpose || "");
+      let key;
+      if (purpose === "map-photo") {
+        const variant = String(body.variant || "full") === "thumb" ? "_thumb" : "";
+        const now = new Date();
+        const y = now.getUTCFullYear();
+        const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+        const ext = contentType.includes("webp")
+          ? "webp"
+          : contentType.includes("png")
+            ? "png"
+            : "jpg";
+        if (!contentType.startsWith("image/")) contentType = "image/jpeg";
+        key = `map-photos/${y}/${m}/${crypto.randomUUID()}${variant}.${ext}`;
+      } else {
+        key = sanitizeKey(
+          body.key || `product-labels/${crypto.randomUUID()}/${Date.now()}.jpg`,
+        );
+        if (
+          !key.startsWith("product-labels/") &&
+          !key.startsWith("map-photos/")
+        ) {
+          return json(400, { error: "Geçersiz object key" });
+        }
+      }
       const uploadUrl = await presignPut({
         accountId,
         accessKeyId,

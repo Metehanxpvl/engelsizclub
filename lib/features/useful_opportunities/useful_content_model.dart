@@ -19,8 +19,29 @@ const kUsefulContentCategories = <String, String>{
   'burs': 'Burs',
   'egitim': 'Eğitim',
   'istihdam': 'İstihdam',
+  'haber': 'Haber',
+  'kuresel': 'Küresel haber',
   'diger': 'Diğer',
 };
+
+const kGlobalNewsUsefulPrefix = 'gn:';
+
+bool isGlobalNewsUsefulItem(UsefulContentItem item) {
+  return item.contentKind == 'global_news' ||
+      item.id.startsWith(kGlobalNewsUsefulPrefix);
+}
+
+String globalNewsRawId(String id) {
+  return id.startsWith(kGlobalNewsUsefulPrefix)
+      ? id.substring(kGlobalNewsUsefulPrefix.length)
+      : id;
+}
+
+String usefulCategoryFromGlobalNews(String raw) {
+  final s = raw.trim().toLowerCase();
+  if (s == 'haber') return 'haber';
+  return 'kuresel';
+}
 
 /// Collector / eski kayıtlar 'approved' yazarsa yayın filtresi bozulmasın.
 String normalizeUsefulContentStatus(String raw) {
@@ -75,6 +96,7 @@ bool isUsefulContentDuplicate({
 
 /// Story görseli yoksa ve kaynak Instagram değilse Onayla’dan önce foto gerekir.
 bool usefulContentNeedsStoryImage(UsefulContentItem item) {
+  if (isGlobalNewsUsefulItem(item)) return false;
   if (item.imageUrl.trim().isNotEmpty) return false;
   if (isInstagramUrl(item.sourceUrl)) return false;
   return true;

@@ -285,7 +285,37 @@ void main() {
     );
   });
 
-  test('app search helpers share admin table fields', () {
+  test('profile science list uses GitHub papers.json with cache bust', () {
+    final catalog = File(
+      'lib/features/scientific_research/scientific_papers_catalog.dart',
+    ).readAsStringSync();
+    expect(catalog.contains(kSciencePapersRawUrl), isTrue);
+    expect(
+      kSciencePapersRawUrl,
+      'https://raw.githubusercontent.com/Metehanxpvl/engelsizclub/main/output/papers.json',
+    );
+    expect(catalog.contains("'t': bust"), isTrue);
+    expect(catalog.contains('kSciencePapersCdnUrl'), isTrue);
+    final repo = File(
+      'lib/features/scientific_research/scientific_research_repository.dart',
+    ).readAsStringSync();
+    expect(repo.contains('_loadGithubCatalog()'), isTrue);
+    expect(repo.contains('loadForApp('), isFalse);
+    final parsed = parseSciencePapersJson(
+      '[{"id":"1","title":"Serebral palside yürüyüş","status":"pending_review","treatment_potential":"HIGH_VALUE"}]',
+    );
+    expect(parsed, hasLength(1);
+    expect(parsed.first.displayTitle, contains('yürüyüş'));
+  });
+
+  test('home search stays on-demand NCBI and does not dump papers', () {
+    final src = File('lib/home_page.dart').readAsStringSync();
+    expect(src.contains('eutils.ncbi.nlm.nih.gov'), isTrue);
+    expect(src.contains('loadForApp('), isFalse);
+    expect(src.contains('_reloadFromLive'), isFalse);
+    expect(src.contains('ScientificResearchRepository'), isFalse);
+    expect(src.contains("if (raw.isEmpty) return;"), isTrue);
+  });
     final pubmed = ScientificResearch.fromJson({
       'id': 'p',
       'title': 'Serebral palside yürüyüş denemesi',

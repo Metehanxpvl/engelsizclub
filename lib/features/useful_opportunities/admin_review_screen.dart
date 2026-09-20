@@ -35,8 +35,14 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
   var _loading = true;
   String? _error;
   String? _busyId;
+  var _filter = 'tumu';
 
   bool get _isAdmin => isAppAdmin(widget.adminEmail);
+
+  List<UsefulContentItem> get _visible {
+    if (_filter == 'tumu' || _filter.isEmpty) return _items;
+    return _items.where((e) => e.category == _filter).toList();
+  }
 
   @override
   void initState() {
@@ -233,34 +239,83 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
                         ),
                       ),
                     )
-                  : _items.isEmpty
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: L10nText(
-                              'Bekleyen kayıt yok. Collector henüz pending_review yazmadıysa liste boş kalır — onaylı story ana sayfadadır.',
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.nunito(color: MetoColors.mutedFg),
-                            ),
+                  : Column(
+                      children: [
+                        SizedBox(
+                          height: 52,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+                            children: [
+                              for (final e in kUsefulContentCategories.entries)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: ChoiceChip(
+                                    label: Text(e.value),
+                                    selected: _filter == e.key,
+                                    onSelected: (on) {
+                                      if (!on) return;
+                                      setState(() => _filter = e.key);
+                                    },
+                                  ),
+                                ),
+                            ],
                           ),
-                        )
-                      : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-                          itemCount: _items.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 8),
-                          itemBuilder: (context, i) {
-                            final item = _items[i];
-                            return _PendingReviewCard(
-                              item: item,
-                              busy: _busyId == item.id,
-                              onEdit: () => _edit(item),
-                              onReject: () => _reject(item),
-                              onImageSaved: (url) => _saveImage(item, url),
-                              onApprove: (url) => _approve(item, url),
-                            );
-                          },
                         ),
+                        Expanded(
+                          child: _items.isEmpty
+                              ? Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(24),
+                                    child: L10nText(
+                                      'Bekleyen kayıt yok. Collector henüz pending_review yazmadıysa liste boş kalır — onaylı story ana sayfadadır.',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.nunito(
+                                        color: MetoColors.mutedFg,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : _visible.isEmpty
+                                  ? Center(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(24),
+                                        child: L10nText(
+                                          'Bu filtrede bekleyen kayıt yok.',
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.nunito(
+                                            color: MetoColors.mutedFg,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : ListView.separated(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        12,
+                                        4,
+                                        12,
+                                        24,
+                                      ),
+                                      itemCount: _visible.length,
+                                      separatorBuilder: (_, __) =>
+                                          const SizedBox(height: 8),
+                                      itemBuilder: (context, i) {
+                                        final item = _visible[i];
+                                        return _PendingReviewCard(
+                                          item: item,
+                                          busy: _busyId == item.id,
+                                          onEdit: () => _edit(item),
+                                          onReject: () => _reject(item),
+                                          onImageSaved: (url) =>
+                                              _saveImage(item, url),
+                                          onApprove: (url) =>
+                                              _approve(item, url),
+                                        );
+                                      },
+                                    ),
+                        ),
+                      ],
+                    ),
     );
   }
 }
@@ -293,6 +348,8 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
   var _uploading = false;
 
   bool get _isInstagram => isInstagramUrl(widget.item.sourceUrl);
+  bool get _skipStoryImage =>
+      _isInstagram || isGlobalNewsUsefulItem(widget.item);
 
   @override
   void initState() {
@@ -440,6 +497,17 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                Chip(
+                  label: Text(item.categoryLabel),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
             Text(
               item.title,
               style: GoogleFonts.nunito(
@@ -493,8 +561,10 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
             ),
             const SizedBox(height: 4),
             Text(
-              _isInstagram
-                  ? 'Instagram kaynak — görsel gerekmez (gömülü story). İstersen yine foto yükleyebilirsin.'
+              _skipStoryImage
+                  ? (isGlobalNewsUsefulItem(item)
+                      ? 'Küresel haber — görsel gerekmez. Kaynak bağlantısı kullanıcıya açılır.'
+                      : 'Instagram kaynak — görsel gerekmez (gömülü story). İstersen yine foto yükleyebilirsin.')
                   : 'Güncel Duyurular’daki gibi dairesel görsel gerekir.',
               style: GoogleFonts.nunito(
                 fontSize: 12,
@@ -517,8 +587,8 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
                                 errorBuilder: (_, __, ___) => ColoredBox(
                                   color: MetoColors.muted,
                                   child: Icon(
-                                    _isInstagram
-                                        ? Icons.camera_alt_outlined
+                                    _skipStoryImage
+                                        ? Icons.public
                                         : Icons.campaign_outlined,
                                     color: MetoColors.primary,
                                   ),
@@ -527,8 +597,8 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
                             : ColoredBox(
                                 color: MetoColors.muted,
                                 child: Icon(
-                                  _isInstagram
-                                      ? Icons.camera_alt_outlined
+                                  _skipStoryImage
+                                      ? Icons.public
                                       : Icons.campaign_outlined,
                                   color: MetoColors.primary,
                                 ),
@@ -551,7 +621,7 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
                 ),
               ],
             ),
-            if (!_isInstagram) ...[
+            if (!_skipStoryImage) ...[
               const SizedBox(height: 10),
               TextField(
                 controller: _imageUrl,

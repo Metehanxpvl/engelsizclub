@@ -10,7 +10,7 @@ describe('parseMedlineRecords', () => {
 TI  - Cerebral palsy gait training.
 AB  - A randomized trial in children.
 JT  - Nature
-DP  - 2024 Jun 12
+DP  - 2026 Jun 12
 PL  - England
 LID - 10.1000/xyz [doi]
 PT  - Journal Article
@@ -20,7 +20,7 @@ PT  - Randomized Controlled Trial
     assert.equal(rec.pmid, '38700001');
     assert.equal(rec.title, 'Cerebral palsy gait training.');
     assert.equal(rec.doi, '10.1000/xyz');
-    assert.equal(rec.publicationDate, '2024-06-12');
+    assert.equal(rec.publicationDate, '2026-06-12');
     const item = toPubmedItem(rec, { name: 'PubMed', id: 'x' });
     assert.equal(item.sourceUrl, 'https://pubmed.ncbi.nlm.nih.gov/38700001/');
     assert.equal(item.externalId, 'pmid:38700001');

@@ -10,6 +10,7 @@ API anahtarı yazdırılmaz.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -20,26 +21,37 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
-# Metin: Google AI Studio güncel kararlı Flash.
+# Metin: Google AI Studio (gemini-2.0-flash 2026-06-01'de kapatıldı → 404).
 TEXT_MODELS = (
     "gemini-2.5-flash",
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
     "gemini-flash-latest",
-    "gemini-2.0-flash",
+    "gemini-2.5-flash-lite",
 )
-# Görsel: generate_content (Imagen :predict / generate_images yok — 404).
-# gemini-2.5-flash-image = GA Nano Banana; 3:4 aspect AI Studio'da desteklenir.
-# gemini-3.1-flash-image = 2026 Nano Banana 2 yedek.
+# Görsel: 2026 docs Interactions API (generate_content artık görsel dönmeyebilir).
+# gemini-3.1-flash-image = Nano Banana 2; lite = hızlı; 2.5 = eski Nano Banana.
 IMAGE_MODELS = (
-    "gemini-2.5-flash-image",
     "gemini-3.1-flash-image",
-    "gemini-2.0-flash-preview-image-generation",
+    "gemini-3.1-flash-lite-image",
+    "gemini-2.5-flash-image",
+    "gemini-3-pro-image",
 )
-GEMINI_GENERATE = (
-    "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+INTERACTIONS_URLS = (
+    "https://generativelanguage.googleapis.com/v1beta/interactions",
+    "https://generativelanguage.googleapis.com/v1/interactions",
 )
+API_VERSIONS = ("v1beta", "v1")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT = REPO_ROOT / "output"
+GITHUB_RAW_OUTPUT = (
+    "https://raw.githubusercontent.com/Metehanxpvl/engelsizclub/main/output"
+)
+POSTER_FILE_RE = re.compile(
+    r"^([a-z0-9]+)_muze_gezisi_(\d{4}-\d{2}-\d{2})\.(jpg|jpeg|png)$",
+    re.IGNORECASE,
+)
 
 # lib/data/turkish_cities_data.dart kCityNames ile aynı sıra (81 il).
 CITIES = (
@@ -158,8 +170,28 @@ VOICELESS = set("pçtkfhsş")
 BACK_VOWELS = set("aıou")
 
 
+def generate_content_urls(model: str) -> tuple[str, ...]:
+    return tuple(
+        f"https://generativelanguage.googleapis.com/{ver}/models/{model}:generateContent"
+        for ver in API_VERSIONS
+    )
+
+
 def env(name: str) -> str:
     return os.environ.get(name, "").strip()
+
+
+_LAST_IMAGE_ERROR = ""
+_GEMINI_FAIL_STREAK = 0
+
+
+def note_image_error(msg: str) -> None:
+    global _LAST_IMAGE_ERROR
+    text = (msg or "").strip()[:400]
+    if not text:
+        return
+    _LAST_IMAGE_ERROR = text
+    print(text, file=sys.stderr)
 
 
 def fold_city(raw: str) -> str:
@@ -356,30 +388,30 @@ def gemini_writer_prompt_rest(api_key: str, city: str) -> str:
         return ""
     brief = writer_brief(city)
     for model in TEXT_MODELS:
-        try:
-            url = GEMINI_GENERATE.format(model=model)
-            res = requests.post(
-                url,
-                headers={
-                    "x-goog-api-key": api_key,
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "contents": [{"role": "user", "parts": [{"text": brief}]}],
-                    "generationConfig": {"temperature": 0.4, "maxOutputTokens": 900},
-                },
-                timeout=45,
-            )
-            if res.status_code >= 400:
-                print(f"{model} HTTP {res.status_code}", file=sys.stderr)
-                continue
-            text = _clean_writer_text(extract_text(res.json() if res.content else {}))
-            if len(text) > 80:
-                print(f"prompt modeli: {model}")
-                return text
-        except Exception:  # noqa: BLE001
-            print(f"metin REST hata: {model}", file=sys.stderr)
-            traceback.print_exc()
+        for url in generate_content_urls(model):
+            try:
+                res = requests.post(
+                    url,
+                    headers={
+                        "x-goog-api-key": api_key,
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "contents": [{"role": "user", "parts": [{"text": brief}]}],
+                        "generationConfig": {"temperature": 0.4, "maxOutputTokens": 900},
+                    },
+                    timeout=45,
+                )
+                if res.status_code >= 400:
+                    print(f"{model} HTTP {res.status_code} {url}", file=sys.stderr)
+                    continue
+                text = _clean_writer_text(extract_text(res.json() if res.content else {}))
+                if len(text) > 80:
+                    print(f"prompt modeli: {model}")
+                    return text
+            except Exception:  # noqa: BLE001
+                print(f"metin REST hata: {model}", file=sys.stderr)
+                traceback.print_exc()
     return ""
 
 
@@ -472,10 +504,12 @@ def extract_inline_image_bytes_rest(payload: dict[str, Any]) -> bytes | None:
     )
 
 
-def build_image_gen_config() -> Any:
+def build_image_gen_config(modalities: list[str] | None = None) -> Any:
+    """Nano Banana docs: IMAGE-only. TEXT+IMAGE is a fallback."""
     from google.genai import types
 
-    kwargs: dict[str, Any] = {"response_modalities": ["IMAGE", "TEXT"]}
+    mods = list(modalities or ["IMAGE"])
+    kwargs: dict[str, Any] = {"response_modalities": mods}
     image_config_cls = getattr(types, "ImageConfig", None)
     if image_config_cls is not None:
         try:
@@ -485,7 +519,133 @@ def build_image_gen_config() -> Any:
     try:
         return types.GenerateContentConfig(**kwargs)
     except TypeError:
-        return types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
+        return types.GenerateContentConfig(response_modalities=mods)
+
+
+def _log_finish_reason(response: Any, model: str) -> None:
+    try:
+        cands = getattr(response, "candidates", None) or []
+        if not cands:
+            print(f"{model} generate_content görsel yok (aday yok)", file=sys.stderr)
+            return
+        cand = cands[0]
+        reason = (
+            cand.get("finishReason") or cand.get("finish_reason")
+            if isinstance(cand, dict)
+            else getattr(cand, "finish_reason", None)
+        )
+        print(f"{model} generate_content görsel yok finish={reason}", file=sys.stderr)
+    except Exception:  # noqa: BLE001
+        print(f"{model} generate_content görsel yok", file=sys.stderr)
+
+
+def extract_interaction_image_bytes(payload: Any) -> bytes | None:
+    """interactions.create / REST yanıtından görsel al."""
+    if payload is None:
+        return None
+    img = getattr(payload, "output_image", None)
+    if img is None and isinstance(payload, dict):
+        img = payload.get("output_image") or payload.get("outputImage")
+    raw = None
+    if img is not None:
+        if isinstance(img, dict):
+            raw = _as_bytes(img.get("data") or img.get("image_bytes"))
+        else:
+            raw = _as_bytes(getattr(img, "data", None) or getattr(img, "image_bytes", None))
+        if raw:
+            return raw
+    if not isinstance(payload, dict):
+        payload = {
+            "steps": getattr(payload, "steps", None),
+            "outputs": getattr(payload, "outputs", None),
+        }
+    for step in payload.get("steps") or []:
+        if isinstance(step, dict):
+            blocks = step.get("content") or step.get("contents") or []
+        else:
+            blocks = getattr(step, "content", None) or []
+        for block in blocks or []:
+            btype = (
+                block.get("type")
+                if isinstance(block, dict)
+                else getattr(block, "type", "")
+            )
+            if str(btype).lower() not in {"image", "image_blob", "inline_image"}:
+                continue
+            data = (
+                block.get("data")
+                if isinstance(block, dict)
+                else getattr(block, "data", None)
+            )
+            raw = _as_bytes(data)
+            if raw:
+                return raw
+    return extract_inline_image_bytes(payload)
+
+
+def generate_image_interactions_sdk(api_key: str, prompt: str) -> bytes | None:
+    try:
+        from google import genai
+    except ImportError:
+        return None
+    try:
+        client = genai.Client(api_key=api_key)
+        create = getattr(getattr(client, "interactions", None), "create", None)
+    except Exception as exc:  # noqa: BLE001
+        note_image_error(f"interactions client: {exc}")
+        return None
+    if not callable(create):
+        return None
+    for model in IMAGE_MODELS:
+        try:
+            interaction = create(model=model, input=prompt)
+            data = extract_interaction_image_bytes(interaction)
+            if data:
+                print(f"görsel modeli: {model} (interactions)")
+                return data
+            note_image_error(f"{model} interactions görsel yok")
+        except Exception as exc:  # noqa: BLE001
+            note_image_error(f"{model} interactions hata: {exc}")
+    return None
+
+
+def generate_image_interactions_rest(api_key: str, prompt: str) -> bytes | None:
+    try:
+        import requests
+    except ImportError:
+        return None
+    for model in IMAGE_MODELS:
+        body = {
+            "model": model,
+            "input": [{"type": "text", "text": prompt}],
+        }
+        for url in INTERACTIONS_URLS:
+            try:
+                res = requests.post(
+                    url,
+                    headers={
+                        "x-goog-api-key": api_key,
+                        "Content-Type": "application/json",
+                    },
+                    json=body,
+                    timeout=120,
+                )
+                if res.status_code >= 400:
+                    snippet = (res.text or "").replace("\n", " ")[:220]
+                    note_image_error(
+                        f"{model} interactions HTTP {res.status_code} {snippet}"
+                    )
+                    continue
+                data = extract_interaction_image_bytes(
+                    res.json() if res.content else {}
+                )
+                if data:
+                    print(f"görsel modeli: {model} (interactions REST)")
+                    return data
+                note_image_error(f"{model} interactions REST görsel yok")
+            except Exception as exc:  # noqa: BLE001
+                note_image_error(f"{model} interactions REST hata: {exc}")
+    return None
 
 
 def generate_image_sdk(api_key: str, prompt: str) -> bytes | None:
@@ -496,67 +656,92 @@ def generate_image_sdk(api_key: str, prompt: str) -> bytes | None:
         return None
     try:
         client = genai.Client(api_key=api_key)
-        cfg = build_image_gen_config()
     except Exception:  # noqa: BLE001
         traceback.print_exc()
         return None
-    for model in IMAGE_MODELS:
+    configs: list[Any] = []
+    for mods in (["IMAGE"], ["TEXT", "IMAGE"]):
         try:
-            response = client.models.generate_content(
-                model=model,
-                contents=[prompt],
-                config=cfg,
-            )
-            data = extract_inline_image_bytes(response)
-            if data:
-                print(f"görsel modeli: {model}")
-                return data
-            print(f"{model} generate_content görsel yok", file=sys.stderr)
+            configs.append(build_image_gen_config(mods))
         except Exception:  # noqa: BLE001
-            print(f"görsel generate_content hata: {model}", file=sys.stderr)
             traceback.print_exc()
+    if not configs:
+        return None
+    for model in IMAGE_MODELS:
+        for cfg in configs:
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=cfg,
+                )
+                data = extract_inline_image_bytes(response)
+                if data:
+                    print(f"görsel modeli: {model}")
+                    return data
+                _log_finish_reason(response, model)
+            except Exception:  # noqa: BLE001
+                print(f"görsel generate_content hata: {model}", file=sys.stderr)
+                traceback.print_exc()
     return None
 
 
 def generate_image_rest(api_key: str, prompt: str) -> bytes | None:
-    """Aynı generateContent uç noktası (eski Imagen :predict değil)."""
+    """generateContent REST yedek (Interactions yoksa)."""
     try:
         import requests
     except ImportError:
         return None
-    body = {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "responseModalities": ["IMAGE", "TEXT"],
-            "imageConfig": {"aspectRatio": "3:4"},
-        },
-    }
+    modality_sets = (["TEXT", "IMAGE"], ["IMAGE"])
+    configs = (
+        {"responseModalities": None},  # placeholder, filled below
+    )
     for model in IMAGE_MODELS:
-        try:
-            url = GEMINI_GENERATE.format(model=model)
-            res = requests.post(
-                url,
-                headers={
-                    "x-goog-api-key": api_key,
-                    "Content-Type": "application/json",
-                },
-                json=body,
-                timeout=120,
-            )
-            if res.status_code >= 400:
-                print(f"{model} generateContent HTTP {res.status_code}", file=sys.stderr)
-                continue
-            data = extract_inline_image_bytes_rest(res.json() if res.content else {})
-            if data:
-                print(f"görsel modeli: {model} (REST)")
-                return data
-        except Exception:  # noqa: BLE001
-            print(f"görsel REST hata: {model}", file=sys.stderr)
-            traceback.print_exc()
+        for url in generate_content_urls(model):
+            for modalities in modality_sets:
+                for with_ratio in (False, True):
+                    gen: dict[str, Any] = {"responseModalities": modalities}
+                    if with_ratio:
+                        gen["imageConfig"] = {"aspectRatio": "3:4"}
+                    body = {
+                        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                        "generationConfig": gen,
+                    }
+                    try:
+                        res = requests.post(
+                            url,
+                            headers={
+                                "x-goog-api-key": api_key,
+                                "Content-Type": "application/json",
+                            },
+                            json=body,
+                            timeout=120,
+                        )
+                        if res.status_code >= 400:
+                            snippet = (res.text or "").replace("\n", " ")[:220]
+                            note_image_error(
+                                f"{model} generateContent HTTP {res.status_code} {snippet}"
+                            )
+                            continue
+                        data = extract_inline_image_bytes_rest(
+                            res.json() if res.content else {}
+                        )
+                        if data:
+                            print(f"görsel modeli: {model} (REST)")
+                            return data
+                        note_image_error(f"{model} REST görsel yok")
+                    except Exception as exc:  # noqa: BLE001
+                        note_image_error(f"{model} REST hata: {exc}")
     return None
 
 
 def generate_image(api_key: str, prompt: str) -> bytes | None:
+    data = generate_image_interactions_sdk(api_key, prompt)
+    if data:
+        return data
+    data = generate_image_interactions_rest(api_key, prompt)
+    if data:
+        return data
     data = generate_image_sdk(api_key, prompt)
     if data:
         return data
@@ -565,6 +750,90 @@ def generate_image(api_key: str, prompt: str) -> bytes | None:
 
 def looks_jpeg(data: bytes) -> bool:
     return data.startswith(b"\xff\xd8")
+
+
+def _poster_font(size: int):
+    from PIL import ImageFont
+
+    for path in (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "C:\\Windows\\Fonts\\segoeui.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf",
+    ):
+        if Path(path).is_file():
+            return ImageFont.truetype(path, size)
+    return ImageFont.load_default()
+
+
+def _wrap_text(draw, text: str, font, max_width: int) -> list[str]:
+    words = (text or "").split()
+    if not words:
+        return [""]
+    lines: list[str] = []
+    current = words[0]
+    for word in words[1:]:
+        trial = f"{current} {word}"
+        bbox = draw.textbbox((0, 0), trial, font=font)
+        if bbox[2] - bbox[0] <= max_width:
+            current = trial
+        else:
+            lines.append(current)
+            current = word
+    lines.append(current)
+    return lines
+
+
+def render_fallback_poster(city: str) -> bytes:
+    """Gemini görsel veremezse yerel 3:4 Engelsiz Club posteri."""
+    from io import BytesIO
+
+    from PIL import Image, ImageDraw
+
+    w, h = 768, 1024
+    img = Image.new("RGB", (w, h), "#0F3D2C")
+    draw = ImageDraw.Draw(img)
+    draw.rectangle((0, 0, w, int(h * 0.42)), fill="#1A6B4A")
+    draw.ellipse((-120, -160, 320, 280), fill="#2F9B6A")
+    draw.rounded_rectangle((48, 220, w - 48, h - 88), radius=28, fill="#F2F7F4")
+    title_font = _poster_font(42)
+    sub_font = _poster_font(28)
+    body_font = _poster_font(22)
+    foot_font = _poster_font(20)
+    title = headline(city)
+    max_w = w - 120
+    y = 260
+    for line in _wrap_text(draw, title, title_font, max_w):
+        bbox = draw.textbbox((0, 0), line, font=title_font)
+        tw = bbox[2] - bbox[0]
+        draw.text(((w - tw) / 2, y), line, font=title_font, fill="#1A6B4A")
+        y += 52
+    y += 16
+    badge = "Özel gereksinimli bireyler için ücretsiz"
+    for line in _wrap_text(draw, badge, sub_font, max_w):
+        bbox = draw.textbbox((0, 0), line, font=sub_font)
+        tw = bbox[2] - bbox[0]
+        draw.text(((w - tw) / 2, y), line, font=sub_font, fill="#B45309")
+        y += 36
+    y += 18
+    details = (
+        "MüzeKart devlet müzelerinde geçerli. "
+        "Engelli ziyaretçi ve bir refakatçi ücretsiz. "
+        "Rampa · asansör · erişilebilir tuvalet"
+    )
+    for line in _wrap_text(draw, details, body_font, max_w):
+        bbox = draw.textbbox((0, 0), line, font=body_font)
+        tw = bbox[2] - bbox[0]
+        draw.text(((w - tw) / 2, y), line, font=body_font, fill="#334155")
+        y += 32
+    footer = "— engelsizclub.com —"
+    bbox = draw.textbbox((0, 0), footer, font=foot_font)
+    tw = bbox[2] - bbox[0]
+    draw.text(((w - tw) / 2, h - 58), footer, font=foot_font, fill="#F2F7F4")
+    buf = BytesIO()
+    img.save(buf, format="JPEG", quality=86, optimize=True)
+    return buf.getvalue()
 
 
 def save_poster(dest: Path, data: bytes) -> Path:
@@ -596,6 +865,7 @@ def generate_one(
     skip_existing: bool,
 ) -> str:
     """ok | skip | fail"""
+    global _GEMINI_FAIL_STREAK
     title = headline(city)
     dest = output_dir / poster_filename(city)
     print(f"il={city} baslik={title} dosya={dest.name}")
@@ -610,13 +880,31 @@ def generate_one(
             print(f"atlandi (var) {found}")
             return "skip"
 
+    prompt = fallback_imagen_prompt(city)
     try:
-        prompt = gemini_writer_prompt(api_key, city)
-        data = generate_image(api_key, prompt)
+        data = None
+        if _GEMINI_FAIL_STREAK < 2:
+            data = generate_image(api_key, prompt)
+            if data:
+                _GEMINI_FAIL_STREAK = 0
+            else:
+                _GEMINI_FAIL_STREAK += 1
+                print(
+                    f"Gemini görsel yok ({_GEMINI_FAIL_STREAK}/2), yerel poster: {city}",
+                    file=sys.stderr,
+                )
+        if not data:
+            data = render_fallback_poster(city)
+            print(f"yerel poster {city} ({len(data)} bytes)")
     except Exception:  # noqa: BLE001
         print(f"görsel üretim istisnası: {city}", file=sys.stderr)
         traceback.print_exc()
-        return "fail"
+        try:
+            data = render_fallback_poster(city)
+            print(f"yerel poster (istisna sonrası) {city}")
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
+            return "fail"
     if not data:
         print(f"görsel üretmedi: {city}", file=sys.stderr)
         return "fail"
@@ -631,6 +919,63 @@ def generate_one(
         return "fail"
     print(f"kaydedildi {saved} ({len(data)} bytes)")
     return "ok"
+
+
+def scan_output_posters(output_dir: Path) -> list[dict[str, str]]:
+    """output/*_muze_gezisi_YYYY-MM-DD.jpg|png — aynı il için en yeni tarih."""
+    slug_to_city = {slug_city(c): c for c in CITIES}
+    best: dict[str, dict[str, str]] = {}
+    if not output_dir.is_dir():
+        return []
+    for path in output_dir.iterdir():
+        if not path.is_file():
+            continue
+        match = POSTER_FILE_RE.match(path.name)
+        if not match:
+            continue
+        slug = match.group(1).lower()
+        day = match.group(2)
+        prev = best.get(slug)
+        if prev is not None and day < prev["date"]:
+            continue
+        best[slug] = {
+            "city": slug_to_city.get(slug, slug),
+            "slug": slug,
+            "file": path.name,
+            "date": day,
+            "url": f"{GITHUB_RAW_OUTPUT}/{path.name}",
+        }
+    order = {slug_city(c): i for i, c in enumerate(CITIES)}
+    return sorted(best.values(), key=lambda row: order.get(row["slug"], 999))
+
+
+def write_index(
+    output_dir: Path,
+    *,
+    ok: int,
+    fail: int,
+    skip: int,
+    total: int,
+) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    posters = scan_output_posters(output_dir)
+    payload = {
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "ok": ok,
+        "fail": fail,
+        "skip": skip,
+        "total": total,
+        "status": "ok" if posters else "empty",
+        "error": _LAST_IMAGE_ERROR or None,
+        "posters": posters,
+    }
+    dest = output_dir / "index.json"
+    dest.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    print(f"index yazildi {dest} poster={len(posters)}")
+    return dest
 
 
 def write_github_output(*, cities: list[str], ok: int, fail: int, skip: int) -> None:
@@ -726,6 +1071,16 @@ def run(argv: list[str] | None = None) -> int:
         api_key = env("GEMINI_API_KEY") or env("AI_API_KEY")
         if not api_key:
             print("GEMINI_API_KEY yok.", file=sys.stderr)
+            try:
+                write_index(
+                    args.output_dir,
+                    ok=0,
+                    fail=len(cities),
+                    skip=0,
+                    total=len(cities),
+                )
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
             return 1
 
     ok = skip = fail = 0
@@ -752,19 +1107,44 @@ def run(argv: list[str] | None = None) -> int:
             print(f"devam (tek il başarısız): {city}")
         if not dry_run:
             try:
+                write_index(
+                    args.output_dir,
+                    ok=ok,
+                    fail=fail,
+                    skip=skip,
+                    total=len(cities),
+                )
                 git_checkpoint(i + 1)
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
         if i + 1 < len(cities) and not dry_run and status != "skip":
-            time.sleep(wait)
+            if _GEMINI_FAIL_STREAK >= 2:
+                time.sleep(0.05)
+            else:
+                time.sleep(wait)
 
     print(f"ozet ok={ok} skip={skip} fail={fail} total={len(cities)}")
+    try:
+        write_index(
+            args.output_dir,
+            ok=ok,
+            fail=fail,
+            skip=skip,
+            total=len(cities),
+        )
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
     try:
         write_github_output(cities=cities, ok=ok, fail=fail, skip=skip)
     except Exception:  # noqa: BLE001
         traceback.print_exc()
     if fail and ok + skip == 0:
-        print("hiç poster üretilmedi; iş 0 ile biter (tek API hatası job'u düşürmez).", file=sys.stderr)
+        print("hiç poster üretilmedi.", file=sys.stderr)
+        return 1
+    posters = scan_output_posters(args.output_dir)
+    if not posters:
+        print("output/ içinde jpg/png yok; job başarısız.", file=sys.stderr)
+        return 1
     return 0
 
 

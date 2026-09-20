@@ -144,6 +144,39 @@ class CentersGooglePlacesService {
     return list;
   }
 
+  /// Kullanıcı arama çubuğu: serbest metin, rehabilitasyon filtresi yok.
+  static Future<List<MetoCenter>> searchByQuery({
+    required String query,
+    required double latitude,
+    required double longitude,
+    required String city,
+    double radiusKm = 40,
+  }) async {
+    lastError = null;
+    if (!GooglePlacesConfig.isConfigured) {
+      lastError = 'GOOGLE_MAPS_API_KEY tanımlı değil.';
+      return const [];
+    }
+    final q = query.trim();
+    if (q.length < 2) return const [];
+    final radiusM = (radiusKm.clamp(1, 50) * 1000).toDouble();
+    try {
+      return await _searchText(
+        query: '$q $city Türkiye',
+        lat: latitude,
+        lng: longitude,
+        radiusM: radiusM,
+        city: city,
+        startId: 800000,
+        requireRelevant: false,
+      );
+    } catch (e, st) {
+      lastError = '$e';
+      debugPrint('[Places] searchByQuery hata: $e\n$st');
+      return const [];
+    }
+  }
+
   static Future<List<MetoCenter>> _searchText({
     required String query,
     required double lat,
@@ -151,6 +184,7 @@ class CentersGooglePlacesService {
     required double radiusM,
     required String city,
     required int startId,
+    bool requireRelevant = true,
   }) async {
     final body = <String, dynamic>{
       'textQuery': query,
@@ -172,6 +206,7 @@ class CentersGooglePlacesService {
       city: city,
       startId: startId,
       keyword: query,
+      requireRelevant: requireRelevant,
     );
   }
 
@@ -259,6 +294,7 @@ class CentersGooglePlacesService {
     required String city,
     required int startId,
     required String keyword,
+    bool requireRelevant = true,
   }) {
     final out = <MetoCenter>[];
     var id = startId;
@@ -272,7 +308,7 @@ class CentersGooglePlacesService {
           ? (display['text']?.toString() ?? '').trim()
           : (m['name']?.toString() ?? '').trim();
       if (name.isEmpty) continue;
-      if (!_isRelevantName(name, keyword)) continue;
+      if (requireRelevant && !_isRelevantName(name, keyword)) continue;
 
       final loc = m['location'];
       if (loc is! Map) continue;
@@ -283,8 +319,11 @@ class CentersGooglePlacesService {
       final types = ((m['types'] as List?) ?? const [])
           .map((e) => e.toString())
           .toList();
-      final category = _categoryFor(name: name, types: types, keyword: keyword);
-      if (category == 'SKIP') continue;
+      var category = _categoryFor(name: name, types: types, keyword: keyword);
+      if (category == 'SKIP') {
+        if (requireRelevant) continue;
+        category = 'Diğer';
+      }
 
       final address = (m['formattedAddress'] ??
               m['shortFormattedAddress'] ??

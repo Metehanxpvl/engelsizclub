@@ -27,8 +27,9 @@ class OpportunitiesScreen extends StatefulWidget {
     String? adminEmail,
     bool isGuest = false,
     VoidCallback? onRequireLogin,
+    bool reviewQueue = false,
   }) {
-    final child = isAppAdmin(adminEmail)
+    final child = reviewQueue && isAppAdmin(adminEmail)
         ? AdminReviewScreen(adminEmail: adminEmail)
         : OpportunitiesScreen(adminEmail: adminEmail);
     return Navigator.of(context).push<void>(
@@ -149,7 +150,7 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
               controller: _search,
               onSubmitted: (_) => _reload(),
               decoration: InputDecoration(
-                hintText: 'Ara: burs, hak, şehir…',
+                hintText: 'Ara: burs, hak, haber, şehir…',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: IconButton(
                   onPressed: _reload,
@@ -175,10 +176,10 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
             ),
           ),
           SizedBox(
-            height: 48,
+            height: 52,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
               children: [
                 for (final e in kUsefulContentCategories.entries)
                   Padding(
@@ -186,7 +187,8 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                     child: ChoiceChip(
                       label: Text(e.value),
                       selected: _category == e.key,
-                      onSelected: (_) {
+                      onSelected: (on) {
+                        if (!on) return;
                         setState(() => _category = e.key);
                         _reload();
                       },
@@ -311,6 +313,16 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                                               ),
                                             ),
                                           ],
+                                          if (item.sourceName.isNotEmpty) ...[
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              item.sourceName,
+                                              style: GoogleFonts.nunito(
+                                                color: MetoColors.mutedFg,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ],
                                           if (item.deadlineAt != null) ...[
                                             const SizedBox(height: 8),
                                             Text(
@@ -371,7 +383,8 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                   item.summary,
                   style: GoogleFonts.nunito(height: 1.4),
                 ),
-              if (item.body.isNotEmpty) ...[
+              if (item.body.isNotEmpty &&
+                  item.body.trim() != item.summary.trim()) ...[
                 const SizedBox(height: 8),
                 Text(item.body, style: GoogleFonts.nunito(height: 1.4)),
               ],

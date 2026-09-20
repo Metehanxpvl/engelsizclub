@@ -23,6 +23,11 @@ import {
   isAileEyhgmSourceUrl,
 } from './lib/aile_eyhgm.mjs';
 import {
+  aileCocukDergiListingUrls,
+  extractAileCocukDergiListings,
+  isAileCocukDergiSourceUrl,
+} from './lib/aile_cocuk_dergi.mjs';
+import {
   extractResmiGazeteListings,
   isResmiGazeteSourceUrl,
   resmiGazeteListingUrls,
@@ -36,6 +41,14 @@ import {
   parseRssOrAtom,
   parseSitemapLocs,
 } from './lib/rss.mjs';
+import { loadValilikScrapeSources } from './lib/valilikler.mjs';
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(id) {
+  return UUID_RE.test(String(id || ''));
+}
 
 const MAX_ITEMS_RSS = 25;
 const MAX_ITEMS_SCRAPE = 30;
@@ -45,6 +58,7 @@ const AILE_EYHGM_HTML_MAX_BYTES = 300_000;
 const RESMI_GAZETE_HTML_MAX_BYTES = 300_000;
 const XML_MAX_BYTES = 250_000;
 const MAX_ITEMS_AILE_EYHGM = 20;
+const MAX_ITEMS_AILE_COCUK_DERGI = 8;
 const MAX_ITEMS_RESMI_GAZETE = 20;
 const EXISTING_PAGE = 1000;
 const TBB_INDEX_RE =
@@ -241,7 +255,8 @@ async function refineItem(item, stats) {
   if (!title || !item.sourceUrl) return null;
 
   const blob = `${title} ${summary}`;
-  const keep = classifyKeep(blob);
+  const keep =
+    item.listingKind === 'magazine_issue' ? 'potential' : classifyKeep(blob);
   if (!keep) {
     console.log(`süzgeç elendi: ${title}`);
     return null;
@@ -356,12 +371,11 @@ async function insertPending(existing, source, raw, stats, dateStats) {
   }
 
   const row = {
-    source_id: source.id,
     title: refined.title,
     summary: refined.summary,
     body: '',
     category: refined.category,
-    city: refined.city,
+    city: String(source.city || refined.city || '').trim(),
     source_name: source.name,
     source_url: sourceUrl,
     external_id: externalId,
@@ -373,6 +387,7 @@ async function insertPending(existing, source, raw, stats, dateStats) {
     date_status: freshness.dateStatus,
     content_kind: freshness.contentKind,
   };
+  if (isUuid(source.id)) row.source_id = source.id;
   const imageUrl = String(raw.imageUrl || '').trim();
   if (imageUrl.startsWith('http')) row.image_url = imageUrl;
 
@@ -445,6 +460,7 @@ async function insertPending(existing, source, raw, stats, dateStats) {
 }
 
 async function touchSource(source) {
+  if (!isUuid(source.id)) return;
   await sb(`content_sources?id=eq.${source.id}`, {
     method: 'PATCH',
     body: { last_fetched_at: new Date().toISOString() },
@@ -501,6 +517,11 @@ async function main() {
   await rejectUnrelatedPending();
   const existing = await loadExistingKeys();
   const sources = await loadDueSources();
+  const valilikSources = await loadValilikScrapeSources();
+  if (valilikSources.length) {
+    sources.push(...valilikSources);
+    console.log(`valilik kaynak eklendi: ${valilikSources.length}`);
+  }
   console.log(`aktif kaynak: ${sources.length}`);
 
   let inserted = 0;
@@ -535,11 +556,13 @@ async function main() {
       stats.neu = items.filter((it) => !known.has(String(it.sourceUrl || ''))).length;
       const cap = isAileEyhgmSourceUrl(source.url)
         ? MAX_ITEMS_AILE_EYHGM
-        : isResmiGazeteSourceUrl(source.url)
-          ? MAX_ITEMS_RESMI_GAZETE
-          : method === 'scrape'
-            ? MAX_ITEMS_SCRAPE
-            : MAX_ITEMS_RSS;
+        : isAileCocukDergiSourceUrl(source.url)
+          ? MAX_ITEMS_AILE_COCUK_DERGI
+          : isResmiGazeteSourceUrl(source.url)
+            ? MAX_ITEMS_RESMI_GAZETE
+            : method === 'scrape'
+              ? MAX_ITEMS_SCRAPE
+              : MAX_ITEMS_RSS;
       let n = 0;
       for (const item of items) {
         if (n >= cap) break;
@@ -594,6 +617,34 @@ async function collectAileEyhgm(source) {
   return items.slice(0, MAX_ITEMS_AILE_EYHGM);
 }
 
+async function collectAileCocukDergi(source) {
+  const pages = aileCocukDergiListingUrls(source.url);
+  const items = [];
+  const seen = new Set();
+  for (const pageUrl of pages) {
+    const html = await fetchText(pageUrl, {
+      maxBytes: AILE_EYHGM_HTML_MAX_BYTES,
+      timeoutMs: 20000,
+      accept: 'text/html, application/xhtml+xml, */*;q=0.5',
+    });
+    const listings = extractAileCocukDergiListings(html, pageUrl, {
+      limit: MAX_ITEMS_AILE_COCUK_DERGI,
+    });
+    for (const item of listings) {
+      if (seen.has(item.sourceUrl)) continue;
+      seen.add(item.sourceUrl);
+      items.push({
+        ...item,
+        sourceName: source.name,
+        sourceId: source.id,
+      });
+    }
+    await sleep(200);
+  }
+  console.log(`aile çocuk dergi: ${source.name} ${items.length}`);
+  return items.slice(0, MAX_ITEMS_AILE_COCUK_DERGI);
+}
+
 async function collectResmiGazete(source) {
   const pages = resmiGazeteListingUrls(source.url);
   const items = [];
@@ -625,6 +676,9 @@ async function collectResmiGazete(source) {
 async function collectSourceItems(source, method, existing) {
   if (method === 'scrape' && isAileEyhgmSourceUrl(source.url)) {
     return collectAileEyhgm(source);
+  }
+  if (method === 'scrape' && isAileCocukDergiSourceUrl(source.url)) {
+    return collectAileCocukDergi(source);
   }
   if (method === 'scrape' && isResmiGazeteSourceUrl(source.url)) {
     return collectResmiGazete(source);

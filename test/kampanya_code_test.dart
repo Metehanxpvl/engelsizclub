@@ -37,4 +37,33 @@ void main() {
     expect(normalizeKampanyaCategory('Ev Aletleri'), 'ev-aletleri');
     expect(kampanyaCategoryLabel('teknoloji'), 'Teknoloji');
   });
+
+  test('firma linki https ekler ve markerı açıklamadan ayırır', () {
+    expect(normalizeKampanyaCompanyUrl('ornek.com/kampanya'),
+        'https://ornek.com/kampanya');
+    expect(normalizeKampanyaCompanyUrl(''), '');
+    expect(
+      () => normalizeKampanyaCompanyUrl('not a url', strict: true),
+      throwsStateError,
+    );
+    expect(
+      () => normalizeKampanyaCompanyUrl('ftp://ornek.com', strict: true),
+      throwsStateError,
+    );
+    final split = splitKampanyaCompanyUrl(
+      description: 'Yüzde 20 indirim\n$kKampanyaFirmaMarker https://a.com',
+    );
+    expect(split.description, 'Yüzde 20 indirim');
+    expect(split.companyUrl, 'https://a.com');
+    final item = KampanyaItem.fromJson({
+      'id': 9,
+      'image_url': 'https://example.com/a.jpg',
+      'description': 'Metin',
+      'company_url': 'firma.com',
+      'created_at': '2026-09-20T10:00:00Z',
+    });
+    expect(item.description, 'Metin');
+    expect(item.companyUrl, 'https://firma.com');
+    expect(item.hasCompanyUrl, isTrue);
+  });
 }

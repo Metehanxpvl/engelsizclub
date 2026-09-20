@@ -1,7 +1,7 @@
-/** Papers and trials: last 5 calendar years. 1825 = 5 * 365 (PubMed reldate). */
+/** Papers and trials: last 1 calendar year. 365 = PubMed reldate. */
 
-export const LOOKBACK_YEARS = 5;
-export const RELDATE_DAYS = 5 * 365;
+export const LOOKBACK_YEARS = 1;
+export const RELDATE_DAYS = 365;
 
 export function utcYmd(now = new Date()) {
   const d = now instanceof Date ? now : new Date(now);

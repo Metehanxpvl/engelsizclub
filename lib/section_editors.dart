@@ -7,7 +7,8 @@ enum SectionKey {
   duyurular('duyurular', 'Güncel Duyurular'),
   gezi('gezi', 'Gezi Rehberi'),
   kampanya('kampanya', 'Kampanyalar'),
-  etkinlik('etkinlik', 'Etkinlikler');
+  etkinlik('etkinlik', 'Etkinlikler'),
+  kariyer('kariyer', 'Engelsiz Kariyer');
 
   const SectionKey(this.dbValue, this.label);
   final String dbValue;
@@ -18,6 +19,7 @@ enum SectionKey {
     gezi,
     kampanya,
     etkinlik,
+    kariyer,
   ];
 
   static SectionKey? tryParse(String? raw) {

@@ -4,18 +4,18 @@
 # Gerekli repo secrets (Settings → Secrets and variables → Actions):
 #   SUPABASE_URL
 #   SUPABASE_SERVICE_ROLE_KEY
-#   GEMINI_API_KEY   (yoksa AI_API_KEY)
+#   GEMINI_API_KEY   (yoksa AI_API_KEY) — çeviri + Imagen 3
 # İsteğe bağlı:
 #   NCBI_API_KEY     (PubMed E-utilities hız limiti)
 # Anahtarları YAML’e yazmayın. Flutter’a koymayın. service_role istemcide yok.
 #
 # İlk çalıştırmadan önce SQL Editor → supabase/scientific_researches.sql → Run.
 # Collector asla published yazmaz; FCM yok; tedavi vaadi yok.
-# Yalnız son 5 yıl (PubMed reldate=1825 / mindate-maxdate; ClinicalTrials startDate).
+# Yalnız son 1 yıl (PubMed reldate=365 / mindate-maxdate; ClinicalTrials startDate).
 # FDA: openFDA Drugs@FDA onaylı / geçici onay / inceleme (API’de varsa).
-# Her çalıştırmada pending_review + published İngilizce title satırlarını
-# sayfalayarak Türkçeye çevirir (seri Gemini, 429'da 15/30/60/90s backoff,
-# leftover kuyruk; İngilizce title yazılmaz; ~50 dk bütçe). status değişmez; FCM yok.
+# Filtrelenen (pending_review kaydı) makaleler için Imagen 3 kapak üretilir:
+#   collectors/science/output/{tarih}_{slug}.png + manifest.json (artifact).
+# workflow_dispatch: paper_ids ile uygulama kuyruğundan seçilen UUID’ler.
 #
 # Cron yalnız default branch’te çalışır.
 #   Actions → Scientific research collector → Run workflow → branch main
@@ -26,25 +26,51 @@ on:
   schedule:
     - cron: '0 */6 * * *'
   workflow_dispatch:
+    inputs:
+      generate_images:
+        description: 'Imagen 3 kapak görselleri üret'
+        type: boolean
+        default: true
+      image_limit:
+        description: 'Bu çalıştırmada en fazla kaç görsel'
+        type: string
+        default: '20'
+      paper_ids:
+        description: 'Opsiyonel scientific_researches UUID listesi (virgülle)'
+        type: string
+        default: ''
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   collect:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v7
         with:
           node-version: '20'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
       - name: Install science collector deps
         working-directory: collectors/science
         run: npm ci
       - name: Science collector unit tests
         working-directory: collectors/science
         run: npm test
+      - name: Imagen helper tests
+        working-directory: collectors/science
+        run: python generate_images_test.py
+      - name: Install Imagen Python deps
+        working-directory: collectors/science
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-images.txt
       - name: Collect → pending_review
         working-directory: collectors/science
         env:
@@ -60,3 +86,42 @@ jobs:
           SUPABASE_URL="${SUPABASE_URL//ypvqipqn.supabase.co/ypvqaipqn.supabase.co}"
           export SUPABASE_URL
           npm run collect
+      - name: Commit papers.json catalog
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- output/papers.json
+          if git diff --staged --quiet; then
+            echo "papers.json unchanged."
+          else
+            git commit -m "chore: refresh scientific papers catalog"
+            git push
+          fi
+      - name: Imagen 3 covers for filtered papers
+        if: ${{ github.event_name == 'schedule' || inputs.generate_images }}
+        working-directory: collectors/science
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          SCIENCE_IMAGE_LIMIT: ${{ inputs.image_limit || '20' }}
+          SCIENCE_PAPER_IDS: ${{ inputs.paper_ids }}
+        run: |
+          SUPABASE_URL="${SUPABASE_URL//qycrkqwqrysypvqipqn/qycrkqwqrysypvqaipqn}"
+          SUPABASE_URL="${SUPABASE_URL//ypvqipqn.supabase.co/ypvqaipqn.supabase.co}"
+          export SUPABASE_URL
+          EXTRA=()
+          if [ -n "${SCIENCE_PAPER_IDS}" ]; then
+            EXTRA+=(--from-supabase --ids "${SCIENCE_PAPER_IDS}")
+          fi
+          python generate_images.py --papers output/papers.json --output output --limit "${SCIENCE_IMAGE_LIMIT}" "${EXTRA[@]}"
+      - name: Upload Imagen output
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: science-imagen-output
+          path: collectors/science/output/
+          if-no-files-found: ignore
+          retention-days: 14

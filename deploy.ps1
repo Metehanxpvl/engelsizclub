@@ -198,12 +198,16 @@ foreach ($f in @('zxing_library.min.js', 'zxing_datamatrix.js', 'html5-qrcode.mi
 }
 
 # Statik sayfalar (Flutter build bazen alt klasorleri atlayabilir)
-Write-Host "==> Sync static pages (bilgi-kutuphanesi, daha-fazlasi, fotografli-puzzle, boyama)" -ForegroundColor Cyan
+Write-Host "==> Sync static pages (bilgi-kutuphanesi, daha-fazlasi, fotografli-puzzle, boyama, destek-sorgu, evde-egitim)" -ForegroundColor Cyan
 $staticRoots = @(
   "web\bilgi-kutuphanesi",
   "web\daha-fazlasi",
   "web\fotografli-puzzle.html",
   "web\boyama.html",
+  "web\destek-sorgu.html",
+  "web\evde-egitim.html",
+  "web\js",
+  "web\images",
   "web\google_oauth_callback.html",
   "web\mobile_google_auth.html",
   "web\admin"
@@ -219,6 +223,48 @@ foreach ($src in $staticRoots) {
     } else {
       New-Item -ItemType Directory -Force -Path $dest | Out-Null
       Copy-Item -Recurse -Force "$src\*" $dest
+    }
+  }
+}
+
+Write-Host "==> Verify Destek Sorgu / Evde Eğitim HTML in build/web" -ForegroundColor Cyan
+foreach ($f in @('destek-sorgu.html', 'evde-egitim.html')) {
+  $src = Join-Path 'web' $f
+  $dest = Join-Path 'build\web' $f
+  if (-not (Test-Path -LiteralPath $src)) {
+    Write-Host ("==> Missing source web\" + $f) -ForegroundColor Red
+    exit 1
+  }
+  if (-not (Test-Path -LiteralPath $dest)) {
+    Write-Host ("==> flutter build skipped $f — copying from web/") -ForegroundColor Yellow
+    Copy-Item -Force $src $dest
+  }
+  $destLen = (Get-Item -LiteralPath $dest).Length
+  if ($destLen -lt 1000) {
+    Write-Host ("==> $f too small in build/web") -ForegroundColor Red
+    exit 1
+  }
+  Write-Host ("==> $f OK ($destLen bytes)") -ForegroundColor Green
+}
+
+Write-Host "==> Copy valilikler.json catalog into build/web" -ForegroundColor Cyan
+$valilikSrc = Join-Path 'web' 'valilikler.json'
+$valilikDest = Join-Path 'build\web' 'valilikler.json'
+if (-not (Test-Path -LiteralPath $valilikSrc)) {
+  Write-Host "==> Missing source web\valilikler.json" -ForegroundColor Red
+  exit 1
+}
+Copy-Item -Force $valilikSrc $valilikDest
+Write-Host ("==> valilikler.json OK (" + (Get-Item -LiteralPath $valilikDest).Length + " bytes)") -ForegroundColor Green
+
+Write-Host "==> Copy city museum posters into build/web/output" -ForegroundColor Cyan
+$posterSrc = Join-Path $PSScriptRoot 'output'
+$posterDest = Join-Path 'build\web' 'output'
+if (Test-Path -LiteralPath $posterSrc) {
+  New-Item -ItemType Directory -Force -Path $posterDest | Out-Null
+  Get-ChildItem -LiteralPath $posterSrc -File | ForEach-Object {
+    if ($_.Extension -match '^\.(jpg|jpeg|png|json)$' -or $_.Name -eq '.gitkeep') {
+      Copy-Item -Force -LiteralPath $_.FullName -Destination $posterDest
     }
   }
 }

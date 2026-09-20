@@ -12,6 +12,7 @@ import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
 import '../services/image_optimize_service.dart';
 import '../services/r2_storage_service.dart';
+import 'kampanya_category_tile.dart';
 import 'photo_gallery_lightbox.dart';
 
 /// Admin: görsel (galeri / URL) + başlık / açıklama.
@@ -42,6 +43,7 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
   late final TextEditingController _imageUrl;
   late final TextEditingController _citySearch;
   late final TextEditingController _campaignCode;
+  late final TextEditingController _companyUrl;
   Uint8List? _pickedBytes;
   String? _city;
   bool _nationwide = true;
@@ -81,6 +83,9 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
     _citySearch = TextEditingController();
     _campaignCode = TextEditingController(
       text: editKampanya?.campaignCode ?? '',
+    );
+    _companyUrl = TextEditingController(
+      text: editKampanya?.companyUrl ?? '',
     );
     _memberCodeEnabled = editKampanya?.memberCodeEnabled ?? false;
     _category = normalizeKampanyaCategory(editKampanya?.category ?? '');
@@ -164,6 +169,7 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
     _imageUrl.dispose();
     _citySearch.dispose();
     _campaignCode.dispose();
+    _companyUrl.dispose();
     super.dispose();
   }
 
@@ -222,6 +228,20 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
         ),
       );
       return;
+    }
+    String companyUrl = '';
+    if (_isKampanya) {
+      try {
+        companyUrl = normalizeKampanyaCompanyUrl(
+          _companyUrl.text,
+          strict: _companyUrl.text.trim().isNotEmpty,
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: L10nText(e.toString().replaceFirst('Bad state: ', ''))),
+        );
+        return;
+      }
     }
     if (_isGezi && _title.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -292,6 +312,7 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
             memberCodeEnabled: _memberCodeEnabled,
             campaignCode: _campaignCode.text,
             category: _category,
+            companyUrl: companyUrl,
             adminEmail: widget.adminEmail,
           );
         } else {
@@ -303,6 +324,7 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
             memberCodeEnabled: _memberCodeEnabled,
             campaignCode: _campaignCode.text,
             category: _category,
+            companyUrl: companyUrl,
             adminEmail: widget.adminEmail,
           );
         }
@@ -313,7 +335,9 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
       if (!mounted) return;
       setState(() => _saving = false);
       final raw = e.toString();
-      final hint = raw.contains('kampanyalar_category.sql')
+      final hint = raw.contains('kampanyalar_company_url.sql')
+          ? 'Firma linki kolonu yok. Supabase’de kampanyalar_company_url.sql çalıştırın.'
+          : raw.contains('kampanyalar_category.sql')
           ? 'Kategori kolonu yok. Supabase’de kampanyalar_category.sql çalıştırın.'
           : raw.contains('kampanyalar_member_code.sql')
           ? 'Kampanya kodu tablosu yok. Supabase’de kampanyalar_member_code.sql çalıştırın.'
@@ -432,20 +456,17 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
                 ),
                 const SizedBox(height: 8),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: 4,
+                  runSpacing: 10,
                   children: [
                     for (final e in _categoryOptions.entries)
-                      ChoiceChip(
-                        label: L10nText(e.value),
+                      KampanyaCategoryTile(
+                        categoryKey: e.key,
+                        label: e.value,
                         selected: _category == e.key,
-                        selectedColor: MetoColors.primary.withValues(alpha: 0.18),
-                        onSelected: _saving
-                            ? null
-                            : (on) {
-                                if (!on) return;
-                                setState(() => _category = e.key);
-                              },
+                        onTap: _saving
+                            ? () {}
+                            : () => setState(() => _category = e.key),
                       ),
                   ],
                 ),
@@ -633,6 +654,17 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
                 ),
               ),
               if (_isKampanya) ...[
+                const SizedBox(height: 14),
+                _fieldLabel('Firma linki (isteğe bağlı)'),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _companyUrl,
+                  enabled: !_saving,
+                  keyboardType: TextInputType.url,
+                  autocorrect: false,
+                  style: GoogleFonts.nunito(),
+                  decoration: _dec('https://firma-sitesi.com'),
+                ),
                 const SizedBox(height: 14),
                 SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,

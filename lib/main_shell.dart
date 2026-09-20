@@ -36,16 +36,20 @@ import 'meto_theme.dart';
 import 'cvi/cvi2_entry.dart';
 import 'cvi/cvi_entry.dart';
 import 'aile_kocu/aile_kocu_entry.dart';
+import 'metobot/metobot_page.dart';
 import 'mchat/mchat_entry.dart';
 import 'data/more_menu_data.dart';
 import 'more_menu_store.dart';
 import 'pages/in_app_web_page.dart';
 import 'pages/boyama_page.dart';
 import 'features/scientific_research/admin_science_review_screen.dart';
+import 'features/city_posters/admin_city_posters_screen.dart';
+import 'features/useful_opportunities/opportunities_screen.dart';
 import 'remote/app_screen_config.dart';
 import 'pages/gelisim_etkinlikleri_page.dart';
 import 'pages/barcode_scanner_screen.dart';
 import 'pages/etkinlikler_page.dart';
+import 'pages/engelsiz_kariyer_page.dart';
 import 'pages/gezi_rehberi_page.dart';
 import 'pages/kampanyalar_page.dart';
 import 'widgets/admin_more_menu_sheet.dart';
@@ -777,7 +781,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                                 child: _moreMenuLeading(item),
                               ),
                               title: Text(
-                                item.title,
+                                moreMenuDisplayTitle(item),
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -865,6 +869,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       case 'barcode':
         icon = Icons.qr_code_scanner;
         color = MetoColors.primary;
+      case 'calculate':
+        icon = Icons.calculate_outlined;
+        color = MetoColors.primary;
+      case 'newspaper':
+        icon = Icons.public;
+        color = MetoColors.primary;
       case 'apps':
       case 'folder':
         icon = Icons.folder_outlined;
@@ -872,8 +882,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       case 'games':
         icon = Icons.extension_outlined;
         color = Colors.green.shade700;
+      case 'smart_toy':
+      case 'robot':
+      case 'chatbot':
+        icon = Icons.smart_toy_outlined;
+        color = MetoColors.primary;
       default:
-        icon = Icons.link;
+        icon = item.link == 'metobot'
+            ? Icons.smart_toy_outlined
+            : Icons.link;
         color = MetoColors.primary;
     }
     return Icon(icon, color: color);
@@ -933,8 +950,29 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   }
 
   Future<void> _openMoreMenuItem(MoreMenuItem item) async {
+    final wizard = hostedHtmlWizardUrl(item.link);
+    if (wizard != null) {
+      if (!mounted) return;
+      await InAppWebPage.open(
+        context,
+        title: item.title,
+        url: wizard,
+      );
+      return;
+    }
+
     final route = item.routeKey;
     final link = route ?? item.link.trim();
+    final wizardFromRoute = hostedHtmlWizardUrl(link);
+    if (wizardFromRoute != null) {
+      if (!mounted) return;
+      await InAppWebPage.open(
+        context,
+        title: item.title,
+        url: wizardFromRoute,
+      );
+      return;
+    }
 
     final extraApp = item.isUrl ||
         link == 'aile_kocu' ||
@@ -943,8 +981,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         link == 'boyama' ||
         link.startsWith('http') ||
         link.startsWith('/');
-    if (_isGuest && extraApp && link != 'haklar' && link != 'kartlar' &&
-        link != 'mchat' && link != 'cvi' && link != 'cvi2') {
+    if (_isGuest &&
+        extraApp &&
+        hostedHtmlWizardUrl(item.link) == null &&
+        hostedHtmlWizardUrl(link) == null &&
+        link != 'haklar' &&
+        link != 'kartlar' &&
+        link != 'mchat' &&
+        link != 'cvi' &&
+        link != 'cvi2') {
       final ok = await GuestLimitStore.allowTimedTab('daha_fazlasi');
       if (!ok) {
         if (mounted) {
@@ -992,6 +1037,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           isGuest: _isGuest,
           onRequireLogin: () => _requireLogin(
             'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
+          ),
+        );
+        return;
+      case 'metobot':
+        await openMetoBot(
+          context,
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(
+            'MetoBot için giriş yapmanız veya üye olmanız gerekiyor.',
           ),
         );
         return;
@@ -1091,6 +1145,19 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         if (recovered != null && recovered != (route ?? link)) {
           await _openMoreMenuItem(
             item.copyWith(link: recovered, linkType: 'route'),
+          );
+          return;
+        }
+        final fallbackWizard = hostedHtmlWizardUrl(item.link);
+        if (fallbackWizard != null) {
+          await InAppWebPage.open(
+            context,
+            title: item.title,
+            url: fallbackWizard,
+            isGuest: _isGuest,
+            onRequireLogin: () => _requireLogin(
+              'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
+            ),
           );
           return;
         }
@@ -1873,6 +1940,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           context,
           userEmail: widget.user.email,
           openPending: true,
+        ),
+      );
+      return;
+    }
+
+    if (type == 'kampanya') {
+      unawaited(
+        KampanyalarPage.open(
+          context,
+          userEmail: widget.user.email,
         ),
       );
       return;
@@ -2738,7 +2815,19 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
     Widget? overlay;
     if (_activeTab == MetoTab.merkezler) {
-      overlay = const _KeepAliveTab(child: MerkezlerPage());
+        overlay = _KeepAliveTab(
+          child: MerkezlerPage(
+            userEmail: widget.user.email,
+            userType: _role,
+            isGuest: _isGuest,
+            onRequireLogin: () => _requireLogin(
+              'Yer bildirmek için giriş yapmanız veya üye olmanız gerekiyor.',
+            ),
+            onKrediChanged: (n) {
+              if (mounted) setState(() => _userKredi = n);
+            },
+          ),
+        );
     } else if (_activeTab == MetoTab.haklar) {
       overlay = HaklarPage(adminEmail: widget.user.email);
     } else if (_activeTab == MetoTab.kartlar) {
@@ -4051,7 +4140,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         toggleRow(
           emoji: '📣',
           title: 'Duyurular / Haberler',
-          sub: 'Görselli haber ve duyuru bildirimleri',
+          sub: 'Haber, duyuru ve kampanya bildirimleri',
           value: _bildirimler.duyurular,
           onChanged: (v) => save(_bildirimler.copyWith(duyurular: v)),
         ),
@@ -4199,6 +4288,24 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: _menuTile(
+              emoji: '🎁',
+              label: 'Fırsatlar ve Destekler',
+              sub: 'Onay kuyruğu · onaylanınca ana sayfa story',
+              highlight: true,
+              onTap: () {
+                unawaited(
+                  OpportunitiesScreen.open(
+                    context,
+                    adminEmail: widget.user.email,
+                    reviewQueue: true,
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
               emoji: '🔬',
               label: S.t('science_admin_title'),
               sub: S.t('science_admin_sub'),
@@ -4206,6 +4313,23 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               onTap: () {
                 unawaited(
                   AdminScienceReviewScreen.open(
+                    context,
+                    adminEmail: widget.user.email,
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '🖼',
+              label: S.t('city_poster_admin_title'),
+              sub: S.t('city_poster_admin_sub'),
+              highlight: true,
+              onTap: () {
+                unawaited(
+                  AdminCityPostersScreen.open(
                     context,
                     adminEmail: widget.user.email,
                   ),
@@ -4244,6 +4368,24 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             ),
           ),
         ],
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _menuTile(
+            emoji: '🎁',
+            label: 'Fırsatlar ve Destekler',
+            sub: 'Burs, hak, destek ve haberler',
+            onTap: () {
+              unawaited(
+                OpportunitiesScreen.open(
+                  context,
+                  adminEmail: widget.user.email,
+                  isGuest: _isGuest,
+                  onRequireLogin: widget.onRequireLogin,
+                ),
+              );
+            },
+          ),
+        ),
         if (canEditSection(widget.user.email, SectionKey.gezi))
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -4253,6 +4395,20 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               sub: 'Tüm yerler · il filtresi · ekle / sil',
               highlight: true,
               onTap: () => GeziRehberiPage.open(
+                context,
+                userEmail: widget.user.email,
+              ),
+            ),
+          ),
+        if (canEditSection(widget.user.email, SectionKey.kariyer))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '💼',
+              label: 'Engelsiz Kariyer',
+              sub: 'İŞKUR ilanları · ekle / gizle',
+              highlight: true,
+              onTap: () => EngelsizKariyerPage.open(
                 context,
                 userEmail: widget.user.email,
               ),

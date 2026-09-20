@@ -140,4 +140,17 @@ describe('useful-content recency window', () => {
     assert.equal(d.contentKind, 'active_opportunity');
     assert.equal(d.dateStatus, 'unknown');
   });
+
+  it('ASHB Aile Çocuk magazine issues on the listing are treated recent', () => {
+    const d = evaluateFreshness(
+      {
+        title: 'Aile Çocuk Dergisi Sayı 14',
+        listingKind: 'magazine_issue',
+      },
+      { now: NOW },
+    );
+    assert.equal(d.action, 'keep');
+    assert.equal(d.reason, 'magazine_listing');
+    assert.equal(d.dateStatus, 'recent');
+  });
 });

@@ -39,6 +39,7 @@ class GeziKampanyaFeedCard extends StatelessWidget {
     this.memberCodeIssued = '',
     this.codeBusy = false,
     this.onCreateCampaignCode,
+    this.onOpen,
   });
 
   final String imageUrl;
@@ -76,6 +77,8 @@ class GeziKampanyaFeedCard extends StatelessWidget {
   final String memberCodeIssued;
   final bool codeBusy;
   final VoidCallback? onCreateCampaignCode;
+  /// Kampanyada kart tıklanınca detay (başlık + açıklama). Yoksa görsel açılır.
+  final VoidCallback? onOpen;
 
   bool get _hasCaption => description.trim().isNotEmpty;
   bool get _hasTitle => title.trim().isNotEmpty;
@@ -95,6 +98,14 @@ class GeziKampanyaFeedCard extends StatelessWidget {
     final src = _lightboxSrc;
     if (src.isEmpty) return;
     openFillPhotoOverlay(context, source: src);
+  }
+
+  void _handleOpen(BuildContext context) {
+    if (onOpen != null) {
+      onOpen!();
+      return;
+    }
+    _openLightbox(context);
   }
 
   Widget _adminChip({
@@ -217,7 +228,7 @@ class GeziKampanyaFeedCard extends StatelessWidget {
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: () => _openLightbox(context),
+                        onTap: () => _handleOpen(context),
                       ),
                     ),
                   ),
@@ -327,7 +338,7 @@ class GeziKampanyaFeedCard extends StatelessWidget {
               ),
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () => _openLightbox(context),
+                onTap: () => _handleOpen(context),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -392,15 +403,40 @@ class GeziKampanyaFeedCard extends StatelessWidget {
                           14,
                           (_hasTitle || _hasMeta) ? 6 : 12,
                           14,
-                          showJoin || statusBadge.trim().isNotEmpty ? 6 : 14,
+                          showJoin ||
+                                  statusBadge.trim().isNotEmpty ||
+                                  onOpen != null
+                              ? 6
+                              : 14,
                         ),
                         child: L10nText(
                           description.trim(),
+                          maxLines: onOpen != null ? 3 : null,
+                          overflow: onOpen != null
+                              ? TextOverflow.ellipsis
+                              : TextOverflow.clip,
                           style: GoogleFonts.nunito(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             height: 1.45,
                             color: MetoColors.foreground,
+                          ),
+                        ),
+                      ),
+                    if (onOpen != null && (_hasCaption || _hasTitle))
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          14,
+                          0,
+                          14,
+                          showJoin || statusBadge.trim().isNotEmpty ? 6 : 14,
+                        ),
+                        child: L10nText(
+                          'Devamını oku',
+                          style: GoogleFonts.nunito(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: MetoColors.primary,
                           ),
                         ),
                       )

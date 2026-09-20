@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_catalog_extras.dart';
@@ -6,6 +8,7 @@ import 'bildirim_store.dart';
 import 'catalog_category_store.dart';
 import 'section_editors.dart';
 import 'services/app_catalog_service.dart';
+import 'services/broadcast_push_service.dart';
 import 'utils/async_timeout.dart';
 
 /// Türkçe il adını URL/slug için ASCII'ye çevirir (Ankara → ankara, İstanbul → istanbul).
@@ -240,6 +243,70 @@ String kampanyaCategoryLabel(String raw) {
   return resolvedKampanyaCategories()[key] ?? _humanizeKampanyaCategoryKey(key);
 }
 
+/// Kolon yoksa açıklamanın sonuna gömülür; arayüzde gösterilmez.
+const kKampanyaFirmaMarker = '[[firma]]';
+
+/// Firma sitesi. Boş bırakılabilir. [strict] ise geçersiz URL hata atar.
+String normalizeKampanyaCompanyUrl(String raw, {bool strict = false}) {
+  var s = raw.trim();
+  if (s.isEmpty) return '';
+  if (s.length > 500) {
+    if (strict) {
+      throw StateError('Firma linki en fazla 500 karakter olabilir.');
+    }
+    s = s.substring(0, 500);
+  }
+  if (!s.contains('://')) s = 'https://$s';
+  final uri = Uri.tryParse(s);
+  if (uri == null ||
+      (uri.scheme != 'http' && uri.scheme != 'https') ||
+      uri.host.trim().isEmpty ||
+      !uri.host.contains('.')) {
+    if (strict) {
+      throw StateError('Geçerli bir firma linki girin (https://…).');
+    }
+    return '';
+  }
+  return uri.toString();
+}
+
+({String description, String companyUrl}) splitKampanyaCompanyUrl({
+  required String description,
+  String companyUrl = '',
+}) {
+  var desc = description;
+  var url = normalizeKampanyaCompanyUrl(companyUrl);
+  final marker = '\n$kKampanyaFirmaMarker';
+  final i = desc.lastIndexOf(marker);
+  String extracted = '';
+  if (i >= 0) {
+    extracted = desc.substring(i + marker.length).trim();
+    desc = desc.substring(0, i).trim();
+  } else if (desc.startsWith(kKampanyaFirmaMarker)) {
+    extracted = desc.substring(kKampanyaFirmaMarker.length).trim();
+    desc = '';
+  }
+  if (url.isEmpty) {
+    url = normalizeKampanyaCompanyUrl(extracted);
+  }
+  return (description: desc, companyUrl: url);
+}
+
+String mergeKampanyaCompanyUrlIntoDescription({
+  required String description,
+  required String companyUrl,
+}) {
+  final split = splitKampanyaCompanyUrl(description: description);
+  final url = companyUrl.trim().isEmpty
+      ? split.companyUrl
+      : normalizeKampanyaCompanyUrl(companyUrl);
+  final body = split.description;
+  if (url.isEmpty) return body;
+  return body.isEmpty
+      ? '$kKampanyaFirmaMarker$url'
+      : '$body\n$kKampanyaFirmaMarker$url';
+}
+
 /// Admin: kampanya kategorisi ekler (`app_categories` scope=kampanya).
 Future<({String key, String label, bool synced, String? warning})>
     addKampanyaCategory({
@@ -471,6 +538,7 @@ class KampanyaItem {
     this.campaignCode = '',
     this.myMemberCode = '',
     this.category = '',
+    this.companyUrl = '',
     required this.createdAt,
   });
 
@@ -501,6 +569,8 @@ class KampanyaItem {
   final String myMemberCode;
   /// `saglik` | `restoran` | `giyim` | `egitim` | `marka` | admin slug (boş = tanımsız).
   final String category;
+  /// Firma / kampanya sitesi (https://…).
+  final String companyUrl;
   final DateTime createdAt;
 
   bool get hasDescription => description.trim().isNotEmpty;
@@ -512,6 +582,8 @@ class KampanyaItem {
 
   String get categoryLabel => kampanyaCategoryLabel(category);
 
+  bool get hasCompanyUrl => companyUrl.trim().isNotEmpty;
+
   KampanyaItem copyWith({
     int? joinCount,
     bool? joinedByMe,
@@ -521,6 +593,7 @@ class KampanyaItem {
     String? campaignCode,
     String? myMemberCode,
     String? category,
+    String? companyUrl,
   }) {
     return KampanyaItem(
       id: id,
@@ -542,6 +615,7 @@ class KampanyaItem {
       campaignCode: campaignCode ?? this.campaignCode,
       myMemberCode: myMemberCode ?? this.myMemberCode,
       category: category ?? this.category,
+      companyUrl: companyUrl ?? this.companyUrl,
       createdAt: createdAt,
     );
   }
@@ -573,11 +647,15 @@ class KampanyaItem {
         DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now();
     final sortOrder = (json['sort_order'] as num?)?.toInt() ?? 0;
     final sortIndex = (json['sort_index'] as num?)?.toInt() ?? 0;
+    final parsed = splitKampanyaCompanyUrl(
+      description: json['description']?.toString() ?? '',
+      companyUrl: json['company_url']?.toString() ?? '',
+    );
     return KampanyaItem(
       id: (json['id'] as num?)?.toInt() ?? 0,
       title: json['title']?.toString() ?? '',
       imageUrl: json['image_url']?.toString() ?? '',
-      description: json['description']?.toString() ?? '',
+      description: parsed.description,
       city: json['city']?.toString() ?? '',
       avmName: json['avm_name']?.toString() ?? '',
       eventDate: json['event_date']?.toString() ?? '',
@@ -590,20 +668,30 @@ class KampanyaItem {
       memberCodeEnabled: json['member_code_enabled'] == true,
       campaignCode: json['campaign_code']?.toString().trim() ?? '',
       category: normalizeKampanyaCategory(json['category']?.toString() ?? ''),
+      companyUrl: parsed.companyUrl,
       createdAt: created,
     );
   }
 }
 
 const kGeziTileKey = 'gezi';
+const kKariyerTileKey = 'kariyer';
+/// Ana sayfa Engelsiz Kariyer kutusu.
+const kShowEngelsizKariyerTile = true;
 const kKampanyaTileKey = 'kampanya';
 const kEtkinlikTileKey = 'etkinlik';
 const kKampanyaTable = 'kampanyalar';
 const kEtkinlikTable = 'etkinlikler';
 
-const _kTileKeys = <String>{kGeziTileKey, kKampanyaTileKey, kEtkinlikTileKey};
+const _kTileKeys = <String>{
+  kKariyerTileKey,
+  kGeziTileKey,
+  kKampanyaTileKey,
+  kEtkinlikTileKey,
+};
 
 Map<String, String> get _emptyTileCovers => {
+      kKariyerTileKey: '',
       kGeziTileKey: '',
       kKampanyaTileKey: '',
       kEtkinlikTileKey: '',
@@ -1241,6 +1329,19 @@ StateError? _kampanyaCategorySchemaError(Object e) {
   return null;
 }
 
+StateError? _kampanyaCompanyUrlSchemaError(Object e) {
+  final raw = e.toString();
+  if (raw.contains('company_url') &&
+      (raw.contains('PGRST204') ||
+          raw.contains('schema cache') ||
+          raw.contains('column'))) {
+    return StateError(
+      'Firma linki kolonu yok. Supabase’de kampanyalar_company_url.sql çalıştırın.',
+    );
+  }
+  return null;
+}
+
 StateError? _kampanyaCodeSchemaError(Object e) {
   final raw = e.toString();
   if (raw.contains('member_code_enabled') ||
@@ -1292,6 +1393,7 @@ Future<KampanyaItem> addKampanyaItem({
   String description = '',
   String? city,
   String category = '',
+  String companyUrl = '',
   bool memberCodeEnabled = false,
   String campaignCode = '',
   required String adminEmail,
@@ -1303,6 +1405,7 @@ Future<KampanyaItem> addKampanyaItem({
     description: description,
     city: city,
     category: category,
+    companyUrl: companyUrl,
     memberCodeEnabled: memberCodeEnabled,
     campaignCode: campaignCode,
     adminEmail: adminEmail,
@@ -1333,6 +1436,7 @@ Future<KampanyaItem> _addScopedFeedItem({
   String description = '',
   String? city,
   String category = '',
+  String companyUrl = '',
   bool memberCodeEnabled = false,
   String campaignCode = '',
   required String adminEmail,
@@ -1363,13 +1467,48 @@ Future<KampanyaItem> _addScopedFeedItem({
     payload['member_code_enabled'] = code.enabled;
     payload['campaign_code'] = code.code;
     payload['category'] = normalizeKampanyaCategory(category);
+    final parsed = splitKampanyaCompanyUrl(
+      description: description,
+      companyUrl: companyUrl,
+    );
+    payload['description'] = parsed.description;
+    payload['company_url'] = parsed.companyUrl;
   }
   try {
     final row =
         await Supabase.instance.client.from(table).insert(payload).select().single();
     _invalidateScopedCache(table);
-    return KampanyaItem.fromJson(Map<String, dynamic>.from(row));
+    final item = KampanyaItem.fromJson(Map<String, dynamic>.from(row));
+    if (table == kKampanyaTable) {
+      _notifyYeniKampanya(item);
+    }
+    return item;
   } catch (e) {
+    if (table == kKampanyaTable && payload.containsKey('company_url')) {
+      final urlHint = _kampanyaCompanyUrlSchemaError(e);
+      if (urlHint != null) {
+        final url = payload.remove('company_url')?.toString() ?? '';
+        if (url.isNotEmpty) {
+          payload['description'] = mergeKampanyaCompanyUrlIntoDescription(
+            description: payload['description']?.toString() ?? '',
+            companyUrl: url,
+          );
+        }
+        try {
+          final row = await Supabase.instance.client
+              .from(table)
+              .insert(payload)
+              .select()
+              .single();
+          _invalidateScopedCache(table);
+          final item = KampanyaItem.fromJson(Map<String, dynamic>.from(row));
+          _notifyYeniKampanya(item);
+          return item;
+        } catch (_) {
+          throw urlHint;
+        }
+      }
+    }
     if (table == kKampanyaTable && payload.containsKey('category')) {
       final catHint = _kampanyaCategorySchemaError(e);
       if (catHint != null) throw catHint;
@@ -1386,6 +1525,24 @@ Future<KampanyaItem> _addScopedFeedItem({
   }
 }
 
+void _notifyYeniKampanya(KampanyaItem item) {
+  if (!item.isActive) return;
+  final heading = item.title.trim();
+  final loc = kampanyaLocationLabel(item.city);
+  final desc = item.description.trim();
+  final body = desc.isNotEmpty
+      ? desc
+      : (loc.isNotEmpty ? loc : 'Yeni bir kampanya eklendi.');
+  unawaited(
+    BroadcastPushService.instance.kampanya(
+      title: heading.isEmpty ? 'Yeni kampanya' : heading,
+      body: body,
+      imageUrl: item.imageUrl,
+      kampanyaId: '${item.id}',
+    ),
+  );
+}
+
 Future<KampanyaItem> updateKampanyaItem({
   required int id,
   String title = '',
@@ -1393,6 +1550,7 @@ Future<KampanyaItem> updateKampanyaItem({
   String? imageUrl,
   String? city,
   String? category,
+  String? companyUrl,
   bool? memberCodeEnabled,
   String? campaignCode,
   required String adminEmail,
@@ -1405,6 +1563,7 @@ Future<KampanyaItem> updateKampanyaItem({
     imageUrl: imageUrl,
     city: city,
     category: category,
+    companyUrl: companyUrl,
     memberCodeEnabled: memberCodeEnabled,
     campaignCode: campaignCode,
     adminEmail: adminEmail,
@@ -1438,6 +1597,7 @@ Future<KampanyaItem> _updateScopedFeedItem({
   String? imageUrl,
   String? city,
   String? category,
+  String? companyUrl,
   bool? memberCodeEnabled,
   String? campaignCode,
   required String adminEmail,
@@ -1464,6 +1624,14 @@ Future<KampanyaItem> _updateScopedFeedItem({
   if (table == kKampanyaTable && category != null) {
     patch['category'] = normalizeKampanyaCategory(category);
   }
+  if (table == kKampanyaTable && companyUrl != null) {
+    final parsed = splitKampanyaCompanyUrl(
+      description: description,
+      companyUrl: companyUrl,
+    );
+    patch['description'] = parsed.description;
+    patch['company_url'] = parsed.companyUrl;
+  }
   try {
     final row = await Supabase.instance.client
         .from(table)
@@ -1474,6 +1642,30 @@ Future<KampanyaItem> _updateScopedFeedItem({
     _invalidateScopedCache(table);
     return KampanyaItem.fromJson(Map<String, dynamic>.from(row));
   } catch (e) {
+    if (table == kKampanyaTable && patch.containsKey('company_url')) {
+      final urlHint = _kampanyaCompanyUrlSchemaError(e);
+      if (urlHint != null) {
+        final url = patch.remove('company_url')?.toString() ?? '';
+        if (url.isNotEmpty) {
+          patch['description'] = mergeKampanyaCompanyUrlIntoDescription(
+            description: patch['description']?.toString() ?? '',
+            companyUrl: url,
+          );
+        }
+        try {
+          final row = await Supabase.instance.client
+              .from(table)
+              .update(patch)
+              .eq('id', id)
+              .select()
+              .single();
+          _invalidateScopedCache(table);
+          return KampanyaItem.fromJson(Map<String, dynamic>.from(row));
+        } catch (_) {
+          throw urlHint;
+        }
+      }
+    }
     if (table == kKampanyaTable && patch.containsKey('category')) {
       final catHint = _kampanyaCategorySchemaError(e);
       if (catHint != null) throw catHint;

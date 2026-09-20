@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +17,7 @@ import '../services/centers_google_geocode_service.dart';
 import '../services/centers_google_places_service.dart';
 import '../services/google_places_config.dart';
 import '../widgets/guest_gate.dart';
+import '../widgets/harita_foto_galeri.dart';
 import '../widgets/harita_yer_bildir_sheet.dart';
 import '../widgets/web_google_map.dart';
 import '../l10n/app_strings.dart';
@@ -71,6 +74,12 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
   String? _dataNote;
   double? _focusLat;
   double? _focusLng;
+  List<MetoCenter> _placeHits = const [];
+  bool _placeSearchLoading = false;
+  int _placeSearchSeq = 0;
+  Timer? _searchDebounce;
+  double? _pickedLat;
+  double? _pickedLng;
 
   @override
   void initState() {
@@ -80,6 +89,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     _mapController?.dispose();
     super.dispose();
@@ -91,30 +101,46 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     setState(() => _memberCenters = list);
   }
 
-  Future<void> _openYerBildir() async {
+  Future<void> _openYerBildir({
+    MetoCenter? from,
+    double? lat,
+    double? lng,
+    HaritaYerBildirim? existing,
+  }) async {
     final login = widget.onRequireLogin ?? () {};
     if (!await ensureMemberAccess(
       context,
       isGuest: widget.isGuest || widget.userEmail.trim().isEmpty,
       onRequireLogin: login,
-      message: 'Yer bildirmek için giriş yapmanız veya üye olmanız gerekiyor.',
+      message: existing != null
+          ? 'Yer bildirimini değiştirmek için giriş yapmanız gerekiyor.'
+          : 'Yer bildirmek için giriş yapmanız veya üye olmanız gerekiyor.',
     )) {
       return;
     }
     if (!mounted) return;
-    final ilce =
-        _selectedIlce == kAllIlceler ? '' : _selectedIlce;
+    final ilce = (from != null && from.ilce.trim().isNotEmpty)
+        ? from.ilce
+        : (_selectedIlce == kAllIlceler ? '' : _selectedIlce);
     final focus = _mapCamera;
+    final useLat = existing?.lat ?? from?.lat ?? lat ?? focus.lat;
+    final useLng = existing?.lng ?? from?.lng ?? lng ?? focus.lng;
+    final phone = from?.phone.trim() ?? '';
     final result = await showModalBottomSheet<HaritaYerBildirResult>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => HaritaYerBildirSheet(
         email: widget.userEmail,
-        city: _selectedCity,
-        ilce: ilce,
-        lat: focus.lat,
-        lng: focus.lng,
+        city: existing?.city ?? _selectedCity,
+        ilce: existing?.ilce ?? ilce,
+        lat: useLat,
+        lng: useLng,
+        initialName: existing?.name ?? from?.name ?? '',
+        initialAddress: existing?.address ?? from?.address ?? '',
+        initialPhone: phone == '—' ? '' : phone,
+        initialCategory: from?.category,
+        existing: existing,
       ),
     );
     if (result == null || !mounted) return;
@@ -124,11 +150,59 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
         center,
         ..._memberCenters.where((c) => c.id != center.id),
       ];
+      _pickedLat = null;
+      _pickedLng = null;
+      _selectedCenter = center;
     });
     final balance = result.newBalance;
     if (balance != null) widget.onKrediChanged?.call(balance);
-    final msg = _yerBildirSnack(result);
+    final msg = existing != null
+        ? 'Yer bildirimi güncellendi.'
+        : _yerBildirSnack(result);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _deleteYerBildirimi(HaritaYerBildirim item) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const L10nText('Yer bildirimini sil'),
+        content: const L10nText(
+          'Bu yer bildirimi kalıcı olarak silinecek. Emin misiniz?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const L10nText('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const L10nText('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await deleteHaritaYerBildirimi(item.id);
+      if (!mounted) return;
+      final centerId = kHaritaUyeYerIdBase + item.id;
+      setState(() {
+        _memberCenters =
+            _memberCenters.where((c) => c.id != centerId).toList();
+        if (_selectedCenter?.id == centerId) {
+          _selectedCenter = null;
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: L10nText('Yer bildirimi silindi.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e'.replaceFirst('Bad state: ', ''))),
+      );
+    }
   }
 
   String _yerBildirSnack(HaritaYerBildirResult result) {
@@ -140,6 +214,77 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     }
     final kalan = haritaIyilikKalan(result.reportCount);
     return 'Yer kaydedildi. $kalan yer daha bildirince 1 iyilik puanı.';
+  }
+
+  void _onSearchChanged(String raw) {
+    setState(() {});
+    _searchDebounce?.cancel();
+    final q = raw.trim();
+    if (q.length < 2) {
+      setState(() {
+        _placeHits = const [];
+        _placeSearchLoading = false;
+      });
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
+      unawaited(_runPlaceSearch(q));
+    });
+  }
+
+  Future<void> _runPlaceSearch(String q) async {
+    final seq = ++_placeSearchSeq;
+    setState(() => _placeSearchLoading = true);
+    try {
+      final origin = _mapCenter;
+      final hits = await withNetworkTimeout(
+        CentersGooglePlacesService.searchByQuery(
+          query: q,
+          latitude: origin.lat,
+          longitude: origin.lng,
+          city: _selectedCity,
+        ),
+        timeout: const Duration(seconds: 12),
+        message: 'Yer araması zaman aşımına uğradı.',
+      );
+      if (!mounted || seq != _placeSearchSeq) return;
+      setState(() {
+        _placeHits = hits;
+        _placeSearchLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || seq != _placeSearchSeq) return;
+      setState(() => _placeSearchLoading = false);
+    }
+  }
+
+  void _pickSearchedPlace(MetoCenter center) {
+    _searchDebounce?.cancel();
+    final shown = overlayHaritaYerBildirimi(center);
+    setState(() {
+      _liveCenters = [
+        shown,
+        ..._liveCenters.where(
+          (c) =>
+              haritaFoldName(c.name) != haritaFoldName(shown.name) ||
+              geoDistanceKm(c.lat, c.lng, shown.lat, shown.lng) > 0.05,
+        ),
+      ];
+      _placeHits = const [];
+      _pickedLat = shown.lat;
+      _pickedLng = shown.lng;
+      _searchController.text = shown.name;
+    });
+    _selectCenter(shown);
+  }
+
+  void _markMapPoint(double lat, double lng) {
+    setState(() {
+      _pickedLat = lat;
+      _pickedLng = lng;
+      _selectedCenter = null;
+    });
+    _moveMap(lat, lng, zoom: 16);
   }
 
   TurkishCity get _cityInfo => kTurkishCities[_selectedCity]!;
@@ -216,12 +361,40 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     } else {
       base = _catalogForSelectedCity();
     }
-    if (_memberCenters.isEmpty) return base;
+    if (_memberCenters.isEmpty && _placeHits.isEmpty) {
+      return [
+        for (final c in base) overlayHaritaYerBildirimi(c),
+      ];
+    }
+    String mergeKey(MetoCenter c) =>
+        '${_normTr(c.name)}|${c.lat.toStringAsFixed(4)}|${c.lng.toStringAsFixed(4)}';
     final merged = <String, MetoCenter>{};
-    for (final c in [...base, ..._memberCenters]) {
-      final key =
-          '${_normTr(c.name)}|${c.lat.toStringAsFixed(4)}|${c.lng.toStringAsFixed(4)}';
-      merged.putIfAbsent(key, () => c);
+    for (final c in [...base, ..._placeHits]) {
+      merged.putIfAbsent(mergeKey(c), () => overlayHaritaYerBildirimi(c));
+    }
+    for (final c in _memberCenters) {
+      String? hostKey;
+      var bestKm = kHaritaYerMatchKm;
+      for (final entry in merged.entries) {
+        final host = entry.value;
+        if (isHaritaUyeYeri(host.id) &&
+            haritaUyeYerByCenterId[host.id]?.id ==
+                haritaUyeYerByCenterId[c.id]?.id) {
+          hostKey = entry.key;
+          bestKm = 0;
+          break;
+        }
+        final km = geoDistanceKm(c.lat, c.lng, host.lat, host.lng);
+        if (km <= bestKm) {
+          bestKm = km;
+          hostKey = entry.key;
+        }
+      }
+      if (hostKey != null && bestKm <= kHaritaYerMatchKm) {
+        merged[hostKey] = overlayHaritaYerBildirimi(merged[hostKey]!);
+      } else {
+        merged[mergeKey(c)] = overlayHaritaYerBildirimi(c);
+      }
     }
     return merged.values.toList();
   }
@@ -272,15 +445,20 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
   /// Seçilen il/ilçe için merkezleri döndürür.
   ({List<_CenterWithDist> items, String? note}) get _listing {
     final origin = _mapCenter;
-    final q = _searchController.text.trim().toLowerCase();
+    final qRaw = _searchController.text.trim();
+    final searching = qRaw.length >= 2;
     final maxKm = _locStatus == _LocStatus.ok
         ? 45.0
         : (_selectedIlce == kAllIlceler ? 70.0 : 28.0);
 
-    bool matchesSearch(MetoCenter c) =>
-        q.isEmpty ||
-        [c.name, c.category, c.address, c.ilce, ...c.services]
-            .any((f) => f.toLowerCase().contains(q));
+    bool matchesSearch(MetoCenter c) => haritaYerMatchesQuery(
+          qRaw,
+          name: c.name,
+          category: c.category,
+          address: c.address,
+          ilce: c.ilce,
+          services: c.services,
+        );
 
     List<_CenterWithDist> build(Iterable<MetoCenter> src) {
       final list = src
@@ -290,7 +468,12 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
               distKm: geoDistanceKm(origin.lat, origin.lng, c.lat, c.lng),
             ),
           )
-          .where((e) => e.distKm <= maxKm + 8)
+          .where(
+            (e) =>
+                searching ||
+                isHaritaUyeYeri(e.center.id) ||
+                e.distKm <= maxKm + 8,
+          )
           .toList();
       list.sort((a, b) => a.distKm.compareTo(b.distKm));
       return list;
@@ -298,8 +481,8 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
 
     // Her zaman seçilen ile kilitle
     final pool = _sourceCenters
-        .where((c) => _matchesSelectedCity(c))
-        .where(_matchesCategory)
+        .where((c) => isHaritaUyeYeri(c.id) || _matchesSelectedCity(c))
+        .where((c) => searching || _matchesCategory(c))
         .where(matchesSearch);
 
     if (_selectedIlce != kAllIlceler) {
@@ -323,7 +506,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     // Yedek: yalnız seçilen ilin kayıtlı merkezleri (başka şehir ASLA)
     final fallback = kCenters
         .where((c) => _normTr(c.city) == _normTr(_selectedCity))
-        .where(_matchesCategory)
+        .where((c) => searching || _matchesCategory(c))
         .where(matchesSearch);
     final nearest = build(fallback);
     if (nearest.isNotEmpty) {
@@ -445,9 +628,22 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       }
       final members = await loadHaritaYerBildirimleri(city: _selectedCity);
       for (final c in members) {
-        final key =
-            '${_normTr(c.name)}|${c.lat.toStringAsFixed(4)}|${c.lng.toStringAsFixed(4)}';
-        merged.putIfAbsent(key, () => c);
+        final overlaid = overlayHaritaYerBildirimi(c);
+        var attached = false;
+        for (final key in merged.keys.toList()) {
+          final host = merged[key]!;
+          if (geoDistanceKm(c.lat, c.lng, host.lat, host.lng) <=
+              kHaritaYerMatchKm) {
+            merged[key] = overlayHaritaYerBildirimi(host);
+            attached = true;
+            break;
+          }
+        }
+        if (!attached) {
+          final key =
+              '${_normTr(overlaid.name)}|${overlaid.lat.toStringAsFixed(4)}|${overlaid.lng.toStringAsFixed(4)}';
+          merged[key] = overlaid;
+        }
       }
       live = merged.values.toList()
         ..sort((a, b) {
@@ -573,6 +769,9 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       _userLat = null;
       _userLng = null;
       _liveCenters = const [];
+      _placeHits = const [];
+      _pickedLat = null;
+      _pickedLng = null;
       _focusLat = info.lat;
       _focusLng = info.lng;
       _centersError = null;
@@ -590,13 +789,17 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       _userLat = null;
       _userLng = null;
       _liveCenters = const [];
+      _placeHits = const [];
+      _pickedLat = null;
+      _pickedLng = null;
     });
     _refreshCenters();
   }
 
   void _selectCenter(MetoCenter center) {
-    setState(() => _selectedCenter = center);
-    _moveMap(center.lat, center.lng, zoom: 14);
+    final shown = overlayHaritaYerBildirimi(center);
+    setState(() => _selectedCenter = shown);
+    _moveMap(shown.lat, shown.lng, zoom: 14);
   }
 
   bool _matchesIlce(MetoCenter c, String selectedIlce) {
@@ -624,30 +827,6 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       );
     } catch (e) {
       debugPrint('[Map] move hata: $e');
-    }
-  }
-
-  static bool _hasPhone(String? raw) {
-    final digits = (raw ?? '').replaceAll(RegExp(r'[^\d+]'), '');
-    return digits.length >= 7;
-  }
-
-  Future<void> _callPhoneNumber(BuildContext context, String phone) async {
-    final digits = phone.replaceAll(RegExp(r'[^\d+]'), '');
-    if (digits.length < 7) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: L10nText('Telefon numarası yok.')),
-      );
-      return;
-    }
-    final uri = Uri.parse('tel:$digits');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: L10nText('Ara: $phone')),
-      );
     }
   }
 
@@ -687,7 +866,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const L10nText(
-                            'Merkezler',
+                            'Engelsiz Haritalar',
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
@@ -716,30 +895,6 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                       onTap: _detectLocation,
                     ),
                   ],
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: FilledButton.icon(
-                    onPressed: _openYerBildir,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: MetoColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    icon: const Icon(Icons.add_location_alt_outlined, size: 18),
-                    label: const L10nText(
-                      'Yer bildir',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -790,13 +945,18 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                       Expanded(
                         child: TextField(
                           controller: _searchController,
-                          onChanged: (_) => setState(() {}),
+                          textInputAction: TextInputAction.search,
+                          onChanged: _onSearchChanged,
+                          onSubmitted: (v) {
+                            _searchDebounce?.cancel();
+                            unawaited(_runPlaceSearch(v.trim()));
+                          },
                           style: const TextStyle(
                             fontSize: 14,
                             color: MetoColors.foreground,
                           ),
                           decoration: InputDecoration(
-                            hintText: S.auto('Merkez adı veya hizmet ara...'),
+                            hintText: S.auto('Yer adı yazın veya haritaya dokunun'),
                             hintStyle: TextStyle(
                               fontSize: 14,
                               color: MetoColors.mutedFg,
@@ -807,11 +967,24 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                           ),
                         ),
                       ),
+                      if (_placeSearchLoading)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 4),
+                          child: SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
                       if (_searchController.text.isNotEmpty)
                         IconButton(
                           onPressed: () {
+                            _searchDebounce?.cancel();
                             _searchController.clear();
-                            setState(() {});
+                            setState(() {
+                              _placeHits = const [];
+                              _placeSearchLoading = false;
+                            });
                           },
                           icon: const Icon(
                             Icons.close,
@@ -828,6 +1001,68 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                     ],
                   ),
                 ),
+                if (_placeHits.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  ..._placeHits.take(6).map(
+                    (c) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Material(
+                        color: MetoColors.card,
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          onTap: () => _pickSearchedPlace(c),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.place_outlined,
+                                  size: 18,
+                                  color: MetoColors.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        c.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      Text(
+                                        c.address,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: MetoColors.mutedFg,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.chevron_right,
+                                  size: 18,
+                                  color: MetoColors.mutedFg,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -841,9 +1076,38 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                   zoom: _cameraZoom,
                   userLat: _userLat,
                   userLng: _userLng,
+                  pickedLat: _pickedLat,
+                  pickedLng: _pickedLng,
                   onMapCreated: (c) => _mapController = c,
                   onSelectCenter: _selectCenter,
+                  onMapTap: _markMapPoint,
+                  onUserMarkerTap: () {
+                    if (_userLat != null && _userLng != null) {
+                      _markMapPoint(_userLat!, _userLng!);
+                    }
+                  },
                 ),
+                if (_pickedLat != null && _pickedLng != null)
+                  Positioned(
+                    left: 10,
+                    right: 10,
+                    bottom: 10,
+                    child: FilledButton.icon(
+                      onPressed: () => unawaited(
+                        _openYerBildir(lat: _pickedLat, lng: _pickedLng),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: MetoColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      icon: const Icon(Icons.add_location_alt_outlined, size: 18),
+                      label: const L10nText(
+                        'Yer bildir',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
                 if (_centersLoading)
                   Positioned.fill(
                     child: Container(
@@ -881,6 +1145,13 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                     ),
                   ),
               ],
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: L10nText(
+              'Yeri arayın veya haritaya dokunarak işaretleyin; sonra yer bildir.',
+              style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
             ),
           ),
           SizedBox(
@@ -982,13 +1253,18 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     );
   }
 
-  Widget _buildDetail(MetoCenter center) {
+  Widget _buildDetail(MetoCenter raw) {
+    final center = overlayHaritaYerBildirimi(raw);
     final distKm = geoDistanceKm(
       _mapCenter.lat,
       _mapCenter.lng,
       center.lat,
       center.lng,
     );
+    final isErisim = center.category == kHaritaErisimKategori;
+    final reportCount = haritaYerBildirimSayisi(center);
+    final reportLabel = haritaYerBildirimSayisiLabel(reportCount);
+    final ozellikCounts = haritaYerOzellikSayilari(center);
     return ColoredBox(
       color: MetoColors.background,
       child: ListView(
@@ -1059,23 +1335,50 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: center.color,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      center.category,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: center.color,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          center.category == kHaritaErisimKategori
+                              ? 'Erişilebilirlik'
+                              : center.category,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
-                    ),
+                      if (reportCount > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: MetoColors.primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: L10nText(
+                            reportLabel,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: MetoColors.primary,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),
@@ -1085,26 +1388,70 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
             child: Column(
               children: [
+                HaritaFotoGaleri(
+                  center: center,
+                  isGuest: widget.isGuest,
+                  onRequireLogin: widget.onRequireLogin,
+                ),
+                if (reportCount > 0) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: MetoColors.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: MetoColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.groups_outlined,
+                          color: MetoColors.primary,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: L10nText(
+                            reportLabel,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: MetoColors.foreground,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
                 _InfoRow(
                   icon: Icons.location_on_outlined,
                   label: 'Adres',
                   value: center.address,
                   color: center.color,
                 ),
-                const SizedBox(height: 12),
-                _InfoRow(
-                  icon: Icons.phone_outlined,
-                  label: 'Telefon',
-                  value: center.phone,
-                  color: center.color,
-                ),
-                const SizedBox(height: 12),
-                _InfoRow(
-                  icon: Icons.schedule_outlined,
-                  label: 'Çalışma Saatleri',
-                  value: center.hours,
-                  color: center.color,
-                ),
+                if (center.phone.trim().isNotEmpty &&
+                    center.phone.trim() != '—') ...[
+                  const SizedBox(height: 12),
+                  _InfoRow(
+                    icon: Icons.phone_outlined,
+                    label: 'Telefon',
+                    value: center.phone,
+                    color: center.color,
+                  ),
+                ],
+                if (center.hours.trim().isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _InfoRow(
+                    icon: isErisim
+                        ? Icons.notes_outlined
+                        : Icons.schedule_outlined,
+                    label: isErisim ? 'Not' : 'Çalışma Saatleri',
+                    value: center.hours,
+                    color: center.color,
+                  ),
+                ],
                 const SizedBox(height: 12),
                 Container(
                   width: double.infinity,
@@ -1124,8 +1471,8 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const L10nText(
-                        'Sunulan Hizmetler',
+                      L10nText(
+                        isErisim ? 'Erişilebilirlik' : 'Sunulan Hizmetler',
                         style: TextStyle(
                           fontSize: 12,
                           color: MetoColors.mutedFg,
@@ -1136,25 +1483,46 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          for (final s in center.services)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: center.color.withValues(alpha: 0.13),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                s,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: center.color,
+                          if (ozellikCounts.isNotEmpty)
+                            for (final e in ozellikCounts.entries)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: center.color.withValues(alpha: 0.13),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: L10nText(
+                                  haritaYerOzellikLabel(e.key, e.value),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: center.color,
+                                  ),
+                                ),
+                              )
+                          else
+                            for (final s in center.services)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: center.color.withValues(alpha: 0.13),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  s,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: center.color,
+                                  ),
                                 ),
                               ),
-                            ),
                         ],
                       ),
                     ],
@@ -1244,54 +1612,97 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => _openDirections(center),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: MetoColors.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          elevation: 1,
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => _openDirections(center),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: MetoColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      elevation: 1,
+                    ),
+                    child: const L10nText('Yol Tarifi'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (haritaYerSahibiMi(center.id, widget.userEmail)) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        final item = haritaUyeYerByCenterId[center.id];
+                        if (item == null) return;
+                        unawaited(_openYerBildir(from: center, existing: item));
+                      },
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const L10nText(
+                        'Düzenle',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: MetoColors.primary,
+                        side: const BorderSide(
+                          color: MetoColors.primary,
+                          width: 2,
                         ),
-                        child: const L10nText('Yol Tarifi'),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                     ),
-                    if (_hasPhone(center.phone)) ...[
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () =>
-                              _callPhoneNumber(context, center.phone),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: MetoColors.primary,
-                            side: const BorderSide(
-                              color: MetoColors.primary,
-                              width: 2,
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            textStyle: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          child: const L10nText('Randevu Al'),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        final item = haritaUyeYerByCenterId[center.id];
+                        if (item == null) return;
+                        unawaited(_deleteYerBildirimi(item));
+                      },
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      label: const L10nText(
+                        'Sil',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFFB42318),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ] else
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => unawaited(_openYerBildir(from: center)),
+                      icon: const Icon(Icons.add_location_alt_outlined, size: 18),
+                      label: const L10nText(
+                        'Yer bildir',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: MetoColors.primary,
+                        side: const BorderSide(
+                          color: MetoColors.primary,
+                          width: 2,
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
                         ),
                       ),
-                    ],
-                  ],
-                ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1414,6 +1825,10 @@ class _GoogleMapView extends StatefulWidget {
     required this.userLng,
     required this.onMapCreated,
     required this.onSelectCenter,
+    this.pickedLat,
+    this.pickedLng,
+    this.onMapTap,
+    this.onUserMarkerTap,
   });
 
   final List<_CenterWithDist> centers;
@@ -1421,8 +1836,12 @@ class _GoogleMapView extends StatefulWidget {
   final double zoom;
   final double? userLat;
   final double? userLng;
+  final double? pickedLat;
+  final double? pickedLng;
   final void Function(GoogleMapController controller) onMapCreated;
   final ValueChanged<MetoCenter> onSelectCenter;
+  final void Function(double lat, double lng)? onMapTap;
+  final VoidCallback? onUserMarkerTap;
 
   @override
   State<_GoogleMapView> createState() => _GoogleMapViewState();
@@ -1456,6 +1875,19 @@ class _GoogleMapViewState extends State<_GoogleMapView> {
           icon: BitmapDescriptor.defaultMarkerWithHue(
             BitmapDescriptor.hueAzure,
           ),
+          onTap: widget.onUserMarkerTap,
+        ),
+      );
+    }
+    if (widget.pickedLat != null && widget.pickedLng != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('pick'),
+          position: LatLng(widget.pickedLat!, widget.pickedLng!),
+          infoWindow: const InfoWindow(title: 'Seçilen yer'),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueOrange,
+          ),
         ),
       );
     }
@@ -1480,6 +1912,16 @@ class _GoogleMapViewState extends State<_GoogleMapView> {
           lat: widget.userLat!,
           lng: widget.userLng!,
           title: 'Konumun',
+        ),
+      );
+    }
+    if (widget.pickedLat != null && widget.pickedLng != null) {
+      out.add(
+        WebMapMarker(
+          id: 'pick',
+          lat: widget.pickedLat!,
+          lng: widget.pickedLng!,
+          title: 'Seçilen yer',
         ),
       );
     }
@@ -1517,7 +1959,12 @@ class _GoogleMapViewState extends State<_GoogleMapView> {
         zoom: widget.zoom,
         markers: _webMarkers,
         height: 220,
+        onMapTap: widget.onMapTap,
         onMarkerTap: (id) {
+          if (id == 'user') {
+            widget.onUserMarkerTap?.call();
+            return;
+          }
           if (!id.startsWith('c_')) return;
           final i = int.tryParse(id.substring(2));
           if (i == null || i < 0 || i >= widget.centers.length) return;
@@ -1540,6 +1987,7 @@ class _GoogleMapViewState extends State<_GoogleMapView> {
             zoom: widget.zoom,
           ),
           markers: _markers,
+          onTap: (pos) => widget.onMapTap?.call(pos.latitude, pos.longitude),
           onMapCreated: (c) {
             _controller = c;
             widget.onMapCreated(c);
@@ -1650,6 +2098,7 @@ class _CenterListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ozellikCounts = haritaYerOzellikSayilari(center);
     return Material(
       color: MetoColors.card,
       borderRadius: BorderRadius.circular(16),
@@ -1706,6 +2155,19 @@ class _CenterListTile extends StatelessWidget {
                             color: MetoColors.mutedFg,
                           ),
                         ),
+                        if (haritaYerBildirimSayisi(center) > 0) ...[
+                          const SizedBox(height: 2),
+                          L10nText(
+                            haritaYerBildirimSayisiLabel(
+                              haritaYerBildirimSayisi(center),
+                            ),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: MetoColors.primary,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 4),
                         Row(
                           children: [
@@ -1779,25 +2241,46 @@ class _CenterListTile extends StatelessWidget {
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  for (final s in center.services)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: center.color.withValues(alpha: 0.09),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        s,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: center.color,
+                  if (ozellikCounts.isNotEmpty)
+                    for (final e in ozellikCounts.entries)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: center.color.withValues(alpha: 0.09),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: L10nText(
+                          haritaYerOzellikLabel(e.key, e.value),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: center.color,
+                          ),
+                        ),
+                      )
+                  else
+                    for (final s in center.services)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: center.color.withValues(alpha: 0.09),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          s,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: center.color,
+                          ),
                         ),
                       ),
-                    ),
                 ],
               ),
             ],

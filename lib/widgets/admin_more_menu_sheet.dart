@@ -298,6 +298,10 @@ class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
         icon = Icons.extension_outlined;
       case 'barcode':
         icon = Icons.qr_code_scanner;
+      case 'calculate':
+        icon = Icons.calculate_outlined;
+      case 'newspaper':
+        icon = Icons.public;
       case 'apps':
       case 'folder':
         icon = Icons.folder_outlined;
@@ -488,7 +492,7 @@ class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              item.title,
+                                              moreMenuDisplayTitle(item),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: GoogleFonts.nunito(

@@ -197,7 +197,13 @@ serve(async (req) => {
 
     // ── Topic broadcast ──────────────────────────────────────────────────
     const topic = String(payload.topic ?? "").trim().toLowerCase();
-    const allowed = new Set(["duyurular", "ilanlar", "forum", "mesajlar"]);
+    const allowed = new Set([
+      "duyurular",
+      "ilanlar",
+      "forum",
+      "mesajlar",
+      "kampanyalar",
+    ]);
     if (!allowed.has(topic)) {
       return json(400, { error: "Geçersiz topic veya toEmail." });
     }

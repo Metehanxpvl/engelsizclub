@@ -29,15 +29,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: true
           ref: ${{ github.ref }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install Python deps
-        run: pip install -U google-genai requests
+        pip install -U google-genai requests pillow
       - name: Helper tests
         working-directory: scripts
         run: python generate_city_poster_test.py
@@ -47,8 +47,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Generate posters
         id: generate
-        continue-on-error: true
         env:
+          PYTHONUNBUFFERED: '1'
           CITY_NAME: ${{ inputs.city_name }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
@@ -56,21 +56,36 @@ jobs:
           POSTER_SKIP_EXISTING: '1'
           POSTER_CHECKPOINT_EVERY: '10'
         run: python scripts/generate_city_poster.py
+      - name: Upload poster artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: city-posters
+          path: output/
+          if-no-files-found: ignore
       - name: Commit and push posters
         if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           mkdir -p output
-          git add output/*.jpg output/*.png output/*.prompt.txt output/.gitkeep || true
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, "scripts")
+          from generate_city_poster import write_index, scan_output_posters, CITIES
+          posters = scan_output_posters(Path("output"))
+          write_index(Path("output"), ok=len(posters), fail=max(0, len(CITIES) - len(posters)), skip=0, total=len(CITIES))
+          PY
+          git add -A -- output
           if git diff --staged --quiet; then
             echo "Yeni poster yok."
           else
             CITY="${{ inputs.city_name }}"
             if [ -z "$CITY" ] || [ "$CITY" = "ALL" ] || [ "$CITY" = "*" ]; then
-              MSG="Add 81-city museum travel posters for Engelsiz Club gezi rehberi."
+              MSG="Add city museum travel posters and output/index.json for Engelsiz Club admin."
             else
-              MSG="Add ${CITY} museum travel poster for Engelsiz Club gezi rehberi."
+              MSG="Add ${CITY} museum travel poster and refresh output/index.json."
             fi
             git commit -m "$MSG"
             git push

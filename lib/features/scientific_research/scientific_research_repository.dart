@@ -2,13 +2,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../admin_config.dart';
 import '../../utils/async_timeout.dart';
+import 'scientific_papers_catalog.dart';
 import 'scientific_research_model.dart';
 
 class ScientificResearchRepository {
-  ScientificResearchRepository({SupabaseClient? client})
-      : _db = client ?? Supabase.instance.client;
+  ScientificResearchRepository({
+    SupabaseClient? client,
+    ScientificPapersCatalog? catalog,
+  })  : _db = client ?? Supabase.instance.client,
+        _catalog = catalog ?? ScientificPapersCatalog();
 
   final SupabaseClient _db;
+  final ScientificPapersCatalog _catalog;
 
   static const _table = 'scientific_researches';
   static const _cols =
@@ -25,53 +30,50 @@ class ScientificResearchRepository {
   }) async {
     _requireAdmin();
     try {
-      var q = _db.from(_table).select(_cols);
-      switch (filter) {
-        case ScienceAdminFilter.pending:
-          q = q.eq('status', 'pending_review');
-        case ScienceAdminFilter.published:
-          q = q.eq('status', 'published');
-        case ScienceAdminFilter.rejected:
-          q = q.eq('status', 'rejected');
-        case ScienceAdminFilter.highValue:
-        case ScienceAdminFilter.clinical:
-        case ScienceAdminFilter.pediatric:
-          break;
+      final github = await _loadGithubCatalog();
+      if (github.isNotEmpty) {
+        return github.where((e) => matchesScienceAdminFilter(e, filter)).toList();
       }
-      final rows = await withNetworkTimeout<List<dynamic>>(
-        q.order('created_at', ascending: false).limit(kScientificResearchListLimit),
-      );
-      return rows
-          .whereType<Map>()
-          .map((e) => ScientificResearch.fromJson(Map<String, dynamic>.from(e)))
-          .where((e) => matchesScienceAdminFilter(e, filter))
-          .toList();
+      return _loadSupabase(filter);
     } catch (e) {
-      throw StateError(scientificResearchLoadError(e));
+      try {
+        return await _loadSupabase(filter);
+      } catch (_) {
+        throw StateError(scientificResearchLoadError(e));
+      }
     }
   }
 
-  /// Ana sayfa araması: admin ile aynı tablo, taze select (liste önbelleği yok).
-  /// NCBI / ClinicalTrials canlı API ve papers.json kullanılmaz.
-  Future<List<ScientificResearch>> loadForApp({String query = ''}) async {
+  Future<List<ScientificResearch>> _loadGithubCatalog() async {
     try {
-      final rows = await withNetworkTimeout<List<dynamic>>(
-        _db
-            .from(_table)
-            .select(_cols)
-            .inFilter('status', const ['pending_review', 'published'])
-            .order('created_at', ascending: false)
-            .limit(kScientificResearchListLimit),
-      );
-      return rows
-          .whereType<Map>()
-          .map((e) => ScientificResearch.fromJson(Map<String, dynamic>.from(e)))
-          .where(isScienceAppVisible)
-          .where((e) => matchesScienceSearchQuery(e, query))
-          .toList();
-    } catch (e) {
-      throw StateError(scientificResearchLoadError(e));
+      return await _catalog.load();
+    } catch (_) {
+      return const [];
     }
+  }
+
+  Future<List<ScientificResearch>> _loadSupabase(ScienceAdminFilter filter) async {
+    var q = _db.from(_table).select(_cols);
+    switch (filter) {
+      case ScienceAdminFilter.pending:
+        q = q.eq('status', 'pending_review');
+      case ScienceAdminFilter.published:
+        q = q.eq('status', 'published');
+      case ScienceAdminFilter.rejected:
+        q = q.eq('status', 'rejected');
+      case ScienceAdminFilter.highValue:
+      case ScienceAdminFilter.clinical:
+      case ScienceAdminFilter.pediatric:
+        break;
+    }
+    final rows = await withNetworkTimeout<List<dynamic>>(
+      q.order('created_at', ascending: false).limit(kScientificResearchListLimit),
+    );
+    return rows
+        .whereType<Map>()
+        .map((e) => ScientificResearch.fromJson(Map<String, dynamic>.from(e)))
+        .where((e) => matchesScienceAdminFilter(e, filter))
+        .toList();
   }
 
   Future<void> updateCopy({

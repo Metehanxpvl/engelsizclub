@@ -38,6 +38,8 @@
       box-shadow: 0 1px 4px rgba(0,0,0,.06);
     }
     a { color: var(--accent); }
+    .ec-store-badges { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:16px 0 8px; }
+    .ec-store-badges img { height:40px; width:auto; }
   </style>
 </head>
 <body>
@@ -209,7 +211,18 @@
         Ayrıntılı metin:
         <a href="/medical-disclaimer.html">Bilgilendirme Notu</a>.
       </p>
+
+      <p style="margin-top:24px;font-weight:700;color:var(--fg);margin-bottom:0">Uygulamayı indir</p>
+      <div class="ec-store-badges">
+        <a href="https://apps.apple.com/tr/app/engelsiz-club/id6799422264" target="_blank" rel="noopener noreferrer">
+          <img src="/images/badge_app_store.svg" alt="App Store'dan indir" height="40" width="120" />
+        </a>
+        <a href="https://play.google.com/store/apps/details?id=com.sakircaykara.engelsizclub" target="_blank" rel="noopener noreferrer">
+          <img src="/images/badge_google_play.svg" alt="Google Play'den indir" height="40" width="135" />
+        </a>
+      </div>
     </div>
   </main>
+  <script src="/js/store-download-prompt.js?v=20260915" defer></script>
 </body>
 </html>

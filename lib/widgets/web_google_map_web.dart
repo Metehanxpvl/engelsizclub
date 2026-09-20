@@ -16,6 +16,7 @@ class WebGoogleMapHost extends StatefulWidget {
     required this.zoom,
     required this.markers,
     this.onMarkerTap,
+    this.onMapTap,
     this.height = 220,
   });
 
@@ -24,6 +25,7 @@ class WebGoogleMapHost extends StatefulWidget {
   final double zoom;
   final List<WebMapMarker> markers;
   final ValueChanged<String>? onMarkerTap;
+  final void Function(double lat, double lng)? onMapTap;
   final double height;
 
   @override
@@ -104,6 +106,23 @@ class _WebGoogleMapHostState extends State<WebGoogleMapHost> {
         }),
       ]);
       _syncMarkers();
+      final mapTap = widget.onMapTap;
+      if (mapTap != null) {
+        try {
+          _map!.callMethod('addListener', [
+            'click',
+            (Object? event) {
+              if (event is! js.JsObject) return;
+              final latLng = event['latLng'];
+              if (latLng is! js.JsObject) return;
+              final lat = (latLng.callMethod('lat') as num?)?.toDouble();
+              final lng = (latLng.callMethod('lng') as num?)?.toDouble();
+              if (lat == null || lng == null) return;
+              widget.onMapTap?.call(lat, lng);
+            },
+          ]);
+        } catch (_) {}
+      }
       if (mounted) setState(() => _error = null);
     } catch (e) {
       if (mounted) setState(() => _error = 'Harita başlatılamadı: $e');

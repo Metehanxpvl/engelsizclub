@@ -12,7 +12,7 @@ SQL (bir kez): `supabase/user_push_tokens.sql`
 ## Topics
 | Topic | Tercih | Ne zaman |
 |-------|--------|----------|
-| `duyurular` | Duyurular | Admin duyuru |
+| `duyurular` | Duyurular | Admin duyuru ve yeni kampanya |
 | `ilanlar` | Yeni ilanlar | Yeni ilan |
 | `forum` | Forum | Yeni gönderi |
 | `mesajlar` | Mesajlar | Topic yayınları |

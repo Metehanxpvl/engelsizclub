@@ -81,5 +81,6 @@ flutter:
     - assets/cvi/discovery/
     - assets/aile_kocu/
     - assets/medicines/
+    - assets/engelsiz_kariyer/
     - src/imports/119686.png
     - scripts/avm_sources.json
