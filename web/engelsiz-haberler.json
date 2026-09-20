@@ -1,8 +1,8 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-09-20T06:23:36Z",
+  "fetchedAt": "2026-09-20T11:44:01Z",
   "ok": true,
-  "count": 68,
+  "count": 69,
   "items": [
     {
       "id": "c5c6513c0d66dbaa4c18f0d9",
@@ -547,6 +547,20 @@
       "source_url": "https://www.disabilityscoop.com/2026/09/11/family-raises-1-6-million-to-build-adaptive-playground/32169/",
       "image_url": "",
       "published_at": "Fri, 11 Sep 2026 02:01:32 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "6eb6bbd6b560507e1ee72d38",
+      "title": "Kırılgan Romatoid Artrit Hastalarının Yakınları ve Bakım Verenleri İçin Destek Girişimi",
+      "title_original": "Intervention to Support Partners and Informal Caregivers of Frail RA-patients",
+      "summary": "Romatoid artrit hastalarının yaşlanmasıyla birlikte kırılganlık ve başkalarına bağımlılık artmaktadır. Aile üyeleri gibi resmi olmayan bakım verenler önemli destek sağlasa da ihtiyaçları genellikle göz ardı edilmektedir. INSPIRE projesi, kırılgan RA hastalarının partnerleri ve bakım verenleri için kişiye özel olarak geliştirilmiş bir destek girişimidir.",
+      "summary_original": "Background Rheumatoid arthritis (RA) is a chronic inflammatory disease associated with pain, fatigue, functional limitations, and reduced quality of life. As more people live to older age with RA, age-related vulnerability such as frailty becomes increasingly relevant and may amplify functional decline, multimorbidity, and reliance on others. Informal caregivers (unpaid family members, friends, or neighbors) often provide substantial practical, emotional, and coordination support, yet caregiver needs are frequently overlooked in rheumatology care. INSPIRE (INtervention to Support Partners and Informal caREgivers of frail RA patients) is an individually tailored support intervention developed using the UK Medical Research Council framework for complex interventions and an iterative co-creat",
+      "category": "haklar",
+      "source_name": "ClinicalTrials.gov",
+      "source_url": "https://clinicaltrials.gov/study/NCT07442773",
+      "image_url": "",
+      "published_at": "2026-09-20T11:44:00Z",
       "status": "pending_review",
       "lang": "tr"
     },
