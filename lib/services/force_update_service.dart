@@ -11,8 +11,8 @@ import 'force_update_logic.dart';
 export 'force_update_logic.dart';
 
 /// pubspec marketing / `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
-const kAppVersionName = '1.1.11';
-const kAppBuildNumber = 200009;
+const kAppVersionName = '1.1.13';
+const kAppBuildNumber = 200011;
 
 /// Açılışta (ForceUpdateGate) semver kontrolü. Splash kilidi yok.
 ///
@@ -36,8 +36,6 @@ class ForceUpdateService extends ChangeNotifier {
 
   String title = 'Yeni sürüm mevcut';
   String message = 'Engelsiz Club\'ın yeni sürümü yayınlandı.';
-  String detail =
-      'Uygulamanın en yeni özelliklerinden yararlanmak için uygulamanı güncelle.';
   String storeUrl = defaultPlayUrl;
   int localBuild = 0;
   String localVersion = '';
@@ -46,9 +44,14 @@ class ForceUpdateService extends ChangeNotifier {
 
   bool _checking = false;
 
-  /// Primary CTA: Android → Google Play, iOS → App Store.
-  String get storeCtaLabel =>
-      defaultTargetPlatform == TargetPlatform.iOS ? 'App Store' : 'Google Play';
+  String get storeCtaLabel => 'Güncelle';
+
+  String get detail {
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      return 'Devam etmek için App Store\'dan uygulamayı güncelleyin.';
+    }
+    return 'Devam etmek için Google Play\'den uygulamayı güncelleyin.';
+  }
 
   Future<void> check() async {
     if (kIsWeb) {
