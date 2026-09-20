@@ -400,6 +400,41 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                   style: GoogleFonts.nunito(fontWeight: FontWeight.w700),
                 ),
               const SizedBox(height: 16),
+              if (_isAdmin) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      try {
+                        await _repo.shareToHomeDuyuru(
+                          item,
+                          adminEmail: widget.adminEmail,
+                        );
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Güncel duyuru ve haberlere eklendi.',
+                            ),
+                          ),
+                        );
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Paylaşılamadı: $e')),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.campaign_outlined),
+                    label: const L10nText('Güncel duyuruya paylaş'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: MetoColors.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
               if (item.sourceUrl.isNotEmpty)
                 SizedBox(
                   width: double.infinity,
@@ -409,7 +444,9 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                       _openSource(item.sourceUrl);
                     },
                     style: FilledButton.styleFrom(
-                      backgroundColor: MetoColors.primary,
+                      backgroundColor: _isAdmin
+                          ? MetoColors.foreground
+                          : MetoColors.primary,
                     ),
                     child: const L10nText('Kaynağı aç'),
                   ),

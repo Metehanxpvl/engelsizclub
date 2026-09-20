@@ -66,6 +66,7 @@ class GlobalNewsRepository {
     String? adminEmail,
     String? title,
     String? summary,
+    String imageUrl = '',
   }) async {
     _requireAdmin();
     final items = await loadMerged();
@@ -82,25 +83,22 @@ class GlobalNewsRepository {
     final headline = (title ?? item.title).trim();
     final body = (summary ?? item.summary).trim();
     final email = (adminEmail ?? _db.auth.currentUser?.email ?? '').trim();
-    try {
-      await addDuyuru(
-        title: headline.isEmpty ? 'Küresel haber' : headline,
-        body: body.isEmpty ? item.sourceUrl : body,
-        imageUrl: item.imageUrl,
-        sourceUrl: item.sourceUrl,
-        adminEmail: email,
-        isActive: true,
-        isPopup: false,
-      );
-    } catch (_) {
-      // Story yazılamasa da yayın override'ı durmasın.
-    }
+    final photo = imageUrl.trim().isNotEmpty ? imageUrl.trim() : item.imageUrl;
+    await addDuyuru(
+      title: headline.isEmpty ? 'Küresel haber' : headline,
+      body: body.isEmpty ? item.sourceUrl : body,
+      imageUrl: photo,
+      sourceUrl: item.sourceUrl,
+      adminEmail: email,
+      isActive: true,
+      isPopup: false,
+    );
     await _upsertOverride(
       id: id,
       status: 'published',
       title: headline,
       summary: body,
-      imageUrl: item.imageUrl,
+      imageUrl: photo,
     );
   }
 

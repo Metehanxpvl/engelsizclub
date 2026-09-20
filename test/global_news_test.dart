@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:engelsizclub/data/duyuru_data.dart';
 import 'package:engelsizclub/data/more_menu_data.dart';
 import 'package:engelsizclub/features/global_news/global_news_model.dart';
 import 'package:engelsizclub/features/useful_opportunities/useful_content_model.dart';
@@ -70,5 +71,10 @@ void main() {
     expect(isGlobalNewsUsefulItem(item), isTrue);
     expect(usefulContentNeedsStoryImage(item), isFalse);
     expect(globalNewsRawId(item.id), 'abc');
+    expect(duyuruAllowsEmptyImage(item.sourceUrl), isTrue);
+    final draft = usefulContentToDuyuruDraft(item);
+    expect(draft.imageUrl, isEmpty);
+    expect(draft.sourceUrl, news.sourceUrl);
+    expect(draft.title, news.title);
   });
 }

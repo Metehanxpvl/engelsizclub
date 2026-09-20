@@ -167,6 +167,7 @@ class UsefulContentRepository {
         adminEmail: adminEmail,
         title: title,
         summary: summary,
+        imageUrl: imageUrl,
       );
       return;
     }
@@ -241,6 +242,27 @@ class UsefulContentRepository {
         'reviewed_at': now,
         'reviewed_by': _db.auth.currentUser?.id,
       }).eq('id', id).eq('status', 'pending_review'),
+    );
+  }
+
+  /// Onaylı kaydı (küresel haber dahil) ana sayfa Güncel Duyurular’a ekler.
+  Future<void> shareToHomeDuyuru(
+    UsefulContentItem item, {
+    String? adminEmail,
+    String imageUrl = '',
+  }) async {
+    _requireAdmin();
+    final draft = usefulContentToDuyuruDraft(item, imageUrl: imageUrl);
+    final email = (adminEmail ?? _db.auth.currentUser?.email ?? '').trim();
+    await addDuyuru(
+      title: draft.title,
+      body: draft.body,
+      imageUrl: draft.imageUrl,
+      sourceUrl: draft.sourceUrl,
+      adminEmail: email,
+      isActive: true,
+      isPopup: false,
+      expiresAt: draft.expiresAt,
     );
   }
 

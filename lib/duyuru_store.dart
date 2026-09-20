@@ -367,8 +367,10 @@ Map<String, dynamic> _buildDuyuruPayload({
     bodyOut = '';
   } else {
     img = imageUrl.trim();
-    if (img.isEmpty) throw StateError('Görsel URL veya yükleme gerekli.');
     src = srcRaw.isEmpty ? null : srcRaw;
+    if (img.isEmpty && !duyuruAllowsEmptyImage(src)) {
+      throw StateError('Görsel URL veya yükleme gerekli.');
+    }
   }
 
   return <String, dynamic>{
