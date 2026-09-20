@@ -90,7 +90,7 @@ workflows:
           # Each Codemagic script is a new shell. export is lost unless written to $CM_ENV.
           # Marketing version from pubspec (e.g. 1.1.8). BUILD_NUMBER is date-based.
           BUILD_NAME=$(awk -F'[ +]' '/^version:/{gsub(/\r/,""); print $2; exit}' pubspec.yaml)
-          [ -n "$BUILD_NAME" ] || BUILD_NAME=1.1.11
+          [ -n "$BUILD_NAME" ] || BUILD_NAME=1.1.12
           DATE_BN=$(date -u +%Y%m%d%H%M)
           OFFSET="${PROJECT_BUILD_NUMBER:-}"
           case "$OFFSET" in
@@ -176,7 +176,7 @@ workflows:
           # already exports that name as a small workflow counter).
           # Do not pass FLUTTER_BUILD_NUMBER / CURRENT_PROJECT_VERSION as Flutter argv.
           BUILD_NAME=$(awk -F'[ +]' '/^version:/{gsub(/\r/,""); print $2; exit}' pubspec.yaml)
-          [ -n "$BUILD_NAME" ] || BUILD_NAME=1.1.11
+          [ -n "$BUILD_NAME" ] || BUILD_NAME=1.1.12
           DATE_BN=$(date -u +%Y%m%d%H%M)
           OFFSET="${PROJECT_BUILD_NUMBER:-}"
           case "$OFFSET" in
@@ -272,7 +272,7 @@ workflows:
           # Each Codemagic script is a new shell. export is lost unless written to $CM_ENV.
           # Marketing version from pubspec (e.g. 1.1.8). BUILD_NUMBER is date-based.
           BUILD_NAME=$(awk -F'[ +]' '/^version:/{gsub(/\r/,""); print $2; exit}' pubspec.yaml)
-          [ -n "$BUILD_NAME" ] || BUILD_NAME=1.1.11
+          [ -n "$BUILD_NAME" ] || BUILD_NAME=1.1.12
           DATE_BN=$(date -u +%Y%m%d%H%M)
           OFFSET="${PROJECT_BUILD_NUMBER:-}"
           case "$OFFSET" in
@@ -340,7 +340,7 @@ workflows:
           # already exports that name as a small workflow counter).
           # Do not pass FLUTTER_BUILD_NUMBER / CURRENT_PROJECT_VERSION as Flutter argv.
           BUILD_NAME=$(awk -F'[ +]' '/^version:/{gsub(/\r/,""); print $2; exit}' pubspec.yaml)
-          [ -n "$BUILD_NAME" ] || BUILD_NAME=1.1.11
+          [ -n "$BUILD_NAME" ] || BUILD_NAME=1.1.12
           DATE_BN=$(date -u +%Y%m%d%H%M)
           OFFSET="${PROJECT_BUILD_NUMBER:-}"
           case "$OFFSET" in
