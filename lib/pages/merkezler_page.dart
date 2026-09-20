@@ -7,11 +7,15 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../data/centers_data.dart';
 import '../data/turkish_cities_data.dart';
+import '../harita_yer_store.dart';
+import '../kredi_store.dart';
 import '../meto_theme.dart';
 import '../utils/async_timeout.dart';
 import '../services/centers_google_geocode_service.dart';
 import '../services/centers_google_places_service.dart';
 import '../services/google_places_config.dart';
+import '../widgets/guest_gate.dart';
+import '../widgets/harita_yer_bildir_sheet.dart';
 import '../widgets/web_google_map.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n_text.dart';
@@ -27,7 +31,20 @@ class _CenterWithDist {
 
 /// Merkezler — Google Maps + Places API (New).
 class MerkezlerPage extends StatefulWidget {
-  const MerkezlerPage({super.key});
+  const MerkezlerPage({
+    super.key,
+    this.userEmail = '',
+    this.userType = 'aile',
+    this.isGuest = false,
+    this.onRequireLogin,
+    this.onKrediChanged,
+  });
+
+  final String userEmail;
+  final String userType;
+  final bool isGuest;
+  final VoidCallback? onRequireLogin;
+  final ValueChanged<int>? onKrediChanged;
 
   @override
   State<MerkezlerPage> createState() => _MerkezlerPageState();
@@ -48,6 +65,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
   double _cameraZoom = 12;
 
   List<MetoCenter> _liveCenters = const [];
+  List<MetoCenter> _memberCenters = const [];
   bool _centersLoading = false;
   String? _centersError;
   String? _dataNote;
@@ -57,6 +75,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
   @override
   void initState() {
     super.initState();
+    _loadMemberCenters();
   }
 
   @override
@@ -64,6 +83,63 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     _searchController.dispose();
     _mapController?.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadMemberCenters() async {
+    final list = await loadHaritaYerBildirimleri(city: _selectedCity);
+    if (!mounted) return;
+    setState(() => _memberCenters = list);
+  }
+
+  Future<void> _openYerBildir() async {
+    final login = widget.onRequireLogin ?? () {};
+    if (!await ensureMemberAccess(
+      context,
+      isGuest: widget.isGuest || widget.userEmail.trim().isEmpty,
+      onRequireLogin: login,
+      message: 'Yer bildirmek için giriş yapmanız veya üye olmanız gerekiyor.',
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    final ilce =
+        _selectedIlce == kAllIlceler ? '' : _selectedIlce;
+    final focus = _mapCamera;
+    final result = await showModalBottomSheet<HaritaYerBildirResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => HaritaYerBildirSheet(
+        email: widget.userEmail,
+        city: _selectedCity,
+        ilce: ilce,
+        lat: focus.lat,
+        lng: focus.lng,
+      ),
+    );
+    if (result == null || !mounted) return;
+    final center = result.item.toCenter();
+    setState(() {
+      _memberCenters = [
+        center,
+        ..._memberCenters.where((c) => c.id != center.id),
+      ];
+    });
+    final balance = result.newBalance;
+    if (balance != null) widget.onKrediChanged?.call(balance);
+    final msg = _yerBildirSnack(result);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  String _yerBildirSnack(HaritaYerBildirResult result) {
+    if (result.awarded) {
+      return 'Yer kaydedildi. ${result.reportCount} bildirim tamam · +1 iyilik puanı 💚';
+    }
+    if (!isAileUserType(widget.userType)) {
+      return 'Yer kaydedildi.';
+    }
+    final kalan = haritaIyilikKalan(result.reportCount);
+    return 'Yer kaydedildi. $kalan yer daha bildirince 1 iyilik puanı.';
   }
 
   TurkishCity get _cityInfo => kTurkishCities[_selectedCity]!;
@@ -127,12 +203,30 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
   List<MetoCenter> get _sourceCenters {
     final lat = _focusLat ?? _cityInfo.lat;
     final lng = _focusLng ?? _cityInfo.lng;
+    List<MetoCenter> base;
     if (_liveCenters.isNotEmpty) {
       final filtered = _liveCenters
           .where((c) => _matchesSelectedCity(c, focusLat: lat, focusLng: lng))
           .toList();
-      if (filtered.isNotEmpty) return filtered;
+      if (filtered.isNotEmpty) {
+        base = filtered;
+      } else {
+        base = _catalogForSelectedCity();
+      }
+    } else {
+      base = _catalogForSelectedCity();
     }
+    if (_memberCenters.isEmpty) return base;
+    final merged = <String, MetoCenter>{};
+    for (final c in [...base, ..._memberCenters]) {
+      final key =
+          '${_normTr(c.name)}|${c.lat.toStringAsFixed(4)}|${c.lng.toStringAsFixed(4)}';
+      merged.putIfAbsent(key, () => c);
+    }
+    return merged.values.toList();
+  }
+
+  List<MetoCenter> _catalogForSelectedCity() {
     return kCenters
         .where((c) => _normTr(c.city) == _normTr(_selectedCity))
         .where((c) {
@@ -349,6 +443,12 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
             '${_normTr(c.name)}|${c.lat.toStringAsFixed(4)}|${c.lng.toStringAsFixed(4)}';
         merged.putIfAbsent(key, () => c);
       }
+      final members = await loadHaritaYerBildirimleri(city: _selectedCity);
+      for (final c in members) {
+        final key =
+            '${_normTr(c.name)}|${c.lat.toStringAsFixed(4)}|${c.lng.toStringAsFixed(4)}';
+        merged.putIfAbsent(key, () => c);
+      }
       live = merged.values.toList()
         ..sort((a, b) {
           final da = geoDistanceKm(searchLat, searchLng, a.lat, a.lng);
@@ -371,6 +471,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
           _focusLng = focusLng;
         }
         _liveCenters = live;
+        _memberCenters = members;
         if (live.isEmpty) {
           _centersError = placesError ??
               (useGps
@@ -615,6 +716,30 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                       onTap: _detectLocation,
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.icon(
+                    onPressed: _openYerBildir,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: MetoColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    icon: const Icon(Icons.add_location_alt_outlined, size: 18),
+                    label: const L10nText(
+                      'Yer bildir',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Row(

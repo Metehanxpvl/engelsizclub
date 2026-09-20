@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../admin_catalog_extras.dart';
+import '../catalog_category_store.dart';
 import '../data/turkish_cities_data.dart';
 import '../gezi_kampanya_store.dart';
 import '../section_editors.dart';
@@ -68,8 +70,10 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
   AvmCoverIndex _avmCovers = AvmCoverIndex.empty;
   bool _loading = true;
   _KampanyaFilter _filter = _KampanyaFilter.all;
+  String _category = kKampanyaCategoryTumu;
   String? _city;
   int? _joinBusyId;
+  int? _codeBusyId;
 
   bool get _isAdmin => canEditSection(
         widget.userEmail,
@@ -109,6 +113,46 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
     });
     if (_isEtkinlik) {
       _loadAvmCovers();
+    } else {
+      AdminCatalogExtras.instance.ensureLoaded().then((_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  Map<String, String> get _kampanyaCategoryOptions =>
+      resolvedKampanyaCategories(
+        fromItems: _items.map((e) => e.category),
+      );
+
+  Future<void> _addKampanyaCategory() async {
+    final name = await promptAdminNewOption(
+      context: context,
+      title: 'Yeni kampanya kategorisi',
+      hint: 'Örn. Teknoloji',
+    );
+    if (name == null || !mounted) return;
+    try {
+      final result = await addKampanyaCategory(
+        adminEmail: widget.userEmail,
+        label: name,
+      );
+      if (!mounted) return;
+      setState(() => _category = result.key);
+      showCatalogUpsertSnackBar(
+        context,
+        (
+          row: <String, dynamic>{'id': result.key, 'label': result.label},
+          synced: result.synced,
+          warning: result.warning,
+        ),
+        successText: '"${result.label}" kategorilere eklendi',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
     }
   }
 
@@ -211,7 +255,13 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
   }
 
   List<KampanyaItem> get _visible {
-    final list = _activeBase;
+    var list = _activeBase;
+    if (!_isEtkinlik) {
+      final cat = normalizeKampanyaCategory(_category);
+      if (cat.isNotEmpty) {
+        list = list.where((k) => k.category == cat).toList();
+      }
+    }
     switch (_filter) {
       case _KampanyaFilter.all:
         return list;
@@ -405,6 +455,38 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
     }
   }
 
+  Future<void> _issueCampaignCode(KampanyaItem item) async {
+    if (!item.hasMemberCampaignCode) return;
+    if (!await _requireMember(
+      'Kampanya kodu için giriş yapmanız veya üye olmanız gerekiyor.',
+    )) {
+      return;
+    }
+    if (!mounted || _codeBusyId == item.id) return;
+    if (item.myMemberCode.trim().isNotEmpty) return;
+    setState(() => _codeBusyId = item.id);
+    try {
+      final code = await issueKampanyaMemberCode(item.id);
+      if (!mounted) return;
+      setState(() {
+        _items = [
+          for (final k in _items)
+            if (k.id == item.id) k.copyWith(myMemberCode: code) else k,
+        ];
+        _codeBusyId = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Kampanya kodunuz: $code')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _codeBusyId = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    }
+  }
+
   Future<void> _openAdd({String? city}) async {
     final preset = city ?? _city;
     final ok = await showModalBottomSheet<bool>(
@@ -559,6 +641,12 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
   }
 
   String get _emptyMessage {
+    if (!_isEtkinlik) {
+      final cat = kampanyaCategoryLabel(_category);
+      if (cat.isNotEmpty) {
+        return 'Bu kategoride henüz kampanya yok.';
+      }
+    }
     switch (_filter) {
       case _KampanyaFilter.nationwide:
         return _isEtkinlik
@@ -675,6 +763,23 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
                     label: 'Tüm ülkede geçerli',
                     selected: _filter == _KampanyaFilter.nationwide,
                     onTap: _selectNationwide,
+                  ),
+                if (!_isEtkinlik)
+                  for (final e in _kampanyaCategoryOptions.entries)
+                    _chip(
+                      label: e.value,
+                      selected: _category == e.key,
+                      onTap: () => setState(() {
+                        _category = _category == e.key
+                            ? kKampanyaCategoryTumu
+                            : e.key;
+                      }),
+                    ),
+                if (!_isEtkinlik && _isAdmin)
+                  _chip(
+                    label: '+ Kategori',
+                    selected: false,
+                    onTap: _addKampanyaCategory,
                   ),
                 if (_city != null)
                   Material(
@@ -822,6 +927,7 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
       description: _isEtkinlik ? item.cardDescription : item.description,
       locationLabel:
           _isEtkinlik ? item.avmName.trim() : item.locationLabel,
+      categoryLabel: _isEtkinlik ? '' : item.categoryLabel,
       venueLabel: _isEtkinlik ? item.avmName.trim() : '',
       whenLabel: _isEtkinlik ? item.eventWhenLabel : '',
       timeLabel: _isEtkinlik ? item.eventTimeLabel : '',
@@ -843,6 +949,12 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
       joinedByMe: item.joinedByMe,
       joinBusy: _joinBusyId == item.id,
       onJoinTap: () => _toggleJoin(item),
+      showCampaignCode: !_isEtkinlik && item.hasMemberCampaignCode,
+      memberCodeIssued: item.myMemberCode.trim().isNotEmpty
+          ? item.myMemberCode
+          : (_isAdmin ? item.campaignCode : ''),
+      codeBusy: _codeBusyId == item.id,
+      onCreateCampaignCode: () => _issueCampaignCode(item),
       statusBadge: _isEtkinlik && isEtkinlikPending(item)
           ? 'Onay bekliyor'
           : '',
