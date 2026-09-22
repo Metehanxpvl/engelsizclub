@@ -141,16 +141,44 @@ export function extractListingLinks(html, baseUrl, { limit = MAX_LISTING_PAGES }
   return out;
 }
 
-export function mergeCommonListingUrls(origin, discovered, { limit = MAX_LISTING_PAGES } = {}) {
+export function mergeCommonListingUrls(
+  origin,
+  discovered,
+  { limit = MAX_LISTING_PAGES, extraPaths = [], extraUrls = [] } = {},
+) {
   const out = [];
   const seen = new Set();
+  const originHost = (() => {
+    try {
+      return new URL(origin).hostname.replace(/^www\./i, '').toLowerCase();
+    } catch {
+      return '';
+    }
+  })();
   const push = (href) => {
     const url = String(href || '').replace(/\/+$/, '') || href;
     if (!url || seen.has(url) || seen.has(`${url}/`)) return;
     seen.add(url);
     out.push(href.startsWith('http') ? href : `${origin}${href}`);
   };
+  for (const u of extraUrls) {
+    const href = String(u || '').trim();
+    if (!href.startsWith('http')) continue;
+    try {
+      const host = new URL(href).hostname.replace(/^www\./i, '').toLowerCase();
+      if (originHost && host !== originHost) continue;
+    } catch {
+      continue;
+    }
+    push(href);
+  }
   for (const u of discovered) push(u);
+  for (const path of extraPaths) {
+    if (out.length >= limit) break;
+    const p = String(path || '').trim();
+    if (!p.startsWith('/')) continue;
+    push(`${origin}${p}`);
+  }
   for (const path of COMMON_LISTING_PATHS) {
     if (out.length >= limit) break;
     push(`${origin}${path}`);
@@ -442,22 +470,36 @@ export async function crawlMunicipality(
     return { ...empty, error: 'robots Disallow:/' };
   }
 
+  const extraPaths = Array.isArray(source.extraListingPaths)
+    ? source.extraListingPaths
+    : [];
+  const extraUrls = Array.isArray(source.extraListingUrls)
+    ? source.extraListingUrls
+    : [];
+  const hasExtra = extraPaths.length + extraUrls.length > 0;
+
   const home = await safeFetch(fetchText, sourceUrl, {
     timeoutMs: CRAWL_TIMEOUT_MS,
     maxBytes: HTML_MAX_BYTES,
     accept: 'text/html, application/xhtml+xml, */*;q=0.5',
   });
-  if (isErr(home)) {
+  if (isErr(home) && !hasExtra) {
     return { ...empty, error: home.__error };
   }
+  if (isErr(home)) {
+    console.warn(`ana sayfa atlandı ${source.name}: ${home.__error}`);
+  }
   const homepageHtml = typeof home === 'string' ? home : '';
+  const listingLimit = hasExtra
+    ? Math.min(MAX_LISTING_PAGES + 4, 14)
+    : MAX_LISTING_PAGES;
 
   const listingUrls = mergeCommonListingUrls(
     origin,
     extractListingLinks(homepageHtml, sourceUrl, {
-      limit: MAX_LISTING_PAGES,
+      limit: listingLimit,
     }),
-    { limit: MAX_LISTING_PAGES },
+    { limit: listingLimit, extraPaths, extraUrls },
   );
 
   let sitemapEntries = [];
@@ -474,7 +516,7 @@ export async function crawlMunicipality(
       } catch {
         continue;
       }
-      if (isListingPath(path) && !isArticlePath(path) && listingUrls.length < MAX_LISTING_PAGES) {
+      if (isListingPath(path) && !isArticlePath(path) && listingUrls.length < listingLimit) {
         if (!listingUrls.includes(e.loc)) listingUrls.push(e.loc);
       }
     }
@@ -486,7 +528,7 @@ export async function crawlMunicipality(
 
   const listingHtmls = [];
   const seenPages = new Set();
-  for (const listingUrl of listingUrls.slice(0, MAX_LISTING_PAGES)) {
+  for (const listingUrl of listingUrls.slice(0, listingLimit)) {
     if (seenPages.has(listingUrl)) continue;
     seenPages.add(listingUrl);
     const html = await safeFetch(fetchText, listingUrl, {

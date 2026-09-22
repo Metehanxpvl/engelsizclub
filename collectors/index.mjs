@@ -41,6 +41,14 @@ import {
   parseRssOrAtom,
   parseSitemapLocs,
 } from './lib/rss.mjs';
+import { loadValilikScrapeSources } from './lib/valilikler.mjs';
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(id) {
+  return UUID_RE.test(String(id || ''));
+}
 
 const MAX_ITEMS_RSS = 25;
 const MAX_ITEMS_SCRAPE = 30;
@@ -320,9 +328,14 @@ async function insertPending(existing, source, raw, stats, dateStats) {
     return false;
   }
   if (freshness.action === 'skip') {
-    dateStats.unknownSkipped += 1;
-    console.log(`tarihsiz atlandı (unknown): ${raw.title || raw.sourceUrl}`);
-    return false;
+    const blob = `${raw.title || ''} ${raw.summary || ''}`;
+    if (!shouldKeepCandidate(blob)) {
+      dateStats.unknownSkipped += 1;
+      console.log(`tarihsiz atlandı (unknown): ${raw.title || raw.sourceUrl}`);
+      return false;
+    }
+    dateStats.unknownKept += 1;
+    console.log(`tarihsiz kelime ile alındı: ${raw.title || raw.sourceUrl}`);
   }
   if (freshness.contentKind === 'active_opportunity' && freshness.dateStatus !== 'recent') {
     dateStats.activeAmongOlder += 1;
@@ -363,12 +376,11 @@ async function insertPending(existing, source, raw, stats, dateStats) {
   }
 
   const row = {
-    source_id: source.id,
     title: refined.title,
     summary: refined.summary,
     body: '',
     category: refined.category,
-    city: refined.city,
+    city: String(source.city || refined.city || '').trim(),
     source_name: source.name,
     source_url: sourceUrl,
     external_id: externalId,
@@ -380,6 +392,7 @@ async function insertPending(existing, source, raw, stats, dateStats) {
     date_status: freshness.dateStatus,
     content_kind: freshness.contentKind,
   };
+  if (isUuid(source.id)) row.source_id = source.id;
   const imageUrl = String(raw.imageUrl || '').trim();
   if (imageUrl.startsWith('http')) row.image_url = imageUrl;
 
@@ -452,6 +465,7 @@ async function insertPending(existing, source, raw, stats, dateStats) {
 }
 
 async function touchSource(source) {
+  if (!isUuid(source.id)) return;
   await sb(`content_sources?id=eq.${source.id}`, {
     method: 'PATCH',
     body: { last_fetched_at: new Date().toISOString() },
@@ -508,6 +522,11 @@ async function main() {
   await rejectUnrelatedPending();
   const existing = await loadExistingKeys();
   const sources = await loadDueSources();
+  const valilikSources = await loadValilikScrapeSources();
+  if (valilikSources.length) {
+    sources.push(...valilikSources);
+    console.log(`valilik kaynak eklendi: ${valilikSources.length}`);
+  }
   console.log(`aktif kaynak: ${sources.length}`);
 
   let inserted = 0;

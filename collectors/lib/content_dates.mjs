@@ -470,6 +470,7 @@ export function emptyDateStats() {
     activeAmongOlder: 0,
     expiredRejected: 0,
     unknownSkipped: 0,
+    unknownKept: 0,
     sentToAi: 0,
     saved: 0,
   };
@@ -483,6 +484,8 @@ export function printDateStats(stats) {
   console.log(`Older than 15 days: ${s.older}`);
   console.log(`Active opportunities among older: ${s.activeAmongOlder}`);
   console.log(`Expired old rejected: ${s.expiredRejected}`);
+  console.log(`Unknown date skipped: ${s.unknownSkipped}`);
+  console.log(`Unknown date kept (keyword): ${s.unknownKept || 0}`);
   console.log(`Sent to AI: ${s.sentToAi}`);
   console.log(`Saved: ${s.saved}`);
 }
