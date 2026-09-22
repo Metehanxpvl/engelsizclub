@@ -1,8 +1,8 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-09-21T13:12:16Z",
+  "fetchedAt": "2026-09-22T11:58:12Z",
   "ok": true,
-  "count": 80,
+  "count": 85,
   "items": [
     {
       "id": "c5c6513c0d66dbaa4c18f0d9",
@@ -57,6 +57,48 @@
       "source_url": "https://www.sciencedaily.com/releases/2026/01/260127010149.htm",
       "image_url": "",
       "published_at": "Tue, 27 Jan 2026 09:48:33 EST",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "3655344e9725018d632efb6e",
+      "title": "Büyük Vakıflardan Engelli Odaklı Kredi Birliği Girişimi",
+      "title_original": "Major Foundations Form Disability-Focused Credit Union",
+      "summary": "Engelli bireylerin ve onları destekleyenlerin ulusal çapdaki ihtiyaçlarını karşılamak üzere tasarlanan, türünün ilk örneği olacak bir kredi birliği kuruluyor.",
+      "summary_original": "A first-of-its-kind credit union specifically built to meet the needs of people with disabilities nationwide and those who support them is in the works. The post Major Foundations Form Disability-Focused Credit Union appeared first on Disability Scoop .",
+      "category": "haklar",
+      "source_name": "Disability Scoop",
+      "source_url": "https://www.disabilityscoop.com/2026/09/22/major-foundations-form-disability-focused-credit-union/32181/",
+      "image_url": "",
+      "published_at": "Tue, 22 Sep 2026 02:03:50 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "d0582e7743d4923365f60da6",
+      "title": "Engelli Çocukların Kreş Seçenekleri Sınırlı: Eyalet Planı Çözümler Sunuyor",
+      "title_original": "Kids With Disabilities Have Limited Childcare Options. State Plan Offers Solutions",
+      "summary": "Ebeveynler, engelli çocukları için kreş, anaokulu ve destek hizmetlerini ararken çok az bilgi alabildiklerini belirtiyor. Yeni bir stratejik plan, kapsayıcılık için bir yol haritası sunuyor.",
+      "summary_original": "Parents say they receive limited information as they navigate childcare, pre-K and support services for their children with disabilities. A strategic plan lays out a roadmap to inclusion. The post Kids With Disabilities Have Limited Childcare Options. State Plan Offers Solutions appeared first on Disability Scoop .",
+      "category": "haklar",
+      "source_name": "Disability Scoop",
+      "source_url": "https://www.disabilityscoop.com/2026/09/22/kids-with-disabilities-have-limited-childcare-options-state-plan-offers-solutions/32182/",
+      "image_url": "",
+      "published_at": "Tue, 22 Sep 2026 02:02:58 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "2cfc77310399021d0b2ee7dc",
+      "title": "Özel Eğitim Kuponları Ellerinde Kaldı: Binlerce Aile Desteği İade Etmek Zorunda Kaldı",
+      "title_original": "Voucher In Hand, No School To Spend It On. Thousands Of Students In Special Ed Returned Aid",
+      "summary": "Savunucular kuponların engelli öğrencilere seçenekler sunacağını vadetmişti, ancak vergi mükellefleri tarafından finanse edilen hesaplara rağmen birçok aile bu fonları harcayabilecek uygun bir okul bulmakta zorlandı ve binlerce öğrenci yardımı iade etti.",
+      "summary_original": "Proponents promised vouchers would give students with disabilities options, but despite being awarded taxpayer-funded accounts, many families struggled to find a suitable school to spend it on. The post Voucher In Hand, No School To Spend It On. Thousands Of Students In Special Ed Returned Aid appeared first on Disability Scoop .",
+      "category": "haklar",
+      "source_name": "Disability Scoop",
+      "source_url": "https://www.disabilityscoop.com/2026/09/22/voucher-in-hand-no-school-to-spend-it-on-thousands-of-students-in-special-ed-returned-aid/32183/",
+      "image_url": "",
+      "published_at": "Tue, 22 Sep 2026 02:01:07 +0000",
       "status": "pending_review",
       "lang": "tr"
     },
@@ -383,6 +425,20 @@
       "lang": "tr"
     },
     {
+      "id": "de976efb9bef0d34e5f060b7",
+      "title": "İkinci Bakış Yasaları ve Engelli Dostu Ceza İncelemesi",
+      "title_original": "Second Look Laws and Disability-Inclusive Sentence Review",
+      "summary": "The Sentencing Project, engellilik durumlarının davalarını etkilediği mahkumların aşırı cezalarının mahkemelerce yeniden incelenmesi için engelli kapsayıcı ikinci bakış yasalarının çıkarılmasını talep ediyor.",
+      "summary_original": "The Sentencing Project urges disability-inclusive second look laws so courts can review extreme sentences of people whose disabilities shaped their case",
+      "category": "haklar",
+      "source_name": "Disabled World",
+      "source_url": "https://www.disabled-world.com/disability/discrimination/second-look.php",
+      "image_url": "",
+      "published_at": "Mon, 21 Sep 2026 20:50:00 GMT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
       "id": "8d94fab2581e5b472b1a516e",
       "title": "Yeni Otizm Araştırma Girişimi Tanıyı Hızlandırmayı ve Kişiselleştirilmiş Bakımı Hedefliyor",
       "title_original": "New Autism Research Initiative Aims To Speed Diagnosis, Personalize Care",
@@ -561,6 +617,20 @@
       "source_url": "https://www.disabilityscoop.com/2026/09/11/family-raises-1-6-million-to-build-adaptive-playground/32169/",
       "image_url": "",
       "published_at": "Fri, 11 Sep 2026 02:01:32 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "cce7001e1cc0722a098af208",
+      "title": "Fransızca WCAG 2.2 ve 2.1 yetkili çevirileri güncellendi",
+      "title_original": "WCAG 2.2 and 2.1 in French — Authorized translations updated",
+      "summary": "Web İçeriği Erişilebilirlik Kılavuzları'nın (WCAG) Fransızca yetkili çevirileri güncellendi. WCAG 2.2, 12 Aralık 2024 tarihli yayınına; WCAG 2.1 ise 6 Mayıs 2025 tarihli yayınına dayanmaktadır. Bu çeviriler W3C yetkili çeviri sürecine uygun olarak gerçekleştirilmiştir.",
+      "summary_original": "The French authorized translations of Web Content Accessibility Guidelines ( WCAG ) are updated: Règles pour l’accessibilité des contenus web (WCAG) 2.2 is now based on the 12 December 2024 publication of WCAG 2.2. Règles pour l’accessibilité des contenus web (WCAG) 2.1 is now based on the 6 May 2025 publication of WCAG 2.1. These translations followed the W3C authorized translations process . Other translations of WAI resources are listed in All WAI Translations . W3C WAI thanks all who contribute to translations, and encourages translations of W3C accessibility standards and resources in all languages. If you might be interested in translating resources, see Translating WAI Resources .",
+      "category": "erisilebilirlik",
+      "source_name": "W3C WAI",
+      "source_url": "https://www.w3.org/WAI/news/2026-09-22/wcag-french/",
+      "image_url": "",
+      "published_at": "2026-09-22T00:00:00+00:00",
       "status": "pending_review",
       "lang": "tr"
     },
