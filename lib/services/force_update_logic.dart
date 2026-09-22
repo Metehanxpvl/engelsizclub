@@ -77,6 +77,8 @@ const kForceUpdateMarketUrl =
     'market://details?id=com.sakircaykara.engelsizclub';
 const kForceUpdateIosUrl =
     'https://apps.apple.com/tr/app/engelsiz-club/id6799422264';
+const kForceUpdateIosWebFallbackUrl =
+    'https://www.engelsizclub.com/app-store';
 const kForceUpdateIosAppStoreId = '6799422264';
 const kForceUpdateAndroidPackage = 'com.sakircaykara.engelsizclub';
 

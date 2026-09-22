@@ -11,8 +11,8 @@ import 'force_update_logic.dart';
 export 'force_update_logic.dart';
 
 /// pubspec marketing / `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
-const kAppVersionName = '1.1.13';
-const kAppBuildNumber = 200011;
+const kAppVersionName = '1.1.14';
+const kAppBuildNumber = 200012;
 
 /// Açılışta (ForceUpdateGate) semver kontrolü. Splash kilidi yok.
 ///
@@ -176,6 +176,7 @@ class ForceUpdateService extends ChangeNotifier {
     }
 
     add(storeUrl);
+    add(kForceUpdateIosWebFallbackUrl);
     add('itms-apps://itunes.apple.com/app/id$id');
     add('itms-apps://apps.apple.com/tr/app/engelsiz-club/id$id');
     add(kForceUpdateIosUrl);
