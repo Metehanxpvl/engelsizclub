@@ -156,13 +156,44 @@ class ForceUpdateService extends ChangeNotifier {
         await launchUrl(play, mode: LaunchMode.externalApplication);
         return;
       }
-      final uri = Uri.tryParse(
-        storeUrl.isNotEmpty ? storeUrl : defaultIosUrl,
-      );
-      if (uri == null) return;
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      await _openIosStore();
     } catch (e) {
       debugPrint('ForceUpdate openStore: $e');
+    }
+  }
+
+  Future<void> _openIosStore() async {
+    const id = kForceUpdateIosAppStoreId;
+    final seen = <String>{};
+    final candidates = <Uri>[];
+    void add(String raw) {
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty) return;
+      final uri = Uri.tryParse(trimmed);
+      if (uri == null || uri.scheme.isEmpty) return;
+      if (!seen.add(uri.toString())) return;
+      candidates.add(uri);
+    }
+
+    add(storeUrl);
+    add('itms-apps://itunes.apple.com/app/id$id');
+    add('itms-apps://apps.apple.com/tr/app/engelsiz-club/id$id');
+    add(kForceUpdateIosUrl);
+    add(defaultIosUrl);
+
+    const modes = <LaunchMode>[
+      LaunchMode.externalApplication,
+      LaunchMode.externalNonBrowserApplication,
+      LaunchMode.platformDefault,
+    ];
+    for (final uri in candidates) {
+      for (final mode in modes) {
+        try {
+          if (await launchUrl(uri, mode: mode)) return;
+        } catch (e) {
+          debugPrint('ForceUpdate iOS launch $uri $mode: $e');
+        }
+      }
     }
   }
 
