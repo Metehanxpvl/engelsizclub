@@ -70,6 +70,31 @@ describe('extractListingLinks', () => {
     assert.ok(merged.some((u) => u.endsWith('/haberler')));
     assert.ok(merged.some((u) => u.endsWith('/duyurular')));
   });
+
+  it('prepends valilik extraPaths before common slugs', () => {
+    const merged = mergeCommonListingUrls('https://www.adana.gov.tr', [], {
+      extraPaths: ['/engelli-hizmetleri', 'skip-me'],
+    });
+    assert.ok(merged.includes('https://www.adana.gov.tr/engelli-hizmetleri'));
+    assert.equal(
+      merged.includes('https://www.adana.gov.trskip-me'),
+      false,
+    );
+  });
+
+  it('puts catalog extraUrls first and drops other hosts', () => {
+    const merged = mergeCommonListingUrls('https://www.adana.gov.tr', [], {
+      extraUrls: [
+        'https://www.adana.gov.tr/duyurular',
+        'https://evil.example/duyurular',
+      ],
+    });
+    assert.equal(merged[0], 'https://www.adana.gov.tr/duyurular');
+    assert.equal(
+      merged.includes('https://evil.example/duyurular'),
+      false,
+    );
+  });
 });
 
 describe('paginationUrls', () => {

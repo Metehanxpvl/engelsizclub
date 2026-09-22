@@ -1,0 +1,656 @@
+{
+  "source": "engelsiz-club-valilikler",
+  "updatedAt": "2026-09-20T06:35:21Z",
+  "ok": true,
+  "count": 81,
+  "items": [
+    {
+      "plate": "01",
+      "city": "Adana",
+      "slug": "adana",
+      "url": "https://www.adana.gov.tr",
+      "duyurular_url": "https://www.adana.gov.tr/duyurular",
+      "engelli_url": "https://www.adana.gov.tr/engelli"
+    },
+    {
+      "plate": "02",
+      "city": "Adıyaman",
+      "slug": "adiyaman",
+      "url": "https://www.adiyaman.gov.tr",
+      "duyurular_url": "https://www.adiyaman.gov.tr/duyurular",
+      "engelli_url": "https://www.adiyaman.gov.tr/engelli"
+    },
+    {
+      "plate": "03",
+      "city": "Afyonkarahisar",
+      "slug": "afyonkarahisar",
+      "url": "https://www.afyonkarahisar.gov.tr",
+      "duyurular_url": "https://www.afyonkarahisar.gov.tr/duyurular",
+      "engelli_url": "https://www.afyonkarahisar.gov.tr/engelli"
+    },
+    {
+      "plate": "04",
+      "city": "Ağrı",
+      "slug": "agri",
+      "url": "https://www.agri.gov.tr",
+      "duyurular_url": "https://www.agri.gov.tr/duyurular",
+      "engelli_url": "https://www.agri.gov.tr/engelli"
+    },
+    {
+      "plate": "05",
+      "city": "Amasya",
+      "slug": "amasya",
+      "url": "https://www.amasya.gov.tr",
+      "duyurular_url": "https://www.amasya.gov.tr/duyurular",
+      "engelli_url": "https://www.amasya.gov.tr/engelli"
+    },
+    {
+      "plate": "06",
+      "city": "Ankara",
+      "slug": "ankara",
+      "url": "https://www.ankara.gov.tr",
+      "duyurular_url": "https://www.ankara.gov.tr/duyurular",
+      "engelli_url": "https://www.ankara.gov.tr/engelli"
+    },
+    {
+      "plate": "07",
+      "city": "Antalya",
+      "slug": "antalya",
+      "url": "https://www.antalya.gov.tr",
+      "duyurular_url": "https://www.antalya.gov.tr/duyurular",
+      "engelli_url": "https://www.antalya.gov.tr/engelli"
+    },
+    {
+      "plate": "08",
+      "city": "Artvin",
+      "slug": "artvin",
+      "url": "https://www.artvin.gov.tr",
+      "duyurular_url": "https://www.artvin.gov.tr/duyurular",
+      "engelli_url": "https://www.artvin.gov.tr/engelli"
+    },
+    {
+      "plate": "09",
+      "city": "Aydın",
+      "slug": "aydin",
+      "url": "https://www.aydin.gov.tr",
+      "duyurular_url": "https://www.aydin.gov.tr/duyurular",
+      "engelli_url": "https://www.aydin.gov.tr/engelli"
+    },
+    {
+      "plate": "10",
+      "city": "Balıkesir",
+      "slug": "balikesir",
+      "url": "https://www.balikesir.gov.tr",
+      "duyurular_url": "https://www.balikesir.gov.tr/duyurular",
+      "engelli_url": "https://www.balikesir.gov.tr/engelli"
+    },
+    {
+      "plate": "11",
+      "city": "Bilecik",
+      "slug": "bilecik",
+      "url": "https://www.bilecik.gov.tr",
+      "duyurular_url": "https://www.bilecik.gov.tr/duyurular",
+      "engelli_url": "https://www.bilecik.gov.tr/engelli"
+    },
+    {
+      "plate": "12",
+      "city": "Bingöl",
+      "slug": "bingol",
+      "url": "https://www.bingol.gov.tr",
+      "duyurular_url": "https://www.bingol.gov.tr/duyurular",
+      "engelli_url": "https://www.bingol.gov.tr/engelli"
+    },
+    {
+      "plate": "13",
+      "city": "Bitlis",
+      "slug": "bitlis",
+      "url": "https://www.bitlis.gov.tr",
+      "duyurular_url": "https://www.bitlis.gov.tr/duyurular",
+      "engelli_url": "https://www.bitlis.gov.tr/engelli"
+    },
+    {
+      "plate": "14",
+      "city": "Bolu",
+      "slug": "bolu",
+      "url": "https://www.bolu.gov.tr",
+      "duyurular_url": "https://www.bolu.gov.tr/duyurular",
+      "engelli_url": "https://www.bolu.gov.tr/engelli"
+    },
+    {
+      "plate": "15",
+      "city": "Burdur",
+      "slug": "burdur",
+      "url": "https://www.burdur.gov.tr",
+      "duyurular_url": "https://www.burdur.gov.tr/duyurular",
+      "engelli_url": "https://www.burdur.gov.tr/engelli"
+    },
+    {
+      "plate": "16",
+      "city": "Bursa",
+      "slug": "bursa",
+      "url": "https://www.bursa.gov.tr",
+      "duyurular_url": "https://www.bursa.gov.tr/duyurular",
+      "engelli_url": "https://www.bursa.gov.tr/engelli"
+    },
+    {
+      "plate": "17",
+      "city": "Çanakkale",
+      "slug": "canakkale",
+      "url": "https://www.canakkale.gov.tr",
+      "duyurular_url": "https://www.canakkale.gov.tr/duyurular",
+      "engelli_url": "https://www.canakkale.gov.tr/engelli"
+    },
+    {
+      "plate": "18",
+      "city": "Çankırı",
+      "slug": "cankiri",
+      "url": "https://www.cankiri.gov.tr",
+      "duyurular_url": "https://www.cankiri.gov.tr/duyurular",
+      "engelli_url": "https://www.cankiri.gov.tr/engelli"
+    },
+    {
+      "plate": "19",
+      "city": "Çorum",
+      "slug": "corum",
+      "url": "https://www.corum.gov.tr",
+      "duyurular_url": "https://www.corum.gov.tr/duyurular",
+      "engelli_url": "https://www.corum.gov.tr/engelli"
+    },
+    {
+      "plate": "20",
+      "city": "Denizli",
+      "slug": "denizli",
+      "url": "https://www.denizli.gov.tr",
+      "duyurular_url": "https://www.denizli.gov.tr/duyurular",
+      "engelli_url": "https://www.denizli.gov.tr/engelli"
+    },
+    {
+      "plate": "21",
+      "city": "Diyarbakır",
+      "slug": "diyarbakir",
+      "url": "https://www.diyarbakir.gov.tr",
+      "duyurular_url": "https://www.diyarbakir.gov.tr/duyurular",
+      "engelli_url": "https://www.diyarbakir.gov.tr/engelli"
+    },
+    {
+      "plate": "22",
+      "city": "Edirne",
+      "slug": "edirne",
+      "url": "https://www.edirne.gov.tr",
+      "duyurular_url": "https://www.edirne.gov.tr/duyurular",
+      "engelli_url": "https://www.edirne.gov.tr/engelli"
+    },
+    {
+      "plate": "23",
+      "city": "Elazığ",
+      "slug": "elazig",
+      "url": "https://www.elazig.gov.tr",
+      "duyurular_url": "https://www.elazig.gov.tr/duyurular",
+      "engelli_url": "https://www.elazig.gov.tr/engelli"
+    },
+    {
+      "plate": "24",
+      "city": "Erzincan",
+      "slug": "erzincan",
+      "url": "https://www.erzincan.gov.tr",
+      "duyurular_url": "https://www.erzincan.gov.tr/duyurular",
+      "engelli_url": "https://www.erzincan.gov.tr/engelli"
+    },
+    {
+      "plate": "25",
+      "city": "Erzurum",
+      "slug": "erzurum",
+      "url": "https://www.erzurum.gov.tr",
+      "duyurular_url": "https://www.erzurum.gov.tr/duyurular",
+      "engelli_url": "https://www.erzurum.gov.tr/engelli"
+    },
+    {
+      "plate": "26",
+      "city": "Eskişehir",
+      "slug": "eskisehir",
+      "url": "https://www.eskisehir.gov.tr",
+      "duyurular_url": "https://www.eskisehir.gov.tr/duyurular",
+      "engelli_url": "https://www.eskisehir.gov.tr/engelli"
+    },
+    {
+      "plate": "27",
+      "city": "Gaziantep",
+      "slug": "gaziantep",
+      "url": "https://www.gaziantep.gov.tr",
+      "duyurular_url": "https://www.gaziantep.gov.tr/duyurular",
+      "engelli_url": "https://www.gaziantep.gov.tr/engelli"
+    },
+    {
+      "plate": "28",
+      "city": "Giresun",
+      "slug": "giresun",
+      "url": "https://www.giresun.gov.tr",
+      "duyurular_url": "https://www.giresun.gov.tr/duyurular",
+      "engelli_url": "https://www.giresun.gov.tr/engelli"
+    },
+    {
+      "plate": "29",
+      "city": "Gümüşhane",
+      "slug": "gumushane",
+      "url": "https://www.gumushane.gov.tr",
+      "duyurular_url": "https://www.gumushane.gov.tr/duyurular",
+      "engelli_url": "https://www.gumushane.gov.tr/engelli"
+    },
+    {
+      "plate": "30",
+      "city": "Hakkari",
+      "slug": "hakkari",
+      "url": "https://www.hakkari.gov.tr",
+      "duyurular_url": "https://www.hakkari.gov.tr/duyurular",
+      "engelli_url": "https://www.hakkari.gov.tr/engelli"
+    },
+    {
+      "plate": "31",
+      "city": "Hatay",
+      "slug": "hatay",
+      "url": "https://www.hatay.gov.tr",
+      "duyurular_url": "https://www.hatay.gov.tr/duyurular",
+      "engelli_url": "https://www.hatay.gov.tr/engelli"
+    },
+    {
+      "plate": "32",
+      "city": "Isparta",
+      "slug": "isparta",
+      "url": "https://www.isparta.gov.tr",
+      "duyurular_url": "https://www.isparta.gov.tr/duyurular",
+      "engelli_url": "https://www.isparta.gov.tr/engelli"
+    },
+    {
+      "plate": "33",
+      "city": "Mersin",
+      "slug": "mersin",
+      "url": "https://www.mersin.gov.tr",
+      "duyurular_url": "https://www.mersin.gov.tr/duyurular",
+      "engelli_url": "https://www.mersin.gov.tr/engelli"
+    },
+    {
+      "plate": "34",
+      "city": "İstanbul",
+      "slug": "istanbul",
+      "url": "https://www.istanbul.gov.tr",
+      "duyurular_url": "https://www.istanbul.gov.tr/duyurular",
+      "engelli_url": "https://www.istanbul.gov.tr/engelli"
+    },
+    {
+      "plate": "35",
+      "city": "İzmir",
+      "slug": "izmir",
+      "url": "https://www.izmir.gov.tr",
+      "duyurular_url": "https://www.izmir.gov.tr/duyurular",
+      "engelli_url": "https://www.izmir.gov.tr/engelli"
+    },
+    {
+      "plate": "36",
+      "city": "Kars",
+      "slug": "kars",
+      "url": "https://www.kars.gov.tr",
+      "duyurular_url": "https://www.kars.gov.tr/duyurular",
+      "engelli_url": "https://www.kars.gov.tr/engelli"
+    },
+    {
+      "plate": "37",
+      "city": "Kastamonu",
+      "slug": "kastamonu",
+      "url": "https://www.kastamonu.gov.tr",
+      "duyurular_url": "https://www.kastamonu.gov.tr/duyurular",
+      "engelli_url": "https://www.kastamonu.gov.tr/engelli"
+    },
+    {
+      "plate": "38",
+      "city": "Kayseri",
+      "slug": "kayseri",
+      "url": "https://www.kayseri.gov.tr",
+      "duyurular_url": "https://www.kayseri.gov.tr/duyurular",
+      "engelli_url": "https://www.kayseri.gov.tr/engelli"
+    },
+    {
+      "plate": "39",
+      "city": "Kırklareli",
+      "slug": "kirklareli",
+      "url": "https://www.kirklareli.gov.tr",
+      "duyurular_url": "https://www.kirklareli.gov.tr/duyurular",
+      "engelli_url": "https://www.kirklareli.gov.tr/engelli"
+    },
+    {
+      "plate": "40",
+      "city": "Kırşehir",
+      "slug": "kirsehir",
+      "url": "https://www.kirsehir.gov.tr",
+      "duyurular_url": "https://www.kirsehir.gov.tr/duyurular",
+      "engelli_url": "https://www.kirsehir.gov.tr/engelli"
+    },
+    {
+      "plate": "41",
+      "city": "Kocaeli",
+      "slug": "kocaeli",
+      "url": "https://www.kocaeli.gov.tr",
+      "duyurular_url": "https://www.kocaeli.gov.tr/duyurular",
+      "engelli_url": "https://www.kocaeli.gov.tr/engelli"
+    },
+    {
+      "plate": "42",
+      "city": "Konya",
+      "slug": "konya",
+      "url": "https://www.konya.gov.tr",
+      "duyurular_url": "https://www.konya.gov.tr/duyurular",
+      "engelli_url": "https://www.konya.gov.tr/engelli"
+    },
+    {
+      "plate": "43",
+      "city": "Kütahya",
+      "slug": "kutahya",
+      "url": "https://www.kutahya.gov.tr",
+      "duyurular_url": "https://www.kutahya.gov.tr/duyurular",
+      "engelli_url": "https://www.kutahya.gov.tr/engelli"
+    },
+    {
+      "plate": "44",
+      "city": "Malatya",
+      "slug": "malatya",
+      "url": "https://www.malatya.gov.tr",
+      "duyurular_url": "https://www.malatya.gov.tr/duyurular",
+      "engelli_url": "https://www.malatya.gov.tr/engelli"
+    },
+    {
+      "plate": "45",
+      "city": "Manisa",
+      "slug": "manisa",
+      "url": "https://www.manisa.gov.tr",
+      "duyurular_url": "https://www.manisa.gov.tr/duyurular",
+      "engelli_url": "https://www.manisa.gov.tr/engelli"
+    },
+    {
+      "plate": "46",
+      "city": "Kahramanmaraş",
+      "slug": "kahramanmaras",
+      "url": "https://www.kahramanmaras.gov.tr",
+      "duyurular_url": "https://www.kahramanmaras.gov.tr/duyurular",
+      "engelli_url": "https://www.kahramanmaras.gov.tr/engelli"
+    },
+    {
+      "plate": "47",
+      "city": "Mardin",
+      "slug": "mardin",
+      "url": "https://www.mardin.gov.tr",
+      "duyurular_url": "https://www.mardin.gov.tr/duyurular",
+      "engelli_url": "https://www.mardin.gov.tr/engelli"
+    },
+    {
+      "plate": "48",
+      "city": "Muğla",
+      "slug": "mugla",
+      "url": "https://www.mugla.gov.tr",
+      "duyurular_url": "https://www.mugla.gov.tr/duyurular",
+      "engelli_url": "https://www.mugla.gov.tr/engelli"
+    },
+    {
+      "plate": "49",
+      "city": "Muş",
+      "slug": "mus",
+      "url": "https://www.mus.gov.tr",
+      "duyurular_url": "https://www.mus.gov.tr/duyurular",
+      "engelli_url": "https://www.mus.gov.tr/engelli"
+    },
+    {
+      "plate": "50",
+      "city": "Nevşehir",
+      "slug": "nevsehir",
+      "url": "https://www.nevsehir.gov.tr",
+      "duyurular_url": "https://www.nevsehir.gov.tr/duyurular",
+      "engelli_url": "https://www.nevsehir.gov.tr/engelli"
+    },
+    {
+      "plate": "51",
+      "city": "Niğde",
+      "slug": "nigde",
+      "url": "https://www.nigde.gov.tr",
+      "duyurular_url": "https://www.nigde.gov.tr/duyurular",
+      "engelli_url": "https://www.nigde.gov.tr/engelli"
+    },
+    {
+      "plate": "52",
+      "city": "Ordu",
+      "slug": "ordu",
+      "url": "https://www.ordu.gov.tr",
+      "duyurular_url": "https://www.ordu.gov.tr/duyurular",
+      "engelli_url": "https://www.ordu.gov.tr/engelli"
+    },
+    {
+      "plate": "53",
+      "city": "Rize",
+      "slug": "rize",
+      "url": "https://www.rize.gov.tr",
+      "duyurular_url": "https://www.rize.gov.tr/duyurular",
+      "engelli_url": "https://www.rize.gov.tr/engelli"
+    },
+    {
+      "plate": "54",
+      "city": "Sakarya",
+      "slug": "sakarya",
+      "url": "https://www.sakarya.gov.tr",
+      "duyurular_url": "https://www.sakarya.gov.tr/duyurular",
+      "engelli_url": "https://www.sakarya.gov.tr/engelli"
+    },
+    {
+      "plate": "55",
+      "city": "Samsun",
+      "slug": "samsun",
+      "url": "https://www.samsun.gov.tr",
+      "duyurular_url": "https://www.samsun.gov.tr/duyurular",
+      "engelli_url": "https://www.samsun.gov.tr/engelli"
+    },
+    {
+      "plate": "56",
+      "city": "Siirt",
+      "slug": "siirt",
+      "url": "https://www.siirt.gov.tr",
+      "duyurular_url": "https://www.siirt.gov.tr/duyurular",
+      "engelli_url": "https://www.siirt.gov.tr/engelli"
+    },
+    {
+      "plate": "57",
+      "city": "Sinop",
+      "slug": "sinop",
+      "url": "https://www.sinop.gov.tr",
+      "duyurular_url": "https://www.sinop.gov.tr/duyurular",
+      "engelli_url": "https://www.sinop.gov.tr/engelli"
+    },
+    {
+      "plate": "58",
+      "city": "Sivas",
+      "slug": "sivas",
+      "url": "https://www.sivas.gov.tr",
+      "duyurular_url": "https://www.sivas.gov.tr/duyurular",
+      "engelli_url": "https://www.sivas.gov.tr/engelli"
+    },
+    {
+      "plate": "59",
+      "city": "Tekirdağ",
+      "slug": "tekirdag",
+      "url": "https://www.tekirdag.gov.tr",
+      "duyurular_url": "https://www.tekirdag.gov.tr/duyurular",
+      "engelli_url": "https://www.tekirdag.gov.tr/engelli"
+    },
+    {
+      "plate": "60",
+      "city": "Tokat",
+      "slug": "tokat",
+      "url": "https://www.tokat.gov.tr",
+      "duyurular_url": "https://www.tokat.gov.tr/duyurular",
+      "engelli_url": "https://www.tokat.gov.tr/engelli"
+    },
+    {
+      "plate": "61",
+      "city": "Trabzon",
+      "slug": "trabzon",
+      "url": "https://www.trabzon.gov.tr",
+      "duyurular_url": "https://www.trabzon.gov.tr/duyurular",
+      "engelli_url": "https://www.trabzon.gov.tr/engelli"
+    },
+    {
+      "plate": "62",
+      "city": "Tunceli",
+      "slug": "tunceli",
+      "url": "https://www.tunceli.gov.tr",
+      "duyurular_url": "https://www.tunceli.gov.tr/duyurular",
+      "engelli_url": "https://www.tunceli.gov.tr/engelli"
+    },
+    {
+      "plate": "63",
+      "city": "Şanlıurfa",
+      "slug": "sanliurfa",
+      "url": "https://www.sanliurfa.gov.tr",
+      "duyurular_url": "https://www.sanliurfa.gov.tr/duyurular",
+      "engelli_url": "https://www.sanliurfa.gov.tr/engelli"
+    },
+    {
+      "plate": "64",
+      "city": "Uşak",
+      "slug": "usak",
+      "url": "https://www.usak.gov.tr",
+      "duyurular_url": "https://www.usak.gov.tr/duyurular",
+      "engelli_url": "https://www.usak.gov.tr/engelli"
+    },
+    {
+      "plate": "65",
+      "city": "Van",
+      "slug": "van",
+      "url": "https://www.van.gov.tr",
+      "duyurular_url": "https://www.van.gov.tr/duyurular",
+      "engelli_url": "https://www.van.gov.tr/engelli"
+    },
+    {
+      "plate": "66",
+      "city": "Yozgat",
+      "slug": "yozgat",
+      "url": "https://www.yozgat.gov.tr",
+      "duyurular_url": "https://www.yozgat.gov.tr/duyurular",
+      "engelli_url": "https://www.yozgat.gov.tr/engelli"
+    },
+    {
+      "plate": "67",
+      "city": "Zonguldak",
+      "slug": "zonguldak",
+      "url": "https://www.zonguldak.gov.tr",
+      "duyurular_url": "https://www.zonguldak.gov.tr/duyurular",
+      "engelli_url": "https://www.zonguldak.gov.tr/engelli"
+    },
+    {
+      "plate": "68",
+      "city": "Aksaray",
+      "slug": "aksaray",
+      "url": "https://www.aksaray.gov.tr",
+      "duyurular_url": "https://www.aksaray.gov.tr/duyurular",
+      "engelli_url": "https://www.aksaray.gov.tr/engelli"
+    },
+    {
+      "plate": "69",
+      "city": "Bayburt",
+      "slug": "bayburt",
+      "url": "https://www.bayburt.gov.tr",
+      "duyurular_url": "https://www.bayburt.gov.tr/duyurular",
+      "engelli_url": "https://www.bayburt.gov.tr/engelli"
+    },
+    {
+      "plate": "70",
+      "city": "Karaman",
+      "slug": "karaman",
+      "url": "https://www.karaman.gov.tr",
+      "duyurular_url": "https://www.karaman.gov.tr/duyurular",
+      "engelli_url": "https://www.karaman.gov.tr/engelli"
+    },
+    {
+      "plate": "71",
+      "city": "Kırıkkale",
+      "slug": "kirikkale",
+      "url": "https://www.kirikkale.gov.tr",
+      "duyurular_url": "https://www.kirikkale.gov.tr/duyurular",
+      "engelli_url": "https://www.kirikkale.gov.tr/engelli"
+    },
+    {
+      "plate": "72",
+      "city": "Batman",
+      "slug": "batman",
+      "url": "https://www.batman.gov.tr",
+      "duyurular_url": "https://www.batman.gov.tr/duyurular",
+      "engelli_url": "https://www.batman.gov.tr/engelli"
+    },
+    {
+      "plate": "73",
+      "city": "Şırnak",
+      "slug": "sirnak",
+      "url": "https://www.sirnak.gov.tr",
+      "duyurular_url": "https://www.sirnak.gov.tr/duyurular",
+      "engelli_url": "https://www.sirnak.gov.tr/engelli"
+    },
+    {
+      "plate": "74",
+      "city": "Bartın",
+      "slug": "bartin",
+      "url": "https://www.bartin.gov.tr",
+      "duyurular_url": "https://www.bartin.gov.tr/duyurular",
+      "engelli_url": "https://www.bartin.gov.tr/engelli"
+    },
+    {
+      "plate": "75",
+      "city": "Ardahan",
+      "slug": "ardahan",
+      "url": "https://www.ardahan.gov.tr",
+      "duyurular_url": "https://www.ardahan.gov.tr/duyurular",
+      "engelli_url": "https://www.ardahan.gov.tr/engelli"
+    },
+    {
+      "plate": "76",
+      "city": "Iğdır",
+      "slug": "igdir",
+      "url": "https://www.igdir.gov.tr",
+      "duyurular_url": "https://www.igdir.gov.tr/duyurular",
+      "engelli_url": "https://www.igdir.gov.tr/engelli"
+    },
+    {
+      "plate": "77",
+      "city": "Yalova",
+      "slug": "yalova",
+      "url": "https://www.yalova.gov.tr",
+      "duyurular_url": "https://www.yalova.gov.tr/duyurular",
+      "engelli_url": "https://www.yalova.gov.tr/engelli"
+    },
+    {
+      "plate": "78",
+      "city": "Karabük",
+      "slug": "karabuk",
+      "url": "https://www.karabuk.gov.tr",
+      "duyurular_url": "https://www.karabuk.gov.tr/duyurular",
+      "engelli_url": "https://www.karabuk.gov.tr/engelli"
+    },
+    {
+      "plate": "79",
+      "city": "Kilis",
+      "slug": "kilis",
+      "url": "https://www.kilis.gov.tr",
+      "duyurular_url": "https://www.kilis.gov.tr/duyurular",
+      "engelli_url": "https://www.kilis.gov.tr/engelli"
+    },
+    {
+      "plate": "80",
+      "city": "Osmaniye",
+      "slug": "osmaniye",
+      "url": "https://www.osmaniye.gov.tr",
+      "duyurular_url": "https://www.osmaniye.gov.tr/duyurular",
+      "engelli_url": "https://www.osmaniye.gov.tr/engelli"
+    },
+    {
+      "plate": "81",
+      "city": "Düzce",
+      "slug": "duzce",
+      "url": "https://www.duzce.gov.tr",
+      "duyurular_url": "https://www.duzce.gov.tr/duyurular",
+      "engelli_url": "https://www.duzce.gov.tr/engelli"
+    }
+  ]
+}
