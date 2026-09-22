@@ -20,6 +20,7 @@ class GeziKampanyaFeedCard extends StatelessWidget {
     this.onMoveUp,
     this.onMoveDown,
     this.locationLabel = '',
+    this.categoryLabel = '',
     this.venueLabel = '',
     this.whenLabel = '',
     this.timeLabel = '',
@@ -44,6 +45,8 @@ class GeziKampanyaFeedCard extends StatelessWidget {
   final VoidCallback? onMoveUp;
   final VoidCallback? onMoveDown;
   final String locationLabel;
+  /// Kampanya kategorisi (ör. Sağlık).
+  final String categoryLabel;
   /// AVM / mekân adı (kart gövdesinde ikonla).
   final String venueLabel;
   /// Tarih veya dönem (ör. 7 Eylül 2026, Her hafta sonu).
@@ -71,6 +74,7 @@ class GeziKampanyaFeedCard extends StatelessWidget {
   bool get _hasWhen => whenLabel.trim().isNotEmpty;
   bool get _hasTime => timeLabel.trim().isNotEmpty;
   bool get _hasMeta => _hasVenue || _hasWhen || _hasTime;
+  bool get _showCategoryChip => categoryLabel.trim().isNotEmpty;
 
   String get _lightboxSrc {
     final eventSrc = imageUrl.trim();
@@ -208,6 +212,31 @@ class GeziKampanyaFeedCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (_showCategoryChip)
+                    Positioned(
+                      left: 8,
+                      top: 8,
+                      child: IgnorePointer(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: MetoColors.primary.withValues(alpha: 0.92),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: L10nText(
+                            categoryLabel.trim(),
+                            style: GoogleFonts.nunito(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   if (showEditDelete)
                     Positioned(
                       top: 8,

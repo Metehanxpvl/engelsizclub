@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../admin_catalog_extras.dart';
+import '../catalog_category_store.dart';
 import '../data/turkish_cities_data.dart';
 import '../gezi_kampanya_store.dart';
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
 import '../services/image_optimize_service.dart';
 import '../services/r2_storage_service.dart';
+import 'kampanya_category_tile.dart';
 import 'photo_gallery_lightbox.dart';
 
 /// Admin: görsel (galeri / URL) + başlık / açıklama.
@@ -43,6 +46,9 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
   String? _city;
   bool _nationwide = true;
   bool _saving = false;
+  String _category = '';
+  Map<String, String> _categoryOptions =
+      Map<String, String>.from(kKampanyaCategories);
 
   bool get _isGezi => widget.kind == GeziKampanyaKind.gezi;
   bool get _isKampanya => widget.kind == GeziKampanyaKind.kampanya;
@@ -96,6 +102,44 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
       } else {
         _nationwide = matchedCity == null;
       }
+    }
+    if (_isKampanya) {
+      _category = normalizeKampanyaCategory(editKampanya?.category ?? '');
+      _refreshCategoryOptions();
+    }
+  }
+
+  Future<void> _refreshCategoryOptions() async {
+    await AdminCatalogExtras.instance.ensureLoaded();
+    if (!mounted) return;
+    setState(() {
+      _categoryOptions = resolvedKampanyaCategories(
+        fromItems: _category.isEmpty ? const [] : [_category],
+      );
+    });
+  }
+
+  Future<void> _addCategory() async {
+    final name = await promptAdminNewOption(
+      context: context,
+      title: 'Yeni kampanya kategorisi',
+      hint: 'Örn. Teknoloji',
+    );
+    if (name == null || !mounted) return;
+    try {
+      final result = await addKampanyaCategory(
+        adminEmail: widget.adminEmail,
+        label: name,
+      );
+      if (!mounted) return;
+      await _refreshCategoryOptions();
+      if (!mounted) return;
+      setState(() => _category = result.key);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
     }
   }
 
@@ -153,6 +197,14 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
     if (_showCityPicker && (_city == null || _city!.trim().isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: L10nText('İl seçin (ör. Ankara).')),
+      );
+      return;
+    }
+    if (_isKampanya && normalizeKampanyaCategory(_category).isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: L10nText('Kategori seçin (sağlık, restoran, giyim…).'),
+        ),
       );
       return;
     }
@@ -222,6 +274,7 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
             description: _body.text,
             imageUrl: image.isEmpty ? null : image,
             city: scopeCity,
+            category: _category,
             adminEmail: widget.adminEmail,
           );
         } else {
@@ -230,6 +283,7 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
             imageUrl: image,
             description: _body.text,
             city: scopeCity,
+            category: _category,
             adminEmail: widget.adminEmail,
           );
         }
@@ -240,7 +294,9 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
       if (!mounted) return;
       setState(() => _saving = false);
       final raw = e.toString();
-      final hint = raw.contains('kampanyalar_city.sql')
+      final hint = raw.contains('kampanyalar_category.sql')
+          ? 'Kategori kolonu yok. Supabase’de kampanyalar_category.sql çalıştırın.'
+          : raw.contains('kampanyalar_city.sql')
           ? 'İl kolonu yok. Supabase’de kampanyalar_city.sql çalıştırın.'
           : raw.contains('etkinlikler.sql')
               ? 'Tablo yok. Supabase’de etkinlikler.sql çalıştırın.'
@@ -331,6 +387,46 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
                 ),
               ),
               const SizedBox(height: 14),
+              if (_isKampanya) ...[
+                Row(
+                  children: [
+                    Expanded(child: _fieldLabel('Kategori (zorunlu)')),
+                    IconButton(
+                      tooltip: 'Yeni kategori ekle',
+                      onPressed: _saving ? null : _addCategory,
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(
+                        Icons.add_circle_outline,
+                        color: MetoColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                L10nText(
+                  'Kampanyanın hangi kategoride yayınlanacağını seçin.',
+                  style: GoogleFonts.nunito(
+                    fontSize: 13,
+                    color: MetoColors.mutedFg,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 10,
+                  children: [
+                    for (final e in _categoryOptions.entries)
+                      KampanyaCategoryTile(
+                        categoryKey: e.key,
+                        label: e.value,
+                        selected: _category == e.key,
+                        onTap: _saving
+                            ? () {}
+                            : () => setState(() => _category = e.key),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+              ],
               if (_isCityScoped) ...[
                 _fieldLabel('Kapsam'),
                 const SizedBox(height: 8),

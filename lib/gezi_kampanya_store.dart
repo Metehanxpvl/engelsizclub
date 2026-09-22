@@ -1,7 +1,11 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'admin_catalog_extras.dart';
+import 'admin_config.dart';
 import 'bildirim_store.dart';
+import 'catalog_category_store.dart';
 import 'section_editors.dart';
+import 'services/app_catalog_service.dart';
 import 'utils/async_timeout.dart';
 
 /// Türkçe il adını URL/slug için ASCII'ye çevirir (Ankara → ankara, İstanbul → istanbul).
@@ -128,6 +132,155 @@ bool isKampanyaNationwide(String? city) {
 String kampanyaLocationLabel(String? city) {
   if (isKampanyaNationwide(city)) return 'Tüm ülke';
   return city!.trim();
+}
+
+const kKampanyaCategoryTumu = 'tumu';
+const kKampanyaCategoryScope = 'kampanya';
+
+/// Kampanya kategorileri (admin seçer, üye listede süzgeçler).
+const kKampanyaCategories = <String, String>{
+  'saglik': 'Sağlık',
+  'restoran': 'Restoran',
+  'giyim': 'Giyim',
+  'egitim': 'Eğitim',
+  'marka': 'Marka iş birlikleri',
+};
+
+String kampanyaCategorySlug(String raw) {
+  var f = foldTurkish(raw).replaceAll(RegExp(r'\s+'), ' ').trim();
+  f = f
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+      .replaceAll(RegExp(r'^-+|-+$'), '');
+  if (f.length > 48) f = f.substring(0, 48);
+  return f;
+}
+
+String normalizeKampanyaCategory(String raw) {
+  final f = foldTurkish(raw).replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (f.isEmpty || f == 'tumu' || f == 'hepsi' || f == 'all') {
+    return '';
+  }
+  if (f == 'saglik' || f == 'health') return 'saglik';
+  if (f == 'restoran' || f == 'restaurant' || f == 'yemek') return 'restoran';
+  if (f == 'giyim' || f == 'tekstil' || f == 'moda') return 'giyim';
+  if (f == 'egitim' || f == 'education') return 'egitim';
+  if (f == 'marka' ||
+      f == 'marka is birlikleri' ||
+      f == 'marka isbirlikleri' ||
+      f == 'is birligi' ||
+      f == 'brand') {
+    return 'marka';
+  }
+  if (kKampanyaCategories.containsKey(f)) return f;
+  final slug = kampanyaCategorySlug(raw);
+  if (slug.isEmpty || slug == 'tumu' || slug == 'hepsi' || slug == 'all') {
+    return '';
+  }
+  return slug;
+}
+
+String _humanizeKampanyaCategoryKey(String key) {
+  return key
+      .split('-')
+      .where((p) => p.isNotEmpty)
+      .map((p) => p.length == 1
+          ? p.toUpperCase()
+          : '${p[0].toUpperCase()}${p.substring(1)}')
+      .join(' ');
+}
+
+/// Yerleşik + adminin eklediği kategoriler (anahtar → etiket).
+Map<String, String> resolvedKampanyaCategories({
+  Iterable<String> fromItems = const [],
+}) {
+  final out = Map<String, String>.from(kKampanyaCategories);
+  void put(String raw, [String? label]) {
+    final key = normalizeKampanyaCategory(raw);
+    if (key.isEmpty || out.containsKey(key)) return;
+    final name = (label ?? raw).trim();
+    out[key] = name.isEmpty ? _humanizeKampanyaCategoryKey(key) : name;
+  }
+
+  for (final row
+      in AppCatalogService.instance.categoriesOf(kKampanyaCategoryScope)) {
+    final label = (row['label']?.toString() ?? '').trim();
+    if (label.isEmpty) continue;
+    if (AdminCatalogExtras.instance.isRemoved(kKampanyaCategoryScope, label)) {
+      continue;
+    }
+    put(label, label);
+  }
+  for (final label
+      in AdminCatalogExtras.instance.labelsFor(kKampanyaCategoryScope)) {
+    if (AdminCatalogExtras.instance.isRemoved(kKampanyaCategoryScope, label)) {
+      continue;
+    }
+    put(label, label);
+  }
+  for (final raw in fromItems) {
+    put(raw);
+  }
+  return out;
+}
+
+String kampanyaCategoryLabel(String raw) {
+  final key = normalizeKampanyaCategory(raw);
+  if (key.isEmpty) return '';
+  return resolvedKampanyaCategories()[key] ?? _humanizeKampanyaCategoryKey(key);
+}
+
+/// Admin: kampanya kategorisi ekler (`app_categories` scope=kampanya).
+Future<({String key, String label, bool synced, String? warning})>
+    addKampanyaCategory({
+  required String adminEmail,
+  required String label,
+}) async {
+  await _requireSection(adminEmail, SectionKey.kampanya);
+  final name = label.trim();
+  if (name.isEmpty) throw StateError('Kategori adı girin.');
+  if (name.length > 48) {
+    throw StateError('Ad en fazla 48 karakter olabilir.');
+  }
+  final key = normalizeKampanyaCategory(name);
+  if (key.isEmpty) throw StateError('Geçerli bir kategori adı girin.');
+  if (kKampanyaCategories.containsKey(key)) {
+    return (
+      key: key,
+      label: kKampanyaCategories[key]!,
+      synced: true,
+      warning: null,
+    );
+  }
+  if (isAppAdmin(adminEmail)) {
+    try {
+      final result = await upsertCatalogOption(
+        scope: kKampanyaCategoryScope,
+        label: name,
+        icon: '🏷️',
+      );
+      return (
+        key: key,
+        label: name,
+        synced: result.synced,
+        warning: result.warning,
+      );
+    } catch (e) {
+      await AdminCatalogExtras.instance.addLabel(kKampanyaCategoryScope, name);
+      return (
+        key: key,
+        label: name,
+        synced: false,
+        warning: e.toString(),
+      );
+    }
+  }
+  await AdminCatalogExtras.instance.addLabel(kKampanyaCategoryScope, name);
+  return (
+    key: key,
+    label: name,
+    synced: false,
+    warning: 'Kategori bu cihazda eklendi.',
+  );
 }
 
 const _trMonthNames = <String>[
@@ -303,6 +456,7 @@ class KampanyaItem {
     this.rejectionReason = '',
     this.joinCount = 0,
     this.joinedByMe = false,
+    this.category = '',
     required this.createdAt,
   });
 
@@ -325,7 +479,11 @@ class KampanyaItem {
   final String rejectionReason;
   final int joinCount;
   final bool joinedByMe;
+  /// `saglik` | `restoran` | `giyim` | `egitim` | `marka` | admin slug (boş = tanımsız).
+  final String category;
   final DateTime createdAt;
+
+  String get categoryLabel => kampanyaCategoryLabel(category);
 
   bool get hasDescription => description.trim().isNotEmpty;
 
@@ -336,6 +494,7 @@ class KampanyaItem {
     bool? joinedByMe,
     String? status,
     String? rejectionReason,
+    String? category,
   }) {
     return KampanyaItem(
       id: id,
@@ -353,6 +512,7 @@ class KampanyaItem {
       rejectionReason: rejectionReason ?? this.rejectionReason,
       joinCount: joinCount ?? this.joinCount,
       joinedByMe: joinedByMe ?? this.joinedByMe,
+      category: category ?? this.category,
       createdAt: createdAt,
     );
   }
@@ -398,6 +558,7 @@ class KampanyaItem {
       status: json['status']?.toString() ?? '',
       source: json['source']?.toString() ?? '',
       rejectionReason: json['rejection_reason']?.toString() ?? '',
+      category: normalizeKampanyaCategory(json['category']?.toString() ?? ''),
       createdAt: created,
     );
   }
@@ -988,6 +1149,19 @@ String _scopedCityDbValue(String? city) {
   return city?.trim() ?? '';
 }
 
+StateError? _kampanyaCategorySchemaError(Object e) {
+  final raw = e.toString();
+  if (raw.contains('category') &&
+      (raw.contains('PGRST204') ||
+          raw.contains('schema cache') ||
+          raw.contains('column'))) {
+    return StateError(
+      'Kategori kolonu yok. Supabase’de kampanyalar_category.sql çalıştırın.',
+    );
+  }
+  return null;
+}
+
 StateError? _scopedCitySchemaError(Object e, {required String table}) {
   final raw = e.toString();
   if (raw.contains('city') ||
@@ -1011,6 +1185,7 @@ Future<KampanyaItem> addKampanyaItem({
   required String imageUrl,
   String description = '',
   String? city,
+  String category = '',
   required String adminEmail,
 }) {
   return _addScopedFeedItem(
@@ -1019,6 +1194,7 @@ Future<KampanyaItem> addKampanyaItem({
     imageUrl: imageUrl,
     description: description,
     city: city,
+    category: category,
     adminEmail: adminEmail,
   );
 }
@@ -1046,6 +1222,7 @@ Future<KampanyaItem> _addScopedFeedItem({
   required String imageUrl,
   String description = '',
   String? city,
+  String category = '',
   required String adminEmail,
 }) async {
   await _requireSection(
@@ -1067,12 +1244,18 @@ Future<KampanyaItem> _addScopedFeedItem({
     };
     if (table == kEtkinlikTable) {
       payload['sort_index'] = next;
+    } else {
+      payload['category'] = normalizeKampanyaCategory(category);
     }
     final row =
         await Supabase.instance.client.from(table).insert(payload).select().single();
     _invalidateScopedCache(table);
     return KampanyaItem.fromJson(Map<String, dynamic>.from(row));
   } catch (e) {
+    if (table == kKampanyaTable) {
+      final catHint = _kampanyaCategorySchemaError(e);
+      if (catHint != null) throw catHint;
+    }
     final mapped = _scopedCitySchemaError(e, table: table);
     if (mapped != null) throw mapped;
     rethrow;
@@ -1085,6 +1268,7 @@ Future<KampanyaItem> updateKampanyaItem({
   String description = '',
   String? imageUrl,
   String? city,
+  String? category,
   required String adminEmail,
 }) {
   return _updateScopedFeedItem(
@@ -1094,6 +1278,7 @@ Future<KampanyaItem> updateKampanyaItem({
     description: description,
     imageUrl: imageUrl,
     city: city,
+    category: category,
     adminEmail: adminEmail,
   );
 }
@@ -1124,6 +1309,7 @@ Future<KampanyaItem> _updateScopedFeedItem({
   String description = '',
   String? imageUrl,
   String? city,
+  String? category,
   required String adminEmail,
 }) async {
   await _requireSection(
@@ -1137,6 +1323,9 @@ Future<KampanyaItem> _updateScopedFeedItem({
   };
   final url = imageUrl?.trim() ?? '';
   if (url.isNotEmpty) patch['image_url'] = url;
+  if (table == kKampanyaTable && category != null) {
+    patch['category'] = normalizeKampanyaCategory(category);
+  }
   try {
     final row = await Supabase.instance.client
         .from(table)
@@ -1147,6 +1336,10 @@ Future<KampanyaItem> _updateScopedFeedItem({
     _invalidateScopedCache(table);
     return KampanyaItem.fromJson(Map<String, dynamic>.from(row));
   } catch (e) {
+    if (table == kKampanyaTable && patch.containsKey('category')) {
+      final catHint = _kampanyaCategorySchemaError(e);
+      if (catHint != null) throw catHint;
+    }
     final mapped = _scopedCitySchemaError(e, table: table);
     if (mapped != null) throw mapped;
     rethrow;

@@ -248,6 +248,13 @@ workflows:
 
   ios-app-store:
     name: iOS App Store Review
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'fix/ios-build-113'
+          include: true
+          source: true
     max_build_duration: 90
     instance_type: mac_mini_m2
     integrations:

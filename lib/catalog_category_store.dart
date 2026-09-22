@@ -68,6 +68,14 @@ bool isBuiltinCatalogOption(String scope, String label) {
       return kIkincielAltKategoriler.any((e) => e.toLowerCase() == l);
     case 'ilan':
       return _ilanBuiltinLabels.contains(l);
+    case 'kampanya':
+      return const {
+        'sağlık',
+        'restoran',
+        'giyim',
+        'eğitim',
+        'marka iş birlikleri',
+      }.contains(l);
     default:
       return false;
   }
