@@ -1,9 +1,16 @@
+import { toIsoDate } from './content_dates.mjs';
 import { foldTr, isDisabilityOpportunity, stripHtml } from './hash.mjs';
 
 const EYHGM_HOST_RE = /(^|\.)aile\.gov\.tr$/i;
-const ITEM_PATH_RE = /^\/eyhgm\/(haberler|duyurular)\/([^/?#]+)\/?$/i;
+const ITEM_PATH_RE =
+  /^\/(?:eyhgm\/(haberler|duyurular)|duyurular)\/([^/?#]+)\/?$/i;
 const SKIP_TITLE_RE =
   /^(haberin detayi|hepsini goruntule|devamini oku|daha fazla|haberler|duyurular)$/i;
+const TITLE_SPAN_RE = /<span[^>]*class=["'][^"']*\btitle\b[^"']*["'][^>]*>([\s\S]*?)<\/span>/i;
+const SUMMARY_SPAN_RE =
+  /<span[^>]*class=["'][^"']*\bsummary\b[^"']*["'][^>]*>([\s\S]*?)<\/span>/i;
+const CARD_DATE_RE =
+  /class=["']day["'][^>]*>([^<]+)<[\s\S]*?class=["']moon["'][^>]*>([\s\S]*?)<\/span>[\s\S]*?class=["']year["'][^>]*>([^<]+)/i;
 const ANCHOR_RE =
   /<a\b([^>]*?)href=["']([^"']+)["']([^>]*)>([\s\S]*?)<\/a>/gi;
 const CARD_TITLE_RE = /<h[1-6][^>]*class=["'][^"']*card-title[^"']*["'][^>]*>([\s\S]*?)<\/h[1-6]>/i;
@@ -13,7 +20,8 @@ export function isAileEyhgmSourceUrl(url) {
   try {
     const u = new URL(url);
     if (!EYHGM_HOST_RE.test(u.hostname)) return false;
-    return /^\/eyhgm(\/|$)/i.test(u.pathname);
+    const path = u.pathname.replace(/\/+$/, '') || '/';
+    return /^\/eyhgm(\/|$)/i.test(path) || /^\/duyurular(\/|$)/i.test(path);
   } catch {
     return false;
   }
@@ -34,6 +42,9 @@ export function aileEyhgmListingUrls(sourceUrl) {
       'https://www.aile.gov.tr/eyhgm/duyurular',
     ];
   }
+  if (/^\/duyurular$/i.test(path)) {
+    return ['https://www.aile.gov.tr/duyurular'];
+  }
   return [u.href];
 }
 
@@ -46,14 +57,22 @@ function attr(blob, name) {
 function slugText(pathname) {
   return String(pathname || '')
     .replace(/^\/eyhgm\/(haberler|duyurular)\//i, '')
+    .replace(/^\/duyurular\//i, '')
     .replace(/[-_/]+/g, ' ');
+}
+
+function pickPublishedAt(inner) {
+  const m = String(inner || '').match(CARD_DATE_RE);
+  if (!m) return null;
+  return toIsoDate(`${stripHtml(m[1])} ${stripHtml(m[2])} ${stripHtml(m[3])}`);
 }
 
 function pickTitle(attrTitle, inner) {
   const fromAttr = stripHtml(attrTitle);
+  const fromSpan = stripHtml((inner.match(TITLE_SPAN_RE) || [])[1] || '');
   const fromCard = stripHtml((inner.match(CARD_TITLE_RE) || [])[1] || '');
   const fromInner = stripHtml(inner);
-  for (const t of [fromAttr, fromCard, fromInner]) {
+  for (const t of [fromAttr, fromSpan, fromCard, fromInner]) {
     const title = t.replace(/\s+/g, ' ').trim().slice(0, 240);
     if (title.length < 12) continue;
     if (SKIP_TITLE_RE.test(foldTr(title))) continue;
@@ -74,7 +93,7 @@ function pickImage(inner, baseUrl) {
 }
 
 /**
- * Narrow parser for ASHB EYHGM haber/duyuru cards only.
+ * Narrow parser for ASHB EYHGM haber/duyuru cards and bakanlık /duyurular.
  * Not a generic .gov.tr / .bel.tr homepage scrape.
  */
 export function extractAileEyhgmListings(html, baseUrl, { limit = 20 } = {}) {
@@ -105,12 +124,14 @@ export function extractAileEyhgmListings(html, baseUrl, { limit = 20 } = {}) {
     if (!isDisabilityOpportunity(`${title} ${slug}`)) continue;
     if (seen.has(abs.href)) continue;
     seen.add(abs.href);
+    const summary = stripHtml((m[4] || '').match(SUMMARY_SPAN_RE)?.[1] || '');
     items.push({
       title,
-      summary: '',
+      summary: summary && summary !== title ? summary.slice(0, 1200) : '',
       sourceUrl: abs.href,
       externalId: abs.href,
       imageUrl: pickImage(m[4] || '', baseUrl),
+      publishedAt: pickPublishedAt(m[4] || ''),
     });
   }
   return items;

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:in_app_update/in_app_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -11,13 +12,13 @@ import 'force_update_logic.dart';
 export 'force_update_logic.dart';
 
 /// pubspec marketing / `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
-const kAppVersionName = '1.1.14';
-const kAppBuildNumber = 200012;
+const kAppVersionName = '1.1.15';
+const kAppBuildNumber = 200013;
 
-/// Açılışta (ForceUpdateGate) semver kontrolü. Splash kilidi yok.
+/// Açılışta semver + Play kontrolü. Splash kilidi yok.
 ///
-/// Kaynak: Supabase `app_settings.force_update` (Remote Config yok).
-/// CTA: Android → Google Play, iOS → App Store (in-app binary update yok).
+/// Kaynak: Supabase `app_settings.force_update`.
+/// CTA: Android → Google Play, iOS → App Store.
 class ForceUpdateService extends ChangeNotifier {
   ForceUpdateService._();
   static final ForceUpdateService instance = ForceUpdateService._();
@@ -65,38 +66,40 @@ class ForceUpdateService extends ChangeNotifier {
     _checking = true;
     try {
       await _loadPackageInfo();
+      var next = UpdatePromptKind.none;
       final remote = await _fetchRemote();
-      if (remote == null) {
-        // Fail-open: mevcut kartı kapatma (zaten gösteriliyorsa kalsın).
-        if (kDebugMode) {
-          debugPrint(
-            'ForceUpdate: remote yok/hata (fail-open) current=$localVersion',
-          );
+      if (remote != null) {
+        final ios = defaultTargetPlatform == TargetPlatform.iOS;
+        latestVersion = remote.latestForIos(ios);
+        minVersion = remote.minimumSupportedVersion;
+        storeUrl = remote.storeUrlForIos(ios);
+        if (storeUrl.isEmpty) {
+          storeUrl = ios ? defaultIosUrl : defaultPlayUrl;
         }
-        return;
+        String? skipped;
+        if (latestVersion.isNotEmpty) {
+          skipped = await _readSkipped(latestVersion);
+        }
+        next = resolveUpdatePrompt(
+          current: localVersion,
+          minSupported: minVersion,
+          latest: latestVersion,
+          skippedLatest: skipped,
+        );
       }
-      final ios = defaultTargetPlatform == TargetPlatform.iOS;
-      latestVersion = remote.latestForIos(ios);
-      minVersion = remote.minimumSupportedVersion;
-      storeUrl = remote.storeUrlForIos(ios);
-      if (storeUrl.isEmpty) {
-        storeUrl = ios ? defaultIosUrl : defaultPlayUrl;
+      if (next == UpdatePromptKind.none &&
+          defaultTargetPlatform == TargetPlatform.android) {
+        next = await _playStoreUpdateKind();
+        if (next != UpdatePromptKind.none) {
+          storeUrl = defaultPlayUrl;
+          latestVersion =
+              latestVersion.isNotEmpty ? latestVersion : localVersion;
+        }
       }
-
-      String? skipped;
-      if (latestVersion.isNotEmpty) {
-        skipped = await _readSkipped(latestVersion);
-      }
-      final next = resolveUpdatePrompt(
-        current: localVersion,
-        minSupported: minVersion,
-        latest: latestVersion,
-        skippedLatest: skipped,
-      );
       if (kDebugMode) {
         debugPrint(
           'ForceUpdate: current=$localVersion min=$minVersion '
-          'latest=$latestVersion skipped=$skipped → $next',
+          'latest=$latestVersion → $next',
         );
       }
       if (next != promptKind) {
@@ -238,6 +241,23 @@ class ForceUpdateService extends ChangeNotifier {
     } catch (e) {
       debugPrint('ForceUpdate remote: $e');
       return null;
+    }
+  }
+
+  /// Play'de daha yeni versionCode varsa kart göster (Google Play'e gider).
+  Future<UpdatePromptKind> _playStoreUpdateKind() async {
+    try {
+      final info = await InAppUpdate.checkForUpdate();
+      final available = info.availableVersionCode ?? 0;
+      final hasNewer = info.updateAvailability ==
+              UpdateAvailability.updateAvailable &&
+          available > 0 &&
+          available > localBuild;
+      if (!hasNewer) return UpdatePromptKind.none;
+      return UpdatePromptKind.optional;
+    } catch (e) {
+      debugPrint('ForceUpdate Play check skipped: $e');
+      return UpdatePromptKind.none;
     }
   }
 }

@@ -133,6 +133,86 @@ Future<List<AdminUserRow>> fetchAdminOnlineUsers() async {
   return fetchAdminUserList(filter: 'online');
 }
 
+const kAdminKrediMax = 99999999;
+
+int? parseAdminKrediAmount(String raw) {
+  final t = raw.trim().replaceAll(RegExp(r'\s+'), '');
+  if (t.isEmpty) return null;
+  final n = int.tryParse(t);
+  if (n == null || n < 0) return null;
+  return n.clamp(0, kAdminKrediMax);
+}
+
+int nextAdminKrediBalance({
+  required int current,
+  required int amount,
+  required String mode,
+}) {
+  final cur = current.clamp(0, kAdminKrediMax);
+  final amt = amount.clamp(0, kAdminKrediMax);
+  if (mode == 'set') return amt;
+  return (cur + amt).clamp(0, kAdminKrediMax);
+}
+
+class AdminKrediGrantResult {
+  const AdminKrediGrantResult({
+    required this.email,
+    required this.displayName,
+    required this.userType,
+    required this.oldKredi,
+    required this.newKredi,
+    required this.delta,
+    required this.mode,
+  });
+
+  final String email;
+  final String displayName;
+  final String userType;
+  final int oldKredi;
+  final int newKredi;
+  final int delta;
+  final String mode;
+}
+
+String adminKrediUnitLabel(String userType) {
+  final t = userType.trim().toLowerCase();
+  return t == 'aile' ? 'iyilik puanı' : 'puan';
+}
+
+Future<AdminKrediGrantResult> adminGrantKredi({
+  required String email,
+  required int amount,
+  String mode = 'add',
+}) async {
+  if (!isAppAdmin(Supabase.instance.client.auth.currentUser?.email)) {
+    throw StateError('Yalnızca admin puan yükleyebilir.');
+  }
+  final raw = await Supabase.instance.client.rpc(
+    'admin_grant_kredi',
+    params: {
+      'p_email': email.trim().toLowerCase(),
+      'p_amount': amount,
+      'p_mode': mode,
+    },
+  );
+  Map<String, dynamic> map = const {};
+  if (raw is Map<String, dynamic>) {
+    map = raw;
+  } else if (raw is Map) {
+    map = Map<String, dynamic>.from(raw);
+  }
+  int n(String k) => (map[k] as num?)?.toInt() ?? 0;
+  return AdminKrediGrantResult(
+    email: (map['owner_email']?.toString() ?? email).toLowerCase(),
+    displayName: (map['display_name']?.toString() ?? '').trim(),
+    userType: (map['user_type']?.toString() ?? '').toLowerCase(),
+    oldKredi: n('old_kredi'),
+    newKredi: n('new_kredi'),
+    delta: n('delta'),
+    mode: map['mode']?.toString() ?? mode,
+  );
+}
+
 String _relativeTr(DateTime? at) {
   if (at == null) return 'Hiç görülmedi';
   final d = DateTime.now().toUtc().difference(at.toUtc());
@@ -220,6 +300,31 @@ class _AdminUsersPanelState extends State<AdminUsersPanel> {
     });
   }
 
+  Future<void> _openGrant({AdminUserRow? user, String email = ''}) async {
+    final result = await showAdminGrantKrediDialog(
+      context,
+      email: user?.email ?? email,
+      displayName: user?.displayName ?? '',
+      currentKredi: user?.kredi ?? 0,
+      userType: user?.userType ?? '',
+      askEmail: user == null,
+    );
+    if (!mounted || result == null) return;
+    final unit = adminKrediUnitLabel(result.userType);
+    final name =
+        result.displayName.isEmpty ? result.email : result.displayName;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result.mode == 'set'
+              ? '$name bakiyesi ${result.newKredi} $unit.'
+              : '$name · +${result.delta} $unit (yeni: ${result.newKredi})',
+        ),
+      ),
+    );
+    await _reload(silent: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -243,6 +348,15 @@ class _AdminUsersPanelState extends State<AdminUsersPanel> {
                     fontWeight: FontWeight.w800,
                     color: MetoColors.foreground,
                   ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => unawaited(_openGrant()),
+                icon: const Icon(Icons.add_card, size: 18),
+                label: const Text('Puan yükle'),
+                style: TextButton.styleFrom(
+                  foregroundColor: MetoColors.primary,
+                  textStyle: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
               IconButton(
@@ -389,7 +503,10 @@ class _AdminUsersPanelState extends State<AdminUsersPanel> {
                         )
                       else
                         for (final u in _users) ...[
-                          _UserTile(user: u),
+                          _UserTile(
+                            user: u,
+                            onGrant: () => unawaited(_openGrant(user: u)),
+                          ),
                           const SizedBox(height: 8),
                         ],
                     ],
@@ -601,9 +718,10 @@ class _RoleChip extends StatelessWidget {
 }
 
 class _UserTile extends StatelessWidget {
-  const _UserTile({required this.user});
+  const _UserTile({required this.user, required this.onGrant});
 
   final AdminUserRow user;
+  final VoidCallback onGrant;
 
   @override
   Widget build(BuildContext context) {
@@ -683,7 +801,7 @@ class _UserTile extends StatelessWidget {
                       [
                         user.roleLabel,
                         if (user.sehir.isNotEmpty) user.sehir,
-                        if (user.kredi > 0) '${user.kredi} puan',
+                        '${user.kredi} ${adminKrediUnitLabel(user.userType)}',
                         _relativeTr(user.lastSeen),
                       ].join(' · '),
                       maxLines: 1,
@@ -699,10 +817,260 @@ class _UserTile extends StatelessWidget {
                   ],
                 ),
               ),
+              IconButton(
+                tooltip: 'Puan yükle',
+                onPressed: onGrant,
+                icon: const Icon(Icons.add_card, color: MetoColors.primary),
+              ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+Future<AdminKrediGrantResult?> showAdminGrantKrediDialog(
+  BuildContext context, {
+  required String email,
+  required String displayName,
+  required int currentKredi,
+  required String userType,
+  bool askEmail = false,
+}) {
+  return showDialog<AdminKrediGrantResult>(
+    context: context,
+    builder: (ctx) => _AdminGrantKrediDialog(
+      initialEmail: email,
+      displayName: displayName,
+      currentKredi: currentKredi,
+      userType: userType,
+      askEmail: askEmail,
+    ),
+  );
+}
+
+class _AdminGrantKrediDialog extends StatefulWidget {
+  const _AdminGrantKrediDialog({
+    required this.initialEmail,
+    required this.displayName,
+    required this.currentKredi,
+    required this.userType,
+    required this.askEmail,
+  });
+
+  final String initialEmail;
+  final String displayName;
+  final int currentKredi;
+  final String userType;
+  final bool askEmail;
+
+  @override
+  State<_AdminGrantKrediDialog> createState() => _AdminGrantKrediDialogState();
+}
+
+class _AdminGrantKrediDialogState extends State<_AdminGrantKrediDialog> {
+  late final TextEditingController _email;
+  late final TextEditingController _amount;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _email = TextEditingController(text: widget.initialEmail);
+    _amount = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _amount.dispose();
+    super.dispose();
+  }
+
+  String get _unit => adminKrediUnitLabel(widget.userType);
+
+  Future<void> _submit(String mode, {int? forcedAmount}) async {
+    final email = _email.text.trim().toLowerCase();
+    final amount = forcedAmount ?? parseAdminKrediAmount(_amount.text);
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = 'Geçerli bir e-posta girin.');
+      return;
+    }
+    if (amount == null) {
+      setState(() => _error = 'Puan miktarını girin.');
+      return;
+    }
+    if (mode == 'add' && amount == 0) {
+      setState(() => _error = 'Yüklenecek puanı girin.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final result = await adminGrantKredi(
+        email: email,
+        amount: amount,
+        mode: mode,
+      );
+      if (!mounted) return;
+      Navigator.pop(context, result);
+    } catch (e) {
+      if (!mounted) return;
+      final msg = '$e';
+      setState(() {
+        _saving = false;
+        _error = msg.contains('admin_grant_kredi') ||
+                msg.contains('Could not find') ||
+                msg.contains('PGRST')
+            ? 'Supabase’de admin_grant_kredi.sql çalıştırın.'
+            : msg
+                .replaceFirst('PostgrestException(message: ', '')
+                .replaceFirst(RegExp(r',\s*code:.*$'), '');
+      });
+    }
+  }
+
+  Future<void> _confirmZero() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Bakiyeyi sıfırla?'),
+        content: Text(
+          '${widget.displayName.isEmpty ? _email.text.trim() : widget.displayName} için puan 0 olacak.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+            child: const Text('Sıfırla'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await _submit('set', forcedAmount: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = widget.displayName.trim();
+    return AlertDialog(
+      title: const Text('Puan yükle'),
+      content: SizedBox(
+        width: 360,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (name.isNotEmpty)
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    color: MetoColors.foreground,
+                  ),
+                ),
+              if (!widget.askEmail)
+                Text(
+                  widget.initialEmail,
+                  style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+                ),
+              if (widget.askEmail) ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _email,
+                  keyboardType: TextInputType.emailAddress,
+                  autofillHints: const [AutofillHints.email],
+                  decoration: const InputDecoration(
+                    labelText: 'Üye e-postası',
+                    hintText: 'ornek@gmail.com',
+                  ),
+                ),
+              ],
+              if (!widget.askEmail) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Mevcut: ${widget.currentKredi} $_unit',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: MetoColors.primary,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              TextField(
+                controller: _amount,
+                autofocus: !widget.askEmail,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: InputDecoration(
+                  labelText: 'Miktar',
+                  hintText: 'Örn. 10',
+                  suffixText: _unit,
+                ),
+                onChanged: (_) {
+                  if (_error != null) setState(() => _error = null);
+                },
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final n in const [1, 5, 10, 50, 100])
+                    ActionChip(
+                      label: Text('+$n'),
+                      onPressed: _saving
+                          ? null
+                          : () => setState(() => _amount.text = '$n'),
+                    ),
+                ],
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _error!,
+                  style: const TextStyle(color: Color(0xFFB91C1C), fontSize: 12),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : _confirmZero,
+          child: const Text('Sıfırla'),
+        ),
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: const Text('Vazgeç'),
+        ),
+        OutlinedButton(
+          onPressed: _saving ? null : () => unawaited(_submit('set')),
+          child: const Text('Bakiyeyi ayarla'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : () => unawaited(_submit('add')),
+          style: FilledButton.styleFrom(backgroundColor: MetoColors.primary),
+          child: _saving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : const Text('Yükle'),
+        ),
+      ],
     );
   }
 }

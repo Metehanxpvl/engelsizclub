@@ -5,7 +5,8 @@ create table if not exists public.daha_fazlasi_menu (
   id bigint generated always as identity primary key,
   title text not null,
   subtitle text not null default '',
-  -- 'route' = uygulama içi (harita, taramalar, aile_kocu, haklar, kartlar, mchat, cvi, cvi2, gelisim, barkod, puzzle)
+  -- 'route' = uygulama içi (harita, taramalar, aile_kocu, haklar, kartlar, mchat, cvi, cvi2, gelisim, barkod, puzzle, boyama)
+  -- Destek Sorgulama / Evde eğitim: link_type url + https://www.engelsizclub.com/*.html
   -- 'url'   = harici / bilgi-kütüphanesi sayfası
   link_type text not null default 'url'
     check (link_type in ('route', 'url')),
@@ -160,5 +161,12 @@ where not exists (
      or lower(link) like '%boyama.html%'
      or lower(title) like '%boyama%'
 );
+
+update public.daha_fazlasi_menu
+set
+  title = 'Engelsiz Haritalar',
+  updated_at = now()
+where lower(trim(link)) in ('harita', 'merkezler')
+  and title is distinct from 'Engelsiz Haritalar';
 
 notify pgrst, 'reload schema';

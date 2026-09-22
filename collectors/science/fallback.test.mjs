@@ -7,11 +7,12 @@ import {
 } from './config.mjs';
 
 describe('fallbackSources', () => {
-  it('covers PubMed E-utilities and ClinicalTrials v2', () => {
+  it('covers PubMed E-utilities, ClinicalTrials v2, and FDA Drugs@FDA', () => {
     const src = fallbackSources();
-    assert.equal(src.length, 2);
+    assert.equal(src.length, 3);
     assert.match(src[0].url, /eutils\.ncbi\.nlm\.nih\.gov\/entrez\/eutils/);
     assert.equal(src[1].url, 'https://clinicaltrials.gov/api/v2/studies');
+    assert.equal(src[2].url, 'https://api.fda.gov/drug/drugsfda.json');
     assert.equal(src.every((s) => s.fallback === true && !s.id), true);
   });
 

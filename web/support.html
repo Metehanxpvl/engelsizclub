@@ -44,6 +44,8 @@
       font-weight: 700;
     }
     ul { padding-left: 1.2rem; }
+    .ec-store-badges { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:16px 0 8px; }
+    .ec-store-badges img { height:40px; width:auto; }
   </style>
 </head>
 <body>
@@ -102,10 +104,20 @@
         cihaz modeli ve ekran görüntüsü ile yazın.</p>
     </div>
 
+    <p style="text-align:center;font-size:0.85rem;color:var(--muted);margin-bottom:8px;font-weight:700">Uygulamayı indir</p>
+    <div class="ec-store-badges" style="justify-content:center">
+      <a href="https://apps.apple.com/tr/app/engelsiz-club/id6799422264" target="_blank" rel="noopener noreferrer">
+        <img src="/images/badge_app_store.svg" alt="App Store'dan indir" height="40" width="120" />
+      </a>
+      <a href="https://play.google.com/store/apps/details?id=com.sakircaykara.engelsizclub" target="_blank" rel="noopener noreferrer">
+        <img src="/images/badge_google_play.svg" alt="Google Play'den indir" height="40" width="135" />
+      </a>
+    </div>
     <p style="text-align:center;font-size:0.85rem;color:var(--muted);">
       © Engelsiz Club ·
-      <a href="https://engelsizclub-e5842.web.app/">Ana sayfa</a>
+      <a href="https://www.engelsizclub.com/">Ana sayfa</a>
     </p>
   </main>
+  <script src="/js/store-download-prompt.js?v=20260915" defer></script>
 </body>
 </html>

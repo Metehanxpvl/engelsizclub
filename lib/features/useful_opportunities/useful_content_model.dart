@@ -19,8 +19,29 @@ const kUsefulContentCategories = <String, String>{
   'burs': 'Burs',
   'egitim': 'Eğitim',
   'istihdam': 'İstihdam',
+  'haber': 'Haber',
+  'kuresel': 'Küresel haber',
   'diger': 'Diğer',
 };
+
+const kGlobalNewsUsefulPrefix = 'gn:';
+
+bool isGlobalNewsUsefulItem(UsefulContentItem item) {
+  return item.contentKind == 'global_news' ||
+      item.id.startsWith(kGlobalNewsUsefulPrefix);
+}
+
+String globalNewsRawId(String id) {
+  return id.startsWith(kGlobalNewsUsefulPrefix)
+      ? id.substring(kGlobalNewsUsefulPrefix.length)
+      : id;
+}
+
+String usefulCategoryFromGlobalNews(String raw) {
+  final s = raw.trim().toLowerCase();
+  if (s == 'haber') return 'haber';
+  return 'kuresel';
+}
 
 /// Collector / eski kayıtlar 'approved' yazarsa yayın filtresi bozulmasın.
 String normalizeUsefulContentStatus(String raw) {
@@ -75,6 +96,7 @@ bool isUsefulContentDuplicate({
 
 /// Story görseli yoksa ve kaynak Instagram değilse Onayla’dan önce foto gerekir.
 bool usefulContentNeedsStoryImage(UsefulContentItem item) {
+  if (isGlobalNewsUsefulItem(item)) return false;
   if (item.imageUrl.trim().isNotEmpty) return false;
   if (isInstagramUrl(item.sourceUrl)) return false;
   return true;
@@ -161,6 +183,9 @@ class UsefulContentItem {
     this.deadlineAt,
     this.expiresAt,
     this.createdAt,
+    this.publishedAt,
+    this.dateStatus = '',
+    this.contentKind = '',
   });
 
   final String id;
@@ -178,6 +203,14 @@ class UsefulContentItem {
   final DateTime? deadlineAt;
   final DateTime? expiresAt;
   final DateTime? createdAt;
+  final DateTime? publishedAt;
+  final String dateStatus;
+  final String contentKind;
+
+  bool get isRecentFifteenDays =>
+      contentKind == 'recent' || dateStatus == 'recent';
+
+  bool get isActiveOpportunityBadge => contentKind == 'active_opportunity';
 
   UsefulContentItem copyWith({
     String? title,
@@ -200,6 +233,9 @@ class UsefulContentItem {
         deadlineAt: deadlineAt,
         expiresAt: expiresAt,
         createdAt: createdAt,
+        publishedAt: publishedAt,
+        dateStatus: dateStatus,
+        contentKind: contentKind,
       );
 
   String get categoryLabel =>
@@ -233,6 +269,9 @@ class UsefulContentItem {
       deadlineAt: parseTs(json['deadline_at']),
       expiresAt: parseTs(json['expires_at']),
       createdAt: parseTs(json['created_at']),
+      publishedAt: parseTs(json['published_at']),
+      dateStatus: json['date_status']?.toString().trim().toLowerCase() ?? '',
+      contentKind: json['content_kind']?.toString().trim().toLowerCase() ?? '',
     );
   }
 }

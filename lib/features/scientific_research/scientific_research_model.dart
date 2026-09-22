@@ -1,5 +1,5 @@
-// Bilimsel araştırma satırı + admin kuyruk yardımcıları.
-// Kullanıcı kütüphanesi (Phase C) burada yok.
+// Bilimsel araştırma satırı + admin kuyruk + uygulama araması.
+// Tek kaynak: public.scientific_researches (collector). papers.json / NCBI yok.
 
 const kScientificResearchStatuses = <String>{
   'pending_review',
@@ -7,11 +7,18 @@ const kScientificResearchStatuses = <String>{
   'rejected',
 };
 
-/// Onayla → addDuyuru (Güncel Duyurular story). Fırsatlar ile aynı notify.
-const kScientificResearchApproveCreatesDuyuru = true;
-const kScientificResearchApproveNotify = true;
+/// Uygulama listesi: reddedilmeyen kuyruk. RLS kullanıcıya yalnız published verir.
+const kScientificResearchAppStatuses = <String>{
+  'pending_review',
+  'published',
+};
 
-const kScientificResearchApproveNeedImageMessage = 'Önce görsel ekle';
+/// Admin ve uygulama aynı limiti kullanır (taze select, önbellek yok).
+const kScientificResearchListLimit = 300;
+
+/// Onayla asla addDuyuru / FCM çağırmaz.
+const kScientificResearchApproveCreatesDuyuru = false;
+const kScientificResearchApproveNotify = false;
 
 const kHighTreatmentScoreThreshold = 70;
 
@@ -115,94 +122,7 @@ String scientificResearchLoadError(Object error) {
   return error.toString();
 }
 
-/// Story görseli yoksa Onayla’dan önce foto gerekir (Instagram istisnası yok).
-bool scientificResearchNeedsStoryImage(ScientificResearch item) {
-  return item.imageUrl.trim().isEmpty;
-}
-
-String scientificResearchStoryImageUrl(ScientificResearch item) {
-  return item.imageUrl.trim();
-}
-
-/// Story başlığı: Türkçe `title`. İngilizce `original_title` duyuruya yazılmaz.
-String scientificResearchDuyuruTitle(
-  ScientificResearch item, {
-  String? title,
-}) {
-  const fallback = 'Bilimsel araştırma';
-  final original = item.originalTitle.trim();
-  bool usable(String raw) {
-    final t = raw.trim();
-    if (isBlankOrUnspecified(t)) return false;
-    if (looksEnglishResearchCopy(t)) return false;
-    if (original.isNotEmpty && t.toLowerCase() == original.toLowerCase()) {
-      return false;
-    }
-    return true;
-  }
-
-  final override = (title ?? '').trim();
-  if (usable(override)) return override;
-  if (usable(item.title)) return item.title.trim();
-  return fallback;
-}
-
-/// Duyuru gövdesi: Türkçe özet. "Tedavi bulundu" üretilmez.
-String scientificResearchDuyuruBody(
-  ScientificResearch item, {
-  String? summary,
-}) {
-  final s = (summary ?? item.summary).trim();
-  if (!isBlankOrUnspecified(s)) return s;
-  if (!isBlankOrUnspecified(item.whyImportant)) {
-    return item.whyImportant.trim();
-  }
-  return item.sourceUrl.trim();
-}
-
-/// Onayla → addDuyuru alanları (notify = fırsat / birey paylaşınca).
-({
-  String title,
-  String body,
-  String imageUrl,
-  String? sourceUrl,
-  bool requireImage,
-  bool notify,
-}) scientificResearchToDuyuruDraft(
-  ScientificResearch item, {
-  String imageUrl = '',
-  String? title,
-  String? summary,
-}) {
-  var photo = imageUrl.trim();
-  if (photo.isEmpty) photo = scientificResearchStoryImageUrl(item);
-  final src = item.sourceUrl.trim();
-  return (
-    title: scientificResearchDuyuruTitle(item, title: title),
-    body: scientificResearchDuyuruBody(item, summary: summary),
-    imageUrl: photo,
-    sourceUrl: src.isEmpty ? null : src,
-    requireImage: true,
-    notify: kScientificResearchApproveNotify,
-  );
-}
-
-void ensureScientificResearchStoryImage(String imageUrl) {
-  if (imageUrl.trim().isEmpty) {
-    throw StateError(kScientificResearchApproveNeedImageMessage);
-  }
-}
-
-bool isScientificResearchImageUrlColumnMissing(Object error) {
-  final s = error.toString().toLowerCase();
-  if (!s.contains('image_url')) return false;
-  return s.contains('does not exist') ||
-      s.contains('schema cache') ||
-      s.contains('pgrst204') ||
-      s.contains('42703');
-}
-
-/// Onay yaması: status. image_url ayrı eklenir (kolon yoksa düşülür).
+/// Onay yaması: yalnız status. Bildirim / duyuru alanı yok.
 Map<String, dynamic> scientificResearchApprovePatch() {
   return const {'status': 'published'};
 }
@@ -216,6 +136,87 @@ Map<String, dynamic> scientificResearchUnpublishPatch() {
   return const {'status': 'rejected'};
 }
 
+int? _romanOrDigitPhase(String token) {
+  final t = token.trim().toLowerCase();
+  if (t == 'iv' || t == '4') return 4;
+  if (t == 'iii' || t == '3') return 3;
+  if (t == 'ii' || t == '2') return 2;
+  if (t == 'i' || t == '1') return 1;
+  final n = int.tryParse(t);
+  if (n != null && n >= 1 && n <= 4) return n;
+  return null;
+}
+
+/// Highest clinical phase mentioned on the row, or null.
+int? highestSciencePhaseNumber(ScientificResearch item) {
+  final s = [
+    item.studyPhase,
+    item.evidenceLevel,
+    item.title,
+    item.originalTitle,
+    item.summary,
+  ].join(' ');
+  if (s.trim().isEmpty) return null;
+  if (RegExp(
+        r'EARLY_PHASE1|EARLY\s*PHASE\s*1|FAZ\s*0',
+        caseSensitive: false,
+      ).hasMatch(s) &&
+      !RegExp(
+        r'PHASE\s*[2-4]|FAZ\s*[2-4]|PHASE\s*(II|III|IV)\b',
+        caseSensitive: false,
+      ).hasMatch(s)) {
+    return 1;
+  }
+  final nums = <int>[];
+  final word = RegExp(
+    r'(?:PHASE|FAZ)\s*[-_]?\s*(EARLY\s*)?(NA|N/A|IV|III|II|I|[1-4])(?:\s*/\s*(IV|III|II|I|[1-4]))?',
+    caseSensitive: false,
+  );
+  for (final m in word.allMatches(s)) {
+    if (RegExp(r'^NA|N/A$', caseSensitive: false).hasMatch(m.group(2) ?? '')) {
+      continue;
+    }
+    final a = _romanOrDigitPhase(m.group(2) ?? '');
+    final b = _romanOrDigitPhase(m.group(3) ?? '');
+    if (a != null) nums.add(a);
+    if (b != null) nums.add(b);
+  }
+  for (final m in RegExp(r'\bPHASE\s*([1-4])\b', caseSensitive: false)
+      .allMatches(s)) {
+    final n = int.tryParse(m.group(1) ?? '');
+    if (n != null) nums.add(n);
+  }
+  if (nums.isEmpty) {
+    if (RegExp(
+      r'^\s*(NA|N/A|NOT[_ ]APPLICABLE|Çalışmada belirtilmemiş)\s*$',
+      caseSensitive: false,
+    ).hasMatch(item.studyPhase)) {
+      return 0;
+    }
+    return null;
+  }
+  return nums.reduce((a, b) => a > b ? a : b);
+}
+
+bool isPhase2PlusResearch(ScientificResearch item) {
+  return (highestSciencePhaseNumber(item) ?? 0) >= 2;
+}
+
+bool isPhase1OnlyOrNaResearch(ScientificResearch item) {
+  final phase = highestSciencePhaseNumber(item);
+  if (phase == 0 || phase == 1) return true;
+  final raw = item.studyPhase;
+  if (RegExp(r'EARLY_PHASE1', caseSensitive: false).hasMatch(raw) &&
+      !isPhase2PlusResearch(item)) {
+    return true;
+  }
+  if (RegExp(r'^\s*(NA|N/A|NOT[_ ]APPLICABLE)\s*$', caseSensitive: false)
+      .hasMatch(raw)) {
+    return true;
+  }
+  return false;
+}
+
 bool isHighTreatmentPotential(ScientificResearch item) {
   if (normalizeTreatmentPotential(item.treatmentPotential) == 'HIGH_VALUE') {
     return true;
@@ -224,7 +225,13 @@ bool isHighTreatmentPotential(ScientificResearch item) {
     item.treatmentPotentialScore,
     item.clinicalReadinessScore,
   ];
-  return scores.any((s) => s != null && s >= kHighTreatmentScoreThreshold);
+  if (scores.any((s) => s != null && s >= kHighTreatmentScoreThreshold)) {
+    return true;
+  }
+  // Phase 2+ belongs here even when collector AI wrote POTENTIAL_VALUE.
+  // Phase 1 / early phase 1 / NA recruiting ads stay out.
+  if (isPhase1OnlyOrNaResearch(item)) return false;
+  return isPhase2PlusResearch(item);
 }
 
 bool isClinicalResearch(ScientificResearch item) {
@@ -272,6 +279,54 @@ bool isPediatricResearch(ScientificResearch item) {
       p.contains('yes') ||
       p.contains('evet') ||
       p.contains('relevant');
+}
+
+bool isScienceAppVisible(ScientificResearch item) {
+  return kScientificResearchAppStatuses.contains(item.status);
+}
+
+bool matchesScienceSearchQuery(ScientificResearch item, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return true;
+  final hay = [
+    item.title,
+    item.originalTitle,
+    item.summary,
+    item.whyImportant,
+    item.conditions.join(' '),
+    item.categories.join(' '),
+    item.journal,
+    item.sourceName,
+    item.pmid,
+    item.nctId,
+    item.doi,
+  ].join(' ').toLowerCase();
+  return hay.contains(q);
+}
+
+bool isScienceTrialCard(ScientificResearch item) {
+  if (item.nctId.trim().isNotEmpty) return true;
+  return item.sourceName.toLowerCase().contains('clinicaltrial');
+}
+
+String scienceResultLink(ScientificResearch item) {
+  final url = item.sourceUrl.trim();
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  final pmid = item.pmid.trim();
+  if (pmid.isNotEmpty) return 'https://pubmed.ncbi.nlm.nih.gov/$pmid/';
+  final nct = item.nctId.trim();
+  if (nct.isNotEmpty) return 'https://clinicaltrials.gov/study/$nct';
+  final doi = item.doi.trim();
+  if (doi.isNotEmpty) return 'https://doi.org/$doi';
+  return '';
+}
+
+String sciencePaperYear(ScientificResearch item) {
+  final d = item.publicationDate;
+  if (d != null) return '${d.year}';
+  final c = item.createdAt;
+  if (c != null) return '${c.year}';
+  return '';
 }
 
 bool matchesScienceAdminFilter(
@@ -358,7 +413,6 @@ class ScientificResearch {
     required this.nctId,
     required this.sourceName,
     required this.sourceUrl,
-    this.imageUrl = '',
     this.externalId,
     required this.contentHash,
     required this.status,
@@ -393,7 +447,6 @@ class ScientificResearch {
   final String nctId;
   final String sourceName;
   final String sourceUrl;
-  final String imageUrl;
   final String? externalId;
   final String contentHash;
   final String status;
@@ -414,7 +467,6 @@ class ScientificResearch {
     String? title,
     String? summary,
     String? status,
-    String? imageUrl,
   }) =>
       ScientificResearch(
         id: id,
@@ -444,7 +496,6 @@ class ScientificResearch {
         nctId: nctId,
         sourceName: sourceName,
         sourceUrl: sourceUrl,
-        imageUrl: imageUrl ?? this.imageUrl,
         externalId: externalId,
         contentHash: contentHash,
         status: status ?? this.status,
@@ -507,7 +558,6 @@ class ScientificResearch {
       nctId: json['nct_id']?.toString().trim() ?? '',
       sourceName: json['source_name']?.toString().trim() ?? '',
       sourceUrl: json['source_url']?.toString().trim() ?? '',
-      imageUrl: json['image_url']?.toString().trim() ?? '',
       externalId: json['external_id']?.toString().trim(),
       contentHash: json['content_hash']?.toString().trim() ?? '',
       status: normalizeScienceStatus(

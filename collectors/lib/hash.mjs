@@ -343,6 +343,29 @@ export function hasDirectKeep(text) {
   return DIRECT_EXTRA_KEYWORDS.some((k) => hay.includes(k));
 }
 
+const OPEN_APPLICATION_RE = [
+  /basvuru\w* (devam ediyor|acik|acildi|basladi)/,
+  /basvuruya acik/,
+  /basvuru alimi/,
+  /kayit(lar)? (devam|acik|basladi)/,
+  /kampanya devam/,
+  /hala (basvuru|acik)/,
+];
+
+const OPPORTUNITY_KIND_RE =
+  /\b(kampanya|burs(u|lar|lari)?|kurs|destek|sosyal yardim|nakdi yardim)\b/;
+
+/** Application / burs / kurs / destek still open — not a publish date. */
+export function isOpenOpportunitySignal(text) {
+  const hay = foldTr(text);
+  if (!hay) return false;
+  if (OPEN_APPLICATION_RE.some((re) => re.test(hay))) return true;
+  if (OPPORTUNITY_KIND_RE.test(hay) && /devam ediyor|basvuru acik|kayitlar acik/.test(hay)) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * direct = disability / özel gereksinim / cihaz-ÖTV.
  * potential = aile faydası (sosyal yardım, burs, ücretsiz kurs, başvuru)

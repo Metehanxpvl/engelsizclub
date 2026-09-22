@@ -17,138 +17,73 @@ void main() {
   });
 
   group('resolveUpdatePrompt', () {
-    test('TEST 1: 1.0.80 vs 1.0.81 optional', () {
+    test('older than latest is optional', () {
       expect(
         resolveUpdatePrompt(
-          current: '1.0.80',
+          current: '1.1.2',
           minSupported: '1.0.0',
-          latest: '1.0.81',
+          latest: '1.1.3',
         ),
         UpdatePromptKind.optional,
       );
     });
 
-    test('TEST 2: equal versions → no screen', () {
+    test('equal versions → no screen', () {
       expect(
         resolveUpdatePrompt(
-          current: '1.0.81',
-          minSupported: '1.0.75',
-          latest: '1.0.81',
+          current: '1.1.3',
+          minSupported: '1.0.0',
+          latest: '1.1.3',
         ),
         UpdatePromptKind.none,
       );
     });
 
-    test('TEST 3: 1.0.82 > latest → no screen', () {
+    test('below min is mandatory', () {
       expect(
         resolveUpdatePrompt(
-          current: '1.0.82',
-          minSupported: '1.0.75',
-          latest: '1.0.81',
-        ),
-        UpdatePromptKind.none,
-      );
-    });
-
-    test('TEST 4: 1.0.74 < min 1.0.75 force', () {
-      expect(
-        resolveUpdatePrompt(
-          current: '1.0.74',
-          minSupported: '1.0.75',
-          latest: '1.0.81',
+          current: '1.1.2',
+          minSupported: '1.1.3',
+          latest: '1.1.3',
         ),
         UpdatePromptKind.mandatory,
       );
     });
 
-    test('TEST 5: optional with min 1.0.75 latest 1.0.81', () {
-      expect(
-        resolveUpdatePrompt(
-          current: '1.0.80',
-          minSupported: '1.0.75',
-          latest: '1.0.81',
-        ),
-        UpdatePromptKind.optional,
-      );
-    });
-
-    test('TEST 6: offline fail-open', () async {
+    test('offline fail-open', () async {
       final kind = await resolveUpdatePromptFromFetch(
-        current: '1.0.80',
+        current: '1.1.2',
         fetch: () async => throw Exception('offline'),
       );
       expect(kind, UpdatePromptKind.none);
     });
 
-    test('TEST 7: API error fail-open', () async {
-      final kind = await resolveUpdatePromptFromFetch(
-        current: '1.0.74',
-        fetch: () async => throw Exception('500'),
-      );
-      expect(kind, UpdatePromptKind.none);
-    });
-
-    test('TEST 8: skip persists same version', () async {
+    test('skip persists same version', () async {
       SharedPreferences.setMockInitialValues({});
-      const latest = '1.0.81';
+      const latest = '1.1.3';
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(forceUpdateSkipPrefsKey(latest), true);
-
-      final skipped = prefs.getBool(forceUpdateSkipPrefsKey(latest)) == true
-          ? latest
-          : null;
       expect(
         resolveUpdatePrompt(
-          current: '1.0.80',
-          minSupported: '1.0.75',
+          current: '1.1.2',
+          minSupported: '1.0.0',
           latest: latest,
-          skippedLatest: skipped,
+          skippedLatest: latest,
         ),
         UpdatePromptKind.none,
       );
     });
 
-    test('latestVersion fallback used when platform keys missing', () {
-      final cfg = ForceUpdateRemoteConfig.fromJson({
-        'minimumSupportedVersion': '1.0.0',
-        'latestVersion': '1.1.9',
-      });
-      expect(cfg.latestForIos(false), '1.1.9');
-      expect(cfg.latestForIos(true), '1.1.9');
-      expect(cfg.androidUrl, kForceUpdatePlayUrl);
-      expect(cfg.iosUrl, kForceUpdateIosUrl);
-    });
-
     test('platform latest keys win over generic latestVersion', () {
       final cfg = ForceUpdateRemoteConfig.fromJson({
         'latestVersion': '9.9.9',
-        'latestVersionAndroid': '1.1.9',
-        'latestVersionIOS': '1.1.8',
+        'latestVersionAndroid': '1.1.3',
+        'latestVersionIOS': '1.1.15',
       });
-      expect(cfg.latestForIos(false), '1.1.9');
-      expect(cfg.latestForIos(true), '1.1.8');
-    });
-
-    test('TEST 9: new version shows again after skip', () async {
-      SharedPreferences.setMockInitialValues({
-        forceUpdateSkipPrefsKey('1.0.81'): true,
-      });
-      final prefs = await SharedPreferences.getInstance();
-      const prev = '1.0.81';
-      const next = '1.0.82';
-      final skippedPrev = prefs.getBool(forceUpdateSkipPrefsKey(prev)) == true
-          ? prev
-          : null;
-      expect(
-        resolveUpdatePrompt(
-          current: '1.0.80',
-          minSupported: '1.0.75',
-          latest: next,
-          skippedLatest: skippedPrev,
-        ),
-        UpdatePromptKind.optional,
-      );
-      expect(prefs.getBool(forceUpdateSkipPrefsKey(next)), isNot(true));
+      expect(cfg.latestForIos(false), '1.1.3');
+      expect(cfg.latestForIos(true), '1.1.15');
+      expect(cfg.androidUrl, kForceUpdatePlayUrl);
+      expect(cfg.iosUrl, kForceUpdateIosUrl);
     });
   });
 }

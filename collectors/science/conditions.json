@@ -1,7 +1,82 @@
 {
-  "retmax": 25,
-  "reldate_days": 90,
+  "lookback_years": 1,
+  "reldate_days": 365,
   "clinicaltrials_page_size": 25,
+  "conditions": [
+    {
+      "id": "cp",
+      "label_tr": "serebral palsi",
+      "label_en": "cerebral palsy",
+      "aliases": ["cerebral palsy", "serebral palsi", "spastic diplegia", "spastic quadriplegia"],
+      "fda_indication_terms": ["cerebral palsy"],
+      "fda_product_terms": ["onabotulinumtoxinA", "baclofen"]
+    },
+    {
+      "id": "pvl",
+      "label_tr": "periventriküler lökomalazi",
+      "label_en": "periventricular leukomalacia",
+      "aliases": ["periventricular leukomalacia", "periventricular white matter", "PVL"],
+      "fda_indication_terms": ["periventricular leukomalacia"],
+      "fda_product_terms": []
+    },
+    {
+      "id": "hie",
+      "label_tr": "hipoksik iskemik ensefalopati",
+      "label_en": "hypoxic ischemic encephalopathy",
+      "aliases": ["hypoxic ischemic encephalopathy", "hypoxic-ischaemic encephalopathy", "HIE"],
+      "fda_indication_terms": ["hypoxic ischemic encephalopathy"],
+      "fda_product_terms": []
+    },
+    {
+      "id": "sma",
+      "label_tr": "SMA",
+      "label_en": "spinal muscular atrophy",
+      "aliases": ["spinal muscular atrophy", "SMA"],
+      "fda_indication_terms": ["spinal muscular atrophy"],
+      "fda_product_terms": ["nusinersen", "risdiplam", "onasemnogene", "spinraza", "evrysdi", "zolgensma"]
+    },
+    {
+      "id": "autism",
+      "label_tr": "otizm",
+      "label_en": "autism spectrum disorder",
+      "aliases": ["autism spectrum", "autism", "autistic", "otizm"],
+      "fda_indication_terms": ["autism spectrum disorder", "irritability associated with autistic"],
+      "fda_product_terms": ["risperidone", "aripiprazole"]
+    },
+    {
+      "id": "down",
+      "label_tr": "Down sendromu",
+      "label_en": "Down syndrome",
+      "aliases": ["down syndrome", "down sendrom", "trisomy 21", "trizomi 21"],
+      "fda_indication_terms": ["down syndrome", "trisomy 21"],
+      "fda_product_terms": []
+    },
+    {
+      "id": "epilepsy",
+      "label_tr": "epilepsi",
+      "label_en": "epilepsy",
+      "aliases": ["epilepsy", "epileptic", "epilepsi", "infantile spasm", "west syndrome", "dravet", "lennox-gastaut"],
+      "fda_indication_terms": ["lennox-gastaut", "dravet", "infantile spasm", "pediatric epilepsy"],
+      "fda_product_terms": ["cannabidiol", "fenfluramine", "stiripentol", "epidiolex", "fintepla"]
+    },
+    {
+      "id": "adhd",
+      "label_tr": "DEHB",
+      "label_en": "ADHD",
+      "aliases": ["attention deficit", "ADHD", "DEHB", "attention-deficit"],
+      "fda_indication_terms": ["attention deficit hyperactivity"],
+      "fda_product_terms": ["methylphenidate", "atomoxetine", "lisdexamfetamine", "guanfacine", "viloxazine"]
+    }
+  ],
+  "fda_queries": [
+    { "id": "sma", "term": "spinal muscular atrophy" },
+    { "id": "autism", "term": "autism spectrum disorder" },
+    { "id": "epilepsy_lgs", "term": "Lennox-Gastaut" },
+    { "id": "epilepsy_dravet", "term": "Dravet" },
+    { "id": "adhd", "term": "attention deficit hyperactivity" },
+    { "id": "cp", "term": "cerebral palsy" },
+    { "id": "down", "term": "Down syndrome" }
+  ],
   "pubmed_queries": [
     {
       "id": "cp",
@@ -28,12 +103,20 @@
       "term": "(epilepsy[Title/Abstract] OR epileptic[Title/Abstract]) AND (pediatric[Title/Abstract] OR \"cerebral palsy\"[Title/Abstract] OR neurodevelopmental[Title/Abstract] OR \"infantile spasm\"[Title/Abstract])"
     },
     {
+      "id": "sma",
+      "term": "(spinal muscular atrophy[Title/Abstract] OR SMA[Title/Abstract]) AND (pediatric[Title/Abstract] OR child[Title/Abstract] OR nusinersen[Title/Abstract] OR risdiplam[Title/Abstract] OR gene[Title/Abstract] OR trial[Title/Abstract])"
+    },
+    {
+      "id": "adhd",
+      "term": "(ADHD[Title/Abstract] OR \"attention deficit hyperactivity\"[Title/Abstract]) AND (pediatric[Title/Abstract] OR child[Title/Abstract] OR trial[Title/Abstract] OR therapy[Title/Abstract])"
+    },
+    {
       "id": "mechanisms",
       "term": "(neuroplasticity[Title/Abstract] OR remyelination[Title/Abstract] OR oligodendrocyte[Title/Abstract]) AND (\"cerebral palsy\"[Title/Abstract] OR leukomalacia[Title/Abstract] OR pediatric[Title/Abstract] OR neonatal[Title/Abstract])"
     },
     {
       "id": "gene_stem",
-      "term": "(\"gene therapy\"[Title/Abstract] OR \"stem cell\"[Title/Abstract] OR \"mesenchymal stem\"[Title/Abstract]) AND (\"cerebral palsy\"[Title/Abstract] OR leukomalacia[Title/Abstract] OR \"hypoxic ischemic\"[Title/Abstract] OR autism[Title/Abstract] OR \"down syndrome\"[Title/Abstract])"
+      "term": "(\"gene therapy\"[Title/Abstract] OR \"stem cell\"[Title/Abstract] OR \"mesenchymal stem\"[Title/Abstract]) AND (\"cerebral palsy\"[Title/Abstract] OR leukomalacia[Title/Abstract] OR \"hypoxic ischemic\"[Title/Abstract] OR autism[Title/Abstract] OR \"down syndrome\"[Title/Abstract] OR \"spinal muscular atrophy\"[Title/Abstract])"
     }
   ],
   "clinicaltrials_queries": [
@@ -42,7 +125,9 @@
     { "id": "hie", "term": "hypoxic ischemic encephalopathy" },
     { "id": "autism", "term": "autism spectrum disorder" },
     { "id": "down", "term": "down syndrome" },
-    { "id": "epilepsy_pediatric", "term": "pediatric epilepsy" }
+    { "id": "epilepsy_pediatric", "term": "pediatric epilepsy" },
+    { "id": "sma", "term": "spinal muscular atrophy" },
+    { "id": "adhd", "term": "attention deficit hyperactivity disorder" }
   ],
   "keep_keywords": [
     "cerebral palsy",
@@ -74,6 +159,13 @@
     "epilepsi",
     "infantile spasm",
     "west syndrome",
+    "spinal muscular atrophy",
+    "sma",
+    "nusinersen",
+    "risdiplam",
+    "attention deficit",
+    "adhd",
+    "dehb",
     "neuroplasticity",
     "noroplastisite",
     "nöroplastisite",
@@ -98,7 +190,9 @@
     "\\bpvl\\b",
     "\\bhie\\b",
     "\\basd\\b",
-    "\\bcp\\b"
+    "\\bcp\\b",
+    "\\bsma\\b",
+    "\\badhd\\b"
   ],
   "pediatric_neuro_keep": [
     "pediatric neurology",

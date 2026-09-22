@@ -11,6 +11,8 @@
 # Canlı DB’de kapalı .bel.tr ana sayfalar için kısa UPSERT:
 #   supabase/useful_content_bel_tr_activate.sql
 # Collector: RSS + EYHGM/ORGM/RG + belediye site taraması (haberler/duyurular/ilanlar).
+# 81 il valilik: web/valilikler.json — günde ~12 .gov.tr; engelli eğitim/burs/yardım
+# duyuruları useful_content pending_review kuyruğuna düşer (SQL satırı yok).
 # Ham HTML body yazılmaz. Yayın / FCM yok; admin onaylar.
 # Gemini kotası = kelime/potential yedek (pending_review). Tek şehir 500 tüm işi düşürmez.
 #
@@ -32,8 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '20'
       - name: Install collector deps

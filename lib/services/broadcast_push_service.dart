@@ -70,6 +70,25 @@ class BroadcastPushService {
         requireAdmin: true,
       );
 
+  /// Yeni kampanya: `duyurular` topic (cihazlar zaten abone).
+  Future<bool> kampanya({
+    required String title,
+    required String body,
+    String? imageUrl,
+    String? kampanyaId,
+  }) =>
+      sendToTopic(
+        topic: 'duyurular',
+        title: title.isEmpty ? 'Yeni kampanya' : title,
+        body: body.isEmpty ? 'Yeni bir kampanya eklendi.' : body,
+        imageUrl: imageUrl,
+        data: {
+          'type': 'kampanya',
+          if (kampanyaId != null) 'id': kampanyaId,
+        },
+        requireAdmin: true,
+      );
+
   Future<bool> yeniIlan({
     required String title,
     required String kind,

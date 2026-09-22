@@ -16,6 +16,7 @@ import '../widgets/gezi_kampanya_admin_sheet.dart';
 import '../widgets/gezi_kampanya_feed_card.dart';
 import '../widgets/guest_gate.dart';
 import '../widgets/kampanya_category_tile.dart';
+import '../widgets/kampanya_detail_sheet.dart';
 
 enum _KampanyaFilter { all, nationwide, city }
 
@@ -74,6 +75,7 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
   String _category = kKampanyaCategoryTumu;
   String? _city;
   int? _joinBusyId;
+  int? _codeBusyId;
 
   bool get _isAdmin => canEditSection(
         widget.userEmail,
@@ -449,6 +451,38 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
         ];
         _joinBusyId = null;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    }
+  }
+
+  Future<void> _issueCampaignCode(KampanyaItem item) async {
+    if (!item.hasMemberCampaignCode) return;
+    if (!await _requireMember(
+      'Kampanya kodu için giriş yapmanız veya üye olmanız gerekiyor.',
+    )) {
+      return;
+    }
+    if (!mounted || _codeBusyId == item.id) return;
+    if (item.myMemberCode.trim().isNotEmpty) return;
+    setState(() => _codeBusyId = item.id);
+    try {
+      final code = await issueKampanyaMemberCode(item.id);
+      if (!mounted) return;
+      setState(() {
+        _items = [
+          for (final k in _items)
+            if (k.id == item.id) k.copyWith(myMemberCode: code) else k,
+        ];
+        _codeBusyId = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Kampanya kodunuz: $code')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _codeBusyId = null);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$e')),
       );
@@ -922,6 +956,7 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
     required int length,
   }) {
     return GeziKampanyaFeedCard(
+      key: ValueKey('kampanya-${item.id}-${item.imageUrl}'),
       imageUrl: item.imageUrl,
       title: item.title,
       description: _isEtkinlik ? item.cardDescription : item.description,
@@ -949,6 +984,15 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
       joinedByMe: item.joinedByMe,
       joinBusy: _joinBusyId == item.id,
       onJoinTap: () => _toggleJoin(item),
+      showCampaignCode: !_isEtkinlik && item.hasMemberCampaignCode,
+      memberCodeIssued: item.myMemberCode.trim().isNotEmpty
+          ? item.myMemberCode
+          : (_isAdmin ? item.campaignCode : ''),
+      codeBusy: _codeBusyId == item.id,
+      onCreateCampaignCode: () => _issueCampaignCode(item),
+      onOpen: _isEtkinlik
+          ? null
+          : () => showKampanyaDetailSheet(context, item: item),
       statusBadge: _isEtkinlik && isEtkinlikPending(item)
           ? 'Onay bekliyor'
           : '',

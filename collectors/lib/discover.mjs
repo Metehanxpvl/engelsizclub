@@ -1,4 +1,5 @@
 import { isDisabilityOpportunity, stripHtml } from './hash.mjs';
+import { extractDatesFromText, toIsoDate } from './content_dates.mjs';
 import { fetchText, looksLikeRssOrAtom } from './rss.mjs';
 
 const RSS_LINK_RE =
@@ -74,12 +75,17 @@ export function extractDisabilityListings(html, baseUrl, { limit = 12 } = {}) {
     if (!isDisabilityOpportunity(title)) continue;
     if (seen.has(abs.href)) continue;
     seen.add(abs.href);
+    const nearby = extractDatesFromText(`${title} ${stripHtml(m[2] || '')}`);
     items.push({
       title,
       summary: '',
       sourceUrl: abs.href,
       externalId: abs.href,
       imageUrl: '',
+      publishedAt: toIsoDate(nearby.find((d) => d.kind === 'visible')?.iso) || null,
+      deadlineAt: nearby.find((d) => d.kind === 'deadline')?.iso || null,
+      eventAt: nearby.find((d) => d.kind === 'event')?.iso || null,
+      dateSource: nearby.length ? 'listing' : null,
     });
   }
   return items;

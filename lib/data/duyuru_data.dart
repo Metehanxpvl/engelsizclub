@@ -96,6 +96,12 @@ class DuyuruItem {
       );
 }
 
+/// Küresel haber / fırsat: kaynak linki varsa görselsiz story (dairesel ikon).
+bool duyuruAllowsEmptyImage(String? sourceUrl) {
+  final u = (sourceUrl ?? '').trim();
+  return u.startsWith('http://') || u.startsWith('https://');
+}
+
 bool isInstagramUrl(String? url) {
   final u = (url ?? '').trim().toLowerCase();
   if (u.isEmpty) return false;

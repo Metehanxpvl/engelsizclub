@@ -1,4 +1,5 @@
 import { loadConditions, sleep } from './config.mjs';
+import { filterRecentItems, lookbackStartYmd } from './dates.mjs';
 
 const API = 'https://clinicaltrials.gov/api/v2/studies';
 const EMAIL = 'sakir.caykara@gmail.com';
@@ -55,6 +56,21 @@ export function parseStudy(study) {
   );
   const stdAges = asList(elig.stdAges);
   const start = status.startDateStruct?.date || status.startDate || '';
+  const lastUpdate =
+    status.lastUpdatePostDateStruct?.date ||
+    status.lastUpdatePostDate ||
+    status.lastUpdateSubmitDate ||
+    '';
+  const resultsFirst =
+    status.resultsFirstPostDateStruct?.date ||
+    status.resultsFirstPostDate ||
+    status.resultsFirstSubmitDateStruct?.date ||
+    '';
+  const hasResults = Boolean(
+    study.hasResults === true ||
+      resultsFirst ||
+      (study.resultsSection && typeof study.resultsSection === 'object'),
+  );
 
   return {
     nctId,
@@ -68,6 +84,9 @@ export function parseStudy(study) {
     countries,
     stdAges,
     startDate: String(start).slice(0, 10) || null,
+    lastUpdatePostDate: String(lastUpdate).slice(0, 10) || null,
+    hasResults,
+    resultsFirstPostDate: String(resultsFirst).slice(0, 10) || null,
   };
 }
 
@@ -86,11 +105,16 @@ export function toTrialItem(parsed, source) {
     nctId,
     doi: '',
     journal: '',
-    publicationDate: parsed.startDate || null,
+    publicationDate: parsed.startDate || parsed.lastUpdatePostDate || null,
+    lastUpdatePostDate: parsed.lastUpdatePostDate || null,
+    startDate: parsed.startDate || null,
     country: (parsed.countries || []).join(', '),
     studyType: parsed.studyType || '',
     studyPhase: (parsed.phases || []).join(', '),
+    phases: parsed.phases || [],
     recruitmentStatus: parsed.overallStatus || '',
+    hasResults: Boolean(parsed.hasResults),
+    resultsFirstPostDate: parsed.resultsFirstPostDate || null,
     humanOrAnimal: 'human',
     conditions: parsed.conditions || [],
     pediatricHint: pediatric,
@@ -100,9 +124,20 @@ export function toTrialItem(parsed, source) {
   };
 }
 
-export async function fetchClinicalTrialsPage(term, { pageSize = 25, retries = 3 } = {}) {
+export async function fetchClinicalTrialsPage(
+  term,
+  { pageSize = 25, retries = 3, sinceDate, useDateFilter = true } = {},
+) {
+  const since = sinceDate || lookbackStartYmd();
   const url = new URL(API);
   url.searchParams.set('query.cond', term);
+  url.searchParams.set('filter.phase', 'PHASE2,PHASE3,PHASE4');
+  if (useDateFilter) {
+    url.searchParams.set(
+      'filter.advanced',
+      `AREA[StartDate]RANGE[${since},MAX]`,
+    );
+  }
   url.searchParams.set('pageSize', String(pageSize));
   url.searchParams.set('sort', 'LastUpdatePostDate:desc');
   url.searchParams.set('format', 'json');
@@ -118,6 +153,15 @@ export async function fetchClinicalTrialsPage(term, { pageSize = 25, retries = 3
       });
       const text = await res.text();
       if (!res.ok) {
+        if (useDateFilter && (res.status === 400 || res.status === 422)) {
+          console.warn('ClinicalTrials date filter rejected; retry without filter.advanced');
+          return fetchClinicalTrialsPage(term, {
+            pageSize,
+            retries,
+            sinceDate: since,
+            useDateFilter: false,
+          });
+        }
         throw new Error(`ClinicalTrials HTTP ${res.status}: ${text.slice(0, 240)}`);
       }
       let json;
@@ -127,7 +171,9 @@ export async function fetchClinicalTrialsPage(term, { pageSize = 25, retries = 3
         throw new Error(`ClinicalTrials JSON yok: ${text.slice(0, 180)}`);
       }
       const studies = Array.isArray(json?.studies) ? json.studies : [];
-      console.log(`ClinicalTrials studies=${studies.length} term=${String(term).slice(0, 80)}`);
+      console.log(
+        `ClinicalTrials studies=${studies.length} since=${since} term=${String(term).slice(0, 80)}`,
+      );
       return studies.map(parseStudy).filter((s) => s.nctId && s.title);
     } catch (e) {
       lastErr = e;
@@ -170,7 +216,10 @@ export async function fetchClinicalTrials(source, opts = {}) {
     const term = String(q.term || '').trim();
     if (!term) continue;
     try {
-      const parsed = await fetchClinicalTrialsPage(term, { pageSize });
+      const parsed = await fetchClinicalTrialsPage(term, {
+        pageSize,
+        sinceDate: lookbackStartYmd(),
+      });
       for (const p of parsed) {
         if (seen.has(p.nctId)) continue;
         seen.add(p.nctId);
@@ -191,5 +240,5 @@ export async function fetchClinicalTrials(source, opts = {}) {
   if (!items.length) {
     console.warn('ClinicalTrials: 0 çalışma. query.cond / API v2 kontrol edin.');
   }
-  return items;
+  return filterRecentItems(items);
 }

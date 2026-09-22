@@ -69,14 +69,6 @@
         "destination": "/fotografli-puzzle.html"
       },
       {
-        "source": "/beceri-oyunlari",
-        "destination": "/beceri-oyunlari.html"
-      },
-      {
-        "source": "/beceri-oyunlari/**",
-        "destination": "/beceri-oyunlari.html"
-      },
-      {
         "source": "/boyama",
         "destination": "/boyama.html"
       },
@@ -89,11 +81,19 @@
         "destination": "/destek-sorgu.html"
       },
       {
+        "source": "/destek-sorgu.html",
+        "destination": "/destek-sorgu.html"
+      },
+      {
         "source": "/destek-sorgu/**",
         "destination": "/destek-sorgu.html"
       },
       {
         "source": "/evde-egitim",
+        "destination": "/evde-egitim.html"
+      },
+      {
+        "source": "/evde-egitim.html",
         "destination": "/evde-egitim.html"
       },
       {
@@ -125,10 +125,6 @@
         "destination": "/mobile_google_auth.html"
       },
       {
-        "source": "/assets/metobot/metobot.png",
-        "destination": "/assets/assets/metobot/metobot.png"
-      },
-      {
         "source": "**",
         "destination": "/index.html"
       }
@@ -144,61 +140,7 @@
         ]
       },
       {
-        "source": "/engelsiz-kariyer.json",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache, max-age=0, must-revalidate"
-          }
-        ]
-      },
-      {
-        "source": "/engelsiz-kariyer-overrides.json",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache, max-age=0, must-revalidate"
-          }
-        ]
-      },
-      {
         "source": "/admin/daha_fazlasi_menu.json",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache, max-age=0, must-revalidate"
-          }
-        ]
-      },
-      {
-        "source": "/destek-sorgu.html",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache, max-age=0, must-revalidate"
-          }
-        ]
-      },
-      {
-        "source": "/destek-sorgu",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache, max-age=0, must-revalidate"
-          }
-        ]
-      },
-      {
-        "source": "/evde-egitim.html",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache, max-age=0, must-revalidate"
-          }
-        ]
-      },
-      {
-        "source": "/evde-egitim",
         "headers": [
           {
             "key": "Cache-Control",
@@ -261,6 +203,15 @@
       },
       {
         "source": "/html5-qrcode.min.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/js/store-download-prompt.js",
         "headers": [
           {
             "key": "Cache-Control",
@@ -338,15 +289,6 @@
         ]
       },
       {
-        "source": "/beceri-oyunlari.html",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache, max-age=0, must-revalidate"
-          }
-        ]
-      },
-      {
         "source": "/boyama.html",
         "headers": [
           {
@@ -356,6 +298,42 @@
           {
             "key": "Permissions-Policy",
             "value": "camera=(self), microphone=()"
+          }
+        ]
+      },
+      {
+        "source": "/destek-sorgu.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/destek-sorgu",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/evde-egitim.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/evde-egitim",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
           }
         ]
       },
@@ -477,11 +455,11 @@
         ]
       },
       {
-        "source": "/metobot.png",
+        "source": "/output/index.json",
         "headers": [
           {
             "key": "Cache-Control",
-            "value": "public, max-age=3600"
+            "value": "no-cache, max-age=0, must-revalidate"
           },
           {
             "key": "Access-Control-Allow-Origin",
@@ -490,11 +468,11 @@
         ]
       },
       {
-        "source": "/assets/assets/metobot/metobot.png",
+        "source": "/valilikler.json",
         "headers": [
           {
             "key": "Cache-Control",
-            "value": "public, max-age=3600"
+            "value": "no-cache, max-age=0, must-revalidate"
           },
           {
             "key": "Access-Control-Allow-Origin",

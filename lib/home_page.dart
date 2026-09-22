@@ -21,6 +21,7 @@ import 'widgets/duyurular_section.dart';
 import 'widgets/gezi_kampanya_home_section.dart';
 import 'widgets/hastaliklar_section.dart';
 import 'widgets/home_social_footer.dart';
+import 'widgets/store_download_prompt.dart';
 import 'pages/premature_gelisim_rehberi_page.dart';
 import 'pages/yas02_gelisim_rehberi_page.dart';
 import 'widgets/admin_disease_edit_sheet.dart';
@@ -252,9 +253,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildHome() {
-    return ColoredBox(
-      color: MetoColors.background,
-      child: ListView(
+    return WebStoreDownloadPrompt(
+      child: ColoredBox(
+        color: MetoColors.background,
+        child: ListView(
         key: const ValueKey('home_feed'),
         primary: false,
         padding: EdgeInsets.zero,
@@ -411,6 +413,7 @@ class _HomePageState extends State<HomePage> {
 
           HomeSocialFooter(adminEmail: widget.userEmail),
         ],
+        ),
       ),
     );
   }

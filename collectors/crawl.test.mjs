@@ -70,6 +70,31 @@ describe('extractListingLinks', () => {
     assert.ok(merged.some((u) => u.endsWith('/haberler')));
     assert.ok(merged.some((u) => u.endsWith('/duyurular')));
   });
+
+  it('prepends valilik extraPaths before common slugs', () => {
+    const merged = mergeCommonListingUrls('https://www.adana.gov.tr', [], {
+      extraPaths: ['/engelli-hizmetleri', 'skip-me'],
+    });
+    assert.ok(merged.includes('https://www.adana.gov.tr/engelli-hizmetleri'));
+    assert.equal(
+      merged.includes('https://www.adana.gov.trskip-me'),
+      false,
+    );
+  });
+
+  it('puts catalog extraUrls first and drops other hosts', () => {
+    const merged = mergeCommonListingUrls('https://www.adana.gov.tr', [], {
+      extraUrls: [
+        'https://www.adana.gov.tr/duyurular',
+        'https://evil.example/duyurular',
+      ],
+    });
+    assert.equal(merged[0], 'https://www.adana.gov.tr/duyurular');
+    assert.equal(
+      merged.includes('https://evil.example/duyurular'),
+      false,
+    );
+  });
 });
 
 describe('paginationUrls', () => {
@@ -158,5 +183,47 @@ describe('withSourceGuard', () => {
     assert.ok(
       (ok.items || []).some((it) => /haberler\//.test(it.sourceUrl || '')),
     );
+  });
+});
+
+describe('content dates vs crawl dates', () => {
+  it('does not treat sitemap lastmod or lastFetchedAt as publishedAt', async () => {
+    const sitemap = `<?xml version="1.0"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://www.example.bel.tr/haberler/eski-engelli-rampasi</loc>
+    <lastmod>2026-09-14</lastmod>
+  </url>
+</urlset>`;
+    const article = `<html><head><title>Eski engelli rampası</title>
+<meta property="article:published_time" content="2025-01-02" />
+</head><body><h1>Eski engelli rampası haberi</h1></body></html>`;
+    const fetchText = async (url) => {
+      if (url.endsWith('robots.txt')) return 'User-agent: *\nAllow: /\nSitemap: https://www.example.bel.tr/sitemap.xml\n';
+      if (url.includes('sitemap')) return sitemap;
+      if (url.includes('/rss')) throw new Error('HTTP 404');
+      if (url.includes('/haberler/eski-engelli')) return article;
+      if (/\/haberler(\?|$)/.test(url)) {
+        return '<html><body><a href="/haberler/eski-engelli-rampasi">Eski engelli rampası haberi</a></body></html>';
+      }
+      if (/\/(duyurular|ilanlar|sosyal|engelsiz|burs|basvuru)/.test(url)) {
+        throw new Error('HTTP 404');
+      }
+      return HOMEPAGE;
+    };
+    const crawled = await crawlMunicipality(
+      { id: '9', name: 'Date BB', url: 'https://www.example.bel.tr/' },
+      {
+        fetchText,
+        lastFetchedAt: '2026-09-15T12:00:00.000Z',
+      },
+    );
+    const item = (crawled.items || []).find((it) =>
+      /eski-engelli/.test(it.sourceUrl || ''),
+    );
+    assert.ok(item, 'article candidate');
+    assert.equal(String(item.publishedAt || '').slice(0, 10), '2025-01-02');
+    assert.notEqual(String(item.publishedAt || '').slice(0, 10), '2026-09-14');
+    assert.notEqual(String(item.publishedAt || '').slice(0, 10), '2026-09-15');
   });
 });

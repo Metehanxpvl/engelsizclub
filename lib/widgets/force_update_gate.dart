@@ -10,7 +10,7 @@ import '../remote/app_screen_config.dart';
 import '../services/force_update_service.dart';
 
 /// İlk kareyi asla geciktirmez / kilitlemez.
-/// Zorunlu: yalnız mağaza CTA. Opsiyonel: mağaza + "Şimdi değil".
+/// Zorunlu: yalnız Güncelle → mağaza. Opsiyonel: mağaza + "Şimdi değil".
 class ForceUpdateGate extends StatefulWidget {
   const ForceUpdateGate({super.key, required this.child});
 

@@ -378,26 +378,24 @@ class _DuyurularSectionState extends State<DuyurularSection> {
                         ),
                       ),
                     if (_isAdmin) ...[
-                      IconButton(
-                        tooltip: S.auto('Story yönetimi'),
-                        onPressed: _openAdminManage,
-                        style: IconButton.styleFrom(
-                          backgroundColor:
-                              MetoColors.primary.withValues(alpha: 0.1),
-                          foregroundColor: MetoColors.primary,
-                        ),
-                        icon: const Icon(Icons.tune, size: 20),
-                      ),
-                      IconButton(
-                        tooltip: S.auto('Duyuru ekle'),
-                        onPressed: () => _openAdminForm(),
-                        style: IconButton.styleFrom(
-                          backgroundColor:
-                              MetoColors.primary.withValues(alpha: 0.1),
-                          foregroundColor: MetoColors.primary,
-                        ),
-                        icon: const Icon(Icons.add_circle_outline, size: 22),
-                      ),
+                  IconButton(
+                    tooltip: S.auto('Story yönetimi'),
+                    onPressed: _openAdminManage,
+                    style: IconButton.styleFrom(
+                      backgroundColor: MetoColors.primary.withValues(alpha: 0.1),
+                      foregroundColor: MetoColors.primary,
+                    ),
+                    icon: const Icon(Icons.tune, size: 20),
+                  ),
+                  IconButton(
+                    tooltip: S.auto('Duyuru ekle'),
+                    onPressed: () => _openAdminForm(),
+                    style: IconButton.styleFrom(
+                      backgroundColor: MetoColors.primary.withValues(alpha: 0.1),
+                      foregroundColor: MetoColors.primary,
+                    ),
+                    icon: const Icon(Icons.add_circle_outline, size: 22),
+                  ),
                     ],
                   ],
                 );
@@ -419,26 +417,26 @@ class _DuyurularSectionState extends State<DuyurularSection> {
             _hasAllScreenItems
                 ? const SizedBox.shrink()
                 : Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: MetoColors.card,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: MetoColors.border),
-                      ),
-                      child: Text(
-                        _isAdmin
-                            ? 'Henüz aktif story yok. + veya Yönet ile ekleyin.'
-                            : 'Şu an görüntülenecek duyuru yok.',
-                        style: GoogleFonts.nunito(
-                          fontSize: 13,
-                          color: MetoColors.mutedFg,
-                        ),
-                      ),
-                    ),
-                  )
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: MetoColors.card,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: MetoColors.border),
+                ),
+                child: Text(
+                  _isAdmin
+                      ? 'Henüz aktif story yok. + veya Yönet ile ekleyin.'
+                      : 'Şu an görüntülenecek duyuru yok.',
+                  style: GoogleFonts.nunito(
+                    fontSize: 13,
+                    color: MetoColors.mutedFg,
+                  ),
+                ),
+              ),
+            )
           else
             StoryMarquee(
               height: 112,
@@ -604,7 +602,7 @@ class _StoryCircle extends StatelessWidget {
             ),
             if (item.title.trim().isNotEmpty) ...[
               const SizedBox(height: 6),
-              Text(
+              L10nText(
                 item.title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,

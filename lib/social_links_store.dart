@@ -3,25 +3,27 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Ana sayfa altı: Instagram / Facebook.
+/// Ana sayfa altı: mağaza + Instagram / Facebook linkleri.
 class SocialLinksConfig {
   const SocialLinksConfig({
     this.instagramUrl = kDefaultInstagramUrl,
     this.facebookUrl = kDefaultFacebookUrl,
-    this.appStoreUrl = '',
-    this.playStoreUrl = '',
+    this.appStoreUrl = kDefaultAppStoreUrl,
+    this.playStoreUrl = kDefaultPlayStoreUrl,
   });
 
   final String instagramUrl;
   final String facebookUrl;
-
-  /// Eski APK'lar hâlâ bu alanları okur; paylaşılan config'te boş tutulur.
   final String appStoreUrl;
   final String playStoreUrl;
 
   static const kDefaultInstagramUrl = 'https://www.instagram.com/engelsizclub';
   static const kDefaultFacebookUrl =
       'https://www.facebook.com/share/1QAzdknz5M/';
+  static const kDefaultAppStoreUrl =
+      'https://apps.apple.com/tr/app/engelsiz-club/id6799422264';
+  static const kDefaultPlayStoreUrl =
+      'https://play.google.com/store/apps/details?id=com.sakircaykara.engelsizclub';
 
   SocialLinksConfig copyWith({
     String? instagramUrl,
@@ -36,12 +38,11 @@ class SocialLinksConfig {
         playStoreUrl: playStoreUrl ?? this.playStoreUrl,
       );
 
-  /// Mağaza URL'leri kasıtlı boş: 1.1.8 Android "URL doluysa rozet göster" der.
   Map<String, dynamic> toJson() => {
         'instagram': instagramUrl.trim(),
         'facebook': facebookUrl.trim(),
-        'app_store': '',
-        'play_store': '',
+        'app_store': appStoreUrl.trim(),
+        'play_store': playStoreUrl.trim(),
       };
 
   factory SocialLinksConfig.fromJson(Map<String, dynamic>? raw) {
@@ -54,8 +55,8 @@ class SocialLinksConfig {
     return SocialLinksConfig(
       instagramUrl: pick('instagram', kDefaultInstagramUrl),
       facebookUrl: pick('facebook', kDefaultFacebookUrl),
-      appStoreUrl: '',
-      playStoreUrl: '',
+      appStoreUrl: pick('app_store', kDefaultAppStoreUrl),
+      playStoreUrl: pick('play_store', kDefaultPlayStoreUrl),
     );
   }
 }
@@ -114,18 +115,13 @@ class SocialLinksStore {
   }
 
   Future<void> save(SocialLinksConfig next) async {
-    // Mağaza alanlarını her kayıtta boş yaz — eski APK'lar rozeti gizler.
-    final sanitized = SocialLinksConfig(
-      instagramUrl: next.instagramUrl,
-      facebookUrl: next.facebookUrl,
-    );
     await Supabase.instance.client.from('app_settings').upsert({
       'key': _settingsKey,
-      'value': sanitized.toJson(),
-      'description': 'Ana sayfa Instagram / Facebook linkleri',
+      'value': next.toJson(),
+      'description': 'Ana sayfa sosyal medya ve mağaza linkleri',
     });
-    _config = sanitized;
-    await _cacheLocal(sanitized);
+    _config = next;
+    await _cacheLocal(next);
   }
 
   Future<void> _cacheLocal(SocialLinksConfig c) async {

@@ -34,7 +34,7 @@ scientific_sources boş veya is_active=true satır yok — bu yüzden tarama 0 k
 Supabase Dashboard → SQL Editor → supabase/scientific_researches.sql TAMAMINI Run edin
 (PubMed + ClinicalTrials.gov satırları is_active=true, method=api olmalı).
 
-Collector şimdi yine de collectors/science/conditions.json sorgularıyla PubMed + ClinicalTrials tarayacak.
+Collector şimdi yine de collectors/science/conditions.json sorgularıyla PubMed + ClinicalTrials + FDA tarayacak.
 `.trim();
 
 /** Used when DB has no active API sources so the first run still searches. */
@@ -54,6 +54,16 @@ export function fallbackSources() {
       id: null,
       name: 'ClinicalTrials.gov',
       url: 'https://clinicaltrials.gov/api/v2/studies',
+      method: 'api',
+      query: '',
+      fetch_interval_hours: 6,
+      last_fetched_at: null,
+      fallback: true,
+    },
+    {
+      id: null,
+      name: 'FDA',
+      url: 'https://api.fda.gov/drug/drugsfda.json',
       method: 'api',
       query: '',
       fetch_interval_hours: 6,

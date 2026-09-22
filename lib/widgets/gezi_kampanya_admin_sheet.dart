@@ -42,13 +42,16 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
   late final TextEditingController _body;
   late final TextEditingController _imageUrl;
   late final TextEditingController _citySearch;
+  late final TextEditingController _campaignCode;
+  late final TextEditingController _companyUrl;
   Uint8List? _pickedBytes;
   String? _city;
   bool _nationwide = true;
-  bool _saving = false;
+  bool _memberCodeEnabled = false;
   String _category = '';
   Map<String, String> _categoryOptions =
       Map<String, String>.from(kKampanyaCategories);
+  bool _saving = false;
 
   bool get _isGezi => widget.kind == GeziKampanyaKind.gezi;
   bool get _isKampanya => widget.kind == GeziKampanyaKind.kampanya;
@@ -78,6 +81,14 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
     );
     _imageUrl = TextEditingController();
     _citySearch = TextEditingController();
+    _campaignCode = TextEditingController(
+      text: editKampanya?.campaignCode ?? '',
+    );
+    _companyUrl = TextEditingController(
+      text: editKampanya?.companyUrl ?? '',
+    );
+    _memberCodeEnabled = editKampanya?.memberCodeEnabled ?? false;
+    _category = normalizeKampanyaCategory(editKampanya?.category ?? '');
     final preset = (edit?.cityName ??
             (isKampanyaNationwide(editKampanya?.city)
                 ? null
@@ -104,7 +115,6 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
       }
     }
     if (_isKampanya) {
-      _category = normalizeKampanyaCategory(editKampanya?.category ?? '');
       _refreshCategoryOptions();
     }
   }
@@ -135,6 +145,15 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
       await _refreshCategoryOptions();
       if (!mounted) return;
       setState(() => _category = result.key);
+      showCatalogUpsertSnackBar(
+        context,
+        (
+          row: <String, dynamic>{'id': result.key, 'label': result.label},
+          synced: result.synced,
+          warning: result.warning,
+        ),
+        successText: '"${result.label}" kategorilere eklendi',
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -149,6 +168,8 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
     _body.dispose();
     _imageUrl.dispose();
     _citySearch.dispose();
+    _campaignCode.dispose();
+    _companyUrl.dispose();
     super.dispose();
   }
 
@@ -207,6 +228,20 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
         ),
       );
       return;
+    }
+    String companyUrl = '';
+    if (_isKampanya) {
+      try {
+        companyUrl = normalizeKampanyaCompanyUrl(
+          _companyUrl.text,
+          strict: _companyUrl.text.trim().isNotEmpty,
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: L10nText(e.toString().replaceFirst('Bad state: ', ''))),
+        );
+        return;
+      }
     }
     if (_isGezi && _title.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -274,7 +309,10 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
             description: _body.text,
             imageUrl: image.isEmpty ? null : image,
             city: scopeCity,
+            memberCodeEnabled: _memberCodeEnabled,
+            campaignCode: _campaignCode.text,
             category: _category,
+            companyUrl: companyUrl,
             adminEmail: widget.adminEmail,
           );
         } else {
@@ -283,7 +321,10 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
             imageUrl: image,
             description: _body.text,
             city: scopeCity,
+            memberCodeEnabled: _memberCodeEnabled,
+            campaignCode: _campaignCode.text,
             category: _category,
+            companyUrl: companyUrl,
             adminEmail: widget.adminEmail,
           );
         }
@@ -294,8 +335,12 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
       if (!mounted) return;
       setState(() => _saving = false);
       final raw = e.toString();
-      final hint = raw.contains('kampanyalar_category.sql')
+      final hint = raw.contains('kampanyalar_company_url.sql')
+          ? 'Firma linki kolonu yok. Supabase’de kampanyalar_company_url.sql çalıştırın.'
+          : raw.contains('kampanyalar_category.sql')
           ? 'Kategori kolonu yok. Supabase’de kampanyalar_category.sql çalıştırın.'
+          : raw.contains('kampanyalar_member_code.sql')
+          ? 'Kampanya kodu tablosu yok. Supabase’de kampanyalar_member_code.sql çalıştırın.'
           : raw.contains('kampanyalar_city.sql')
           ? 'İl kolonu yok. Supabase’de kampanyalar_city.sql çalıştırın.'
           : raw.contains('etkinlikler.sql')
@@ -608,6 +653,53 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
                       : 'Açıklama (isteğe bağlı)',
                 ),
               ),
+              if (_isKampanya) ...[
+                const SizedBox(height: 14),
+                _fieldLabel('Firma linki (isteğe bağlı)'),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _companyUrl,
+                  enabled: !_saving,
+                  keyboardType: TextInputType.url,
+                  autocorrect: false,
+                  style: GoogleFonts.nunito(),
+                  decoration: _dec('https://firma-sitesi.com'),
+                ),
+                const SizedBox(height: 14),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: _memberCodeEnabled,
+                  onChanged: _saving
+                      ? null
+                      : (v) => setState(() => _memberCodeEnabled = v),
+                  title: L10nText(
+                    'Üyeler kampanya kodu oluşturabilsin',
+                    style: GoogleFonts.nunito(
+                      fontWeight: FontWeight.w800,
+                      color: MetoColors.foreground,
+                    ),
+                  ),
+                  subtitle: L10nText(
+                    'Katılan üyeler adminin belirlediği kodu oluşturur.',
+                    style: GoogleFonts.nunito(
+                      fontSize: 13,
+                      color: MetoColors.mutedFg,
+                    ),
+                  ),
+                ),
+                if (_memberCodeEnabled) ...[
+                  const SizedBox(height: 8),
+                  _fieldLabel('Kampanya kodu'),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _campaignCode,
+                    enabled: !_saving,
+                    textCapitalization: TextCapitalization.characters,
+                    style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+                    decoration: _dec('ör. ENGELSIZ50'),
+                  ),
+                ],
+              ],
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: _saving ? null : _save,

@@ -57,6 +57,10 @@ Untitled
 android/build/
 **/android/build/
 
+# Science collector Imagen output (PNG + papers.json)
+collectors/science/output/*
+!collectors/science/output/.gitkeep
+
 # Node / Vite leftovers (Flutter projesi)
 node_modules/
 dist/
@@ -65,6 +69,9 @@ dist/
 # Secrets (asla commit etme)
 .env
 .env.*
+_aab_defines.txt
+.tmp-sut/
+supabase/.temp/
 functions/.env
 supabase/.env
 **/google-services.json

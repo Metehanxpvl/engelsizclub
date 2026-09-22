@@ -1,0 +1,49 @@
+# 81 il valilik resmi .gov.tr bağlantıları → web/valilikler.json
+#
+# Cron 04:00 UTC = 07:00 Türkiye. Kariyer (05:00), küresel haber (06:30),
+# useful-content (07:30) ile çakışmaz.
+# Elle: Actions → Update valilikler catalog → Run workflow (main).
+# Repo Settings → Actions → Workflow permissions → Read and write.
+name: Update valilikler catalog
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-valilikler
+  cancel-in-progress: true
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Helper tests
+        working-directory: scripts
+        run: python fetch_valilikler_test.py
+      - name: Verify official .gov.tr URLs
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: python scripts/fetch_valilikler.py
+      - name: Commit catalog if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- web/valilikler.json
+          if git diff --staged --quiet; then
+            echo "Valilik kataloğu değişmedi."
+          else
+            git commit -m "chore: refresh 81 valilik official links"
+            git push
+          fi

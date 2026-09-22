@@ -44,7 +44,7 @@ Header: `Authorization: Bearer <NOTIFY_PUSH_SECRET>`
 
 | Topic | Tercih | Ne zaman |
 |-------|--------|----------|
-| `duyurular` | Duyurular | Admin duyuru |
+| `duyurular` | Duyurular | Admin duyuru ve yeni kampanya |
 | `ilanlar` | Yeni ilanlar | Yeni ilan |
 | `forum` | Forum | Yeni gönderi |
 | `mesajlar` | Mesajlar | Topic yayınları |

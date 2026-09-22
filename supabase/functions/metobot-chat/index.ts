@@ -225,12 +225,12 @@ const SITE_ROUTES: RouteHint[] = [
     needles: ["gelisim etkinlik", "120 etkinlik"],
   },
   {
-    route: "destek_sorgu",
+    route: "https://www.engelsizclub.com/destek-sorgu.html",
     title: "Destek Sorgu",
     needles: ["destek sorgu", "sut", "sgk katkisi", "yenileme takvim"],
   },
   {
-    route: "/evde-egitim",
+    route: "https://www.engelsizclub.com/evde-egitim.html",
     title: "Evde Eğitim",
     needles: ["evde egitim", "evde ogrenim"],
   },
@@ -747,6 +747,15 @@ serve(async (req) => {
   }
   const userId = userData.user.id;
 
+  // Service role: daily cap + thread ownership only. Never log the key.
+  // Client RLS hides SELECT so old APKs cannot resume history.
+  const serviceRoleKey = (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "").trim();
+  const scopedAdmin = serviceRoleKey
+    ? createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+    : null;
+
   const now = Date.now();
   const prev = lastHit.get(userId) ?? 0;
   if (now - prev < MIN_GAP_MS) {
@@ -786,7 +795,8 @@ serve(async (req) => {
   }
 
   try {
-    const { count } = await userClient
+    const capClient = scopedAdmin ?? userClient;
+    const { count } = await capClient
       .from("metobot_messages")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
@@ -805,7 +815,8 @@ serve(async (req) => {
   let threadId = String(body.threadId ?? body.thread_id ?? "").trim();
   try {
     if (threadId) {
-      const { data: owned } = await userClient
+      const reader = scopedAdmin ?? userClient;
+      const { data: owned } = await reader
         .from("metobot_threads")
         .select("id")
         .eq("id", threadId)
@@ -814,12 +825,11 @@ serve(async (req) => {
       if (!owned) threadId = "";
     }
     if (!threadId) {
-      const { data: created } = await userClient
+      const newId = crypto.randomUUID();
+      const { error: createErr } = await userClient
         .from("metobot_threads")
-        .insert({ user_id: userId })
-        .select("id")
-        .single();
-      threadId = String(created?.id ?? "");
+        .insert({ id: newId, user_id: userId });
+      if (!createErr) threadId = newId;
     }
   } catch {
     threadId = threadId || "";

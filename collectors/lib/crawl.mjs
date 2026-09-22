@@ -1,4 +1,5 @@
 import { classifyKeep, foldTr, stripHtml } from './hash.mjs';
+import { extractPageDates, toIsoDate } from './content_dates.mjs';
 import { discoverRssLinks, robotsBlocksAll } from './discover.mjs';
 import {
   fetchText as defaultFetchText,
@@ -140,16 +141,44 @@ export function extractListingLinks(html, baseUrl, { limit = MAX_LISTING_PAGES }
   return out;
 }
 
-export function mergeCommonListingUrls(origin, discovered, { limit = MAX_LISTING_PAGES } = {}) {
+export function mergeCommonListingUrls(
+  origin,
+  discovered,
+  { limit = MAX_LISTING_PAGES, extraPaths = [], extraUrls = [] } = {},
+) {
   const out = [];
   const seen = new Set();
+  const originHost = (() => {
+    try {
+      return new URL(origin).hostname.replace(/^www\./i, '').toLowerCase();
+    } catch {
+      return '';
+    }
+  })();
   const push = (href) => {
     const url = String(href || '').replace(/\/+$/, '') || href;
     if (!url || seen.has(url) || seen.has(`${url}/`)) return;
     seen.add(url);
     out.push(href.startsWith('http') ? href : `${origin}${href}`);
   };
+  for (const u of extraUrls) {
+    const href = String(u || '').trim();
+    if (!href.startsWith('http')) continue;
+    try {
+      const host = new URL(href).hostname.replace(/^www\./i, '').toLowerCase();
+      if (originHost && host !== originHost) continue;
+    } catch {
+      continue;
+    }
+    push(href);
+  }
   for (const u of discovered) push(u);
+  for (const path of extraPaths) {
+    if (out.length >= limit) break;
+    const p = String(path || '').trim();
+    if (!p.startsWith('/')) continue;
+    push(`${origin}${p}`);
+  }
   for (const path of COMMON_LISTING_PATHS) {
     if (out.length >= limit) break;
     push(`${origin}${path}`);
@@ -171,6 +200,8 @@ export function extractArticleLinks(html, baseUrl, { limit = MAX_ARTICLES_PER_SO
       externalId: a.href,
       imageUrl: '',
       publishedAt: null,
+      updatedAt: null,
+      dateSource: 'listing',
     });
     if (out.length >= limit) break;
   }
@@ -224,18 +255,7 @@ export function paginationUrls(html, pageUrl, { maxExtra = MAX_PAGINATION_EXTRA 
 }
 
 export function parseFlexibleDate(raw) {
-  const s = String(raw || '').trim();
-  if (!s) return null;
-  const iso = Date.parse(s);
-  if (Number.isFinite(iso)) return new Date(iso).toISOString();
-  const dmy = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})/);
-  if (dmy) {
-    const t = Date.parse(
-      `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}T00:00:00Z`,
-    );
-    if (Number.isFinite(t)) return new Date(t).toISOString();
-  }
-  return null;
+  return toIsoDate(raw);
 }
 
 export function extractDetailMeta(html) {
@@ -264,16 +284,14 @@ export function extractDetailMeta(html) {
         /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i,
       ) ||
       [])[1];
-  const time =
-    (html.match(
-      /<meta[^>]+property=["']article:published_time["'][^>]+content=["']([^"']+)["']/i,
-    ) ||
-      html.match(/<time[^>]+datetime=["']([^"']+)["']/i) ||
-      [])[1];
+  const dates = extractPageDates(html);
   return {
     title: pick(ogTitle, h1, titleTag),
     summary: stripHtml(desc || '').slice(0, 1200),
-    publishedAt: parseFlexibleDate(time),
+    publishedAt: dates.publishedAt || dates.visibleDate,
+    updatedAt: dates.updatedAt,
+    deadlineAt: dates.deadlineAt,
+    eventAt: dates.eventAt,
   };
 }
 
@@ -290,6 +308,7 @@ export function shouldFetchDetail(item) {
   if (!title || title.length < 12) return true;
   const folded = foldTr(title);
   if (/^(haberler|duyurular|ilanlar|detay|devamini oku)$/.test(folded)) return true;
+  if (!item?.publishedAt && !item?.updatedAt) return true;
   return false;
 }
 
@@ -451,22 +470,36 @@ export async function crawlMunicipality(
     return { ...empty, error: 'robots Disallow:/' };
   }
 
+  const extraPaths = Array.isArray(source.extraListingPaths)
+    ? source.extraListingPaths
+    : [];
+  const extraUrls = Array.isArray(source.extraListingUrls)
+    ? source.extraListingUrls
+    : [];
+  const hasExtra = extraPaths.length + extraUrls.length > 0;
+
   const home = await safeFetch(fetchText, sourceUrl, {
     timeoutMs: CRAWL_TIMEOUT_MS,
     maxBytes: HTML_MAX_BYTES,
     accept: 'text/html, application/xhtml+xml, */*;q=0.5',
   });
-  if (isErr(home)) {
+  if (isErr(home) && !hasExtra) {
     return { ...empty, error: home.__error };
   }
+  if (isErr(home)) {
+    console.warn(`ana sayfa atlandı ${source.name}: ${home.__error}`);
+  }
   const homepageHtml = typeof home === 'string' ? home : '';
+  const listingLimit = hasExtra
+    ? Math.min(MAX_LISTING_PAGES + 4, 14)
+    : MAX_LISTING_PAGES;
 
   const listingUrls = mergeCommonListingUrls(
     origin,
     extractListingLinks(homepageHtml, sourceUrl, {
-      limit: MAX_LISTING_PAGES,
+      limit: listingLimit,
     }),
-    { limit: MAX_LISTING_PAGES },
+    { limit: listingLimit, extraPaths, extraUrls },
   );
 
   let sitemapEntries = [];
@@ -483,7 +516,7 @@ export async function crawlMunicipality(
       } catch {
         continue;
       }
-      if (isListingPath(path) && !isArticlePath(path) && listingUrls.length < MAX_LISTING_PAGES) {
+      if (isListingPath(path) && !isArticlePath(path) && listingUrls.length < listingLimit) {
         if (!listingUrls.includes(e.loc)) listingUrls.push(e.loc);
       }
     }
@@ -495,7 +528,7 @@ export async function crawlMunicipality(
 
   const listingHtmls = [];
   const seenPages = new Set();
-  for (const listingUrl of listingUrls.slice(0, MAX_LISTING_PAGES)) {
+  for (const listingUrl of listingUrls.slice(0, listingLimit)) {
     if (seenPages.has(listingUrl)) continue;
     seenPages.add(listingUrl);
     const html = await safeFetch(fetchText, listingUrl, {
@@ -548,7 +581,9 @@ export async function crawlMunicipality(
       sourceUrl: e.loc,
       externalId: e.loc,
       imageUrl: '',
-      publishedAt: parseFlexibleDate(e.lastmod),
+      publishedAt: null,
+      sitemapLastmod: parseFlexibleDate(e.lastmod),
+      dateSource: 'sitemap_lastmod',
     });
   }
 
@@ -565,12 +600,17 @@ export async function crawlMunicipality(
     const meta = extractDetailMeta(html);
     if (meta.title && meta.title.length >= 8) item.title = meta.title;
     if (meta.summary) item.summary = meta.summary;
-    if (meta.publishedAt && !item.publishedAt) item.publishedAt = meta.publishedAt;
+    if (meta.publishedAt) {
+      item.publishedAt = meta.publishedAt;
+      if (item.dateSource === 'sitemap_lastmod') item.dateSource = 'page';
+    }
+    if (meta.updatedAt) item.updatedAt = meta.updatedAt;
+    if (meta.deadlineAt) item.deadlineAt = meta.deadlineAt;
+    if (meta.eventAt) item.eventAt = meta.eventAt;
   });
 
   candidates = candidates.filter((item) => {
     if (!item.title || !item.sourceUrl) return false;
-    if (isStaleDated(item.publishedAt, lastFetchedAt)) return false;
     return true;
   });
 

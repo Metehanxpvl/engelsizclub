@@ -1,4 +1,6 @@
-import { MISSING } from './config.mjs';
+import { MISSING, sleep } from './config.mjs';
+import { preferSourceStudyPhase } from './filter.mjs';
+import { foldTr } from './hash.mjs';
 
 const MODELS = [
   'gemini-flash-latest',
@@ -12,6 +14,132 @@ export const ANIMAL_HUMAN_DISCLAIMER =
 /** Shown as `title` when Gemini is missing or both score+translate fail. */
 export const TITLE_TR_FALLBACK =
   'Kaynak başlığı aşağıdadır; özet çevrilemedi.';
+
+/** Serial gap between Gemini calls. 429 uses RATE_LIMIT_BACKOFF_MS, not this. */
+export const GEMINI_MIN_GAP_MS = 2000;
+
+/** 429 / RESOURCE_EXHAUSTED waits — do not skip the rest of the queue. */
+export const RATE_LIMIT_BACKOFF_MS = [15_000, 30_000, 60_000, 90_000];
+
+/** Stop translating when this budget elapses; workflow timeout is longer. */
+export const WORKFLOW_BUDGET_MS = 50 * 60 * 1000;
+
+const geminiPace = {
+  lastAt: 0,
+  minGapMs: GEMINI_MIN_GAP_MS,
+  sleepFn: sleep,
+  lastStatus: null,
+};
+
+export function resetGeminiPace({ minGapMs, sleepFn } = {}) {
+  geminiPace.lastAt = 0;
+  geminiPace.lastStatus = null;
+  if (minGapMs != null) geminiPace.minGapMs = minGapMs;
+  if (sleepFn) geminiPace.sleepFn = sleepFn;
+}
+
+export function lastGeminiHttpStatus() {
+  return geminiPace.lastStatus;
+}
+
+export function isRetryableGeminiStatus(status) {
+  return status === 429 || status === 503 || status === 500;
+}
+
+export function isRateLimitError(err) {
+  if (!err) return false;
+  if (isRetryableGeminiStatus(err.status)) return true;
+  return /RESOURCE_EXHAUSTED|Too Many Requests|rate.?limit|quota/i.test(
+    String(err.message || ''),
+  );
+}
+
+export function backoffDelayMs(attempt = 0) {
+  const i = Math.min(
+    Math.max(0, Number(attempt) || 0),
+    RATE_LIMIT_BACKOFF_MS.length - 1,
+  );
+  return RATE_LIMIT_BACKOFF_MS[i];
+}
+
+export function geminiRetryDelayMs(status, attempt = 0) {
+  if (status === 429 || isRetryableGeminiStatus(status)) {
+    return backoffDelayMs(attempt);
+  }
+  return backoffDelayMs(attempt);
+}
+
+export function withinBudget(
+  startedAt,
+  now = Date.now(),
+  budgetMs = WORKFLOW_BUDGET_MS,
+) {
+  return now - startedAt < budgetMs;
+}
+
+export function titleTranslateOutcome(title, originalTitle) {
+  return isSuccessfulTurkishTitle(title, originalTitle)
+    ? 'translated'
+    : 'english_left';
+}
+
+/** Never persist an English string as `title`. Stub is Turkish, not a finished translation. */
+export function turkishTitleOrFallback(title, originalTitle) {
+  const t = String(title || '').trim();
+  if (!t || t.toLowerCase() === 'null') return TITLE_TR_FALLBACK;
+  if (t === TITLE_TR_FALLBACK) return TITLE_TR_FALLBACK;
+  if (looksEnglishTitle(t, originalTitle)) return TITLE_TR_FALLBACK;
+  if (!looksTurkishText(t)) return TITLE_TR_FALLBACK;
+  return t;
+}
+
+export function isSuccessfulTurkishTitle(title, originalTitle) {
+  const t = String(title || '').trim();
+  if (!t || t === TITLE_TR_FALLBACK) return false;
+  if (looksEnglishTitle(t, originalTitle)) return false;
+  return looksTurkishText(t);
+}
+
+/** All English/stub pending_review+published rows; no cap of 3 or 40. */
+export function selectBackfillRows(rows, cap = Number.POSITIVE_INFINITY) {
+  const out = [];
+  const n = Number.isFinite(cap) ? Math.max(0, Number(cap) || 0) : Infinity;
+  for (const row of rows || []) {
+    if (!needsTurkishBackfill(row)) continue;
+    out.push(row);
+    if (out.length >= n) break;
+  }
+  return out;
+}
+
+function retryDelayFromGeminiError(err, attempt = 0) {
+  const scheduled = backoffDelayMs(attempt);
+  const hinted = Number(err?.retryAfterMs);
+  if (Number.isFinite(hinted) && hinted > 0) {
+    return Math.min(
+      Math.max(scheduled, Math.ceil(hinted)),
+      backoffDelayMs(RATE_LIMIT_BACKOFF_MS.length - 1),
+    );
+  }
+  return scheduled;
+}
+
+function retryAfterMsFromBody(json) {
+  const details = json?.error?.details;
+  if (!Array.isArray(details)) return 0;
+  for (const d of details) {
+    const raw = d?.retryDelay;
+    if (!raw) continue;
+    const m = String(raw).match(/([\d.]+)\s*s/i);
+    if (m) return Math.ceil(Number(m[1]) * 1000);
+  }
+  return 0;
+}
+
+async function waitGeminiGap() {
+  const wait = geminiPace.lastAt + geminiPace.minGapMs - Date.now();
+  if (wait > 0) await geminiPace.sleepFn(wait);
+}
 
 const TR_CHARS = /[çğıöşüÇĞİÖŞÜ]/;
 const TR_WORDS =
@@ -34,10 +162,18 @@ function asciiLetterRatio(s) {
 }
 
 /** ASCII-heavy, common English words, no Turkish chars — not a primary `title`. */
-export function looksEnglishTitle(s) {
+export function looksEnglishTitle(s, originalTitle) {
   const t = String(s || '').trim();
   if (!t) return false;
   if (looksTurkishText(t)) return false;
+  const orig = String(originalTitle || '').trim();
+  if (
+    orig &&
+    foldTr(t) === foldTr(orig) &&
+    (EN_WORDS.test(orig) || EN_WORDS.test(t))
+  ) {
+    return true;
+  }
   if (!EN_WORDS.test(t)) return false;
   const letterCount = [...t].filter((c) => /\p{L}/u.test(c)).length;
   if (letterCount < 8) return false;
@@ -70,11 +206,9 @@ export function forceTurkishPrimary(copy, item) {
     item?.originalTitle || item?.title || copy?.original_title || '',
   ).trim();
   const next = { ...copy };
-  if (!String(next.title || '').trim() || looksEnglishTitle(next.title)) {
-    next.title = TITLE_TR_FALLBACK;
-  }
+  next.title = turkishTitleOrFallback(next.title, src);
   if (src) next.original_title = src.slice(0, 400);
-  if (looksEnglishTitle(next.summary)) next.summary = TITLE_TR_FALLBACK;
+  if (looksEnglishTitle(next.summary, src)) next.summary = TITLE_TR_FALLBACK;
   if (looksEnglishTitle(next.why_important)) next.why_important = MISSING;
   if (looksEnglishTitle(next.limitations)) next.limitations = MISSING;
   return next;
@@ -107,9 +241,9 @@ Kurallar:
 - categories ve conditions: Türkçe etiket veya kısa iki dilli etiket (ör. "serebral palsi").
 - Eksik bilgi uydurma. Bilinmeyen metin alanları için null değil "${MISSING}" kullan. Sayısal skor yoksa null.
 - treatment_potential yalnız: HIGH_VALUE | POTENTIAL_VALUE | IRRELEVANT
-  HIGH_VALUE: insan, hedef kitleyle ilgili, tedavi/rehabilitasyon/mekanizma açısından anlamlı klinik bağ.
-  POTENTIAL_VALUE: ilgili ama erken, hayvan, küçük örneklem, belirsiz.
-  IRRELEVANT: konumuzla alakasız (ör. yalnızca erişkin onkoloji). Serebral palsi, PVL, HIE, otizm, Down, pediatrik epilepsi, nöroplastisite/remiyelinizasyon/kök hücre-gen tedavisi (bu popülasyonlarda) asla IRRELEVANT değil — en az POTENTIAL_VALUE.
+  HIGH_VALUE: faz 2+ insan çalışması, sonuç/outcome yayınlanmış (hasResults / resultsFirstPostDate / COMPLETED). Faz 1 veya yalnızca işe alım (recruiting, results yok) HIGH_VALUE değildir.
+  POTENTIAL_VALUE: ilgili RCT/sonuçlu makale (faz yazılmamış olabilir); faz 2+ ama sonuçlar sınırlı.
+  IRRELEVANT: sonuç yok ve en az faz 2 değil (faz 1, early phase 1, NA, yalnızca işe alım/recruiting ilanı, protokol-only, özet yok). Konumuzla alakasız (erişkin onkoloji) da IRRELEVANT. Faz 1 / recruiting-only / results yok → IRRELEVANT, konu eşleşse bile.
 - Skorlar 0-100 tamsayı.
 - PDF/tam metin yok; yalnız verilen başlık+özet.
 
@@ -166,34 +300,41 @@ export function extractJson(text) {
 }
 
 async function generateOnce(apiKey, model, prompt, { maxOutputTokens = 1536 } = {}) {
+  await waitGeminiGap();
   const url =
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent` +
     `?key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.15,
-        maxOutputTokens,
-      },
-    }),
-    signal: AbortSignal.timeout(45000),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const msg = json?.error?.message || `Gemini HTTP ${res.status}`;
-    const err = new Error(msg);
-    err.status = res.status;
-    throw err;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.15,
+          maxOutputTokens,
+        },
+      }),
+      signal: AbortSignal.timeout(45000),
+    });
+    const json = await res.json().catch(() => ({}));
+    geminiPace.lastStatus = res.status;
+    if (!res.ok) {
+      const msg = json?.error?.message || `Gemini HTTP ${res.status}`;
+      const err = new Error(msg);
+      err.status = res.status;
+      err.retryAfterMs = retryAfterMsFromBody(json);
+      throw err;
+    }
+    const text = json?.candidates?.[0]?.content?.parts
+      ?.map((p) => p.text)
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+    return text || '';
+  } finally {
+    geminiPace.lastAt = Date.now();
   }
-  const text = json?.candidates?.[0]?.content?.parts
-    ?.map((p) => p.text)
-    .filter(Boolean)
-    .join('\n')
-    .trim();
-  return text || '';
 }
 
 function clampScore(n) {
@@ -234,10 +375,14 @@ function asStringList(raw) {
 }
 
 export function applyTranslatedCopy(item, parsed) {
+  const original = sourceOriginalTitle(item, parsed);
+  const title = turkishTitleOrFallback(parsed?.title, original).slice(0, 400);
+  let summary = turkishOrFallback(parsed?.summary).slice(0, 4000);
+  if (looksEnglishTitle(summary, original)) summary = TITLE_TR_FALLBACK;
   return {
-    title: turkishOrFallback(parsed?.title).slice(0, 400),
-    original_title: sourceOriginalTitle(item, parsed),
-    summary: turkishOrFallback(parsed?.summary).slice(0, 4000),
+    title,
+    original_title: original,
+    summary,
     why_important: textOrMissing(parsed?.why_important).slice(0, 2000),
     limitations: textOrMissing(parsed?.limitations).slice(0, 2000),
     conditions: asStringList(parsed?.conditions || item.conditions),
@@ -259,7 +404,9 @@ export function normalizeAiResult(parsed, item) {
     ...copy,
     study_type: textOrMissing(parsed.study_type || item.studyType),
     evidence_level: textOrMissing(parsed.evidence_level),
-    study_phase: textOrMissing(parsed.study_phase || item.studyPhase),
+    study_phase: textOrMissing(
+      preferSourceStudyPhase(parsed.study_phase, item.studyPhase),
+    ),
     human_or_animal: textOrMissing(
       parsed.human_or_animal || item.humanOrAnimal,
     ),
@@ -301,20 +448,124 @@ export function heuristicPendingScore(item) {
   };
 }
 
-async function generateJson(apiKey, prompt, { maxOutputTokens = 1536 } = {}) {
+/**
+ * Serial Gemini only. On 429/RESOURCE_EXHAUSTED retry the SAME model with
+ * 15s/30s/60s/90s — do not hop models (they share quota) and do not `break`
+ * the caller's paper queue.
+ */
+export async function generateJson(
+  apiKey,
+  prompt,
+  {
+    maxOutputTokens = 1536,
+    sleepFn,
+    maxAttemptsPerModel = 4,
+    maxRateLimitRetries = RATE_LIMIT_BACKOFF_MS.length,
+  } = {},
+) {
+  const wait = sleepFn || geminiPace.sleepFn;
+  const rlMax = maxRateLimitRetries ?? maxAttemptsPerModel;
   let lastErr;
   for (const model of MODELS) {
-    try {
-      const text = await generateOnce(apiKey, model, prompt, { maxOutputTokens });
-      const parsed = extractJson(text);
-      if (!parsed) throw new Error('AI JSON yok');
-      return parsed;
-    } catch (e) {
-      lastErr = e;
-      if (e.status && e.status !== 404 && e.status !== 503) break;
+    let rateAttempt = 0;
+    let otherAttempt = 0;
+    while (otherAttempt < maxAttemptsPerModel) {
+      try {
+        const text = await generateOnce(apiKey, model, prompt, { maxOutputTokens });
+        const parsed = extractJson(text);
+        if (!parsed) throw new Error('AI JSON yok');
+        return parsed;
+      } catch (e) {
+        lastErr = e;
+        if (e.status != null) geminiPace.lastStatus = e.status;
+        if (e.status === 404) break;
+        if (isRateLimitError(e)) {
+          if (rateAttempt >= rlMax) {
+            throw e;
+          }
+          await wait(retryDelayFromGeminiError(e, rateAttempt));
+          rateAttempt += 1;
+          continue;
+        }
+        if (e.status === 500 || e.status === 503) {
+          if (rateAttempt >= rlMax) break;
+          await wait(retryDelayFromGeminiError(e, rateAttempt));
+          rateAttempt += 1;
+          continue;
+        }
+        if (e.status) throw e;
+        otherAttempt += 1;
+      }
     }
   }
   throw lastErr || new Error('AI başarısız');
+}
+
+/**
+ * Translate items one-by-one. A 429 after N successes must NOT abort the rest;
+ * backoff and keep going until the queue or time budget is done.
+ */
+export async function runSerialTranslateQueue(
+  items,
+  translateOne,
+  {
+    sleepFn = sleep,
+    nowFn = Date.now,
+    startedAt = Date.now(),
+    budgetMs = WORKFLOW_BUDGET_MS,
+  } = {},
+) {
+  let translated = 0;
+  let lastHttpStatus = lastGeminiHttpStatus();
+  let backoffAttempt = 0;
+  const leftover = [];
+  const queue = [...(items || [])].filter(Boolean);
+  const rateTries = new WeakMap();
+
+  while (queue.length && withinBudget(startedAt, nowFn(), budgetMs)) {
+    const item = queue.shift();
+    try {
+      const copy = await translateOne(item);
+      lastHttpStatus = lastGeminiHttpStatus() ?? lastHttpStatus;
+      const original =
+        item?.originalTitle || item?.original_title || item?.title;
+      if (!isSuccessfulTurkishTitle(copy?.title, original)) {
+        leftover.push(item);
+        continue;
+      }
+      translated += 1;
+      backoffAttempt = 0;
+    } catch (e) {
+      lastHttpStatus = e.status ?? lastGeminiHttpStatus() ?? lastHttpStatus;
+      if (isRateLimitError(e) && withinBudget(startedAt, nowFn(), budgetMs)) {
+        const waitMs = backoffDelayMs(backoffAttempt);
+        console.warn(
+          `Gemini HTTP ${e.status || lastHttpStatus || 'RESOURCE_EXHAUSTED'}; backoff ${waitMs}ms — queue continues (${queue.length + 1} left)`,
+        );
+        await sleepFn(waitMs);
+        backoffAttempt = Math.min(
+          backoffAttempt + 1,
+          RATE_LIMIT_BACKOFF_MS.length - 1,
+        );
+        const n = (rateTries.get(item) || 0) + 1;
+        rateTries.set(item, n);
+        if (n < RATE_LIMIT_BACKOFF_MS.length) queue.unshift(item);
+        else {
+          rateTries.set(item, 0);
+          queue.push(item);
+        }
+        continue;
+      }
+      leftover.push(item);
+    }
+  }
+  leftover.push(...queue);
+  return {
+    translated,
+    leftover,
+    lastHttpStatus,
+    englishRemaining: leftover.length,
+  };
 }
 
 function sourceItemForTranslate(item) {
@@ -326,8 +577,17 @@ function sourceItemForTranslate(item) {
   };
 }
 
+function jsonOpts(extra = {}) {
+  return { sleepFn: geminiPace.sleepFn, ...extra };
+}
+
 /** Cheaper second pass: Turkish title/summary only; no scores. Retry if still English. */
-export async function translateResearchCopy(apiKey, item, { maxRetries = 2 } = {}) {
+export async function translateResearchCopy(
+  apiKey,
+  item,
+  { maxRetries = 3, sleepFn } = {},
+) {
+  const wait = sleepFn || geminiPace.sleepFn;
   const source = sourceItemForTranslate(item);
   let last = null;
   let lastErr;
@@ -335,40 +595,55 @@ export async function translateResearchCopy(apiKey, item, { maxRetries = 2 } = {
     try {
       const parsed = await generateJson(apiKey, buildTranslatePrompt(source), {
         maxOutputTokens: 1024,
+        sleepFn: wait,
       });
       last = applyTranslatedCopy(source, parsed);
-      if (!looksEnglishTitle(last.title)) return last;
+      if (isSuccessfulTurkishTitle(last.title, source.originalTitle || source.title)) {
+        return last;
+      }
     } catch (e) {
       lastErr = e;
+      if (e.status != null) geminiPace.lastStatus = e.status;
+      if (isRateLimitError(e)) throw e;
     }
+    if (i < maxRetries - 1) await wait(backoffDelayMs(i));
   }
   if (last) return forceTurkishPrimary(last, source);
   throw lastErr || new Error('AI çeviri yok');
 }
 
-export async function scoreResearch(apiKey, item) {
+export async function scoreResearch(apiKey, item, { sleepFn } = {}) {
+  const opts = jsonOpts(sleepFn ? { sleepFn } : {});
   try {
-    const parsed = await generateJson(apiKey, buildScorePrompt(item));
+    const parsed = await generateJson(apiKey, buildScorePrompt(item), opts);
     let normalized = normalizeAiResult(parsed, item);
     if (!normalized) throw new Error('AI JSON yok veya treatment_potential geçersiz');
-    if (looksEnglishTitle(normalized.title)) {
+    if (!isSuccessfulTurkishTitle(normalized.title, item.originalTitle || item.title)) {
       try {
-        const copy = await translateResearchCopy(apiKey, item);
+        const copy = await translateResearchCopy(apiKey, item, opts);
         normalized = { ...normalized, ...copy };
       } catch {
-        // fall through — English must not stay as primary title
+        // translate-only already retried with delay; stub via forceTurkishPrimary
       }
     }
     return forceTurkishPrimary(normalized, item);
   } catch (scoreErr) {
     try {
-      const copy = await translateResearchCopy(apiKey, item);
-      return {
-        ...heuristicPendingScore(item),
-        ...copy,
-        ai_notes:
-          'Tam skor başarısız; yalnız Türkçe çeviri. Tedavi vaadi yok; yayın yok.',
-      };
+      if (isRetryableGeminiStatus(scoreErr.status)) {
+        await (opts.sleepFn || geminiPace.sleepFn)(
+          retryDelayFromGeminiError(scoreErr, 0),
+        );
+      }
+      const copy = await translateResearchCopy(apiKey, item, opts);
+      return forceTurkishPrimary(
+        {
+          ...heuristicPendingScore(item),
+          ...copy,
+          ai_notes:
+            'Tam skor başarısız; yalnız Türkçe çeviri. Tedavi vaadi yok; yayın yok.',
+        },
+        item,
+      );
     } catch {
       throw scoreErr;
     }

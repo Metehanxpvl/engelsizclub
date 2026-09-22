@@ -33,7 +33,6 @@ void main() {
         'nct_id': 'NCT00000001',
         'source_name': 'ClinicalTrials.gov',
         'source_url': 'https://clinicaltrials.gov/study/NCT00000001',
-        'image_url': 'https://cdn.example/science.jpg',
         'status': 'pending_review',
       });
 
@@ -47,7 +46,6 @@ void main() {
       expect(row.nctId, 'NCT00000001');
       expect(row.doi, '10.1000/example');
       expect(row.sourceUrl, startsWith('https://'));
-      expect(row.imageUrl, 'https://cdn.example/science.jpg');
       expect(row.status, 'pending_review');
       expect(row.treatmentPotential, 'HIGH_VALUE');
       expect(row.relevanceScore, 82);
@@ -104,11 +102,10 @@ void main() {
     });
   });
 
-  group('approve publishes duyuru story', () {
-    test('flags notify and patch stays status-only', () {
-      expect(kScientificResearchApproveCreatesDuyuru, isTrue);
-      expect(kScientificResearchApproveNotify, isTrue);
-      expect(kScientificResearchApproveNeedImageMessage, 'Önce görsel ekle');
+  group('approve does not call duyuru', () {
+    test('approve patch is status-only and flags stay off', () {
+      expect(kScientificResearchApproveCreatesDuyuru, isFalse);
+      expect(kScientificResearchApproveNotify, isFalse);
       final patch = scientificResearchApprovePatch();
       expect(patch, {'status': 'published'});
       expect(patch.containsKey('notify'), isFalse);
@@ -117,144 +114,15 @@ void main() {
       expect(scientificResearchUnpublishPatch(), {'status': 'rejected'});
     });
 
-    test('fromJson reads image_url', () {
-      expect(
-        ScientificResearch.fromJson({
-          'id': '1',
-          'title': 'A',
-          'image_url': 'https://cdn.example/a.jpg',
-          'treatment_potential': 'POTENTIAL_VALUE',
-          'status': 'pending_review',
-        }).imageUrl,
-        'https://cdn.example/a.jpg',
-      );
-      expect(
-        ScientificResearch.fromJson({
-          'id': '2',
-          'title': 'B',
-          'treatment_potential': 'POTENTIAL_VALUE',
-          'status': 'pending_review',
-        }).imageUrl,
-        '',
-      );
-    });
-
-    test('approve maps to duyuru draft with image', () {
-      final draft = scientificResearchToDuyuruDraft(
-        ScientificResearch.fromJson({
-          'id': '1',
-          'title': '  Serebral palsi denemesi  ',
-          'original_title': 'Gait trial in cerebral palsy',
-          'summary': 'Küçük örneklemli faz 1 insan çalışması.',
-          'source_url': 'https://pubmed.ncbi.nlm.nih.gov/123',
-          'image_url': 'https://cdn.example/a.jpg',
-          'treatment_potential': 'HIGH_VALUE',
-          'status': 'pending_review',
-        }),
-      );
-      expect(draft.title, 'Serebral palsi denemesi');
-      expect(draft.title, isNot('Gait trial in cerebral palsy'));
-      expect(draft.body, 'Küçük örneklemli faz 1 insan çalışması.');
-      expect(draft.imageUrl, 'https://cdn.example/a.jpg');
-      expect(draft.sourceUrl, 'https://pubmed.ncbi.nlm.nih.gov/123');
-      expect(draft.requireImage, isTrue);
-      expect(draft.notify, isTrue);
-      expect(draft.notify, kScientificResearchApproveNotify);
-      expect(draft.body.toLowerCase(), isNot(contains('tedavi bulundu')));
-      final picked = scientificResearchToDuyuruDraft(
-        ScientificResearch.fromJson({
-          'id': '1',
-          'title': 'Serebral palsi denemesi',
-          'summary': 'Küçük örneklemli faz 1 insan çalışması.',
-          'source_url': 'https://pubmed.ncbi.nlm.nih.gov/123',
-          'image_url': 'https://cdn.example/a.jpg',
-          'treatment_potential': 'HIGH_VALUE',
-          'status': 'pending_review',
-        }),
-        imageUrl: 'https://cdn.example/picked.jpg',
-      );
-      expect(picked.imageUrl, 'https://cdn.example/picked.jpg');
-      expect(picked.notify, isTrue);
-    });
-
-    test('duyuru story prefers Turkish title, not original_title', () {
-      final englishOnly = scientificResearchToDuyuruDraft(
-        ScientificResearch.fromJson({
-          'id': '1',
-          'title': 'Çalışmada belirtilmemiş',
-          'original_title': 'Animal remyelination study',
-          'summary': 'Hayvan çalışması; insan tedavisi değildir.',
-          'image_url': 'https://cdn.example/a.jpg',
-          'treatment_potential': 'POTENTIAL_VALUE',
-          'status': 'pending_review',
-        }),
-      );
-      expect(englishOnly.title, 'Bilimsel araştırma');
-      expect(englishOnly.title, isNot('Animal remyelination study'));
-      expect(englishOnly.body, contains('Hayvan'));
-
-      final copiedEnglish = scientificResearchToDuyuruDraft(
-        ScientificResearch.fromJson({
-          'id': '2',
-          'title': 'Stem cells in PVL',
-          'original_title': 'Stem cells in PVL',
-          'summary': '',
-          'why_important': 'Erken sinyal; kesin sonuç değildir.',
-          'image_url': 'https://cdn.example/b.jpg',
-          'treatment_potential': 'POTENTIAL_VALUE',
-          'status': 'pending_review',
-        }),
-      );
-      expect(copiedEnglish.title, 'Bilimsel araştırma');
-      expect(copiedEnglish.body, contains('Erken sinyal'));
-    });
-
-    test('no image blocks approve', () {
-      final item = ScientificResearch.fromJson({
-        'id': '1',
-        'title': 'Araştırma',
-        'summary': 'Özet korunur.',
-        'treatment_potential': 'POTENTIAL_VALUE',
-        'status': 'pending_review',
-      });
-      expect(scientificResearchNeedsStoryImage(item), isTrue);
-      expect(item.imageUrl, '');
-      final emptyDraft = scientificResearchToDuyuruDraft(item);
-      expect(emptyDraft.imageUrl, '');
-      expect(emptyDraft.requireImage, isTrue);
-      expect(
-        () => ensureScientificResearchStoryImage(emptyDraft.imageUrl),
-        throwsA(
-          isA<StateError>().having(
-            (e) => e.message,
-            'message',
-            kScientificResearchApproveNeedImageMessage,
-          ),
-        ),
-      );
-      final withPhoto = item.copyWith(imageUrl: 'https://cdn.example/a.jpg');
-      expect(scientificResearchNeedsStoryImage(withPhoto), isFalse);
-      ensureScientificResearchStoryImage(withPhoto.imageUrl);
-    });
-
-    test('repository approve path uses addDuyuru with notify', () {
+    test('repository source never imports addDuyuru or notify', () {
       final src = File(
         'lib/features/scientific_research/scientific_research_repository.dart',
       ).readAsStringSync();
-      expect(src.contains('addDuyuru('), isTrue);
-      expect(src.contains("import '../../duyuru_store.dart'"), isTrue);
-      expect(src.contains('notify: draft.notify'), isTrue);
-      expect(src.contains('requireImage: draft.requireImage'), isTrue);
-      expect(src.contains('ensureScientificResearchStoryImage'), isTrue);
+      expect(src.contains('addDuyuru('), isFalse);
+      expect(src.contains("import '../../duyuru_store.dart'"), isFalse);
+      expect(src.contains("import '../../data/duyuru_data.dart'"), isFalse);
+      expect(src.contains('notify:'), isFalse);
       expect(src.contains('scientificResearchApprovePatch()'), isTrue);
-      final addAt = src.indexOf('await addDuyuru(');
-      final pubAt = src.indexOf('...published');
-      expect(addAt, greaterThan(0));
-      expect(pubAt, greaterThan(addAt));
-      final approveIdx = src.indexOf('await addDuyuru(');
-      final publishIdx = src.indexOf('scientificResearchApprovePatch()');
-      expect(approveIdx, greaterThan(0));
-      expect(publishIdx, greaterThan(approveIdx));
     });
   });
 
@@ -265,6 +133,8 @@ void main() {
       int? clinicalScore,
       String nct = '',
       String studyType = '',
+      String studyPhase = '',
+      String recruitment = '',
       String pediatric = '',
       String title = 'Araştırma',
     }) =>
@@ -276,6 +146,8 @@ void main() {
           'clinical_readiness_score': clinicalScore,
           'nct_id': nct,
           'study_type': studyType,
+          'study_phase': studyPhase,
+          'recruitment_status': recruitment,
           'pediatric_relevance': pediatric,
           'status': 'pending_review',
         });
@@ -310,6 +182,67 @@ void main() {
       );
     });
 
+    test('includes Phase 2+ even when AI labeled POTENTIAL_VALUE', () {
+      expect(
+        isHighTreatmentPotential(
+          item(potential: 'POTENTIAL_VALUE', studyPhase: 'PHASE2', nct: 'NCT9'),
+        ),
+        isTrue,
+      );
+      expect(
+        isHighTreatmentPotential(
+          item(
+            potential: 'POTENTIAL_VALUE',
+            studyPhase: 'Phase 3',
+            treatmentScore: 40,
+          ),
+        ),
+        isTrue,
+      );
+      expect(
+        isHighTreatmentPotential(item(studyPhase: 'FAZ 4')),
+        isTrue,
+      );
+      expect(
+        matchesScienceAdminFilter(
+          item(potential: 'POTENTIAL_VALUE', studyPhase: 'PHASE2, PHASE3'),
+          ScienceAdminFilter.highValue,
+        ),
+        isTrue,
+      );
+    });
+
+    test('does not dump Phase 1 recruiting as high value', () {
+      expect(
+        isHighTreatmentPotential(
+          item(
+            potential: 'POTENTIAL_VALUE',
+            studyPhase: 'PHASE1',
+            recruitment: 'RECRUITING',
+            nct: 'NCT1',
+            treatmentScore: 40,
+          ),
+        ),
+        isFalse,
+      );
+      expect(
+        isHighTreatmentPotential(
+          item(
+            potential: 'POTENTIAL_VALUE',
+            studyPhase: 'EARLY_PHASE1',
+            recruitment: 'NOT_YET_RECRUITING',
+          ),
+        ),
+        isFalse,
+      );
+      expect(
+        isClinicalResearch(
+          item(nct: 'NCT1', studyPhase: 'PHASE1', recruitment: 'RECRUITING'),
+        ),
+        isTrue,
+      );
+    });
+
     test('clinical and pediatric filters', () {
       expect(
         isClinicalResearch(item(nct: 'NCT1')),
@@ -329,19 +262,14 @@ void main() {
     });
   });
 
-  test('admin review shows TR title, gallery picker and story approve', () {
+  test('admin review shows TR title first and original label', () {
     final src = File(
       'lib/features/scientific_research/admin_science_review_screen.dart',
     ).readAsStringSync();
     expect(src.contains('item.displayTitle'), isTrue);
     expect(src.contains("'Orijinal başlık'"), isTrue);
     expect(src.contains('Başlık (TR)'), isTrue);
-    expect(src.contains('Galeriden yükle'), isTrue);
-    expect(src.contains('veya görsel URL (https://...)'), isTrue);
-    expect(src.contains('kScientificResearchApproveNeedImageMessage'), isTrue);
-    expect(src.contains('Güncel Duyurular'), isTrue);
-    expect(src.contains('ImagePicker'), isTrue);
-    expect(src.contains('Bildirim veya ana sayfa duyurusu gönderilmedi'), isFalse);
+    expect(src.contains('science_admin_count'), isTrue);
   });
 
   test('science admin is not in Daha Fazlası', () {
@@ -357,6 +285,103 @@ void main() {
     );
   });
 
+  test('profile science list uses GitHub papers.json with cache bust', () {
+    final catalog = File(
+      'lib/features/scientific_research/scientific_papers_catalog.dart',
+    ).readAsStringSync();
+    expect(catalog.contains(kSciencePapersRawUrl), isTrue);
+    expect(
+      kSciencePapersRawUrl,
+      'https://raw.githubusercontent.com/Metehanxpvl/engelsizclub/main/output/papers.json',
+    );
+    expect(catalog.contains("'t': bust"), isTrue);
+    expect(catalog.contains('kSciencePapersCdnUrl'), isTrue);
+    final repo = File(
+      'lib/features/scientific_research/scientific_research_repository.dart',
+    ).readAsStringSync();
+    expect(repo.contains('_loadGithubCatalog()'), isTrue);
+    expect(repo.contains('loadForApp('), isFalse);
+    final parsed = parseSciencePapersJson(
+      '[{"id":"1","title":"Serebral palside yürüyüş","status":"pending_review","treatment_potential":"HIGH_VALUE"}]',
+    );
+    expect(parsed, hasLength(1);
+    expect(parsed.first.displayTitle, contains('yürüyüş'));
+  });
+
+  test('home search stays on-demand NCBI and does not dump papers', () {
+    final src = File('lib/home_page.dart').readAsStringSync();
+    expect(src.contains('eutils.ncbi.nlm.nih.gov'), isTrue);
+    expect(src.contains('loadForApp('), isFalse);
+    expect(src.contains('_reloadFromLive'), isFalse);
+    expect(src.contains('ScientificResearchRepository'), isFalse);
+    expect(src.contains("if (raw.isEmpty) return;"), isTrue);
+  });
+    final pubmed = ScientificResearch.fromJson({
+      'id': 'p',
+      'title': 'Serebral palside yürüyüş denemesi',
+      'original_title': 'Gait trial in cerebral palsy',
+      'summary': 'Faz 2 insan çalışması',
+      'pmid': '12345678',
+      'source_url': 'https://pubmed.ncbi.nlm.nih.gov/12345678/',
+      'treatment_potential': 'HIGH_VALUE',
+      'status': 'pending_review',
+    });
+    final trial = ScientificResearch.fromJson({
+      'id': 't',
+      'title': 'Klinik deneme',
+      'nct_id': 'NCT00000001',
+      'source_name': 'ClinicalTrials.gov',
+      'treatment_potential': 'POTENTIAL_VALUE',
+      'status': 'published',
+    });
+    final rejected = ScientificResearch.fromJson({
+      'id': 'r',
+      'title': 'Red',
+      'treatment_potential': 'IRRELEVANT',
+      'status': 'rejected',
+    });
+
+    expect(isScienceAppVisible(pubmed), isTrue);
+    expect(isScienceAppVisible(trial), isTrue);
+    expect(isScienceAppVisible(rejected), isFalse);
+    expect(matchesScienceSearchQuery(pubmed, 'yürüyüş'), isTrue);
+    expect(matchesScienceSearchQuery(pubmed, 'gait'), isTrue);
+    expect(matchesScienceSearchQuery(pubmed, 'otizm'), isFalse);
+    expect(isScienceTrialCard(trial), isTrue);
+    expect(isScienceTrialCard(pubmed), isFalse);
+    expect(scienceResultLink(pubmed), contains('pubmed.ncbi.nlm.nih.gov'));
+    expect(scienceResultLink(trial), contains('clinicaltrials.gov'));
+    expect(kScientificResearchListLimit, 300);
+  });
+
+  test('app and admin read the same scientific_researches table', () {
+    final repo = File(
+      'lib/features/scientific_research/scientific_research_repository.dart',
+    ).readAsStringSync();
+    expect(repo.contains("static const _table = 'scientific_researches';"), isTrue);
+    expect(repo.contains('loadForAdmin('), isTrue);
+    expect(repo.contains('loadForApp('), isTrue);
+    expect(repo.contains(".inFilter('status', const ['pending_review', 'published'])"), isTrue);
+    expect(repo.contains('kScientificResearchListLimit'), isTrue);
+    expect(repo.contains('eutils.ncbi.nlm.nih.gov'), isFalse);
+    expect(RegExp("['\"]papers\\.json['\"]").hasMatch(repo), isFalse);
+    final start = repo.indexOf('Future<List<ScientificResearch>> loadForApp');
+    final next = repo.indexOf('Future<void> updateCopy', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(next, greaterThan(start));
+    final loadForApp = repo.substring(start, next);
+    expect(loadForApp.contains('_requireAdmin()'), isFalse);
+  });
+
+  test('home search uses live scientific_researches not NCBI eutils', () {
+    final src = File('lib/home_page.dart').readAsStringSync();
+    expect(src.contains('ScientificResearchRepository'), isTrue);
+    expect(src.contains('loadForApp('), isTrue);
+    expect(src.contains('eutils.ncbi.nlm.nih.gov'), isFalse);
+    expect(src.contains('clinicaltrials.gov/api/v2'), isFalse);
+    expect(RegExp("['\"]papers\\.json['\"]").hasMatch(src), isFalse);
+  });
+
   test('missing table message points at scientific_researches.sql', () {
     expect(
       isScientificResearchesTableMissing(
@@ -370,13 +395,5 @@ void main() {
       scientificResearchLoadError(Exception('PGRST205 scientific_researches')),
       kScientificResearchesMissingSqlMessage,
     );
-  });
-
-  test('image_url additive SQL does not drop data', () {
-    final sql =
-        File('supabase/scientific_researches_image.sql').readAsStringSync();
-    expect(sql.toLowerCase(), contains('add column if not exists image_url'));
-    expect(sql.toLowerCase(), isNot(contains('drop table')));
-    expect(sql.toLowerCase(), isNot(contains('drop column')));
   });
 }

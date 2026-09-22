@@ -10,6 +10,11 @@ import {
   titleSourceFingerprint,
   usefulContentHash,
 } from './lib/hash.mjs';
+import {
+  emptyDateStats,
+  evaluateFreshness,
+  printDateStats,
+} from './lib/content_dates.mjs';
 import { originAllowsFetch, resolveRssFromHomepage } from './lib/discover.mjs';
 import { crawlMunicipality, withSourceGuard } from './lib/crawl.mjs';
 import {
@@ -17,6 +22,11 @@ import {
   extractAileEyhgmListings,
   isAileEyhgmSourceUrl,
 } from './lib/aile_eyhgm.mjs';
+import {
+  aileCocukDergiListingUrls,
+  extractAileCocukDergiListings,
+  isAileCocukDergiSourceUrl,
+} from './lib/aile_cocuk_dergi.mjs';
 import {
   extractResmiGazeteListings,
   isResmiGazeteSourceUrl,
@@ -31,6 +41,14 @@ import {
   parseRssOrAtom,
   parseSitemapLocs,
 } from './lib/rss.mjs';
+import { loadValilikScrapeSources } from './lib/valilikler.mjs';
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(id) {
+  return UUID_RE.test(String(id || ''));
+}
 
 const MAX_ITEMS_RSS = 25;
 const MAX_ITEMS_SCRAPE = 30;
@@ -40,6 +58,7 @@ const AILE_EYHGM_HTML_MAX_BYTES = 300_000;
 const RESMI_GAZETE_HTML_MAX_BYTES = 300_000;
 const XML_MAX_BYTES = 250_000;
 const MAX_ITEMS_AILE_EYHGM = 20;
+const MAX_ITEMS_AILE_COCUK_DERGI = 8;
 const MAX_ITEMS_RESMI_GAZETE = 20;
 const EXISTING_PAGE = 1000;
 const TBB_INDEX_RE =
@@ -61,6 +80,7 @@ function emptyStats(name) {
     keyword: 0,
     aiReject: 0,
     aiFailFallback: 0,
+    sentToAi: 0,
     inserted: 0,
     error: '',
   };
@@ -235,7 +255,8 @@ async function refineItem(item, stats) {
   if (!title || !item.sourceUrl) return null;
 
   const blob = `${title} ${summary}`;
-  const keep = classifyKeep(blob);
+  const keep =
+    item.listingKind === 'magazine_issue' ? 'potential' : classifyKeep(blob);
   if (!keep) {
     console.log(`süzgeç elendi: ${title}`);
     return null;
@@ -243,6 +264,7 @@ async function refineItem(item, stats) {
   stats.keyword += 1;
 
   if (AI_KEY) {
+    stats.sentToAi += 1;
     try {
       const ai = await classifyCandidate(AI_KEY, {
         title,
@@ -292,12 +314,44 @@ async function refineItem(item, stats) {
   return keywordRefined(title, summary, keep);
 }
 
-async function insertPending(existing, source, raw, stats) {
-  const refined = await refineItem(raw, stats);
-  if (!refined) return false;
+async function insertPending(existing, source, raw, stats, dateStats) {
+  dateStats.candidates += 1;
+  const freshness = evaluateFreshness(raw);
+  if (freshness.dateStatus === 'recent') dateStats.recent += 1;
+  else if (freshness.dateStatus === 'older') dateStats.older += 1;
+
+  if (freshness.action === 'reject') {
+    dateStats.expiredRejected += 1;
+    console.log(
+      `eski/expired elendi: ${raw.title || raw.sourceUrl} (${freshness.reason})`,
+    );
+    return false;
+  }
+  if (freshness.action === 'skip') {
+    dateStats.unknownSkipped += 1;
+    console.log(`tarihsiz atlandı (unknown): ${raw.title || raw.sourceUrl}`);
+    return false;
+  }
+  if (freshness.contentKind === 'active_opportunity' && freshness.dateStatus !== 'recent') {
+    dateStats.activeAmongOlder += 1;
+  }
 
   const sourceUrl = String(raw.sourceUrl || '').trim();
   const externalId = String(raw.externalId || sourceUrl).trim() || null;
+  if (
+    isDuplicate(existing, {
+      sourceUrl,
+      externalId,
+      title: raw.title,
+      sourceName: source.name,
+    })
+  ) {
+    return false;
+  }
+
+  const refined = await refineItem(raw, stats);
+  if (!refined) return false;
+
   const contentHash = usefulContentHash({
     title: refined.title,
     summary: refined.summary,
@@ -317,20 +371,23 @@ async function insertPending(existing, source, raw, stats) {
   }
 
   const row = {
-    source_id: source.id,
     title: refined.title,
     summary: refined.summary,
     body: '',
     category: refined.category,
-    city: refined.city,
+    city: String(source.city || refined.city || '').trim(),
     source_name: source.name,
     source_url: sourceUrl,
     external_id: externalId,
     content_hash: contentHash,
     status: 'pending_review',
-    deadline_at: refined.deadlineAt,
+    deadline_at: refined.deadlineAt || freshness.deadlineAt,
     ai_notes: refined.aiNotes,
+    published_at: freshness.publishedAt,
+    date_status: freshness.dateStatus,
+    content_kind: freshness.contentKind,
   };
+  if (isUuid(source.id)) row.source_id = source.id;
   const imageUrl = String(raw.imageUrl || '').trim();
   if (imageUrl.startsWith('http')) row.image_url = imageUrl;
 
@@ -349,9 +406,42 @@ async function insertPending(existing, source, raw, stats) {
       });
       return false;
     }
-    if (row.image_url && (msg.includes('image_url') || msg.includes('PGRST204'))) {
-      delete row.image_url;
-      await sb('useful_content', { method: 'POST', body: row });
+    const optionalCols = ['image_url', 'date_status', 'content_kind', 'published_at'];
+    const hit = optionalCols.find((col) => msg.includes(col) || msg.includes('PGRST204'));
+    if (hit) {
+      for (const col of optionalCols) {
+        if (col in row && (msg.includes(col) || msg.includes('PGRST204'))) {
+          delete row[col];
+        }
+      }
+      if (msg.includes('PGRST204')) {
+        delete row.date_status;
+        delete row.content_kind;
+        if (msg.includes('published_at')) delete row.published_at;
+        if (msg.includes('image_url')) delete row.image_url;
+      }
+      try {
+        await sb('useful_content', { method: 'POST', body: row });
+      } catch (e2) {
+        const msg2 = String(e2.message);
+        if (msg2.includes('23505') || msg2.includes('409')) {
+          remember(existing, {
+            sourceUrl,
+            contentHash,
+            externalId,
+            title: refined.title,
+            sourceName: source.name,
+          });
+          return false;
+        }
+        if (msg2.includes('PGRST204') || msg2.includes('date_status') || msg2.includes('content_kind')) {
+          delete row.date_status;
+          delete row.content_kind;
+          await sb('useful_content', { method: 'POST', body: row });
+        } else {
+          throw e2;
+        }
+      }
     } else {
       throw e;
     }
@@ -364,11 +454,13 @@ async function insertPending(existing, source, raw, stats) {
     title: refined.title,
     sourceName: source.name,
   });
+  dateStats.saved += 1;
   console.log(`pending_review: ${refined.title}`);
   return true;
 }
 
 async function touchSource(source) {
+  if (!isUuid(source.id)) return;
   await sb(`content_sources?id=eq.${source.id}`, {
     method: 'PATCH',
     body: { last_fetched_at: new Date().toISOString() },
@@ -390,6 +482,7 @@ function printSummary(allStats, inserted) {
       keyword: a.keyword + s.keyword,
       aiReject: a.aiReject + s.aiReject,
       aiFailFallback: a.aiFailFallback + s.aiFailFallback,
+      sentToAi: a.sentToAi + s.sentToAi,
       inserted: a.inserted + s.inserted,
       errors: a.errors + (s.error ? 1 : 0),
     }),
@@ -399,14 +492,16 @@ function printSummary(allStats, inserted) {
       keyword: 0,
       aiReject: 0,
       aiFailFallback: 0,
+      sentToAi: 0,
       inserted: 0,
       errors: 0,
     },
   );
   console.log(
-    `TOPLAM found=${tot.found} new=${tot.neu} keyword=${tot.keyword} ai_reject=${tot.aiReject} ai_fail_yedek=${tot.aiFailFallback} inserted=${tot.inserted} kaynak_hata=${tot.errors}`,
+    `TOPLAM found=${tot.found} new=${tot.neu} keyword=${tot.keyword} ai_reject=${tot.aiReject} ai_fail_yedek=${tot.aiFailFallback} sent_to_ai=${tot.sentToAi} inserted=${tot.inserted} kaynak_hata=${tot.errors}`,
   );
   console.log(`eklenen pending_review: ${inserted}`);
+  return tot;
 }
 
 async function main() {
@@ -422,10 +517,16 @@ async function main() {
   await rejectUnrelatedPending();
   const existing = await loadExistingKeys();
   const sources = await loadDueSources();
+  const valilikSources = await loadValilikScrapeSources();
+  if (valilikSources.length) {
+    sources.push(...valilikSources);
+    console.log(`valilik kaynak eklendi: ${valilikSources.length}`);
+  }
   console.log(`aktif kaynak: ${sources.length}`);
 
   let inserted = 0;
   const allStats = [];
+  const dateStats = emptyDateStats();
   for (const source of sources) {
     const method = String(source.method || 'rss').toLowerCase();
     const stats = emptyStats(source.name);
@@ -455,15 +556,17 @@ async function main() {
       stats.neu = items.filter((it) => !known.has(String(it.sourceUrl || ''))).length;
       const cap = isAileEyhgmSourceUrl(source.url)
         ? MAX_ITEMS_AILE_EYHGM
-        : isResmiGazeteSourceUrl(source.url)
-          ? MAX_ITEMS_RESMI_GAZETE
-          : method === 'scrape'
-            ? MAX_ITEMS_SCRAPE
-            : MAX_ITEMS_RSS;
+        : isAileCocukDergiSourceUrl(source.url)
+          ? MAX_ITEMS_AILE_COCUK_DERGI
+          : isResmiGazeteSourceUrl(source.url)
+            ? MAX_ITEMS_RESMI_GAZETE
+            : method === 'scrape'
+              ? MAX_ITEMS_SCRAPE
+              : MAX_ITEMS_RSS;
       let n = 0;
       for (const item of items) {
         if (n >= cap) break;
-        if (await insertPending(existing, source, item, stats)) {
+        if (await insertPending(existing, source, item, stats, dateStats)) {
           n += 1;
           inserted += 1;
         }
@@ -480,7 +583,10 @@ async function main() {
     await sleep(SOURCE_DELAY_MS);
   }
 
-  printSummary(allStats, inserted);
+  const tot = printSummary(allStats, inserted);
+  dateStats.sentToAi = tot.sentToAi;
+  dateStats.saved = tot.inserted;
+  printDateStats(dateStats);
 }
 
 async function collectAileEyhgm(source) {
@@ -509,6 +615,34 @@ async function collectAileEyhgm(source) {
   }
   console.log(`eyhgm HTML liste: ${source.name} ${items.length}`);
   return items.slice(0, MAX_ITEMS_AILE_EYHGM);
+}
+
+async function collectAileCocukDergi(source) {
+  const pages = aileCocukDergiListingUrls(source.url);
+  const items = [];
+  const seen = new Set();
+  for (const pageUrl of pages) {
+    const html = await fetchText(pageUrl, {
+      maxBytes: AILE_EYHGM_HTML_MAX_BYTES,
+      timeoutMs: 20000,
+      accept: 'text/html, application/xhtml+xml, */*;q=0.5',
+    });
+    const listings = extractAileCocukDergiListings(html, pageUrl, {
+      limit: MAX_ITEMS_AILE_COCUK_DERGI,
+    });
+    for (const item of listings) {
+      if (seen.has(item.sourceUrl)) continue;
+      seen.add(item.sourceUrl);
+      items.push({
+        ...item,
+        sourceName: source.name,
+        sourceId: source.id,
+      });
+    }
+    await sleep(200);
+  }
+  console.log(`aile çocuk dergi: ${source.name} ${items.length}`);
+  return items.slice(0, MAX_ITEMS_AILE_COCUK_DERGI);
 }
 
 async function collectResmiGazete(source) {
@@ -542,6 +676,9 @@ async function collectResmiGazete(source) {
 async function collectSourceItems(source, method, existing) {
   if (method === 'scrape' && isAileEyhgmSourceUrl(source.url)) {
     return collectAileEyhgm(source);
+  }
+  if (method === 'scrape' && isAileCocukDergiSourceUrl(source.url)) {
+    return collectAileCocukDergi(source);
   }
   if (method === 'scrape' && isResmiGazeteSourceUrl(source.url)) {
     return collectResmiGazete(source);

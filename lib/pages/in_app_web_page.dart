@@ -5,7 +5,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
+import '../data/more_menu_data.dart';
 import '../meto_theme.dart';
+import '../utils/open_top_level_url.dart';
 import '../widgets/full_page_iframe.dart';
 import '../widgets/guest_timed_guard.dart';
 
@@ -46,6 +48,13 @@ class InAppWebPage extends StatefulWidget {
     }
 
     if (!context.mounted) return;
+    final wizardPage = hostedHtmlWizardUrl(uri.toString()) != null;
+    // Web: leave the SPA so Firebase serves the .html file.
+    // Android: in-app WebView, never GuestTimedGuard (misafir girişi).
+    if (kIsWeb && wizardPage) {
+      openTopLevelUrl(uri.toString());
+      return;
+    }
     if (_isPdfUrl(uri)) {
       try {
         final ok = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
@@ -66,8 +75,8 @@ class InAppWebPage extends StatefulWidget {
         builder: (_) => InAppWebPage(
           title: title,
           url: uri.toString(),
-          isGuest: isGuest,
-          onRequireLogin: onRequireLogin,
+          isGuest: wizardPage ? false : isGuest,
+          onRequireLogin: wizardPage ? null : onRequireLogin,
           guestTab: guestTab,
         ),
       ),
@@ -80,6 +89,8 @@ class InAppWebPage extends StatefulWidget {
   }
 
   static Uri? _resolveUri(String raw) {
+    final wizard = hostedHtmlWizardUrl(raw);
+    if (wizard != null) return Uri.parse(wizard);
     final t = raw.trim();
     if (t.isEmpty) return null;
     if (t.startsWith('/')) {

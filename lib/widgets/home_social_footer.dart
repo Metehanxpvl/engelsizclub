@@ -1,14 +1,17 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../admin_config.dart';
+import '../l10n/app_strings.dart';
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
 import '../social_links_store.dart';
+import 'store_download_prompt.dart';
 
-/// Ana sayfa en altı: Instagram / Facebook.
+/// Ana sayfa en altı: mağaza rozetleri + Instagram / Facebook.
 class HomeSocialFooter extends StatefulWidget {
   const HomeSocialFooter({super.key, this.adminEmail = ''});
 
@@ -37,6 +40,11 @@ class _HomeSocialFooterState extends State<HomeSocialFooter> {
       _cfg = cfg;
       _loading = false;
     });
+  }
+
+  String _resolved(String configured, String fallback) {
+    final u = configured.trim();
+    return u.isEmpty ? fallback : u;
   }
 
   Future<void> _open(String url) async {
@@ -71,6 +79,22 @@ class _HomeSocialFooterState extends State<HomeSocialFooter> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const SizedBox(height: 24);
+
+    final isIosApp =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+    // iOS incelemesi: Google Play rozeti Guideline 2.3.10 ihlali.
+    // Native iOS uygulamasında mağaza rozetleri yok; web + Android’de göster.
+    final showPlay = !isIosApp;
+    final showApp = !isIosApp;
+    final appUrl = _resolved(
+      _cfg.appStoreUrl,
+      SocialLinksConfig.kDefaultAppStoreUrl,
+    );
+    final playUrl = _resolved(
+      _cfg.playStoreUrl,
+      SocialLinksConfig.kDefaultPlayStoreUrl,
+    );
+    final showStores = showApp || showPlay;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -121,6 +145,42 @@ class _HomeSocialFooterState extends State<HomeSocialFooter> {
               ),
             ],
           ),
+          if (showStores) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Uygulamayı indir',
+              style: GoogleFonts.nunito(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: MetoColors.mutedFg,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                if (showApp)
+                  Expanded(
+                    child: StoreBadgeButton(
+                      assetPng: 'assets/images/badge_app_store.png',
+                      assetSvgFallback: 'assets/images/badge_app_store.svg',
+                      semanticLabel: S.t('download_on_app_store'),
+                      onTap: () => _open(appUrl),
+                    ),
+                  ),
+                if (showApp && showPlay)
+                  const SizedBox(width: 10),
+                if (showPlay)
+                  Expanded(
+                    child: StoreBadgeButton(
+                      assetPng: 'assets/images/badge_google_play.png',
+                      assetSvgFallback: 'assets/images/badge_google_play.svg',
+                      semanticLabel: S.t('download_on_google_play'),
+                      onTap: () => _open(playUrl),
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -187,6 +247,8 @@ class _SocialLinksEditSheet extends StatefulWidget {
 class _SocialLinksEditSheetState extends State<_SocialLinksEditSheet> {
   late final TextEditingController _ig;
   late final TextEditingController _fb;
+  late final TextEditingController _app;
+  late final TextEditingController _play;
   bool _saving = false;
 
   @override
@@ -195,12 +257,16 @@ class _SocialLinksEditSheetState extends State<_SocialLinksEditSheet> {
     final i = widget.initial;
     _ig = TextEditingController(text: i.instagramUrl);
     _fb = TextEditingController(text: i.facebookUrl);
+    _app = TextEditingController(text: i.appStoreUrl);
+    _play = TextEditingController(text: i.playStoreUrl);
   }
 
   @override
   void dispose() {
     _ig.dispose();
     _fb.dispose();
+    _app.dispose();
+    _play.dispose();
     super.dispose();
   }
 
@@ -213,6 +279,8 @@ class _SocialLinksEditSheetState extends State<_SocialLinksEditSheet> {
       facebookUrl: _fb.text.trim().isEmpty
           ? SocialLinksConfig.kDefaultFacebookUrl
           : _fb.text.trim(),
+      appStoreUrl: _app.text.trim(),
+      playStoreUrl: _play.text.trim(),
     );
     try {
       await SocialLinksStore.instance.save(next);
@@ -255,7 +323,7 @@ class _SocialLinksEditSheetState extends State<_SocialLinksEditSheet> {
               ),
               const SizedBox(height: 14),
               Text(
-                'Sosyal linkler',
+                'Sosyal & mağaza linkleri',
                 style: GoogleFonts.nunito(
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
@@ -277,7 +345,28 @@ class _SocialLinksEditSheetState extends State<_SocialLinksEditSheet> {
                   border: OutlineInputBorder(),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _app,
+                decoration: const InputDecoration(
+                  labelText: 'App Store URL',
+                  hintText: 'https://apps.apple.com/...',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) ...[
+                TextField(
+                  controller: _play,
+                  decoration: const InputDecoration(
+                    labelText: 'Google Play URL',
+                    hintText: 'https://play.google.com/store/apps/...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ] else
+                const SizedBox(height: 16),
               FilledButton(
                 onPressed: _saving ? null : _save,
                 style: FilledButton.styleFrom(

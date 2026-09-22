@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../data/centers_data.dart';
-import '../places/place_models.dart';
 import 'google_places_config.dart';
 
 /// Google Places API (New) — searchText / searchNearby.
@@ -145,60 +144,35 @@ class CentersGooglePlacesService {
     return list;
   }
 
-  /// Kullanıcı serbest metin araması. DB'ye yazmaz; yalnız bellek.
-  /// İsimli yerlerde (hastane adı vb.) Türkiye geneli; kısa kategoride konum bias.
-  static Future<List<MetoCenter>> searchByUserQuery({
+  /// Kullanıcı arama çubuğu: serbest metin, rehabilitasyon filtresi yok.
+  static Future<List<MetoCenter>> searchByQuery({
     required String query,
-    double? lat,
-    double? lng,
+    required double latitude,
+    required double longitude,
+    required String city,
+    double radiusKm = 40,
   }) async {
     lastError = null;
-    final q = query.trim();
-    if (q.length < 2) return const [];
     if (!GooglePlacesConfig.isConfigured) {
       lastError = 'GOOGLE_MAPS_API_KEY tanımlı değil.';
       return const [];
     }
-
-    final cacheKey =
-        'q|$q|${lat?.toStringAsFixed(2) ?? ''}|${lng?.toStringAsFixed(2) ?? ''}';
-    final cached = _cache[cacheKey];
-    if (cached != null) return List<MetoCenter>.from(cached);
-
-    final words = q.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
-    final body = <String, dynamic>{
-      'textQuery': RegExp(r't[uü]rkiye', caseSensitive: false).hasMatch(q)
-          ? q
-          : '$q Türkiye',
-      'languageCode': 'tr',
-      'regionCode': 'TR',
-      'pageSize': 15,
-    };
-    if (words <= 2 && lat != null && lng != null) {
-      body['locationBias'] = {
-        'circle': {
-          'center': {'latitude': lat, 'longitude': lng},
-          'radius': 50000,
-        },
-      };
-    }
-
+    final q = query.trim();
+    if (q.length < 2) return const [];
+    final radiusM = (radiusKm.clamp(1, 50) * 1000).toDouble();
     try {
-      final json = await _postJson(_searchTextUrl, body);
-      final places = (json['places'] as List?) ?? const [];
-      final list = _parseNewPlaces(
-        places,
-        city: 'Türkiye',
+      return await _searchText(
+        query: '$q $city Türkiye',
+        lat: latitude,
+        lng: longitude,
+        radiusM: radiusM,
+        city: city,
         startId: 800000,
-        keyword: q,
-        openMode: true,
+        requireRelevant: false,
       );
-      _cache[cacheKey] = list;
-      debugPrint('[Places] kullanıcı araması "$q" → ${list.length}');
-      return list;
-    } catch (e) {
+    } catch (e, st) {
       lastError = '$e';
-      debugPrint('[Places] searchByUserQuery hata: $e');
+      debugPrint('[Places] searchByQuery hata: $e\n$st');
       return const [];
     }
   }
@@ -210,6 +184,7 @@ class CentersGooglePlacesService {
     required double radiusM,
     required String city,
     required int startId,
+    bool requireRelevant = true,
   }) async {
     final body = <String, dynamic>{
       'textQuery': query,
@@ -231,6 +206,7 @@ class CentersGooglePlacesService {
       city: city,
       startId: startId,
       keyword: query,
+      requireRelevant: requireRelevant,
     );
   }
 
@@ -318,7 +294,7 @@ class CentersGooglePlacesService {
     required String city,
     required int startId,
     required String keyword,
-    bool openMode = false,
+    bool requireRelevant = true,
   }) {
     final out = <MetoCenter>[];
     var id = startId;
@@ -332,7 +308,7 @@ class CentersGooglePlacesService {
           ? (display['text']?.toString() ?? '').trim()
           : (m['name']?.toString() ?? '').trim();
       if (name.isEmpty) continue;
-      if (!openMode && !_isRelevantName(name, keyword)) continue;
+      if (requireRelevant && !_isRelevantName(name, keyword)) continue;
 
       final loc = m['location'];
       if (loc is! Map) continue;
@@ -343,10 +319,11 @@ class CentersGooglePlacesService {
       final types = ((m['types'] as List?) ?? const [])
           .map((e) => e.toString())
           .toList();
-      final category = openMode
-          ? _openCategory(name: name, types: types)
-          : _categoryFor(name: name, types: types, keyword: keyword);
-      if (category == 'SKIP') continue;
+      var category = _categoryFor(name: name, types: types, keyword: keyword);
+      if (category == 'SKIP') {
+        if (requireRelevant) continue;
+        category = 'Diğer';
+      }
 
       final address = (m['formattedAddress'] ??
               m['shortFormattedAddress'] ??
@@ -374,7 +351,6 @@ class CentersGooglePlacesService {
         color: _colorFor(category),
         lat: plat,
         lng: plng,
-        googlePlaceId: googlePlaceIdFromPlacesJson(m),
       ));
     }
     return out;
@@ -504,51 +480,6 @@ class CentersGooglePlacesService {
       return 'SKIP';
     }
     return 'Özel Eğitim';
-  }
-
-  static String _openCategory({
-    required String name,
-    required List<String> types,
-  }) {
-    final blob = _norm('$name ${types.join(' ')}');
-    if (blob.contains('pharmacy') || blob.contains('eczane')) return 'Eczane';
-    if (blob.contains('hospital') ||
-        blob.contains('hastane') ||
-        blob.contains('doctor') ||
-        blob.contains('clinic') ||
-        blob.contains('health')) {
-      return 'Sağlık';
-    }
-    if (blob.contains('physiotherap') || blob.contains('fizik')) {
-      return 'Fizik Tedavi';
-    }
-    if (blob.contains('school') ||
-        blob.contains('university') ||
-        blob.contains('okul')) {
-      return 'Eğitim';
-    }
-    if (blob.contains('shopping_mall') || blob.contains('avm')) return 'AVM';
-    if (blob.contains('restaurant') ||
-        blob.contains('cafe') ||
-        blob.contains('restoran')) {
-      return 'Yeme-içme';
-    }
-    if (blob.contains('lodging') ||
-        blob.contains('hotel') ||
-        blob.contains('otel')) {
-      return 'Konaklama';
-    }
-    if (blob.contains('museum') || blob.contains('muze')) return 'Müze';
-    if (blob.contains('local_government') ||
-        blob.contains('city_hall') ||
-        blob.contains('belediye') ||
-        blob.contains('government')) {
-      return 'Kamu';
-    }
-    if (blob.contains('rehabilitasyon') || blob.contains('ozel egitim')) {
-      return 'Özel Eğitim';
-    }
-    return 'Mekân';
   }
 
   static Color _colorFor(String category) => switch (category) {

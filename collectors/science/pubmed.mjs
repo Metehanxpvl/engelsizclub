@@ -1,4 +1,6 @@
 import { loadConditions, sleep } from './config.mjs';
+import { RELDATE_DAYS, filterRecentItems, pubmedMaxdate, pubmedMindate } from './dates.mjs';
+import { highestPhase } from './filter.mjs';
 import { normalizeDoi } from './hash.mjs';
 
 const EUTILS = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
@@ -150,15 +152,18 @@ function guessHumanOrAnimal(rec) {
   return '';
 }
 
-export async function esearchIds(term, { apiKey, retmax, reldateDays } = {}) {
+export async function esearchIds(term, { apiKey, retmax, reldateDays, mindate, maxdate } = {}) {
+  const rel = reldateDays ?? RELDATE_DAYS;
   const text = await eutilsGet('esearch.fcgi', {
     db: 'pubmed',
     term,
     retmax: retmax ?? 25,
     retmode: 'json',
     sort: 'pub date',
-    reldate: reldateDays ?? 90,
+    reldate: rel,
     datetype: 'pdat',
+    mindate: mindate || pubmedMindate(),
+    maxdate: maxdate || pubmedMaxdate(),
     tool: TOOL,
     email: EMAIL,
     api_key: apiKey,
@@ -197,10 +202,17 @@ export async function efetchMedline(ids, { apiKey } = {}) {
 export function toPubmedItem(rec, source) {
   const pmid = String(rec.pmid || '').trim();
   const title = String(rec.title || '').trim();
+  const summary = String(rec.abstract || '').trim();
+  const publicationTypes = rec.publicationTypes || [];
+  const phaseHint = highestPhase({
+    title,
+    summary,
+    studyPhase: publicationTypes.join(' '),
+  });
   return {
     title,
     originalTitle: title,
-    summary: String(rec.abstract || '').trim(),
+    summary,
     sourceUrl: pmid ? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/` : '',
     pmid,
     nctId: '',
@@ -208,15 +220,29 @@ export function toPubmedItem(rec, source) {
     journal: rec.journal || '',
     publicationDate: rec.publicationDate || null,
     country: rec.country || '',
-    studyType: (rec.publicationTypes || [])[0] || '',
-    studyPhase: '',
+    studyType: publicationTypes[0] || '',
+    studyPhase: phaseHint != null ? `PHASE${phaseHint}` : '',
+    publicationTypes,
     recruitmentStatus: '',
+    hasResults: /\b(Randomized Controlled Trial|Clinical Trial|results|outcomes?|efficacy)\b/i.test(
+      `${publicationTypes.join(' ')} ${summary}`,
+    ),
     humanOrAnimal: guessHumanOrAnimal(rec),
     conditions: [],
     sourceName: source?.name || 'PubMed',
     sourceId: source?.id || null,
     externalId: pmid ? `pmid:${pmid}` : '',
   };
+}
+
+const PUBMED_RESULTS_FILTER =
+  '(Clinical Trial[Publication Type] OR Randomized Controlled Trial[Publication Type] OR "Clinical Trial, Phase II"[Publication Type] OR "Clinical Trial, Phase III"[Publication Type] OR "Clinical Trial, Phase IV"[Publication Type] OR "phase 2"[Title/Abstract] OR "phase 3"[Title/Abstract] OR "phase 4"[Title/Abstract] OR "phase II"[Title/Abstract] OR "phase III"[Title/Abstract] OR randomized[Title/Abstract] OR randomised[Title/Abstract]) AND hasabstract[text] NOT protocol[Title]';
+
+function withResultsFilter(term) {
+  const t = String(term || '').trim();
+  if (!t) return t;
+  if (/hasabstract\[text\]/i.test(t)) return t;
+  return `(${t}) AND ${PUBMED_RESULTS_FILTER}`;
 }
 
 function pubmedQueryList(source, config) {
@@ -227,14 +253,16 @@ function pubmedQueryList(source, config) {
   if (extra && !queries.some((q) => String(q.term || '').trim() === extra)) {
     queries.unshift({ id: 'source_query', term: extra });
   }
-  return queries;
+  return queries.map((q) => ({ ...q, term: withResultsFilter(q.term) }));
 }
 
 export async function fetchPubmed(source, opts = {}) {
   const config = opts.config || loadConditions();
   const apiKey = (opts.apiKey || process.env.NCBI_API_KEY || '').trim();
   const retmax = Number(opts.retmax || config.retmax || 25);
-  const reldateDays = Number(opts.reldateDays || config.reldate_days || 90);
+  const reldateDays = Number(opts.reldateDays || config.reldate_days || RELDATE_DAYS);
+  const mindate = opts.mindate || pubmedMindate();
+  const maxdate = opts.maxdate || pubmedMaxdate();
   const queries = pubmedQueryList(source, config);
   const wait = opts.sleep || sleep;
   const seen = new Set();
@@ -245,11 +273,13 @@ export async function fetchPubmed(source, opts = {}) {
     throw new Error('PubMed: conditions.json pubmed_queries boş');
   }
 
+  console.log(`PubMed window reldate=${reldateDays} mindate=${mindate} maxdate=${maxdate}`);
+
   for (const q of queries) {
     const term = String(q.term || '').trim();
     if (!term) continue;
     try {
-      const ids = await esearchIds(term, { apiKey, retmax, reldateDays });
+      const ids = await esearchIds(term, { apiKey, retmax, reldateDays, mindate, maxdate });
       await wait(delayMs(apiKey));
       const fresh = ids.filter((id) => {
         if (seen.has(id)) return false;
@@ -275,5 +305,5 @@ export async function fetchPubmed(source, opts = {}) {
   if (!items.length) {
     console.warn('PubMed: esearch 0 id (reldate/sorgu). conditions.json pubmed_queries kontrol edin.');
   }
-  return items;
+  return filterRecentItems(items);
 }

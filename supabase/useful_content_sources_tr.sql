@@ -674,6 +674,22 @@ select * from (values
     'RSS/Atom yok (2026-09-14). Collector /eyhgm/haberler + /eyhgm/duyurular HTML listesini çeker; bakanlık ana sayfa kapalı.'
   ),
   (
+    'ASHB duyurular',
+    'https://www.aile.gov.tr/duyurular',
+    'scrape',
+    true,
+    24,
+    'Bakanlık https://aile.gov.tr/duyurular HTML kartları (day/moon/year). RSS yok. Engelli süzgeci + 15 gün. Ana sayfa kapalı kalır.'
+  ),
+  (
+    'ASHB Aile Çocuk Dergisi',
+    'https://ailecocuk.aile.gov.tr/dergimiz?lang=tr',
+    'scrape',
+    true,
+    24,
+    'https://ailecocuk.aile.gov.tr/dergimiz?lang=tr PDF sayıları. Generic crawl .pdf atlar; dar parser Sayı N tutar.'
+  ),
+  (
     'Çalışma ve Sosyal Güvenlik Bakanlığı',
     'https://www.csgb.gov.tr',
     'scrape',
@@ -862,6 +878,26 @@ where url in (
   'https://www.aile.gov.tr/eyhgm/',
   'https://www.aile.gov.tr/eyhgm/haberler',
   'https://www.aile.gov.tr/eyhgm/duyurular'
+);
+
+-- ASHB bakanlık duyurular + Aile Çocuk Dergisi.
+update public.content_sources
+set
+  is_active = true,
+  method = 'scrape',
+  fetch_interval_hours = 24,
+  notes = case
+    when url ilike '%dergimiz%' then 'https://ailecocuk.aile.gov.tr/dergimiz?lang=tr PDF sayıları. Generic crawl .pdf atlar; dar parser Sayı N tutar.'
+    else 'Bakanlık https://aile.gov.tr/duyurular HTML kartları. RSS yok. Engelli süzgeci + 15 gün. Ana sayfa kapalı kalır.'
+  end,
+  updated_at = now()
+where url in (
+  'https://www.aile.gov.tr/duyurular',
+  'https://www.aile.gov.tr/duyurular/',
+  'https://aile.gov.tr/duyurular',
+  'https://aile.gov.tr/duyurular/',
+  'https://ailecocuk.aile.gov.tr/dergimiz?lang=tr',
+  'https://ailecocuk.aile.gov.tr/dergimiz'
 );
 
 -- Resmi Gazete: RSS/Atom yok, dar HTML fihrist (bugün + son 3 gün).

@@ -17,8 +17,6 @@ IconData kampanyaCategoryIcon(String raw) {
       return Icons.school_outlined;
     case 'marka':
       return Icons.handshake_outlined;
-    case 'medikal':
-      return Icons.medical_services_outlined;
     case '':
       return Icons.apps_outlined;
     default:

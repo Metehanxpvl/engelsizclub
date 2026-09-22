@@ -1,13 +1,22 @@
 import { pathToFileURL } from 'node:url';
 import {
+  TITLE_TR_FALLBACK,
+  WORKFLOW_BUDGET_MS,
   backfillSourceItem,
   backfillUpdatePayload,
   forceTurkishPrimary,
   heuristicPendingScore,
+  isSuccessfulTurkishTitle,
+  lastGeminiHttpStatus,
   looksEnglishTitle,
   needsTurkishBackfill,
+  runSerialTranslateQueue,
   scoreResearch,
+  selectBackfillRows,
+  titleTranslateOutcome,
   translateResearchCopy,
+  turkishTitleOrFallback,
+  withinBudget,
 } from './ai.mjs';
 import { fetchClinicalTrials } from './clinicaltrials.mjs';
 import {
@@ -17,7 +26,11 @@ import {
   loadConditions,
   sleep,
 } from './config.mjs';
+import { scienceDateWindow, shouldDropOlder } from './dates.mjs';
+import { fdaPendingScore, fetchFda } from './fda.mjs';
 import {
+  classifyScienceKeep,
+  isFdaDrugItem,
   prefilterKeep,
   promoteKeepTopicPotential,
   shouldInsertResearch,
@@ -28,12 +41,25 @@ import {
   researchContentHash,
 } from './hash.mjs';
 import { fetchPubmed } from './pubmed.mjs';
+import {
+  paperForImageQueue,
+  writeGithubPapersJson,
+  writePapersJson,
+} from './papers_queue.mjs';
 import { buildInsertRow } from './row.mjs';
 
 const EXISTING_PAGE = 1000;
-const AI_DELAY_MS = 400;
-const BACKFILL_CAP = 40;
+const AI_DELAY_MS = 2000;
 const BACKFILL_PAGE = 200;
+const TRANSLATE_BUDGET_MS = WORKFLOW_BUDGET_MS;
+const CATALOG_PAGE = 300;
+const CATALOG_SELECT =
+  'id,title,original_title,summary,why_important,limitations,conditions,' +
+  'categories,study_type,evidence_level,study_phase,human_or_animal,' +
+  'pediatric_relevance,relevance_score,scientific_importance_score,' +
+  'treatment_potential_score,clinical_readiness_score,treatment_potential,' +
+  'recruitment_status,publication_date,country,journal,doi,pmid,nct_id,' +
+  'source_name,source_url,external_id,content_hash,status,ai_notes,created_at';
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -44,6 +70,10 @@ function emptyStats() {
   return {
     sources: 0,
     found: 0,
+    keptPhase2: 0,
+    droppedRecruiting: 0,
+    droppedNoResults: 0,
+    droppedOld: 0,
     neu: 0,
     dupes: 0,
     prefilter: 0,
@@ -55,6 +85,8 @@ function emptyStats() {
     errors: 0,
     aiFail: 0,
     translatedBackfill: 0,
+    englishLeft: 0,
+    lastHttpStatus: null,
   };
 }
 
@@ -171,6 +203,14 @@ function sourceKind(source) {
   if (blob.includes('pubmed') || blob.includes('ncbi') || blob.includes('eutils')) {
     return 'pubmed';
   }
+  if (
+    blob.includes('drugsfda') ||
+    blob.includes('api.fda.gov') ||
+    blob.includes('accessdata.fda') ||
+    /\bfda\b/.test(blob)
+  ) {
+    return 'fda';
+  }
   return String(source.method || 'api').toLowerCase();
 }
 
@@ -182,6 +222,9 @@ async function collectItems(source, config) {
   if (kind === 'clinicaltrials') {
     return fetchClinicalTrials(source, { config });
   }
+  if (kind === 'fda') {
+    return fetchFda(source, { config });
+  }
   if (kind === 'rss') {
     console.warn(`rss atlandı (Phase A API only): ${source.name}`);
     return [];
@@ -192,8 +235,9 @@ async function collectItems(source, config) {
 
 async function insertPending(row) {
   try {
-    await sb('scientific_researches', { method: 'POST', body: row });
-    return true;
+    const created = await sb('scientific_researches', { method: 'POST', body: row });
+    const rec = Array.isArray(created) ? created[0] : created;
+    return rec || true;
   } catch (e) {
     const msg = String(e.message);
     if (msg.includes('23505') || msg.includes('409')) {
@@ -207,75 +251,181 @@ async function insertPending(row) {
 function printSummary(stats) {
   console.log('--- bilimsel araştırma özeti ---');
   console.log(
-    `sources=${stats.sources} new=${stats.neu} dupes=${stats.dupes} prefilter=${stats.prefilter} AI=${stats.ai} high=${stats.high} potential=${stats.potential} irrelevant=${stats.irrelevant} saved=${stats.saved} errors=${stats.errors} ai_fail_skip=${stats.aiFail} translated_backfill=${stats.translatedBackfill}`,
+    `found=${stats.found} kept_phase2=${stats.keptPhase2} dropped_recruiting=${stats.droppedRecruiting} dropped_no_results=${stats.droppedNoResults} dropped_old=${stats.droppedOld} saved=${stats.saved}`,
+  );
+  console.log(
+    `sources=${stats.sources} new=${stats.neu} dupes=${stats.dupes} prefilter=${stats.prefilter} AI=${stats.ai} high=${stats.high} potential=${stats.potential} irrelevant=${stats.irrelevant} saved=${stats.saved} errors=${stats.errors} ai_fail_skip=${stats.aiFail} translated_count=${stats.translatedBackfill} english_remaining=${stats.englishLeft} last_http_status=${stats.lastHttpStatus ?? 'none'}`,
   );
 }
 
-async function loadBackfillCandidates() {
-  const out = [];
-  for (const status of ['pending_review', 'published']) {
-    let rows;
-    try {
-      rows =
-        (await sb(
-          `scientific_researches?status=eq.${status}&select=id,title,original_title,summary,why_important,limitations,status&limit=${BACKFILL_PAGE}&order=created_at.desc`,
-        )) || [];
-    } catch {
-      rows =
-        (await sb(
-          `scientific_researches?status=eq.${status}&select=id,title,original_title,summary,why_important,limitations,status&limit=${BACKFILL_PAGE}`,
-        )) || [];
+function applyQualityFilter(items, stats) {
+  const kept = [];
+  let dropRec = 0;
+  let dropNo = 0;
+  for (const item of items) {
+    if (!isFdaDrugItem(item) && shouldDropOlder(item)) {
+      stats.droppedOld += 1;
+      continue;
     }
-    if (!Array.isArray(rows)) continue;
-    for (const row of rows) {
-      if (needsTurkishBackfill(row)) out.push(row);
+    const verdict = classifyScienceKeep(item);
+    if (verdict.keep) {
+      kept.push(item);
+      continue;
     }
+    if (verdict.reason === 'recruiting') dropRec += 1;
+    else dropNo += 1;
   }
-  return out.slice(0, BACKFILL_CAP);
+  stats.keptPhase2 += kept.length;
+  stats.droppedRecruiting += dropRec;
+  stats.droppedNoResults += dropNo;
+  return { kept, dropRec, dropNo };
 }
 
-async function backfillEnglishRows() {
-  if (!AI_KEY) {
-    console.warn('AI anahtarı yok; İngilizce başlık backfill atlandı.');
-    console.log('translated_backfill=0');
-    return 0;
+async function loadBackfillPage(status, offset) {
+  try {
+    return (
+      (await sb(
+        `scientific_researches?status=eq.${status}&select=id,title,original_title,summary,why_important,limitations,status&limit=${BACKFILL_PAGE}&offset=${offset}&order=created_at.desc`,
+      )) || []
+    );
+  } catch {
+    return (
+      (await sb(
+        `scientific_researches?status=eq.${status}&select=id,title,original_title,summary,why_important,limitations,status&limit=${BACKFILL_PAGE}&offset=${offset}`,
+      )) || []
+    );
   }
-  const candidates = await loadBackfillCandidates();
-  let n = 0;
-  for (const row of candidates) {
-    try {
-      const item = backfillSourceItem(row);
-      const copy = forceTurkishPrimary(
-        await translateResearchCopy(AI_KEY, item),
-        item,
-      );
-      if (looksEnglishTitle(copy.title)) {
-        console.warn(`backfill hâlâ İngilizce, atlandı: ${row.id}`);
-        continue;
-      }
+}
+
+async function loadAllEnglishRows() {
+  const english = [];
+  for (const status of ['pending_review', 'published']) {
+    let offset = 0;
+    for (;;) {
+      const rows = await loadBackfillPage(status, offset);
+      if (!Array.isArray(rows) || !rows.length) break;
+      english.push(...selectBackfillRows(rows));
+      if (rows.length < BACKFILL_PAGE) break;
+      offset += rows.length;
+    }
+  }
+  return english;
+}
+
+function logTitleOutcome(kind, id, title, originalTitle) {
+  const outcome = titleTranslateOutcome(title, originalTitle);
+  const line = `${outcome}: ${kind} ${id} ${String(title || '').slice(0, 120)}`;
+  if (outcome === 'english_left') console.warn(line);
+  else console.log(line);
+  return outcome;
+}
+
+function leftoverFromRow(row, item) {
+  if (!row?.id) return null;
+  return {
+    id: row.id,
+    title: row.title,
+    original_title:
+      row.original_title || item?.originalTitle || item?.title || row.title,
+    summary: row.summary,
+    why_important: row.why_important,
+    limitations: row.limitations,
+    status: row.status || 'pending_review',
+    conditions: row.conditions,
+    categories: row.categories,
+  };
+}
+
+async function translateAndPatchRow(row) {
+  const item = backfillSourceItem(row);
+  const copy = forceTurkishPrimary(
+    await translateResearchCopy(AI_KEY, item),
+    item,
+  );
+  copy.title = turkishTitleOrFallback(copy.title, item.originalTitle);
+  const payload = backfillUpdatePayload(row, copy);
+  if (!isSuccessfulTurkishTitle(copy.title, item.originalTitle)) {
+    payload.title = TITLE_TR_FALLBACK;
+    if (
+      looksEnglishTitle(row.title, item.originalTitle) ||
+      !String(row.title || '').trim()
+    ) {
       await sb(`scientific_researches?id=eq.${row.id}`, {
         method: 'PATCH',
-        body: backfillUpdatePayload(row, copy),
+        body: payload,
       });
-      n += 1;
-      console.log(`backfill TR: ${copy.title}`);
-    } catch (e) {
-      console.warn(`backfill hata ${row.id}: ${e.message}`);
     }
-    await sleep(AI_DELAY_MS);
+    logTitleOutcome('backfill', row.id, payload.title, item.originalTitle);
+    const err = new Error('still English after translate');
+    err.status = lastGeminiHttpStatus();
+    throw err;
   }
-  console.log(`translated_backfill=${n}`);
-  return n;
+  logTitleOutcome('backfill', row.id, copy.title, item.originalTitle);
+  await sb(`scientific_researches?id=eq.${row.id}`, {
+    method: 'PATCH',
+    body: payload,
+  });
+  return copy;
 }
 
-async function processItem(item, source, existing, stats) {
-  const contentHash = researchContentHash({
-    title: item.title,
-    pmid: item.pmid,
-    nctId: item.nctId,
-    doi: item.doi,
-    sourceUrl: item.sourceUrl,
-  });
+async function backfillEnglishRows({
+  startedAt = Date.now(),
+  leftover = [],
+} = {}) {
+  if (!AI_KEY) {
+    console.warn('AI anahtarı yok; İngilizce başlık backfill atlandı.');
+    console.log('translated_count=0 english_remaining=0 last_http_status=none');
+    return { translated: 0, englishLeft: 0, lastHttpStatus: null };
+  }
+
+  let translated = 0;
+  let lastHttpStatus = lastGeminiHttpStatus();
+  let pending = leftover.filter((row) => row?.id);
+
+  while (withinBudget(startedAt, Date.now(), TRANSLATE_BUDGET_MS)) {
+    const fromDb = await loadAllEnglishRows();
+    const byId = new Map();
+    for (const row of pending) {
+      if (row?.id) byId.set(row.id, row);
+    }
+    for (const row of fromDb) {
+      if (row?.id) byId.set(row.id, row);
+    }
+    const queue = [...byId.values()];
+    pending = [];
+    console.log(`backfill queue=${queue.length} (all English pending_review+published pages)`);
+    if (!queue.length) break;
+
+    const result = await runSerialTranslateQueue(queue, translateAndPatchRow, {
+      startedAt,
+      budgetMs: TRANSLATE_BUDGET_MS,
+      sleepFn: sleep,
+    });
+    translated += result.translated;
+    lastHttpStatus = result.lastHttpStatus ?? lastHttpStatus;
+    pending = result.leftover;
+    if (!pending.length) break;
+    if (result.translated === 0) break;
+  }
+
+  const remaining = (await loadAllEnglishRows()).length;
+  lastHttpStatus = lastGeminiHttpStatus() ?? lastHttpStatus;
+  console.log(
+    `translated_count=${translated} english_remaining=${remaining} last_http_status=${lastHttpStatus ?? 'none'}`,
+  );
+  return { translated, englishLeft: remaining, lastHttpStatus };
+}
+
+async function processItem(item, source, existing, stats, leftover, startedAt, imageQueue) {
+  const contentHash =
+    item.fdaHash ||
+    researchContentHash({
+      title: item.originalTitle || item.title,
+      pmid: item.pmid,
+      nctId: item.nctId,
+      doi: item.doi,
+      sourceUrl: item.sourceUrl,
+    });
   if (
     isDuplicate(existing, {
       pmid: item.pmid,
@@ -296,20 +446,58 @@ async function processItem(item, source, existing, stats) {
   }
 
   let ai;
-  if (!AI_KEY) {
+  let needsLeftover = false;
+  const original = item.originalTitle || item.title;
+  if (isFdaDrugItem(item)) {
+    ai = fdaPendingScore(item);
+    if (
+      !isSuccessfulTurkishTitle(ai.title, original) &&
+      AI_KEY &&
+      withinBudget(startedAt, Date.now(), TRANSLATE_BUDGET_MS)
+    ) {
+      try {
+        const copy = await translateResearchCopy(AI_KEY, item);
+        ai = { ...ai, ...copy };
+      } catch (e) {
+        stats.lastHttpStatus = e.status ?? lastGeminiHttpStatus() ?? stats.lastHttpStatus;
+        console.warn(`FDA çeviri hata: ${item.title} — ${e.message}`);
+        needsLeftover = true;
+      }
+    } else if (!isSuccessfulTurkishTitle(ai.title, original)) {
+      needsLeftover = true;
+    }
+  } else if (!AI_KEY) {
     console.warn(`AI anahtarı yok, Türkçe yedek POTENTIAL_VALUE: ${item.title}`);
     ai = heuristicPendingScore(item);
     stats.aiFail += 1;
+    needsLeftover = true;
+  } else if (!withinBudget(startedAt, Date.now(), TRANSLATE_BUDGET_MS)) {
+    ai = heuristicPendingScore(item);
+    stats.aiFail += 1;
+    needsLeftover = true;
   } else {
     try {
       ai = await scoreResearch(AI_KEY, item);
       stats.ai += 1;
     } catch (e) {
       stats.aiFail += 1;
+      stats.lastHttpStatus = e.status ?? lastGeminiHttpStatus() ?? stats.lastHttpStatus;
       console.warn(`AI hata, Türkçe yedek POTENTIAL_VALUE: ${item.title} — ${e.message}`);
       ai = heuristicPendingScore(item);
+      needsLeftover = true;
+    }
+    if (!isSuccessfulTurkishTitle(ai.title, original)) {
+      try {
+        const copy = await translateResearchCopy(AI_KEY, item);
+        ai = { ...ai, ...copy };
+      } catch (e) {
+        stats.lastHttpStatus = e.status ?? lastGeminiHttpStatus() ?? stats.lastHttpStatus;
+        console.warn(`translate-only hata: ${item.title} — ${e.message}`);
+        needsLeftover = true;
+      }
     }
   }
+  ai = forceTurkishPrimary(ai, item);
 
   const promoted = promoteKeepTopicPotential(item, ai.treatment_potential);
   if (promoted !== ai.treatment_potential) {
@@ -337,8 +525,22 @@ async function processItem(item, source, existing, stats) {
   }
 
   const row = buildInsertRow(item, ai, source, contentHash);
-  const ok = await insertPending(row);
-  if (ok) {
+  row.title = turkishTitleOrFallback(row.title, row.original_title);
+  if (!isSuccessfulTurkishTitle(row.title, row.original_title)) {
+    row.title = TITLE_TR_FALLBACK;
+    needsLeftover = true;
+  }
+  const outcome = logTitleOutcome(
+    'insert',
+    item.pmid || item.nctId || item.externalId || item.sourceUrl,
+    row.title,
+    row.original_title,
+  );
+  if (outcome === 'english_left' || row.title === TITLE_TR_FALLBACK) {
+    needsLeftover = true;
+  }
+  const created = await insertPending(row);
+  if (created) {
     stats.saved += 1;
     remember(existing, {
       pmid: item.pmid,
@@ -348,6 +550,39 @@ async function processItem(item, source, existing, stats) {
       contentHash,
     });
     console.log(`pending_review ${ai.treatment_potential}: ${row.title}`);
+    if (Array.isArray(imageQueue)) {
+      imageQueue.push(paperForImageQueue(row, created));
+    }
+    if (needsLeftover || needsTurkishBackfill({ ...row, ...(created.id ? created : {}), status: 'pending_review' })) {
+      const queued = leftoverFromRow(
+        {
+          ...row,
+          ...(created && created !== true ? created : {}),
+          status: 'pending_review',
+        },
+        item,
+      );
+      if (queued) leftover.push(queued);
+    }
+  }
+}
+
+async function loadCatalogStatus(status) {
+  const rows =
+    (await sb(
+      `scientific_researches?status=eq.${status}&select=${CATALOG_SELECT}&limit=${CATALOG_PAGE}&order=created_at.desc`,
+    )) || [];
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function loadGithubCatalogRows() {
+  try {
+    const pending = await loadCatalogStatus('pending_review');
+    const published = await loadCatalogStatus('published');
+    return [...pending, ...published];
+  } catch (e) {
+    console.warn(`github catalog dump skipped: ${e.message}`);
+    return [];
   }
 }
 
@@ -360,9 +595,18 @@ async function main() {
   }
 
   const config = loadConditions();
+  const window = scienceDateWindow();
+  console.log(
+    `date_window years=${window.years} start=${window.start} end=${window.end} reldate=${window.reldateDays} pubmed_mindate=${window.pubmedMindate} pubmed_maxdate=${window.pubmedMaxdate}`,
+  );
   const existing = await loadExistingKeys();
   const stats = emptyStats();
-  stats.translatedBackfill = await backfillEnglishRows();
+  const startedAt = Date.now();
+  const leftover = [];
+  const imageQueue = [];
+  const firstPass = await backfillEnglishRows({ startedAt, leftover });
+  stats.translatedBackfill += firstPass.translated;
+  stats.lastHttpStatus = firstPass.lastHttpStatus ?? stats.lastHttpStatus;
   const sources = await loadActiveSources();
   stats.sources = sources.length;
   console.log(`aktif kaynak: ${sources.length}`);
@@ -371,10 +615,13 @@ async function main() {
     try {
       const items = await collectItems(source, config);
       stats.found += items.length;
-      console.log(`${source.name}: found=${items.length}`);
-      for (const item of items) {
+      const filtered = applyQualityFilter(items, stats);
+      console.log(
+        `${source.name}: found=${items.length} kept_phase2=${filtered.kept.length} dropped_recruiting=${filtered.dropRec} dropped_no_results=${filtered.dropNo}`,
+      );
+      for (const item of filtered.kept) {
         if (!item?.title || !item.sourceUrl) continue;
-        await processItem(item, source, existing, stats);
+        await processItem(item, source, existing, stats, leftover, startedAt, imageQueue);
         if (AI_KEY) await sleep(AI_DELAY_MS);
       }
       await touchSource(source);
@@ -385,7 +632,22 @@ async function main() {
     }
   }
 
+  const leftoverPass = await backfillEnglishRows({ startedAt, leftover });
+  stats.translatedBackfill += leftoverPass.translated;
+  stats.englishLeft = leftoverPass.englishLeft;
+  stats.lastHttpStatus =
+    leftoverPass.lastHttpStatus ?? lastGeminiHttpStatus() ?? stats.lastHttpStatus;
+  console.log(
+    `translated_count=${stats.translatedBackfill} english_remaining=${stats.englishLeft} last_http_status=${stats.lastHttpStatus ?? 'none'}`,
+  );
+
   printSummary(stats);
+  const papersPath = writePapersJson(imageQueue);
+  console.log(`imagen queue count=${imageQueue.length} ${papersPath}`);
+  const catalogRows = await loadGithubCatalogRows();
+  const githubRows = catalogRows.length ? catalogRows : imageQueue;
+  const githubPath = writeGithubPapersJson(githubRows);
+  console.log(`github catalog count=${githubRows.length} ${githubPath}`);
   if (stats.found === 0) {
     console.error(
       'found=0. SQL seed (scientific_sources) çalıştı mı? PubMed/ClinicalTrials hatalarına bakın. ' +
@@ -394,7 +656,7 @@ async function main() {
   }
   if (stats.saved === 0 && stats.found > 0) {
     console.error(
-      `saved=0 (found=${stats.found} prefilter=${stats.prefilter} irrelevant=${stats.irrelevant} ai_fail=${stats.aiFail}).`,
+      `saved=0 (found=${stats.found} kept_phase2=${stats.keptPhase2} dropped_recruiting=${stats.droppedRecruiting} dropped_no_results=${stats.droppedNoResults} prefilter=${stats.prefilter} irrelevant=${stats.irrelevant} ai_fail=${stats.aiFail}).`,
     );
   }
 }
@@ -418,7 +680,8 @@ if (isEntry()) {
 }
 
 export {
-  BACKFILL_CAP,
+  BACKFILL_PAGE,
+  TRANSLATE_BUDGET_MS,
   main,
   shouldInsertResearch,
   TABLES_SQL_HINT,

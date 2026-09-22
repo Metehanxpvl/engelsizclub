@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../l10n/app_strings.dart';
@@ -34,6 +35,11 @@ class GeziKampanyaFeedCard extends StatelessWidget {
     this.joinBusy = false,
     this.onJoinTap,
     this.statusBadge = '',
+    this.showCampaignCode = false,
+    this.memberCodeIssued = '',
+    this.codeBusy = false,
+    this.onCreateCampaignCode,
+    this.onOpen,
   });
 
   final String imageUrl;
@@ -67,6 +73,12 @@ class GeziKampanyaFeedCard extends StatelessWidget {
   final VoidCallback? onJoinTap;
   /// Örn. Onay bekliyor / Reddedildi (admin veya öneren).
   final String statusBadge;
+  final bool showCampaignCode;
+  final String memberCodeIssued;
+  final bool codeBusy;
+  final VoidCallback? onCreateCampaignCode;
+  /// Kampanyada kart tıklanınca detay (başlık + açıklama). Yoksa görsel açılır.
+  final VoidCallback? onOpen;
 
   bool get _hasCaption => description.trim().isNotEmpty;
   bool get _hasTitle => title.trim().isNotEmpty;
@@ -86,6 +98,14 @@ class GeziKampanyaFeedCard extends StatelessWidget {
     final src = _lightboxSrc;
     if (src.isEmpty) return;
     openFillPhotoOverlay(context, source: src);
+  }
+
+  void _handleOpen(BuildContext context) {
+    if (onOpen != null) {
+      onOpen!();
+      return;
+    }
+    _openLightbox(context);
   }
 
   Widget _adminChip({
@@ -208,7 +228,7 @@ class GeziKampanyaFeedCard extends StatelessWidget {
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: () => _openLightbox(context),
+                        onTap: () => _handleOpen(context),
                       ),
                     ),
                   ),
@@ -318,7 +338,7 @@ class GeziKampanyaFeedCard extends StatelessWidget {
               ),
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () => _openLightbox(context),
+                onTap: () => _handleOpen(context),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -383,15 +403,40 @@ class GeziKampanyaFeedCard extends StatelessWidget {
                           14,
                           (_hasTitle || _hasMeta) ? 6 : 12,
                           14,
-                          showJoin || statusBadge.trim().isNotEmpty ? 6 : 14,
+                          showJoin ||
+                                  statusBadge.trim().isNotEmpty ||
+                                  onOpen != null
+                              ? 6
+                              : 14,
                         ),
                         child: L10nText(
                           description.trim(),
+                          maxLines: onOpen != null ? 3 : null,
+                          overflow: onOpen != null
+                              ? TextOverflow.ellipsis
+                              : TextOverflow.clip,
                           style: GoogleFonts.nunito(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             height: 1.45,
                             color: MetoColors.foreground,
+                          ),
+                        ),
+                      ),
+                    if (onOpen != null && (_hasCaption || _hasTitle))
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          14,
+                          0,
+                          14,
+                          showJoin || statusBadge.trim().isNotEmpty ? 6 : 14,
+                        ),
+                        child: L10nText(
+                          'Devamını oku',
+                          style: GoogleFonts.nunito(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: MetoColors.primary,
                           ),
                         ),
                       )
@@ -423,6 +468,15 @@ class GeziKampanyaFeedCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                  ),
+                ),
+              if (showCampaignCode)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  child: _CampaignCodeBlock(
+                    issuedCode: memberCodeIssued,
+                    busy: codeBusy,
+                    onCreate: onCreateCampaignCode,
                   ),
                 ),
               if (showJoin)
@@ -511,6 +565,86 @@ class GeziKampanyaFeedCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CampaignCodeBlock extends StatelessWidget {
+  const _CampaignCodeBlock({
+    required this.issuedCode,
+    required this.busy,
+    this.onCreate,
+  });
+
+  final String issuedCode;
+  final bool busy;
+  final VoidCallback? onCreate;
+
+  Future<void> _copy(BuildContext context, String code) async {
+    await Clipboard.setData(ClipboardData(text: code));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: L10nText('Kampanya kodu kopyalandı.')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final code = issuedCode.trim();
+    if (code.isNotEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          L10nText(
+            'Kampanya kodunuz',
+            style: GoogleFonts.nunito(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: MetoColors.mutedFg,
+            ),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => _copy(context, code),
+            icon: const Icon(Icons.copy_outlined, size: 18),
+            label: Text(
+              code,
+              style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: MetoColors.primary,
+              side: const BorderSide(color: MetoColors.border),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return FilledButton.icon(
+      onPressed: busy ? null : onCreate,
+      icon: busy
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : const Icon(Icons.qr_code_2_outlined, size: 18),
+      label: L10nText(
+        'Kampanya kodu oluştur',
+        style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+      ),
+      style: FilledButton.styleFrom(
+        backgroundColor: MetoColors.primary,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
       ),
     );
   }

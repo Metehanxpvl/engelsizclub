@@ -38,19 +38,18 @@ import 'cvi/cvi_entry.dart';
 import 'aile_kocu/aile_kocu_entry.dart';
 import 'metobot/metobot_page.dart';
 import 'mchat/mchat_entry.dart';
-import 'metobot/metobot_draggable_fab.dart';
 import 'data/more_menu_data.dart';
 import 'more_menu_store.dart';
 import 'pages/in_app_web_page.dart';
 import 'pages/boyama_page.dart';
-import 'pages/destek_sorgu_page.dart';
-import 'features/useful_opportunities/opportunities_screen.dart';
 import 'features/scientific_research/admin_science_review_screen.dart';
+import 'features/city_posters/admin_city_posters_screen.dart';
+import 'features/useful_opportunities/opportunities_screen.dart';
 import 'remote/app_screen_config.dart';
 import 'pages/gelisim_etkinlikleri_page.dart';
 import 'pages/barcode_scanner_screen.dart';
-import 'pages/engelsiz_kariyer_page.dart';
 import 'pages/etkinlikler_page.dart';
+import 'pages/engelsiz_kariyer_page.dart';
 import 'pages/gezi_rehberi_page.dart';
 import 'pages/kampanyalar_page.dart';
 import 'widgets/admin_more_menu_sheet.dart';
@@ -172,7 +171,7 @@ class MainShell extends StatefulWidget {
   });
 
   final AuthUser user;
-  final Future<void> Function() onLogout;
+  final VoidCallback onLogout;
   final ValueChanged<AuthUser>? onUserChanged;
   /// Misafir kısıtında Giriş/Üye Ol ekranına dön.
   final VoidCallback? onRequireLogin;
@@ -203,7 +202,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   bool _showKesfetAdmin = false;
   bool _showSectionEditors = false;
   bool _showDilSecimi = false;
-  bool _loggingOut = false;
   /// Android geri: ana sayfadayken ikinci basışta çıkış için zaman damgası.
   DateTime? _lastExitBackAt;
   /// Profil panelini aşağı kaydırarak kapatırken biriken dikey ofset.
@@ -693,24 +691,17 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             child: FutureBuilder<List<MoreMenuItem>>(
               future: loadMoreMenu(forceRefresh: true),
               builder: (context, snap) {
-                final rawItems = snap.data ??
+                final items = snap.data ??
                     cachedMoreMenu ??
                     prepareUserMoreMenu(
                       defaultMoreMenuItems()
                           .where((e) => e.isActive)
                           .toList(),
                     );
-                final items = visibleMoreMenuForViewer(
-                  rawItems,
-                  isAdmin: isAdmin,
-                );
-                final allForGroups = visibleMoreMenuForViewer(
-                  cachedMoreMenuAll ??
-                      defaultMoreMenuItems()
-                          .where((e) => e.isActive)
-                          .toList(),
-                  isAdmin: isAdmin,
-                );
+                final allForGroups = cachedMoreMenuAll ??
+                    defaultMoreMenuItems()
+                        .where((e) => e.isActive)
+                        .toList();
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -790,7 +781,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                                 child: _moreMenuLeading(item),
                               ),
                               title: Text(
-                                item.title,
+                                moreMenuDisplayTitle(item),
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -860,9 +851,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       case 'family':
         icon = Icons.family_restroom;
         color = Colors.green.shade700;
-      case 'smart_toy':
-        icon = Icons.smart_toy_outlined;
-        color = MetoColors.primary;
       case 'balance':
         icon = Icons.balance_outlined;
         color = MetoColors.primary;
@@ -884,8 +872,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       case 'calculate':
         icon = Icons.calculate_outlined;
         color = MetoColors.primary;
-      case 'volunteer':
-        icon = Icons.volunteer_activism_outlined;
+      case 'newspaper':
+        icon = Icons.public;
         color = MetoColors.primary;
       case 'apps':
       case 'folder':
@@ -894,8 +882,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       case 'games':
         icon = Icons.extension_outlined;
         color = Colors.green.shade700;
+      case 'smart_toy':
+      case 'robot':
+      case 'chatbot':
+        icon = Icons.smart_toy_outlined;
+        color = MetoColors.primary;
       default:
-        icon = Icons.link;
+        icon = item.link == 'metobot'
+            ? Icons.smart_toy_outlined
+            : Icons.link;
         color = MetoColors.primary;
     }
     return Icon(icon, color: color);
@@ -922,11 +917,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     final all = cachedMoreMenuAll ??
         await loadMoreMenuAll(forceRefresh: false);
     if (!mounted) return;
-    final isAdmin = isAppAdmin(widget.user.email);
-    final children = visibleMoreMenuForViewer(
-      childrenForMoreMenuGroup(parent, all),
-      isAdmin: isAdmin,
-    );
+    final children = childrenForMoreMenuGroup(parent, all);
     await showModalBottomSheet<void>(
       context: parentSheet ?? context,
       backgroundColor: MetoColors.card,
@@ -958,69 +949,30 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _openMetoBotSuggestedRoute(String raw) async {
-    final route = raw.trim();
-    if (route.isEmpty || !mounted) return;
-    switch (route) {
-      case 'ilanlar':
-        _goToTab(MetoTab.ilanlar);
-        return;
-      case 'kesfet':
-        _goToTab(MetoTab.kesfet);
-        return;
-      case 'forum':
-        _goToTab(MetoTab.forum);
-        return;
-      case 'home':
-        _goToTab(MetoTab.home);
-        return;
-      case 'kariyer':
-        await EngelsizKariyerPage.open(
-          context,
-          userEmail: widget.user.email,
-        );
-        return;
-      case 'destek_sorgu':
-      case 'destek-sorgu':
-        await DestekSorguPage.open(
-          context,
-          isGuest: _isGuest,
-          onRequireLogin: () => _requireLogin(
-            'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
-          ),
-        );
-        return;
-    }
-    if (route.startsWith('/')) {
+  Future<void> _openMoreMenuItem(MoreMenuItem item) async {
+    final wizard = hostedHtmlWizardUrl(item.link);
+    if (wizard != null) {
+      if (!mounted) return;
       await InAppWebPage.open(
         context,
-        title: 'Engelsiz Club',
-        url: route,
-        isGuest: _isGuest,
-        onRequireLogin: () => _requireLogin(
-          'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
-        ),
+        title: item.title,
+        url: wizard,
       );
       return;
     }
-    await _openMoreMenuItem(
-      MoreMenuItem(
-        id: 0,
-        title: route,
-        subtitle: '',
-        linkType: 'route',
-        link: route,
-        icon: 'link',
-        sortOrder: 0,
-        isActive: true,
-        isBuiltin: true,
-      ),
-    );
-  }
 
-  Future<void> _openMoreMenuItem(MoreMenuItem item) async {
     final route = item.routeKey;
     final link = route ?? item.link.trim();
+    final wizardFromRoute = hostedHtmlWizardUrl(link);
+    if (wizardFromRoute != null) {
+      if (!mounted) return;
+      await InAppWebPage.open(
+        context,
+        title: item.title,
+        url: wizardFromRoute,
+      );
+      return;
+    }
 
     final extraApp = item.isUrl ||
         link == 'aile_kocu' ||
@@ -1029,8 +981,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         link == 'boyama' ||
         link.startsWith('http') ||
         link.startsWith('/');
-    if (_isGuest && extraApp && link != 'haklar' && link != 'kartlar' &&
-        link != 'mchat' && link != 'cvi' && link != 'cvi2') {
+    if (_isGuest &&
+        extraApp &&
+        hostedHtmlWizardUrl(item.link) == null &&
+        hostedHtmlWizardUrl(link) == null &&
+        link != 'haklar' &&
+        link != 'kartlar' &&
+        link != 'mchat' &&
+        link != 'cvi' &&
+        link != 'cvi2') {
       final ok = await GuestLimitStore.allowTimedTab('daha_fazlasi');
       if (!ok) {
         if (mounted) {
@@ -1082,22 +1041,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         );
         return;
       case 'metobot':
-        if (_isGuest) {
-          _requireLogin(
-            'MetoBot için giriş yapmanız veya üye olmanız gerekiyor.',
-          );
-          return;
-        }
-        final route = await openMetoBot(
+        await openMetoBot(
           context,
           isGuest: _isGuest,
           onRequireLogin: () => _requireLogin(
             'MetoBot için giriş yapmanız veya üye olmanız gerekiyor.',
           ),
         );
-        if (route != null && route.isNotEmpty && mounted) {
-          await _openMetoBotSuggestedRoute(route);
-        }
         return;
       case 'harita':
       case 'merkezler':
@@ -1190,40 +1140,24 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           ),
         );
         return;
-      case 'destek_sorgu':
-        await DestekSorguPage.open(
-          context,
-          isGuest: _isGuest,
-          onRequireLogin: () => _requireLogin(
-            'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
-          ),
-        );
-        return;
-      case 'firsatlar':
-        if (!isAppAdmin(widget.user.email)) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Bu bölüm yalnızca yöneticiler içindir.'),
-              ),
-            );
-          }
-          return;
-        }
-        await OpportunitiesScreen.open(
-          context,
-          adminEmail: widget.user.email,
-          isGuest: _isGuest,
-          onRequireLogin: () => _requireLogin(
-            'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
-          ),
-        );
-        return;
       default:
         final recovered = normalizeMoreMenuRoute(item.link);
         if (recovered != null && recovered != (route ?? link)) {
           await _openMoreMenuItem(
             item.copyWith(link: recovered, linkType: 'route'),
+          );
+          return;
+        }
+        final fallbackWizard = hostedHtmlWizardUrl(item.link);
+        if (fallbackWizard != null) {
+          await InAppWebPage.open(
+            context,
+            title: item.title,
+            url: fallbackWizard,
+            isGuest: _isGuest,
+            onRequireLogin: () => _requireLogin(
+              'Misafir süresi doldu (2 dk). Devam etmek için giriş yapın veya üye olun.',
+            ),
           );
           return;
         }
@@ -1996,14 +1930,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   void _openPushData(Map<String, String> data) {
     if (_isGuest) return;
     final type = (data['type'] ?? '').trim().toLowerCase();
-    final event = (data['event'] ?? '').trim().toUpperCase();
-    final id = int.tryParse(
-      (data['postId'] ?? data['id'] ?? data['ilan_id'] ?? '').trim(),
-    );
+    final id = int.tryParse((data['id'] ?? data['ilan_id'] ?? '').trim());
     final sohbetKey = (data['sohbet_key'] ?? '').trim();
     var actorEmail = (data['actor_email'] ?? '').trim().toLowerCase();
-    final commentId = int.tryParse((data['commentId'] ?? '').trim()) ??
-        parseForumCommentRef(sohbetKey);
 
     if (type == 'etkinlik_oneri') {
       unawaited(
@@ -2016,19 +1945,24 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       return;
     }
 
-    final isForum = type.startsWith('forum') ||
-        event == 'COMMENT_LIKED' ||
-        event == 'COMMENT_CREATED' ||
-        event == 'POST_COMMENTED' ||
-        event == 'REPLY_RECEIVED';
-    if (isForum) {
+    if (type == 'kampanya') {
+      unawaited(
+        KampanyalarPage.open(
+          context,
+          userEmail: widget.user.email,
+        ),
+      );
+      return;
+    }
+
+    if (type.startsWith('forum')) {
       if (id != null && id > 0) {
         setState(() {
           _showMesajlar = false;
           _showBildirimler = false;
           _showProfilPanel = false;
           _openForumPostId = id;
-          _openForumCommentId = commentId;
+          _openForumCommentId = parseForumCommentRef(sohbetKey);
           _openForumToken++;
         });
       }
@@ -2036,9 +1970,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       return;
     }
 
-    if (type == 'mesaj' ||
-        type == 'teklif' ||
-        event == 'MESSAGE_RECEIVED') {
+    if (type == 'mesaj' || type == 'teklif') {
       if (actorEmail.isEmpty && sohbetKey.contains('|')) {
         final me = widget.user.email.trim().toLowerCase();
         for (final part in sohbetKey.split('|')) {
@@ -2883,14 +2815,19 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
     Widget? overlay;
     if (_activeTab == MetoTab.merkezler) {
-      overlay = _KeepAliveTab(
-        child: MerkezlerPage(
-          isGuest: _isGuest,
-          onRequireLogin: () => _requireLogin(
-            'Değerlendirmek için giriş yapmanız gerekiyor.',
+        overlay = _KeepAliveTab(
+          child: MerkezlerPage(
+            userEmail: widget.user.email,
+            userType: _role,
+            isGuest: _isGuest,
+            onRequireLogin: () => _requireLogin(
+              'Yer bildirmek için giriş yapmanız veya üye olmanız gerekiyor.',
+            ),
+            onKrediChanged: (n) {
+              if (mounted) setState(() => _userKredi = n);
+            },
           ),
-        ),
-      );
+        );
     } else if (_activeTab == MetoTab.haklar) {
       overlay = HaklarPage(adminEmail: widget.user.email);
     } else if (_activeTab == MetoTab.kartlar) {
@@ -3006,39 +2943,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     });
   }
 
-  Future<void> _startLogout() async {
-    if (_loggingOut) return;
-    setState(() {
-      _loggingOut = true;
-      _showProfilPanel = false;
-      _showCocukProfil = false;
-      _showIlanlarim = false;
-      _showKullaniciProfil = false;
-      _showKaydedilenler = false;
-      _showBildirimler = false;
-      _showHakkinda = false;
-      _showEngellenenler = false;
-      _showIyilikLiderleri = false;
-      _showAdminUsers = false;
-      _showKesfetAdmin = false;
-      _showSectionEditors = false;
-      _showDilSecimi = false;
-    });
-    clearRuntimeIlanlar();
-    try {
-      await widget.onLogout();
-    } catch (_) {
-    } finally {
-      if (mounted) setState(() => _loggingOut = false);
-    }
-  }
-
   /// Android sistem geri tuşu:
   /// 1) profil paneli açıksa kapat
   /// 2) ana sayfada değilse ana sayfaya dön (bu 1. basış sayılır)
   /// 3) kısa süre içinde 2. basışta uygulamadan çık
   void _handleSystemBack() {
-    if (_loggingOut) return;
     if (_showProfilPanel) {
       _lastExitBackAt = null;
       _closeProfilPanel();
@@ -3165,21 +3074,10 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     ),
                 ],
               ),
-              if (!_isGuest)
-                MetobotDraggableFab(
-                  isGuest: _isGuest,
-                  onRequireLogin: () => _requireLogin(
-                    'MetoBot için giriş yapmanız veya üye olmanız gerekiyor.',
-                  ),
-                  onOpenRoute: (route) {
-                    unawaited(_openMetoBotSuggestedRoute(route));
-                  },
-                ),
               if (_showProfilPanel)
                 (_krediSatin && _isTabletLayout)
                     ? _buildKrediCenteredOverlay()
                     : _buildProfilOverlay(),
-              if (_loggingOut) const _LogoutBusyOverlay(),
             ],
           ),
         );
@@ -4242,7 +4140,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         toggleRow(
           emoji: '📣',
           title: 'Duyurular / Haberler',
-          sub: 'Görselli haber ve duyuru bildirimleri',
+          sub: 'Haber, duyuru ve kampanya bildirimleri',
           value: _bildirimler.duyurular,
           onChanged: (v) => save(_bildirimler.copyWith(duyurular: v)),
         ),
@@ -4399,6 +4297,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   OpportunitiesScreen.open(
                     context,
                     adminEmail: widget.user.email,
+                    reviewQueue: true,
                   ),
                 );
               },
@@ -4414,6 +4313,23 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               onTap: () {
                 unawaited(
                   AdminScienceReviewScreen.open(
+                    context,
+                    adminEmail: widget.user.email,
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '🖼',
+              label: S.t('city_poster_admin_title'),
+              sub: S.t('city_poster_admin_sub'),
+              highlight: true,
+              onTap: () {
+                unawaited(
+                  AdminCityPostersScreen.open(
                     context,
                     adminEmail: widget.user.email,
                   ),
@@ -4446,26 +4362,30 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             child: _menuTile(
               emoji: '👤',
               label: 'Bölüm yöneticileri',
-              sub: 'Duyuru / gezi / kampanya / etkinlik / kariyer yetkisi',
+              sub: 'Duyuru / gezi / kampanya / etkinlik yetkisi',
               highlight: true,
               onTap: () => setState(() => _showSectionEditors = true),
             ),
           ),
         ],
-        if (canEditSection(widget.user.email, SectionKey.kariyer))
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _menuTile(
-              emoji: '💼',
-              label: 'Engelsiz Kariyer',
-              sub: 'İŞKUR ilanları · düzenle / gizle',
-              highlight: true,
-              onTap: () => EngelsizKariyerPage.open(
-                context,
-                userEmail: widget.user.email,
-              ),
-            ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _menuTile(
+            emoji: '🎁',
+            label: 'Fırsatlar ve Destekler',
+            sub: 'Burs, hak, destek ve haberler',
+            onTap: () {
+              unawaited(
+                OpportunitiesScreen.open(
+                  context,
+                  adminEmail: widget.user.email,
+                  isGuest: _isGuest,
+                  onRequireLogin: widget.onRequireLogin,
+                ),
+              );
+            },
           ),
+        ),
         if (canEditSection(widget.user.email, SectionKey.gezi))
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -4475,6 +4395,20 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               sub: 'Tüm yerler · il filtresi · ekle / sil',
               highlight: true,
               onTap: () => GeziRehberiPage.open(
+                context,
+                userEmail: widget.user.email,
+              ),
+            ),
+          ),
+        if (canEditSection(widget.user.email, SectionKey.kariyer))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '💼',
+              label: 'Engelsiz Kariyer',
+              sub: 'İŞKUR ilanları · ekle / gizle',
+              highlight: true,
+              onTap: () => EngelsizKariyerPage.open(
                 context,
                 userEmail: widget.user.email,
               ),
@@ -4832,7 +4766,25 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           label: S.t('logout'),
           sub: null,
           danger: true,
-          onTap: () => unawaited(_startLogout()),
+          onTap: () {
+            setState(() {
+              _showProfilPanel = false;
+              _showCocukProfil = false;
+              _showIlanlarim = false;
+              _showKullaniciProfil = false;
+              _showKaydedilenler = false;
+              _showBildirimler = false;
+              _showHakkinda = false;
+              _showEngellenenler = false;
+              _showIyilikLiderleri = false;
+              _showAdminUsers = false;
+              _showKesfetAdmin = false;
+              _showSectionEditors = false;
+              _showDilSecimi = false;
+            });
+            clearRuntimeIlanlar();
+            widget.onLogout();
+          },
         ),
       ],
     );
@@ -5163,7 +5115,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     'kaynaklara ve topluluk bilgisine erişimi kolaylaştırır.',
               ),
               feature(
-                title: 'Engelsiz Haritalar',
+                title: 'Harita ve Lokasyonlar',
                 desc:
                     'Yakındaki destek merkezlerini ve kamuya açık konumları '
                     'bulmanıza yardımcı olur.',
@@ -7308,80 +7260,6 @@ class _NavItem extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Compact hourglass while sign-out is in flight (token + Supabase).
-class _LogoutBusyOverlay extends StatefulWidget {
-  const _LogoutBusyOverlay();
-
-  @override
-  State<_LogoutBusyOverlay> createState() => _LogoutBusyOverlayState();
-}
-
-class _LogoutBusyOverlayState extends State<_LogoutBusyOverlay>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 700),
-  )..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned.fill(
-      child: AbsorbPointer(
-        child: ColoredBox(
-          color: const Color(0x330D2B1F),
-          child: Center(
-            child: Semantics(
-              liveRegion: true,
-              label: S.t('logout'),
-              child: Material(
-                color: MetoColors.card,
-                elevation: 6,
-                shadowColor: MetoColors.primary.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(18),
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        SizedBox(
-                          width: 36,
-                          height: 36,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: MetoColors.primary.withValues(alpha: 0.28),
-                          ),
-                        ),
-                        FadeTransition(
-                          opacity: Tween<double>(begin: 0.55, end: 1)
-                              .animate(_pulse),
-                          child: const Icon(
-                            Icons.hourglass_top_rounded,
-                            size: 20,
-                            color: MetoColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
         ),
       ),
     );
