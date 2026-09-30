@@ -17,6 +17,9 @@ class KullaniciProfil {
     this.sertifikalar = '',
     this.calismaSekli = '',
     this.hakkimda = '',
+    this.aileRolu = '',
+    this.arananDestek = '',
+    this.aileTercihler = '',
   });
 
   final String adSoyad;
@@ -30,6 +33,10 @@ class KullaniciProfil {
   final String sertifikalar;
   final String calismaSekli;
   final String hakkimda;
+  /// Aile rolü formu (özgeçmiş alanlarından ayrı).
+  final String aileRolu;
+  final String arananDestek;
+  final String aileTercihler;
 
   LocationData get location => LocationData.fromLegacy(
         city: sehir,
@@ -47,7 +54,18 @@ class KullaniciProfil {
       uzmanliklar.trim().isEmpty &&
       sertifikalar.trim().isEmpty &&
       calismaSekli.trim().isEmpty &&
-      hakkimda.trim().isEmpty;
+      hakkimda.trim().isEmpty &&
+      aileRolu.trim().isEmpty &&
+      arananDestek.trim().isEmpty &&
+      aileTercihler.trim().isEmpty;
+
+  bool get hasOzgecmis =>
+      meslek.trim().isNotEmpty ||
+      egitim.trim().isNotEmpty ||
+      deneyimYili.trim().isNotEmpty ||
+      uzmanliklar.trim().isNotEmpty ||
+      sertifikalar.trim().isNotEmpty ||
+      calismaSekli.trim().isNotEmpty;
 
   String get menuSub {
     if (isEmpty) return 'Özgeçmişinizi oluşturun';
@@ -69,6 +87,9 @@ class KullaniciProfil {
         'sertifikalar': sertifikalar,
         'calismaSekli': calismaSekli,
         'hakkimda': hakkimda,
+        'aileRolu': aileRolu,
+        'arananDestek': arananDestek,
+        'aileTercihler': aileTercihler,
       };
 
   factory KullaniciProfil.fromJson(Map<String, dynamic> json) {
@@ -99,6 +120,9 @@ class KullaniciProfil {
       sertifikalar: json['sertifikalar']?.toString() ?? '',
       calismaSekli: json['calismaSekli']?.toString() ?? '',
       hakkimda: json['hakkimda']?.toString() ?? '',
+      aileRolu: json['aileRolu']?.toString() ?? '',
+      arananDestek: json['arananDestek']?.toString() ?? '',
+      aileTercihler: json['aileTercihler']?.toString() ?? '',
     );
   }
 }

@@ -47,9 +47,11 @@ import 'features/city_posters/admin_city_posters_screen.dart';
 import 'features/useful_opportunities/opportunities_screen.dart';
 import 'remote/app_screen_config.dart';
 import 'pages/gelisim_etkinlikleri_page.dart';
+import 'pages/besin_karnesi_page.dart';
 import 'pages/barcode_scanner_screen.dart';
 import 'pages/etkinlikler_page.dart';
 import 'pages/engelsiz_kariyer_page.dart';
+import 'engelsiz_kariyer_store.dart';
 import 'pages/gezi_rehberi_page.dart';
 import 'pages/kampanyalar_page.dart';
 import 'widgets/admin_more_menu_sheet.dart';
@@ -66,6 +68,7 @@ import 'pages/tibbi_sorumluluk_reddi_page.dart';
 import 'presence_store.dart';
 import 'profil_foto_store.dart';
 import 'services/google_play_availability.dart';
+import 'services/broadcast_push_service.dart';
 import 'services/play_billing_service.dart';
 import 'services/push_notification_service.dart';
 import 'services/image_optimize_service.dart';
@@ -79,6 +82,7 @@ import 'widgets/user_safety_sheet.dart';
 import 'widgets/admin_kesfet_panel.dart';
 import 'widgets/admin_iyilik_liderleri_panel.dart';
 import 'widgets/admin_users_panel.dart';
+import 'widgets/admin_did_you_know_sheet.dart';
 import 'widgets/section_editors_panel.dart';
 import 'section_editors.dart';
 import 'package:showcaseview/showcaseview.dart';
@@ -691,13 +695,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             child: FutureBuilder<List<MoreMenuItem>>(
               future: loadMoreMenu(forceRefresh: true),
               builder: (context, snap) {
-                final items = snap.data ??
-                    cachedMoreMenu ??
-                    prepareUserMoreMenu(
-                      defaultMoreMenuItems()
-                          .where((e) => e.isActive)
-                          .toList(),
-                    );
+                final items = withBesinKarnesiMenuItem(
+                  snap.data ??
+                      cachedMoreMenu ??
+                      prepareUserMoreMenu(
+                        defaultMoreMenuItems()
+                            .where((e) => e.isActive)
+                            .toList(),
+                      ),
+                  forMember: !_isGuest,
+                );
                 final allForGroups = cachedMoreMenuAll ??
                     defaultMoreMenuItems()
                         .where((e) => e.isActive)
@@ -887,10 +894,17 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       case 'chatbot':
         icon = Icons.smart_toy_outlined;
         color = MetoColors.primary;
+      case 'nutrition':
+      case 'restaurant':
+      case 'apple':
+        icon = Icons.restaurant_outlined;
+        color = MetoColors.primary;
       default:
         icon = item.link == 'metobot'
             ? Icons.smart_toy_outlined
-            : Icons.link;
+            : item.link == 'besin_karnesi'
+                ? Icons.restaurant_outlined
+                : Icons.link;
         color = MetoColors.primary;
     }
     return Icon(icon, color: color);
@@ -1047,6 +1061,19 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           onRequireLogin: () => _requireLogin(
             'MetoBot için giriş yapmanız veya üye olmanız gerekiyor.',
           ),
+        );
+        return;
+      case 'besin_karnesi':
+      case 'nutrition':
+        if (_isGuest) {
+          _requireLogin(
+            'Vitamin karnesi için giriş yapmanız veya üye olmanız gerekiyor.',
+          );
+          return;
+        }
+        await BesinKarnesiPage.open(
+          context,
+          userEmail: widget.user.email,
         );
         return;
       case 'harita':
@@ -1946,12 +1973,59 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     }
 
     if (type == 'kampanya') {
+      final city = (data['city'] ?? '').trim();
       unawaited(
         KampanyalarPage.open(
           context,
           userEmail: widget.user.email,
+          city: city.isEmpty ? null : city,
         ),
       );
+      return;
+    }
+
+    if (type == 'etkinlik') {
+      unawaited(
+        EtkinliklerPage.open(
+          context,
+          userEmail: widget.user.email,
+        ),
+      );
+      return;
+    }
+
+    if (type == 'kariyer') {
+      final sektor = (data['sektor'] ?? '').trim().toLowerCase();
+      unawaited(
+        EngelsizKariyerPage.open(
+          context,
+          userEmail: widget.user.email,
+          sektor: sektor == kKariyerSektorOzel
+              ? kKariyerSektorOzel
+              : sektor == kKariyerSektorKamu
+                  ? kKariyerSektorKamu
+                  : kKariyerSektorAll,
+        ),
+      );
+      return;
+    }
+
+    if (type == 'gezi') {
+      final city = (data['city'] ?? '').trim();
+      unawaited(
+        GeziRehberiPage.open(
+          context,
+          userEmail: widget.user.email,
+          city: city.isEmpty ? null : city,
+        ),
+      );
+      return;
+    }
+
+    if (type == kDidYouKnowType || type == 'did_you_know') {
+      final text = (data['text'] ?? data['body'] ?? '').trim();
+      if (text.isEmpty) return;
+      unawaited(_showDidYouKnow(text));
       return;
     }
 
@@ -2017,6 +2091,25 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     if (type == 'ilan' && id != null && id > 0) {
       _openIlanDetay(kind: (data['kind'] ?? 'uzman').trim(), id: id);
     }
+  }
+
+  Future<void> _showDidYouKnow(String text) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const L10nText(kDidYouKnowTitle),
+        content: SingleChildScrollView(
+          child: Text(text),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const L10nText('Tamam'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _openBildirim(AppBildirim b) async {
@@ -2450,7 +2543,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     unawaited(
       PushNotificationService.instance.syncTopics(cloud.notifications),
     );
-    unawaited(PushNotificationService.instance.registerTokenWithServer());
+    unawaited(PushNotificationService.instance.ensureTokenRegistered());
   }
 
   Future<void> _loadIlanlarVeFoto() async {
@@ -2772,6 +2865,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           },
           onOpenKrediYukle: _openKrediYukle,
           onIlanlarChanged: _persistIlanlar,
+          onKrediChanged: (n) {
+            if (mounted) setState(() => _userKredi = n);
+          },
           openIlanKind: _openIlanKind,
           openIlanId: _openIlanId,
           openIlanToken: _openIlanToken,
@@ -2806,6 +2902,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           profilFoto: _profilFoto,
           isGuest: _isGuest,
           onRequireLogin: () => _requireLogin(),
+          onKrediChanged: (n) {
+            if (mounted) setState(() => _userKredi = n);
+          },
           openPostId: _openForumPostId,
           openCommentId: _openForumCommentId,
           openPostToken: _openForumToken,
@@ -4288,6 +4387,19 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: _menuTile(
+              emoji: '💡',
+              label: kDidYouKnowTitle,
+              sub: 'Serbest mesaj · tüm üyelere bildirim',
+              highlight: true,
+              onTap: () => AdminDidYouKnowSheet.open(
+                context,
+                adminEmail: widget.user.email,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
               emoji: '🎁',
               label: 'Fırsatlar ve Destekler',
               sub: 'Onay kuyruğu · onaylanınca ana sayfa story',
@@ -4478,7 +4590,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                       ),
                       const SizedBox(height: 2),
                       L10nText(
-                        'Sisteme kayıt olduğunuz için hesabınıza $kWelcomeKredi ücretsiz puan tanımlandı.',
+                        'Sisteme kayıt olduğunuz için hesabınıza '
+                        '${startingKrediFor(widget.user.email, userType: _role)} '
+                        'ücretsiz $_krediBirimLabel tanımlandı.',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.white.withValues(alpha: 0.85),
@@ -5842,6 +5956,9 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
   late final TextEditingController _sertifikalar;
   late final TextEditingController _calismaSekli;
   late final TextEditingController _hakkimda;
+  late final TextEditingController _aileRolu;
+  late final TextEditingController _arananDestek;
+  late final TextEditingController _aileTercihler;
   late LocationData _loc;
   bool _saving = false;
 
@@ -5867,6 +5984,9 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
     _sertifikalar = TextEditingController(text: p.sertifikalar);
     _calismaSekli = TextEditingController(text: p.calismaSekli);
     _hakkimda = TextEditingController(text: p.hakkimda);
+    _aileRolu = TextEditingController(text: p.aileRolu);
+    _arananDestek = TextEditingController(text: p.arananDestek);
+    _aileTercihler = TextEditingController(text: p.aileTercihler);
     _loc = p.location.countryCode.isEmpty && p.sehir.isEmpty
         ? LocationData(
             countryCode: countryCodeForLang(LocaleController.instance.lang),
@@ -5884,6 +6004,9 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
     _sertifikalar.dispose();
     _calismaSekli.dispose();
     _hakkimda.dispose();
+    _aileRolu.dispose();
+    _arananDestek.dispose();
+    _aileTercihler.dispose();
     super.dispose();
   }
 
@@ -5962,6 +6085,11 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
       sertifikalar: _sertifikalar.text.trim(),
       calismaSekli: _calismaSekli.text.trim(),
       hakkimda: _hakkimda.text.trim(),
+      aileRolu: _isAile ? _aileRolu.text.trim() : widget.initial.aileRolu,
+      arananDestek:
+          _isAile ? _arananDestek.text.trim() : widget.initial.arananDestek,
+      aileTercihler:
+          _isAile ? _aileTercihler.text.trim() : widget.initial.aileTercihler,
     ));
     if (mounted) setState(() => _saving = false);
   }
@@ -6031,9 +6159,34 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
           onChanged: (loc) => setState(() => _loc = loc),
         ),
         const SizedBox(height: 14),
-        if (_isUzman) ...[
-          _field('Meslek / Uzmanlık Unvanı', _meslek,
-              'Örn. Fizyoterapist, Dil Terapisti'),
+        if (_isAile) ...[
+          _field('Aile / Veli Bilgisi', _aileRolu,
+              'Örn. Anne, baba veya yasal vasi'),
+          _field('Aradığınız Destek', _arananDestek,
+              'Uzman, bakım veya eğitim ihtiyaçlarınız',
+              maxLines: 3),
+          _field(
+              'Tercihler', _aileTercihler, 'Uygun gün, saat ve çalışma şekli'),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: L10nText(
+              widget.initial.hasOzgecmis
+                  ? 'Uzman özgeçmişiniz'
+                  : 'Özgeçmiş',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: MetoColors.foreground,
+              ),
+            ),
+          ),
+        ],
+        if (_isUzman || _isAile) ...[
+          _field(
+            _isAile ? 'Meslek / Unvan' : 'Meslek / Uzmanlık Unvanı',
+            _meslek,
+            'Örn. Fizyoterapist, Dil Terapisti',
+          ),
           _field('Eğitim', _egitim, 'Okul, bölüm ve mezuniyet yılı'),
           _field('Deneyim', _deneyim, 'Örn. 8 yıl'),
           _field('Çalışma Alanları', _uzmanliklar,
@@ -6056,14 +6209,6 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
               maxLines: 3),
           _field('Çalışma Tercihi', _calismaSekli,
               'Tam/yarı zamanlı, yatılı, uygun günler'),
-        ] else ...[
-          _field('Aile / Veli Bilgisi', _meslek,
-              'Örn. Anne, baba veya yasal vasi'),
-          _field('Aradığınız Destek', _uzmanliklar,
-              'Uzman, bakım veya eğitim ihtiyaçlarınız',
-              maxLines: 3),
-          _field(
-              'Tercihler', _calismaSekli, 'Uygun gün, saat ve çalışma şekli'),
         ],
         _field(
           'Hakkımda',

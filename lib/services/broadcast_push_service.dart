@@ -3,6 +3,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../admin_config.dart';
 
+const kDidYouKnowTitle = 'Bunu biliyor muydunuz?';
+const kDidYouKnowType = 'biliyor_muydunuz';
+const kDidYouKnowMaxChars = 800;
+
+String didYouKnowPushBody(String message) => message.trim();
+
 /// Supabase Edge Function `broadcast-push` — FCM topic bildirimi.
 /// Secrets: `FCM_SERVER_KEY` (Firebase Cloud Messaging legacy server key)
 class BroadcastPushService {
@@ -90,6 +96,99 @@ class BroadcastPushService {
         },
         requireAdmin: true,
       );
+
+  /// Admin: seçilen il / tüm ülke kampanya duyurusu.
+  Future<bool> kampanyaSehir({
+    required String title,
+    required String body,
+    String? city,
+  }) =>
+      sendToTopic(
+        topic: 'duyurular',
+        title: title.isEmpty ? 'Kampanyalar' : title,
+        body: body.isEmpty
+            ? 'Kampanyalar’da bugün yararlanabileceğiniz kampanyalar için lütfen göz atın.'
+            : body,
+        data: {
+          'type': 'kampanya',
+          if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+        },
+        requireAdmin: true,
+      );
+
+  /// Admin seçtiği günlük etkinlik: haberlerle aynı `duyurular` topic.
+  Future<bool> etkinlik({
+    required String title,
+    required String body,
+    String? imageUrl,
+    String? etkinlikId,
+  }) =>
+      sendToTopic(
+        topic: 'duyurular',
+        title: title.isEmpty ? 'Etkinlik var' : title,
+        body: body.isEmpty ? 'Etkinlik var' : body,
+        imageUrl: imageUrl,
+        data: {
+          'type': 'etkinlik',
+          if (etkinlikId != null) 'id': etkinlikId,
+        },
+        requireAdmin: true,
+      );
+
+  /// Admin: bugünkü kamu / özel sektör ilan sayısı (haberlerle aynı topic).
+  Future<bool> kariyer({
+    required String title,
+    required String body,
+    String? sektor,
+  }) =>
+      sendToTopic(
+        topic: 'duyurular',
+        title: title.isEmpty ? 'Engelsiz Kariyer' : title,
+        body: body.isEmpty ? 'Engelsiz Kariyer’de yeni iş ilanları var.' : body,
+        data: {
+          'type': 'kariyer',
+          if (sektor != null && sektor.isNotEmpty) 'sektor': sektor,
+        },
+        requireAdmin: true,
+      );
+
+  /// Admin: seçilen il için Gezi Rehberi duyurusu (haberlerle aynı topic).
+  Future<bool> gezi({
+    required String title,
+    required String body,
+    String? city,
+  }) =>
+      sendToTopic(
+        topic: 'duyurular',
+        title: title.isEmpty ? 'Gezi Rehberi' : title,
+        body: body.isEmpty
+            ? 'Gezi Rehberi’nde bugün gezebileceğiniz yerler için lütfen göz atın.'
+            : body,
+        data: {
+          'type': 'gezi',
+          if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+        },
+        requireAdmin: true,
+      );
+
+  /// Admin serbest mesaj: başlık «Bunu biliyor muydunuz?», gövde admin metni.
+  Future<bool> biliyorMuydunuz({required String message}) {
+    final body = didYouKnowPushBody(message);
+    if (body.isEmpty) return Future.value(false);
+    final clipped = body.length > kDidYouKnowMaxChars
+        ? body.substring(0, kDidYouKnowMaxChars).trim()
+        : body;
+    return sendToTopic(
+      topic: 'duyurular',
+      title: kDidYouKnowTitle,
+      body: clipped,
+      data: {
+        'type': kDidYouKnowType,
+        'text': clipped,
+      },
+      requireAdmin: true,
+    );
+  }
 
   Future<bool> yeniIlan({
     required String title,

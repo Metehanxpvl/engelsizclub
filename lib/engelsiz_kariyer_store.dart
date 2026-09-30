@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'section_editors.dart';
+import 'services/broadcast_push_service.dart';
 import 'utils/async_timeout.dart';
 
 const kKariyerAssetPath = 'assets/engelsiz_kariyer/engelsiz-kariyer.json';
@@ -56,6 +57,53 @@ bool kariyerMatchesSektor(KariyerJob job, String filter) {
   final s = normalizeKariyerSektor(job.sektor, job.employerType);
   if (s.isEmpty) return true;
   return s == filter;
+}
+
+int countKariyerJobsBySektor(Iterable<KariyerJob> jobs, String sektor) {
+  final key = normalizeKariyerSektor(sektor, '');
+  if (key.isEmpty) return 0;
+  var n = 0;
+  for (final j in jobs) {
+    if (j.hidden) continue;
+    if (normalizeKariyerSektor(j.sektor, j.employerType) == key) n += 1;
+  }
+  return n;
+}
+
+int hiddenKariyerJobsBySektor(Iterable<KariyerJob> jobs, String sektor) {
+  final key = normalizeKariyerSektor(sektor, '');
+  if (key.isEmpty) return 0;
+  var n = 0;
+  for (final j in jobs) {
+    if (!j.hidden) continue;
+    if (normalizeKariyerSektor(j.sektor, j.employerType) == key) n += 1;
+  }
+  return n;
+}
+
+/// İŞKUR katalog toplamı (gizli ilanlar düşülür); yoksa listedeki görünür sayı.
+int kariyerNotifyCount({
+  required Iterable<KariyerJob> jobs,
+  required String sektor,
+  int catalogKamu = 0,
+  int catalogOzel = 0,
+}) {
+  final key = normalizeKariyerSektor(sektor, '');
+  final visible = countKariyerJobsBySektor(jobs, key);
+  final hint = key == kKariyerSektorOzel ? catalogOzel : catalogKamu;
+  if (hint > 0) {
+    final hidden = hiddenKariyerJobsBySektor(jobs, key);
+    final n = hint - hidden;
+    if (n > visible) return n;
+  }
+  return visible;
+}
+
+String kariyerPushBody({required String sektor, required int count}) {
+  if (sektor == kKariyerSektorOzel) {
+    return 'Engelsiz Kariyer’de bugün toplam $count özel sektör iş ilanı var.';
+  }
+  return 'Engelsiz Kariyer’de bugün toplam $count kamu iş ilanı var.';
 }
 
 class KariyerJob {
@@ -162,6 +210,8 @@ class KariyerOverride {
 
 List<KariyerJob>? _catalogCache;
 DateTime? _catalogCacheAt;
+int _catalogKamuHint = 0;
+int _catalogOzelHint = 0;
 String? lastKariyerLoadError;
 const _ttl = Duration(minutes: 20);
 
@@ -174,9 +224,24 @@ bool get hasFreshKariyerCache {
 
 List<KariyerJob>? get cachedKariyerJobs => _catalogCache;
 
+int get cachedKariyerKamuHint => _catalogKamuHint;
+
+int get cachedKariyerOzelHint => _catalogOzelHint;
+
 void invalidateKariyerCache() {
   _catalogCache = null;
   _catalogCacheAt = null;
+  _catalogKamuHint = 0;
+  _catalogOzelHint = 0;
+}
+
+int _readCatalogCount(Map<String, dynamic> json, String key) {
+  final counts = json['counts'];
+  if (counts is Map) {
+    final n = int.tryParse('${counts[key] ?? ''}');
+    if (n != null && n >= 0) return n;
+  }
+  return 0;
 }
 
 String _bust(String url) {
@@ -393,6 +458,8 @@ Future<List<KariyerJob>> loadKariyerJobs({
     final merged = mergeKariyerJobs(catalog: catalog, overrides: overrides);
     _catalogCache = List<KariyerJob>.unmodifiable(merged);
     _catalogCacheAt = DateTime.now();
+    _catalogKamuHint = _readCatalogCount(catalogJson, 'kamu');
+    _catalogOzelHint = _readCatalogCount(catalogJson, 'ozel');
     return includeHidden
         ? List<KariyerJob>.from(merged)
         : merged.where((j) => !j.hidden).toList();
@@ -466,5 +533,29 @@ Future<void> hideKariyerJob({
     date: job.date,
     applyUrl: job.applyUrl,
     custom: job.custom,
+  );
+}
+
+Future<bool> notifyKariyerPush({
+  required String adminEmail,
+  required String sektor,
+  required int count,
+}) async {
+  await _requireKariyerAdmin(adminEmail);
+  final key = normalizeKariyerSektor(sektor, '');
+  if (key != kKariyerSektorKamu && key != kKariyerSektorOzel) {
+    throw StateError('Kamu veya özel sektör seçin.');
+  }
+  if (count <= 0) {
+    throw StateError(
+      key == kKariyerSektorOzel
+          ? 'Özel sektör ilanı yok.'
+          : 'Kamu ilanı yok.',
+    );
+  }
+  return BroadcastPushService.instance.kariyer(
+    title: 'Engelsiz Kariyer',
+    body: kariyerPushBody(sektor: key, count: count),
+    sektor: key,
   );
 }

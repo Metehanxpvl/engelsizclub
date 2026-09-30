@@ -33,11 +33,13 @@ function buildFcmPayload(opts: {
   data: Record<string, string>;
 }): Record<string, unknown> {
   const { to, title, body, safeImage, data } = opts;
+  const alertBody = body || title;
   const base: Record<string, unknown> = {
     priority: "high",
     notification: {
       title,
-      body: body || title,
+      body: alertBody,
+      sound: "default",
       ...(safeImage ? { image: safeImage } : {}),
     },
     android: {
@@ -49,10 +51,19 @@ function buildFcmPayload(opts: {
       },
     },
     apns: {
+      headers: {
+        "apns-priority": "10",
+        "apns-push-type": "alert",
+      },
       payload: {
         aps: {
+          alert: {
+            title,
+            body: alertBody,
+          },
           sound: "default",
-          "mutable-content": 1,
+          badge: 1,
+          ...(safeImage ? { "mutable-content": 1 } : {}),
         },
       },
       ...(safeImage ? { fcm_options: { image: safeImage } } : {}),
@@ -61,6 +72,8 @@ function buildFcmPayload(opts: {
       ...Object.fromEntries(
         Object.entries(data).map(([k, v]) => [k, String(v)]),
       ),
+      title,
+      body: alertBody,
       click_action: "FLUTTER_NOTIFICATION_CLICK",
       ...(safeImage ? { image: safeImage } : {}),
     },

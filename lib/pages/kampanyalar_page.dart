@@ -32,6 +32,7 @@ class KampanyalarPage extends StatefulWidget {
     this.kind = CityFeedKind.kampanya,
     this.isGuest = false,
     this.openPending = false,
+    this.initialCity,
     this.onRequireLogin,
   });
 
@@ -39,6 +40,7 @@ class KampanyalarPage extends StatefulWidget {
   final CityFeedKind kind;
   final bool isGuest;
   final bool openPending;
+  final String? initialCity;
   final VoidCallback? onRequireLogin;
 
   static Future<void> open(
@@ -47,6 +49,7 @@ class KampanyalarPage extends StatefulWidget {
     CityFeedKind kind = CityFeedKind.kampanya,
     bool isGuest = false,
     bool openPending = false,
+    String? city,
     VoidCallback? onRequireLogin,
   }) {
     return Navigator.of(context).push(
@@ -56,6 +59,7 @@ class KampanyalarPage extends StatefulWidget {
           kind: kind,
           isGuest: isGuest,
           openPending: openPending,
+          initialCity: city,
           onRequireLogin: onRequireLogin,
         ),
       ),
@@ -76,6 +80,8 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
   String? _city;
   int? _joinBusyId;
   int? _codeBusyId;
+  int? _notifyBusyId;
+  bool _kampanyaNotifyBusy = false;
 
   bool get _isAdmin => canEditSection(
         widget.userEmail,
@@ -103,6 +109,19 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
   @override
   void initState() {
     super.initState();
+    if (!_isEtkinlik) {
+      final preset = widget.initialCity?.trim() ?? '';
+      if (preset.isNotEmpty) {
+        if (preset == kKampanyaNotifyNationwide ||
+            foldTurkish(preset) == 'tum ulke') {
+          _filter = _KampanyaFilter.nationwide;
+        } else {
+          _filter = _KampanyaFilter.city;
+          _city = preset;
+          _search.text = preset;
+        }
+      }
+    }
     final cached =
         _isEtkinlik ? cachedEtkinlikItems : cachedKampanyaItems;
     if (cached != null) {
@@ -581,6 +600,197 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
     }
   }
 
+  Future<void> _notifyEtkinlik(KampanyaItem item) async {
+    if (!_isEtkinlik || !_isAdmin || _notifyBusyId == item.id) return;
+    final heading = item.title.trim().isEmpty ? 'Bu etkinlik' : item.title.trim();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const L10nText('Bildirim gönder?'),
+        content: L10nText(
+          'Üyelere haber gibi bildirim gidecek:\n«$heading»',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const L10nText('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const L10nText('Gönder'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _notifyBusyId = item.id);
+    try {
+      final sent = await notifyEtkinlikPush(
+        item,
+        adminEmail: widget.userEmail,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: L10nText(
+            sent
+                ? 'Bildirim gönderildi.'
+                : 'Bildirim gönderilemedi. Tekrar deneyin.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Bildirim gönderilemedi: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _notifyBusyId = null);
+    }
+  }
+
+  List<String> get _kampanyaNotifyCities {
+    final out = <String>[];
+    if (_activeBase.any((k) => k.isNationwide)) {
+      out.add(kKampanyaNotifyNationwide);
+    }
+    final seen = <String>{};
+    for (final k in _activeBase) {
+      if (k.isNationwide) continue;
+      final name = k.city.trim();
+      if (name.isEmpty) continue;
+      final key = foldTurkish(name);
+      if (!seen.add(key)) continue;
+      out.add(name);
+    }
+    out.sort((a, b) {
+      if (a == kKampanyaNotifyNationwide) return -1;
+      if (b == kKampanyaNotifyNationwide) return 1;
+      return foldTurkish(a).compareTo(foldTurkish(b));
+    });
+    return out;
+  }
+
+  String _kampanyaNotifyKey(KampanyaItem item) {
+    if (item.isNationwide) return kKampanyaNotifyNationwide;
+    return item.city.trim();
+  }
+
+  Future<void> _notifyKampanyaSehir({String? city}) async {
+    if (_isEtkinlik || !_isAdmin || _kampanyaNotifyBusy) return;
+    final cities = _kampanyaNotifyCities;
+    if (cities.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: L10nText('Bildirim için önce bir kampanya ekleyin.'),
+        ),
+      );
+      return;
+    }
+    var pick = (city ??
+            (_filter == _KampanyaFilter.nationwide
+                ? kKampanyaNotifyNationwide
+                : _city))
+        ?.trim() ??
+        '';
+    if (pick.isEmpty ||
+        !cities.any((c) => foldTurkish(c) == foldTurkish(pick))) {
+      pick = cities.first;
+    }
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        var current = pick;
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            final preview = kampanyaSehirPushBody(current);
+            return AlertDialog(
+              title: const L10nText('Bildirim gönder?'),
+              content: SizedBox(
+                width: 360,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const L10nText(
+                      'Üyelere haber gibi bildirim gidecek. İl kutucuğunu seçin.',
+                    ),
+                    const SizedBox(height: 12),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 280),
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: [
+                          for (final c in cities)
+                            RadioListTile<String>(
+                              dense: true,
+                              title: Text(
+                                c == kKampanyaNotifyNationwide
+                                    ? 'Tüm ülke'
+                                    : c,
+                              ),
+                              value: c,
+                              groupValue: cities.firstWhere(
+                                (x) => foldTurkish(x) == foldTurkish(current),
+                                orElse: () => current,
+                              ),
+                              onChanged: (v) {
+                                if (v == null) return;
+                                setLocal(() => current = v);
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    L10nText(preview),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const L10nText('Vazgeç'),
+                ),
+                FilledButton(
+                  onPressed: current.isEmpty
+                      ? null
+                      : () => Navigator.pop(ctx, current),
+                  child: const L10nText('Gönder'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (selected == null || !mounted) return;
+    setState(() => _kampanyaNotifyBusy = true);
+    try {
+      final sent = await notifyKampanyaSehirPush(
+        adminEmail: widget.userEmail,
+        city: selected,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: L10nText(
+            sent
+                ? 'Bildirim gönderildi.'
+                : 'Bildirim gönderilemedi. Tekrar deneyin.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    } finally {
+      if (mounted) setState(() => _kampanyaNotifyBusy = false);
+    }
+  }
+
   InputDecoration _searchDecoration() {
     return InputDecoration(
       hintText: S.auto('İl ara (Ankara, İzmir…)'),
@@ -691,6 +901,14 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
           style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
         ),
         actions: [
+          if (!_isEtkinlik && _isAdmin)
+            IconButton(
+              tooltip: S.auto('Bildirim gönder'),
+              onPressed: _kampanyaNotifyBusy
+                  ? null
+                  : () => _notifyKampanyaSehir(),
+              icon: const Icon(Icons.notifications_active_outlined),
+            ),
           if (_isEtkinlik)
             TextButton.icon(
               onPressed: () => _openPropose(),
@@ -975,6 +1193,16 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
       isAdmin: _isAdmin,
       onDelete: _isAdmin ? () => _delete(item) : null,
       onEdit: _isAdmin ? () => _openEdit(item) : null,
+      onNotify: _isEtkinlik &&
+              _isAdmin &&
+              isEtkinlikListed(item) &&
+              !isEtkinlikPending(item)
+          ? () => _notifyEtkinlik(item)
+          : !_isEtkinlik &&
+                  _isAdmin &&
+                  _kampanyaNotifyKey(item).isNotEmpty
+              ? () => _notifyKampanyaSehir(city: _kampanyaNotifyKey(item))
+              : null,
       onMoveUp:
           _reorderEnabled(index, length, -1) ? () => _move(item, -1) : null,
       onMoveDown:

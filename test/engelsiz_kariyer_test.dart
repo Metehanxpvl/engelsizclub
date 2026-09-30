@@ -88,6 +88,64 @@ void main() {
     expect(KariyerJob.fromJson({'id': 'x', 'title': 't', 'employerType': 'Özel'}).sektor, kKariyerSektorOzel);
   });
 
+  test('kariyer notify copy and counts use kamu / özel totals', () {
+    const jobs = [
+      KariyerJob(
+        id: 'k1',
+        title: 'Kamu 1',
+        city: 'Ankara',
+        date: '',
+        applyUrl: 'https://esube.iskur.gov.tr/',
+        sektor: 'kamu',
+      ),
+      KariyerJob(
+        id: 'k2',
+        title: 'Kamu gizli',
+        city: 'İzmir',
+        date: '',
+        applyUrl: 'https://esube.iskur.gov.tr/',
+        sektor: 'kamu',
+        hidden: true,
+      ),
+      KariyerJob(
+        id: 'o1',
+        title: 'Özel 1',
+        city: 'Bursa',
+        date: '',
+        applyUrl: 'https://esube.iskur.gov.tr/',
+        employerType: 'Özel',
+      ),
+    ];
+    expect(countKariyerJobsBySektor(jobs, kKariyerSektorKamu), 1);
+    expect(countKariyerJobsBySektor(jobs, kKariyerSektorOzel), 1);
+    expect(
+      kariyerNotifyCount(
+        jobs: jobs,
+        sektor: kKariyerSektorKamu,
+        catalogKamu: 12,
+        catalogOzel: 100,
+      ),
+      11,
+    );
+    expect(
+      kariyerNotifyCount(
+        jobs: jobs,
+        sektor: kKariyerSektorOzel,
+        catalogKamu: 12,
+        catalogOzel: 100,
+      ),
+      100,
+    );
+    expect(
+      kariyerPushBody(sektor: kKariyerSektorKamu, count: 12),
+      'Engelsiz Kariyer’de bugün toplam 12 kamu iş ilanı var.',
+    );
+    expect(
+      kariyerPushBody(sektor: kKariyerSektorOzel, count: 3050),
+      'Engelsiz Kariyer’de bugün toplam 3050 özel sektör iş ilanı var.',
+    );
+  });
+
   test('homepage tile order constant: kariyer is leftmost key', () {
     const keys = ['kariyer', 'gezi', 'kampanya', 'etkinlik'];
     expect(keys.first, 'kariyer');

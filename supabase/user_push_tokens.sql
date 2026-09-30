@@ -17,21 +17,37 @@ alter table public.user_push_tokens enable row level security;
 drop policy if exists "user_push_tokens_select_own" on public.user_push_tokens;
 create policy "user_push_tokens_select_own"
   on public.user_push_tokens for select
-  using (lower(owner_email) = lower(auth.jwt() ->> 'email'));
+  to authenticated
+  using (
+    owner_id = auth.uid()
+    or lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
 
 drop policy if exists "user_push_tokens_insert_own" on public.user_push_tokens;
 create policy "user_push_tokens_insert_own"
   on public.user_push_tokens for insert
-  with check (lower(owner_email) = lower(auth.jwt() ->> 'email'));
+  to authenticated
+  with check (
+    owner_id = auth.uid()
+    or lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
 
 drop policy if exists "user_push_tokens_update_own" on public.user_push_tokens;
 create policy "user_push_tokens_update_own"
   on public.user_push_tokens for update
-  using (lower(owner_email) = lower(auth.jwt() ->> 'email'));
+  to authenticated
+  using (
+    owner_id = auth.uid()
+    or lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
 
 drop policy if exists "user_push_tokens_delete_own" on public.user_push_tokens;
 create policy "user_push_tokens_delete_own"
   on public.user_push_tokens for delete
-  using (lower(owner_email) = lower(auth.jwt() ->> 'email'));
+  to authenticated
+  using (
+    owner_id = auth.uid()
+    or lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
 
 notify pgrst, 'reload schema';

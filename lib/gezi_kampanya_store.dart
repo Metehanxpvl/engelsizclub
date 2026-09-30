@@ -137,6 +137,27 @@ String kampanyaLocationLabel(String? city) {
   return city!.trim();
 }
 
+String geziPushBody(String city) {
+  final c = city.trim();
+  if (c.isEmpty) {
+    return 'Gezi Rehberi’nde bugün gezebileceğiniz yerler için lütfen göz atın.';
+  }
+  return 'Gezi Rehberi’nde bugün $c ilinde gezebileceğiniz yerler için lütfen göz atın.';
+}
+
+const kKampanyaNotifyNationwide = '__tum_ulke__';
+
+String kampanyaSehirPushBody(String city) {
+  final c = city.trim();
+  if (c.isEmpty ||
+      c == kKampanyaNotifyNationwide ||
+      isKampanyaNationwide(c) ||
+      foldTurkish(c) == 'tum ulke') {
+    return 'Kampanyalar’da bugün tüm ülkede geçerli kampanyalar için lütfen göz atın.';
+  }
+  return 'Kampanyalar’da bugün $c ilinde yararlanabileceğiniz kampanyalar için lütfen göz atın.';
+}
+
 /// Admin kampanya kodu: büyük harf, rakam, tire. 4–32 karakter.
 String normalizeKampanyaCode(String raw) {
   final s = raw.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '');
@@ -824,6 +845,41 @@ Future<void> _requireSection(String? email, SectionKey key) async {
   if (!canEditSection(email, key)) {
     throw StateError('Bu bölümü yönetme yetkiniz yok.');
   }
+}
+
+Future<bool> notifyGeziPush({
+  required String adminEmail,
+  required String city,
+}) async {
+  await _requireSection(adminEmail, SectionKey.gezi);
+  final name = city.trim();
+  if (name.isEmpty) {
+    throw StateError('Bildirim için il seçin.');
+  }
+  return BroadcastPushService.instance.gezi(
+    title: 'Gezi Rehberi',
+    body: geziPushBody(name),
+    city: name,
+  );
+}
+
+Future<bool> notifyKampanyaSehirPush({
+  required String adminEmail,
+  required String city,
+}) async {
+  await _requireSection(adminEmail, SectionKey.kampanya);
+  final name = city.trim();
+  if (name.isEmpty) {
+    throw StateError('Bildirim için il veya tüm ülke seçin.');
+  }
+  final nationwide = name == kKampanyaNotifyNationwide ||
+      isKampanyaNationwide(name) ||
+      foldTurkish(name) == 'tum ulke';
+  return BroadcastPushService.instance.kampanyaSehir(
+    title: 'Kampanyalar',
+    body: kampanyaSehirPushBody(name),
+    city: nationwide ? kKampanyaNotifyNationwide : name,
+  );
 }
 
 Future<List<GeziItem>> loadGeziItems({
@@ -1540,6 +1596,41 @@ void _notifyYeniKampanya(KampanyaItem item) {
       imageUrl: item.imageUrl,
       kampanyaId: '${item.id}',
     ),
+  );
+}
+
+String etkinlikPushBody(KampanyaItem item) {
+  final parts = <String>[];
+  final loc = item.locationLabel.trim();
+  if (loc.isNotEmpty) parts.add(loc);
+  final when = item.eventWhenLabel.trim();
+  if (when.isNotEmpty) parts.add(when);
+  final time = item.eventTimeLabel.trim();
+  if (time.isNotEmpty) parts.add(time);
+  if (parts.isNotEmpty) return 'Etkinlik var · ${parts.join(' · ')}';
+  final desc = item.cardDescription.trim();
+  if (desc.isNotEmpty) return desc;
+  return 'Etkinlik var';
+}
+
+/// Admin seçtiği onaylı etkinliği haber gibi FCM ile duyurur (scrape otomatik göndermez).
+Future<bool> notifyEtkinlikPush(
+  KampanyaItem item, {
+  required String adminEmail,
+}) async {
+  await ensureSectionEditorsLoaded(adminEmail);
+  if (!canEditSection(adminEmail, SectionKey.etkinlik)) {
+    throw StateError('Bu bölümü yönetme yetkiniz yok.');
+  }
+  if (!isEtkinlikListed(item) || isEtkinlikPending(item)) {
+    throw StateError('Yalnız onaylı etkinlik için bildirim gönderilir.');
+  }
+  final heading = item.title.trim();
+  return BroadcastPushService.instance.etkinlik(
+    title: heading.isEmpty ? 'Etkinlik var' : heading,
+    body: etkinlikPushBody(item),
+    imageUrl: item.imageUrl,
+    etkinlikId: '${item.id}',
   );
 }
 

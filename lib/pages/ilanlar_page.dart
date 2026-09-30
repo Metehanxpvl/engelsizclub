@@ -62,6 +62,7 @@ class IlanlarPage extends StatefulWidget {
     this.onUnreadChange,
     this.onOpenKrediYukle,
     this.onIlanlarChanged,
+    this.onKrediChanged,
     this.openIlanKind,
     this.openIlanId,
     this.openIlanToken = 0,
@@ -83,6 +84,7 @@ class IlanlarPage extends StatefulWidget {
   final ValueChanged<int>? onUnreadChange;
   final VoidCallback? onOpenKrediYukle;
   final VoidCallback? onIlanlarChanged;
+  final ValueChanged<int>? onKrediChanged;
 
   /// Profil / favorilerden açılacak ilan (kind: uzman|bakici|ikinciel).
   final String? openIlanKind;
@@ -1700,19 +1702,31 @@ class IlanlarPageState extends State<IlanlarPage> {
           _showVerForm = false;
           _editDraft = null;
         }),
-        onPublished: (kategori) async {
+        onPublished: (result) async {
           setState(() {
             _showVerForm = false;
             _editDraft = null;
-            _kategori = kategori;
+            _kategori = result.kategori;
           });
           final messenger = ScaffoldMessenger.of(context);
           await _refreshFeed();
           if (!mounted) return;
+          var awardedIyilik = false;
+          if (!editing &&
+              result.fromCloud &&
+              awardsIyilikForShare(widget.userType)) {
+            awardedIyilik = true;
+            final balance = await syncCloudKredi(email: widget.userEmail);
+            if (balance != null) widget.onKrediChanged?.call(balance);
+          }
+          if (!mounted) return;
           messenger.showSnackBar(
             SnackBar(
               content: Text(
-                editing ? 'İlan güncellendi ✅' : 'İlanınız yayınlandı ✅',
+                ilanShareSnack(
+                  isEdit: editing,
+                  awardedIyilik: awardedIyilik,
+                ),
               ),
             ),
           );
@@ -6356,6 +6370,12 @@ class _IlanEditDraft {
   final List<IlanPhoto> photos;
 }
 
+class _IlanPublishResult {
+  const _IlanPublishResult(this.kategori, {this.fromCloud = true});
+  final IlanKategori kategori;
+  final bool fromCloud;
+}
+
 class _YeniIlanForm extends StatefulWidget {
   const _YeniIlanForm({
     required this.onBack,
@@ -6367,7 +6387,7 @@ class _YeniIlanForm extends StatefulWidget {
     this.editDraft,
   });
   final VoidCallback onBack;
-  final ValueChanged<IlanKategori> onPublished;
+  final ValueChanged<_IlanPublishResult> onPublished;
   final String userName;
   final String userEmail;
   final String userType;
@@ -6664,7 +6684,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
           }
       }
       if (!mounted) return;
-      widget.onPublished(kategori);
+      widget.onPublished(_IlanPublishResult(kategori));
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString();
@@ -6682,11 +6702,14 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
       } else if (msg.contains('LOCAL_ILAN_SAVED:')) {
         // Yerel kayıt oldu; yine de yayınlandı say.
         widget.onPublished(
-          _isUzmanArama
-              ? IlanKategori.uzmanlar
-              : _isBakiciArama
-                  ? IlanKategori.bakici
-                  : IlanKategori.ikinciel,
+          _IlanPublishResult(
+            _isUzmanArama
+                ? IlanKategori.uzmanlar
+                : _isBakiciArama
+                    ? IlanKategori.bakici
+                    : IlanKategori.ikinciel,
+            fromCloud: false,
+          ),
         );
         final detail = msg.contains('LOCAL_ILAN_SAVED:')
             ? msg.split('LOCAL_ILAN_SAVED:').last.replaceFirst('StateError: ', '')

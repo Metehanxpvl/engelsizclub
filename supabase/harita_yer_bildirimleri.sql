@@ -1,7 +1,46 @@
 -- Engelsiz Haritalar: üye yer bildirimi
--- Aile rolü: her 5 bildiride 1 iyilik puanı (user_profiles.kredi)
+-- Aile rolü: her yer bildiriminde +1 iyilik puanı (user_profiles.kredi)
+-- Uzman / bakıcı yer bildirince puan ARTMAZ.
 -- Supabase Dashboard → SQL Editor → çalıştırın (idempotent).
 -- Dart: harita_yer_store.dart
+
+create or replace function public.member_user_type(p_user uuid)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_meta text := '';
+  v_jwt text := '';
+  v_role text := '';
+begin
+  if p_user is not null then
+    select lower(btrim(coalesce(raw_user_meta_data ->> 'user_type', '')))
+    into v_meta
+    from auth.users
+    where id = p_user;
+  end if;
+  v_jwt := lower(btrim(coalesce(
+    auth.jwt() -> 'user_metadata' ->> 'user_type',
+    ''
+  )));
+  v_role := coalesce(nullif(v_meta, ''), nullif(v_jwt, ''), '');
+  if v_role in ('bakici', 'bakıcı') then
+    return 'bakici';
+  end if;
+  if v_role = 'uzman' then
+    return 'uzman';
+  end if;
+  if v_role = 'aile' then
+    return 'aile';
+  end if;
+  return 'aile';
+end;
+$$;
+
+revoke all on function public.member_user_type(uuid) from public;
 
 create or replace function public.harita_fold_tr(p text)
 returns text
@@ -164,10 +203,7 @@ as $$
 declare
   v_user uuid := auth.uid();
   v_email text := lower(coalesce(auth.jwt() ->> 'email', ''));
-  v_role text := lower(coalesce(
-    nullif(trim(auth.jwt() -> 'user_metadata' ->> 'user_type'), ''),
-    'aile'
-  ));
+  v_role text := public.member_user_type(v_user);
   v_name text := btrim(coalesce(p_name, ''));
   v_city text := btrim(coalesce(p_city, ''));
   v_cat text := btrim(coalesce(p_category, ''));
@@ -225,7 +261,7 @@ begin
   from public.harita_yer_bildirimleri
   where user_id = v_user;
 
-  if v_role = 'aile' and v_count > 0 and mod(v_count, 5) = 0 then
+  if v_role = 'aile' then
     insert into public.user_profiles (
       owner_id, owner_email, kredi, kredi_welcome_gift, updated_at
     ) values (

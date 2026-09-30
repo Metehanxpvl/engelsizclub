@@ -15,17 +15,23 @@ class GeziRehberiPage extends StatefulWidget {
   const GeziRehberiPage({
     super.key,
     required this.userEmail,
+    this.initialCity,
   });
 
   final String userEmail;
+  final String? initialCity;
 
   static Future<void> open(
     BuildContext context, {
     required String userEmail,
+    String? city,
   }) {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => GeziRehberiPage(userEmail: userEmail),
+        builder: (_) => GeziRehberiPage(
+          userEmail: userEmail,
+          initialCity: city,
+        ),
       ),
     );
   }
@@ -38,6 +44,7 @@ class _GeziRehberiPageState extends State<GeziRehberiPage> {
   final _search = TextEditingController();
   List<GeziItem> _all = const [];
   bool _loading = true;
+  bool _notifyBusy = false;
   String? _city;
 
   bool get _isAdmin => canEditSection(widget.userEmail, SectionKey.gezi);
@@ -45,6 +52,11 @@ class _GeziRehberiPageState extends State<GeziRehberiPage> {
   @override
   void initState() {
     super.initState();
+    final preset = widget.initialCity?.trim();
+    if (preset != null && preset.isNotEmpty) {
+      _city = preset;
+      _search.text = preset;
+    }
     final cached = cachedGeziItems;
     if (cached != null) {
       _all = List<GeziItem>.from(cached);
@@ -260,6 +272,124 @@ class _GeziRehberiPageState extends State<GeziRehberiPage> {
     }
   }
 
+  List<String> get _notifyCities {
+    final seen = <String>{};
+    final out = <String>[];
+    for (final g in _activeBase) {
+      final name = g.cityName.trim();
+      if (name.isEmpty) continue;
+      final key = foldTurkish(name);
+      if (!seen.add(key)) continue;
+      out.add(name);
+    }
+    out.sort((a, b) => foldTurkish(a).compareTo(foldTurkish(b)));
+    return out;
+  }
+
+  Future<void> _notifyGezi({String? city}) async {
+    if (!_isAdmin || _notifyBusy) return;
+    final cities = _notifyCities;
+    if (cities.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: L10nText('Bildirim için önce bir il ekleyin.')),
+      );
+      return;
+    }
+    var pick = (city ?? _city)?.trim() ?? '';
+    if (pick.isEmpty ||
+        !cities.any((c) => foldTurkish(c) == foldTurkish(pick))) {
+      pick = cities.first;
+    }
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        var current = pick;
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            final preview = geziPushBody(current);
+            return AlertDialog(
+              title: const L10nText('Bildirim gönder?'),
+              content: SizedBox(
+                width: 360,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const L10nText(
+                      'Üyelere haber gibi bildirim gidecek. İl kutucuğunu seçin.',
+                    ),
+                    const SizedBox(height: 12),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 280),
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: [
+                          for (final c in cities)
+                            RadioListTile<String>(
+                              dense: true,
+                              title: Text(c),
+                              value: c,
+                              groupValue: cities.firstWhere(
+                                (x) => foldTurkish(x) == foldTurkish(current),
+                                orElse: () => current,
+                              ),
+                              onChanged: (v) {
+                                if (v == null) return;
+                                setLocal(() => current = v);
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    L10nText(preview),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const L10nText('Vazgeç'),
+                ),
+                FilledButton(
+                  onPressed: current.isEmpty
+                      ? null
+                      : () => Navigator.pop(ctx, current),
+                  child: const L10nText('Gönder'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (selected == null || !mounted) return;
+    setState(() => _notifyBusy = true);
+    try {
+      final sent = await notifyGeziPush(
+        adminEmail: widget.userEmail,
+        city: selected,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: L10nText(
+            sent
+                ? 'Bildirim gönderildi.'
+                : 'Bildirim gönderilemedi. Tekrar deneyin.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    } finally {
+      if (mounted) setState(() => _notifyBusy = false);
+    }
+  }
+
   InputDecoration _searchDecoration() {
     return InputDecoration(
       hintText: S.auto('İl ara (Ankara, İzmir…)'),
@@ -342,6 +472,12 @@ class _GeziRehberiPageState extends State<GeziRehberiPage> {
           style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
         ),
         actions: [
+          if (_isAdmin)
+            IconButton(
+              tooltip: S.auto('Bildirim gönder'),
+              onPressed: _notifyBusy ? null : () => _notifyGezi(),
+              icon: const Icon(Icons.notifications_active_outlined),
+            ),
           if (_isAdmin)
             IconButton(
               tooltip: S.auto('Yer ekle'),
@@ -452,6 +588,10 @@ class _GeziRehberiPageState extends State<GeziRehberiPage> {
                                       _isAdmin ? () => _delete(item) : null,
                                   onEdit:
                                       _isAdmin ? () => _openEdit(item) : null,
+                                  onNotify: _isAdmin &&
+                                          item.cityName.trim().isNotEmpty
+                                      ? () => _notifyGezi(city: item.cityName)
+                                      : null,
                                   onMoveUp: _isAdmin && filtered && i > 0
                                       ? () => _move(item, -1)
                                       : null,

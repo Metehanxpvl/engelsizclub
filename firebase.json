@@ -20,6 +20,18 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "redirects": [
+      {
+        "source": "/app-store",
+        "destination": "https://apps.apple.com/tr/app/engelsiz-club/id6799422264",
+        "type": 302
+      },
+      {
+        "source": "/app-store.html",
+        "destination": "https://apps.apple.com/tr/app/engelsiz-club/id6799422264",
+        "type": 302
+      }
+    ],
     "rewrites": [
       {
         "source": "/api/gemini",
@@ -107,6 +119,14 @@
       {
         "source": "/support/**",
         "destination": "/support.html"
+      },
+      {
+        "source": "/app-store",
+        "destination": "/app-store.html"
+      },
+      {
+        "source": "/app-store.html",
+        "destination": "/app-store.html"
       },
       {
         "source": "/daha-fazlasi/ozel",
@@ -373,6 +393,24 @@
           {
             "key": "Permissions-Policy",
             "value": "camera=(self), microphone=()"
+          }
+        ]
+      },
+      {
+        "source": "/app-store.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/app-store",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
           }
         ]
       },

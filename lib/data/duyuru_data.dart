@@ -206,3 +206,17 @@ String? instagramEmbedUrl(String? url) {
 String instagramPlaybackUrl(String pageUrl) {
   return instagramEmbedUrl(pageUrl) ?? pageUrl.trim();
 }
+
+/// Mevcut story sırasını koruyarak http(s) görsel URL'leri (Instagram gömme hariç).
+List<String> duyuruHttpImageUrls(Iterable<DuyuruItem> items) {
+  final out = <String>[];
+  final seen = <String>{};
+  for (final d in items) {
+    if (d.isInstagramEmbed) continue;
+    final src = d.imageUrl.trim();
+    if (!(src.startsWith('http://') || src.startsWith('https://'))) continue;
+    if (!seen.add(src)) continue;
+    out.add(src);
+  }
+  return out;
+}

@@ -141,4 +141,33 @@ void main() {
       );
     });
   });
+
+  group('duyuruHttpImageUrls', () {
+    test('keeps story order, skips instagram and duplicates', () {
+      final a = _item(id: 1);
+      final ig = _item(id: 2).copyWith(imageUrl: kInstagramEmbedMarker);
+      final b = _item(id: 3);
+      final dup = _item(id: 4).copyWith(imageUrl: a.imageUrl);
+      final empty = _item(id: 5).copyWith(imageUrl: '');
+      final data = _item(id: 6).copyWith(
+        imageUrl: 'data:image/png;base64,abc',
+      );
+      expect(
+        duyuruHttpImageUrls([a, ig, b, dup, empty, data]),
+        [
+          'https://example.com/1.jpg',
+          'https://example.com/3.jpg',
+        ],
+      );
+    });
+
+    test('does not reorder a long strip; caller can cap preload', () {
+      final items = [for (var i = 1; i <= 20; i++) _item(id: i)];
+      final urls = duyuruHttpImageUrls(items);
+      expect(urls.length, 20);
+      expect(urls.first, 'https://example.com/1.jpg');
+      expect(urls[7], 'https://example.com/8.jpg');
+      expect(urls.take(8).length, 8);
+    });
+  });
 }

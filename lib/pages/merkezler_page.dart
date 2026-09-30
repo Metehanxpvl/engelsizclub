@@ -206,14 +206,10 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
   }
 
   String _yerBildirSnack(HaritaYerBildirResult result) {
-    if (result.awarded) {
-      return 'Yer kaydedildi. ${result.reportCount} bildirim tamam · +1 iyilik puanı 💚';
+    if (result.awarded && awardsIyilikForShare(widget.userType)) {
+      return 'Yer kaydedildi. +1 iyilik puanı 💚';
     }
-    if (!isAileUserType(widget.userType)) {
-      return 'Yer kaydedildi.';
-    }
-    final kalan = haritaIyilikKalan(result.reportCount);
-    return 'Yer kaydedildi. $kalan yer daha bildirince 1 iyilik puanı.';
+    return 'Yer kaydedildi.';
   }
 
   void _onSearchChanged(String raw) {

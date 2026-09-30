@@ -189,4 +189,28 @@ void main() {
     expect(prepared.any((e) => e.title.contains('Fırsatlar')), isFalse);
     expect(MoreMenuItem.builtinRoutes.contains('metobot'), isTrue);
   });
+
+  test('Günlük Vitamin Karnesi is visible to all members', () {
+    expect(MoreMenuItem.builtinRoutes.contains('besin_karnesi'), isTrue);
+    expect(normalizeMoreMenuRoute('besin_karnesi'), 'besin_karnesi');
+    expect(
+      defaultMoreMenuItems().any(isBesinKarnesiMenuItem),
+      isFalse,
+    );
+    final userMenu = prepareUserMoreMenu(defaultMoreMenuItems());
+    expect(userMenu.any(isBesinKarnesiMenuItem), isFalse);
+    expect(
+      withBesinKarnesiMenuItem(userMenu, forMember: false)
+          .any(isBesinKarnesiMenuItem),
+      isFalse,
+    );
+    final memberMenu = withBesinKarnesiMenuItem(userMenu, forMember: true);
+    expect(memberMenu.any(isBesinKarnesiMenuItem), isTrue);
+    expect(
+      memberMenu.first.title,
+      'Günlük Vitamin & Mineral Karnesi',
+    );
+    expect(memberMenu.first.subtitle, 'Günlük besin alımını analiz et');
+    expect(moreMenuDisplayTitle(memberMenu[1]), 'Engelsiz Haritalar');
+  });
 }

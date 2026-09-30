@@ -41,6 +41,7 @@ class _DuyurularSectionState extends State<DuyurularSection> {
   bool _popupChecked = false;
   List<DuyuruItem> _stripItems = const [];
   String _stripVersion = '';
+  int _storyImagePreloadGen = 0;
 
   bool get _isAdmin =>
       canEditSection(widget.userEmail, SectionKey.duyurular);
@@ -64,6 +65,20 @@ class _DuyurularSectionState extends State<DuyurularSection> {
     _stripVersion = version;
   }
 
+  /// Ana açılışı bekletmeden, şeritteki http görsellerini Flutter ImageCache'e alır.
+  void _scheduleStoryImagePreload() {
+    final items = List<DuyuruItem>.from(_stripItems);
+    final gen = ++_storyImagePreloadGen;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || gen != _storyImagePreloadGen) return;
+      unawaited(_preloadDuyuruStoryImages(
+        context: context,
+        items: items,
+        isCurrent: () => mounted && gen == _storyImagePreloadGen,
+      ));
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -73,6 +88,7 @@ class _DuyurularSectionState extends State<DuyurularSection> {
       _items = cached;
       _loading = false;
       _syncStripCache();
+      _scheduleStoryImagePreload();
       // Okundu bilgisi prefs'ten gelsin (sıralama doğru kalsın)
       loadSeenDuyuruIds(widget.userEmail).then((seen) async {
         if (!mounted) return;
@@ -112,6 +128,7 @@ class _DuyurularSectionState extends State<DuyurularSection> {
     final sameSeen =
         seen.length == _seen.length && seen.every(_seen.contains);
     if (sameItems && sameSeen && !_loading) {
+      _scheduleStoryImagePreload();
       await _maybeShowPopup();
       return;
     }
@@ -122,6 +139,7 @@ class _DuyurularSectionState extends State<DuyurularSection> {
       _loading = false;
       _syncStripCache();
     });
+    _scheduleStoryImagePreload();
     final popup = latestActivePopup(items);
     if (popup != null && !seen.contains(popup.id)) {
       _popupChecked = false;
@@ -187,6 +205,7 @@ class _DuyurularSectionState extends State<DuyurularSection> {
       }
       _syncStripCache();
     });
+    _scheduleStoryImagePreload();
   }
 
   Future<void> _openAdminManage() async {
@@ -213,6 +232,7 @@ class _DuyurularSectionState extends State<DuyurularSection> {
             _items = next;
             _syncStripCache();
           });
+          _scheduleStoryImagePreload();
         },
         onAdd: () async {
           Navigator.pop(ctx);
@@ -641,6 +661,71 @@ Uint8List? _cachedDataImageBytes(String src) {
     return bytes;
   } catch (_) {
     return null;
+  }
+}
+
+const _kStoryThumbLogical = 58.0;
+const _kStoryPreloadPriority = 8;
+const _kStoryFullPreload = 5;
+const _kStoryPreloadConcurrency = 2;
+
+final Set<String> _preloadedDuyuruNetworkKeys = {};
+
+Future<void> _preloadDuyuruStoryImages({
+  required BuildContext context,
+  required List<DuyuruItem> items,
+  required bool Function() isCurrent,
+}) async {
+  final urls = duyuruHttpImageUrls(items);
+  if (urls.isEmpty || !isCurrent()) return;
+
+  var dpr = 2.0;
+  try {
+    dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 2.0;
+  } catch (_) {}
+  final thumbPx = (_kStoryThumbLogical * dpr).round();
+
+  Future<void> cacheKey(String key, ImageProvider provider) async {
+    if (!_preloadedDuyuruNetworkKeys.add(key)) return;
+    if (!isCurrent() || !context.mounted) {
+      _preloadedDuyuruNetworkKeys.remove(key);
+      return;
+    }
+    try {
+      await precacheImage(provider, context);
+    } catch (_) {
+      _preloadedDuyuruNetworkKeys.remove(key);
+    }
+  }
+
+  final priority = urls.take(_kStoryPreloadPriority).toList();
+  final rest = urls.skip(_kStoryPreloadPriority).toList();
+
+  for (var i = 0; i < priority.length; i += _kStoryPreloadConcurrency) {
+    if (!isCurrent()) return;
+    final chunk = priority.skip(i).take(_kStoryPreloadConcurrency).toList();
+    await Future.wait([
+      for (final url in chunk)
+        cacheKey(
+          't:$url@$thumbPx',
+          ResizeImage(NetworkImage(url), width: thumbPx, height: thumbPx),
+        ),
+    ]);
+  }
+
+  for (final url in rest) {
+    if (!isCurrent()) return;
+    await cacheKey(
+      't:$url@$thumbPx',
+      ResizeImage(NetworkImage(url), width: thumbPx, height: thumbPx),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+  }
+
+  for (final url in priority.take(_kStoryFullPreload)) {
+    if (!isCurrent()) return;
+    await cacheKey('f:$url', NetworkImage(url));
+    await Future<void>.delayed(const Duration(milliseconds: 80));
   }
 }
 

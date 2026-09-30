@@ -18,6 +18,7 @@ class GeziKampanyaFeedCard extends StatelessWidget {
     this.isAdmin = false,
     this.onDelete,
     this.onEdit,
+    this.onNotify,
     this.onMoveUp,
     this.onMoveDown,
     this.locationLabel = '',
@@ -48,6 +49,8 @@ class GeziKampanyaFeedCard extends StatelessWidget {
   final bool isAdmin;
   final VoidCallback? onDelete;
   final VoidCallback? onEdit;
+  /// Admin: seçilen etkinliği haber gibi bildirimle duyur.
+  final VoidCallback? onNotify;
   final VoidCallback? onMoveUp;
   final VoidCallback? onMoveDown;
   final String locationLabel;
@@ -191,8 +194,8 @@ class GeziKampanyaFeedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final showEditDelete =
-        isAdmin && (onDelete != null || onEdit != null);
+    final showEditDelete = isAdmin &&
+        (onDelete != null || onEdit != null || onNotify != null);
     final showReorder =
         isAdmin && (onMoveUp != null || onMoveDown != null);
     final showLocationChip = locationLabel.trim().isNotEmpty;
@@ -264,6 +267,15 @@ class GeziKampanyaFeedCard extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (onNotify != null) ...[
+                            _adminChip(
+                              tooltip: 'Bildirim gönder',
+                              icon: Icons.notifications_active_outlined,
+                              onPressed: onNotify!,
+                              color: const Color(0xCC059669),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
                           if (onEdit != null) ...[
                             _adminChip(
                               tooltip: 'Düzenle',

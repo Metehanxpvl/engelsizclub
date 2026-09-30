@@ -30,6 +30,7 @@ class MoreMenuItem {
     'boyama',
     'metobot',
     'folder',
+    'besin_karnesi',
   };
 
   final int id;
@@ -396,6 +397,40 @@ const defaultMetoBotMenuItem = MoreMenuItem(
   isActive: true,
   isBuiltin: true,
 );
+
+const defaultBesinKarnesiMenuItem = MoreMenuItem(
+  id: -22,
+  title: 'Günlük Vitamin & Mineral Karnesi',
+  subtitle: 'Günlük besin alımını analiz et',
+  linkType: 'route',
+  link: 'besin_karnesi',
+  icon: 'nutrition',
+  sortOrder: 90,
+  isActive: true,
+  isBuiltin: true,
+);
+
+bool isBesinKarnesiMenuItem(MoreMenuItem e) {
+  final k = (e.routeKey ?? e.link.trim().toLowerCase());
+  return k == 'besin_karnesi' || k == 'nutrition';
+}
+
+/// Tüm üyelerde görünür; misafir menüsünde yer kaplamaz.
+/// Engelsiz Haritalar’ın hemen üstünde durur.
+List<MoreMenuItem> withBesinKarnesiMenuItem(
+  List<MoreMenuItem> items, {
+  required bool forMember,
+}) {
+  final without = items.where((e) => !isBesinKarnesiMenuItem(e)).toList();
+  if (!forMember) return without;
+  final i = without.indexWhere(isHaritaMenuItem);
+  if (i < 0) return [defaultBesinKarnesiMenuItem, ...without];
+  return [
+    ...without.sublist(0, i),
+    defaultBesinKarnesiMenuItem,
+    ...without.sublist(i),
+  ];
+}
 
 /// Kullanıcı Daha Fazlası sırası (ekran görüntüsü).
 enum UserMoreMenuSlot {

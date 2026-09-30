@@ -82,10 +82,12 @@ Future<List<SohbetMesaj>> loadSohbetMesajlari(String sohbetKey) async {
         .eq('sohbet_key', sohbetKey)
         .order('created_at', ascending: true)
         .limit(200);
-    return (rows as List)
-        .whereType<Map>()
-        .map((e) => SohbetMesaj.fromJson(Map<String, dynamic>.from(e)))
-        .toList();
+    return dedupeSohbetMesajlari(
+      (rows as List)
+          .whereType<Map>()
+          .map((e) => SohbetMesaj.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+    );
   } catch (_) {
     return const [];
   }
@@ -117,13 +119,20 @@ Future<SohbetMesaj> sendSohbetMesaj({
   if (text.isEmpty) throw StateError('Boş mesaj gönderilemez.');
 
   final now = DateTime.now();
-  await client.from('sohbet_mesajlari').insert({
+  final payload = {
     'sohbet_key': sohbetKeyFor(myEmail, peer),
     'sender_email': myEmail,
     'sender_id': user.id,
     'receiver_email': peer,
     'body': text,
-  });
+  };
+  Map<String, dynamic>? row;
+  try {
+    row = await client.from('sohbet_mesajlari').insert(payload).select().single();
+  } catch (_) {
+    // Insert olmuş olabilir; ikinci kez yazma. Realtime / _load gerçek id'yi getirir.
+  }
+  if (row != null) return SohbetMesaj.fromJson(row);
   return SohbetMesaj(
     id: 0,
     sohbetKey: sohbetKeyFor(myEmail, peer),
@@ -132,6 +141,30 @@ Future<SohbetMesaj> sendSohbetMesaj({
     body: text,
     createdAt: now,
   );
+}
+
+/// Aynı satırın yerel (id:0) ve sunucu kopyasını tek balona indirger.
+bool sohbetMesajAyni(SohbetMesaj a, SohbetMesaj b) {
+  if (a.id > 0 && b.id > 0) return a.id == b.id;
+  if (a.senderEmail != b.senderEmail) return false;
+  if (a.body != b.body) return false;
+  return (a.createdAt.difference(b.createdAt).inSeconds).abs() < 8;
+}
+
+List<SohbetMesaj> dedupeSohbetMesajlari(List<SohbetMesaj> list) {
+  final out = <SohbetMesaj>[];
+  for (final m in list) {
+    final i = out.indexWhere((e) => sohbetMesajAyni(e, m));
+    if (i < 0) {
+      out.add(m);
+      continue;
+    }
+    if (out[i].id <= 0 && m.id > 0) {
+      out[i] = m;
+    }
+  }
+  out.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  return out;
 }
 
 /// Sohbetteki bana gelen okunmamış mesajları okundu işaretler.

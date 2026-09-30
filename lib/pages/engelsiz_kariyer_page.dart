@@ -13,17 +13,23 @@ class EngelsizKariyerPage extends StatefulWidget {
   const EngelsizKariyerPage({
     super.key,
     required this.userEmail,
+    this.initialSektor = kKariyerSektorAll,
   });
 
   final String userEmail;
+  final String initialSektor;
 
   static Future<void> open(
     BuildContext context, {
     required String userEmail,
+    String sektor = kKariyerSektorAll,
   }) {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => EngelsizKariyerPage(userEmail: userEmail),
+        builder: (_) => EngelsizKariyerPage(
+          userEmail: userEmail,
+          initialSektor: sektor,
+        ),
       ),
     );
   }
@@ -36,13 +42,18 @@ class _EngelsizKariyerPageState extends State<EngelsizKariyerPage> {
   final _search = TextEditingController();
   List<KariyerJob> _items = const [];
   bool _loading = true;
-  String _sektor = kKariyerSektorAll;
+  bool _notifyBusy = false;
+  late String _sektor;
 
   bool get _isAdmin => canEditSection(widget.userEmail, SectionKey.kariyer);
 
   @override
   void initState() {
     super.initState();
+    _sektor = widget.initialSektor == kKariyerSektorKamu ||
+            widget.initialSektor == kKariyerSektorOzel
+        ? widget.initialSektor
+        : kKariyerSektorAll;
     final cached = cachedKariyerJobs;
     if (cached != null) {
       _items = List<KariyerJob>.from(cached);
@@ -137,6 +148,110 @@ class _EngelsizKariyerPageState extends State<EngelsizKariyerPage> {
     }
   }
 
+  int _notifyCount(String sektor) {
+    return kariyerNotifyCount(
+      jobs: _items,
+      sektor: sektor,
+      catalogKamu: cachedKariyerKamuHint,
+      catalogOzel: cachedKariyerOzelHint,
+    );
+  }
+
+  Future<void> _notifyKariyer() async {
+    if (!_isAdmin || _notifyBusy) return;
+    var pick = _sektor == kKariyerSektorOzel
+        ? kKariyerSektorOzel
+        : kKariyerSektorKamu;
+    if (_sektor == kKariyerSektorAll) {
+      pick = _notifyCount(kKariyerSektorKamu) > 0
+          ? kKariyerSektorKamu
+          : kKariyerSektorOzel;
+    }
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        var current = pick;
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            final n = _notifyCount(current);
+            final preview = kariyerPushBody(sektor: current, count: n);
+            return AlertDialog(
+              title: const L10nText('Bildirim gönder?'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const L10nText(
+                    'Üyelere haber gibi bildirim gidecek. Kamu veya özel sektör seçin.',
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      ChoiceChip(
+                        label: L10nText('Kamu (${_notifyCount(kKariyerSektorKamu)})'),
+                        selected: current == kKariyerSektorKamu,
+                        onSelected: (_) =>
+                            setLocal(() => current = kKariyerSektorKamu),
+                      ),
+                      ChoiceChip(
+                        label: L10nText(
+                          'Özel sektör (${_notifyCount(kKariyerSektorOzel)})',
+                        ),
+                        selected: current == kKariyerSektorOzel,
+                        onSelected: (_) =>
+                            setLocal(() => current = kKariyerSektorOzel),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  L10nText(preview),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const L10nText('Vazgeç'),
+                ),
+                FilledButton(
+                  onPressed: n <= 0 ? null : () => Navigator.pop(ctx, current),
+                  child: const L10nText('Gönder'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (selected == null || !mounted) return;
+    final count = _notifyCount(selected);
+    setState(() => _notifyBusy = true);
+    try {
+      final sent = await notifyKariyerPush(
+        adminEmail: widget.userEmail,
+        sektor: selected,
+        count: count,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: L10nText(
+            sent
+                ? 'Bildirim gönderildi.'
+                : 'Bildirim gönderilemedi. Tekrar deneyin.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    } finally {
+      if (mounted) setState(() => _notifyBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final items = _visible;
@@ -161,6 +276,12 @@ class _EngelsizKariyerPageState extends State<EngelsizKariyerPage> {
                   },
             icon: const Icon(Icons.refresh),
           ),
+          if (_isAdmin)
+            IconButton(
+              tooltip: S.auto('Bildirim gönder'),
+              onPressed: _notifyBusy ? null : _notifyKariyer,
+              icon: const Icon(Icons.notifications_active_outlined),
+            ),
           if (_isAdmin)
             IconButton(
               tooltip: S.auto('İlan ekle'),

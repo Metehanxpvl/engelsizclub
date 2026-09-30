@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../admin_config.dart';
@@ -104,7 +105,9 @@ class UsefulContentRepository {
           .map((e) => UsefulContentItem.fromJson(Map<String, dynamic>.from(e)))
           .where((e) => isPendingReviewStatus(e.status))
           .toList();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('useful_content pending_review: $e');
+    }
     return _mergeByDate([
       ...local,
       ...await _loadGlobalAsUseful(pending: true),

@@ -6,14 +6,14 @@ import 'data/ilanlar_data.dart';
 
 const pendingGoogleRoleKey = 'pending_google_user_type';
 
-/// Tüm üyeler (aile / uzman / bakıcı) başlangıç puanı.
+/// Uzman / bakıcı başlangıç puanı.
 const int kMemberStartKredi = 5;
 
-/// Geriye dönük uyumluluk — UI metinleri bu sabiti kullanır.
+/// Geriye dönük uyumluluk — uzman/bakıcı UI metinleri bu sabiti kullanır.
 const int kWelcomeKredi = kMemberStartKredi;
 
-/// @deprecated Aile için ayrı başlangıç yok; [kMemberStartKredi] kullanın.
-const int kAileStartKredi = kMemberStartKredi;
+/// Aile iyilik puanı başlangıç bakiyesi.
+const int kAileStartKredi = 1;
 
 /// Admin başlangıç / hedef kredisi.
 const int kAdminKredi = 10000;
@@ -30,13 +30,15 @@ String krediGrantPrefsKeyFor(String email) =>
     '${krediPrefsKeyFor(email)}_grant_v$kKrediGrantVersion';
 
 bool isProfUserType(String? userType) {
-  final t = (userType ?? '').trim().toLowerCase();
+  final t = normalizedUserType(userType);
   return t == 'uzman' || t == 'bakici';
 }
 
 String normalizedUserType(String? userType) {
   final t = (userType ?? '').trim().toLowerCase();
-  if (t == 'uzman' || t == 'bakici' || t == 'aile') return t;
+  if (t == 'uzman') return 'uzman';
+  if (t == 'bakici' || t == 'bakıcı') return 'bakici';
+  if (t == 'aile') return 'aile';
   return 'aile';
 }
 
@@ -47,6 +49,56 @@ String currentAuthUserType() {
 
 bool isAileUserType(String? userType) =>
     normalizedUserType(userType) == 'aile';
+
+/// İlan / forum / yer bildirimi puanı yalnızca aile rolüne.
+bool awardsIyilikForShare(String? userType) =>
+    isAileUserType(userType) && !isProfUserType(userType);
+
+/// Forum / ilan paylaşımı sonrası tetikleyicinin yazdığı bakiyeyi yerelde günceller.
+Future<int?> syncCloudKredi({required String email}) async {
+  final client = Supabase.instance.client;
+  final user = client.auth.currentUser;
+  if (user == null) return null;
+  try {
+    final row = await client
+        .from('user_profiles')
+        .select('kredi')
+        .eq('owner_id', user.id)
+        .maybeSingle();
+    final balance = (row?['kredi'] as num?)?.toInt();
+    if (balance == null) return null;
+    await saveUserKredi(
+      email: email,
+      balance: balance,
+      welcomeGiftGiven: true,
+    );
+    return balance;
+  } catch (_) {
+    return null;
+  }
+}
+
+String forumShareSnack({
+  required bool isEdit,
+  required bool isExpert,
+  required bool awardedIyilik,
+}) {
+  if (isEdit) return 'Gönderi güncellendi ✅';
+  final base = isExpert
+      ? 'Köşe yazınız paylaşıldı — herkes görebilir ✅'
+      : 'Gönderiniz paylaşıldı — herkes görebilir ✅';
+  if (!awardedIyilik) return base;
+  return '$base +2 iyilik puanı 💚';
+}
+
+String ilanShareSnack({
+  required bool isEdit,
+  required bool awardedIyilik,
+}) {
+  if (isEdit) return 'İlan güncellendi ✅';
+  if (awardedIyilik) return 'İlanınız yayınlandı. +2 iyilik puanı 💚';
+  return 'İlanınız yayınlandı ✅';
+}
 
 bool canPostIlan({
   String? userType,
@@ -73,9 +125,10 @@ bool canOfferOnIlan({
 /// Uzman/bakıcı ilanlarında teklif 1 puan harcar; 2. el ücretsiz.
 bool offerCostsKredi({required String kind}) => kind != 'ikinciel';
 
-/// Üye: 5 · Admin: 10000
+/// Üye: aile 1 iyilik · uzman/bakıcı 5 · Admin: 10000
 int startingKrediFor(String email, {String? userType}) {
   if (isAppAdmin(email)) return kAdminKredi;
+  if (isAileUserType(userType)) return kAileStartKredi;
   return kMemberStartKredi;
 }
 
@@ -129,7 +182,7 @@ Future<KrediSnapshot> loadUserKredi({
       return finish(bal);
     }
 
-    // Üye: grant sürümü yenilendiyse herkesi hedef puana (5) çek.
+    // Üye: grant sürümü yenilendiyse herkesi hedef puana çek (aile 1, uzman/bakıcı 5).
     if (!granted) {
       final saved = await saveUserKredi(
         email: email,
@@ -285,7 +338,7 @@ Future<int?> spendOneKredi({required String email}) async {
   return next;
 }
 
-/// Yeni üye başlangıç kredisi: herkese [kMemberStartKredi], admin [kAdminKredi].
+/// Yeni üye başlangıç kredisi: aile [kAileStartKredi], uzman/bakıcı [kMemberStartKredi], admin [kAdminKredi].
 Future<void> seedWelcomeCredits({
   required String email,
   required String? userType,

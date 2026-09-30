@@ -95,16 +95,14 @@ void main() {
     expect(haritaYerSahibiMi(center.id, 'ali@example.com'), isFalse);
   });
 
-  test('aile: every 5 reports awards one iyilik point', () {
+  test('aile: every report awards one iyilik point', () {
     expect(haritaIyilikOdulThisReport(0), isFalse);
-    expect(haritaIyilikOdulThisReport(4), isFalse);
+    expect(haritaIyilikOdulThisReport(1), isTrue);
+    expect(haritaIyilikOdulThisReport(2), isTrue);
     expect(haritaIyilikOdulThisReport(5), isTrue);
-    expect(haritaIyilikOdulThisReport(9), isFalse);
-    expect(haritaIyilikOdulThisReport(10), isTrue);
-    expect(haritaIyilikKalan(0), 5);
-    expect(haritaIyilikKalan(1), 4);
-    expect(haritaIyilikKalan(5), 0);
-    expect(haritaIyilikKalan(7), 3);
+    expect(haritaIyilikKalan(0), 1);
+    expect(haritaIyilikKalan(1), 0);
+    expect(haritaIyilikKalan(7), 0);
   });
 
   test('nearby member report overlays Google place detail', () {

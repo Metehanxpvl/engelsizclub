@@ -9,9 +9,10 @@ import '../data/forum_data.dart';
 import '../data/forum_tags.dart';
 import '../data/ilanlar_data.dart' show maskPersonDisplayName;
 import '../content_moderation.dart';
+import '../forum_store.dart';
 import '../forum_follow_store.dart';
 import '../forum_post_follow_store.dart';
-import '../forum_store.dart';
+import '../kredi_store.dart';
 import '../content_view_store.dart';
 import '../meto_theme.dart';
 import '../utils/async_timeout.dart';
@@ -55,6 +56,7 @@ class ForumPage extends StatefulWidget {
     this.profilFoto,
     this.isGuest = false,
     this.onRequireLogin,
+    this.onKrediChanged,
     this.openPostId,
     this.openCommentId,
     this.openPostToken = 0,
@@ -67,6 +69,7 @@ class ForumPage extends StatefulWidget {
   final String? profilFoto;
   final bool isGuest;
   final VoidCallback? onRequireLogin;
+  final ValueChanged<int>? onKrediChanged;
   /// Bildirimden açılacak gönderi / yorum.
   final int? openPostId;
   final int? openCommentId;
@@ -1162,14 +1165,20 @@ class ForumPageState extends State<ForumPage> {
         _filterTag = null;
         _publishing = false;
       });
+      final awardedIyilik = !isEdit && awardsIyilikForShare(widget.userType);
+      if (awardedIyilik) {
+        final balance = await syncCloudKredi(email: widget.userEmail);
+        if (balance != null) widget.onKrediChanged?.call(balance);
+      }
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            isEdit
-                ? 'Gönderi güncellendi ✅'
-                : isExpert
-                    ? 'Köşe yazınız paylaşıldı — herkes görebilir ✅'
-                    : 'Gönderiniz paylaşıldı — herkes görebilir ✅',
+            forumShareSnack(
+              isEdit: isEdit,
+              isExpert: isExpert,
+              awardedIyilik: awardedIyilik,
+            ),
           ),
         ),
       );

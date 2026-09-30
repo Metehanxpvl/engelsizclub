@@ -86,9 +86,6 @@ class PushNotificationService {
       debugPrint('FCM local init: $e');
     }
 
-    // iOS izin diyaloğu ilk kareyi bekletmesin / asılı kalmasın.
-    unawaited(_requestPermission());
-
     try {
       await _messaging
           .setForegroundNotificationPresentationOptions(
@@ -101,7 +98,11 @@ class PushNotificationService {
       debugPrint('FCM presentation options: $e');
     }
 
-    unawaited(_refreshToken());
+    // iOS: izin → APNs token → FCM token sırası. Paralel olursa token boş kalır.
+    unawaited(() async {
+      await _requestPermission();
+      await _refreshToken();
+    }());
     try {
       _messaging.onTokenRefresh.listen((token) {
         fcmToken = token;
@@ -229,7 +230,8 @@ class PushNotificationService {
             alert: true,
             badge: true,
             sound: true,
-            provisional: true,
+            announcement: false,
+            provisional: false,
           )
           .timeout(const Duration(seconds: 8));
       debugPrint('FCM izin durumu: ${settings.authorizationStatus}');
@@ -247,15 +249,67 @@ class PushNotificationService {
     } catch (e) {
       debugPrint('POST_NOTIFICATIONS isteği: $e');
     }
+
+    try {
+      await _local
+          .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin>()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
+    } catch (e) {
+      debugPrint('iOS yerel bildirim izni: $e');
+    }
+  }
+
+  Future<String?> _waitForApnsToken() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) {
+      return 'ok';
+    }
+    for (var i = 0; i < 12; i++) {
+      try {
+        final apns = await _messaging.getAPNSToken();
+        if (apns != null && apns.isNotEmpty) return apns;
+      } catch (e) {
+        debugPrint('FCM APNs token: $e');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+    debugPrint('FCM: APNs token alınamadı (Push entitlement / izin).');
+    return null;
   }
 
   Future<void> _refreshToken() async {
     try {
+      final apns = await _waitForApnsToken();
+      if (apns == null) return;
       fcmToken = await _messaging.getToken().timeout(const Duration(seconds: 8));
       debugPrint('FCM token: $fcmToken');
       await registerTokenWithServer(fcmToken);
     } catch (e) {
       debugPrint('FCM token alınamadı: $e');
+    }
+  }
+
+  /// Giriş sonrası: token yoksa yeniden dene, varsa sunucuya yaz.
+  Future<void> ensureTokenRegistered() async {
+    if (kIsWeb || !_initialized) return;
+    if ((fcmToken ?? '').trim().isEmpty) {
+      await _refreshToken();
+      return;
+    }
+    await registerTokenWithServer(fcmToken);
+  }
+
+  Future<void> unregisterTokenFromServer() async {
+    if (kIsWeb) return;
+    final t = (fcmToken ?? '').trim();
+    if (t.isEmpty) return;
+    try {
+      await Supabase.instance.client
+          .from('user_push_tokens')
+          .delete()
+          .eq('token', t);
+    } catch (e) {
+      debugPrint('FCM token silme: $e');
     }
   }
 

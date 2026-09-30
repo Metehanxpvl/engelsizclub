@@ -1,6 +1,6 @@
 # Schema apply order for empty Supabase project (or re-apply if needed)
 # Current linked project: qycrkqwqrysypvqaipqn
-# Skip one-off data: kredi_admin_1000_users_50.sql, kredi_buyukkomurcu_1m.sql, confirm_existing_users.sql
+# Skip one-off data: kredi_admin_1000_users_50.sql, kredi_buyukkomurcu_1m.sql, kredi_aile_1.sql, confirm_existing_users.sql
 user_profiles.sql
 user_kredi.sql
 user_presence.sql
@@ -73,3 +73,5 @@ global_news_overrides.sql
 kampanyalar_member_code.sql
 kampanyalar_category.sql
 harita_yer_bildirimleri.sql
+aile_iyilik_paylasim.sql
+daily_nutrition_logs.sql

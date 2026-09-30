@@ -5,7 +5,7 @@ import 'data/centers_data.dart';
 import 'kredi_store.dart';
 import 'utils/async_timeout.dart';
 
-const kHaritaYerBildirimPerOdul = 5;
+const kHaritaYerBildirimPerOdul = 1;
 const kHaritaErisimKategori = 'Erişilebilirlik';
 const kHaritaYerKategoriSecenekleri = <String>[
   'Özel Eğitim',
@@ -337,14 +337,10 @@ bool haritaYerMatchesQuery(
   return hay.contains(q);
 }
 
-bool haritaIyilikOdulThisReport(int reportCount) =>
-    reportCount > 0 && reportCount % kHaritaYerBildirimPerOdul == 0;
+bool haritaIyilikOdulThisReport(int reportCount) => reportCount > 0;
 
-int haritaIyilikKalan(int reportCount) {
-  if (reportCount <= 0) return kHaritaYerBildirimPerOdul;
-  final rem = reportCount % kHaritaYerBildirimPerOdul;
-  return rem == 0 ? 0 : kHaritaYerBildirimPerOdul - rem;
-}
+int haritaIyilikKalan(int reportCount) =>
+    reportCount > 0 ? 0 : kHaritaYerBildirimPerOdul;
 
 Color haritaYerColor(String category) => switch (category) {
       'Fizik Tedavi' => const Color(0xFF1A6B4A),

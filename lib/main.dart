@@ -139,7 +139,11 @@ Future<User?> _finalizePendingGoogleRoleImpl(User user) async {
               if (name is String && name.trim().isNotEmpty) 'name': name.trim(),
               'user_type': pending,
               if (pending == 'bakici') 'uzmanlik': 'Bakıcı',
-              if (isNewRole) 'welcome_credits': kMemberStartKredi,
+              if (isNewRole)
+                'welcome_credits': startingKrediFor(
+                  user.email ?? '',
+                  userType: pending,
+                ),
             },
           ),
         ),
@@ -564,6 +568,7 @@ class _MetoCareAppState extends State<MetoCareApp> {
   }
 
   Future<void> _logout() async {
+    await PushNotificationService.instance.unregisterTokenFromServer();
     await Supabase.instance.client.auth.signOut();
     if (mounted) setState(() => _user = null);
   }
@@ -647,6 +652,8 @@ class _MetoCareAppState extends State<MetoCareApp> {
                         });
                       },
                       onCancel: () async {
+                        await PushNotificationService.instance
+                            .unregisterTokenFromServer();
                         await Supabase.instance.client.auth.signOut();
                         if (!mounted) return;
                         setState(() {
@@ -1486,7 +1493,7 @@ class _AuthScreenState extends State<AuthScreen> {
             if (tip == 'uzman' && _kayitUzmanlik != null)
               'uzmanlik': _kayitUzmanlik,
             if (tip == 'bakici') 'uzmanlik': 'Bakıcı',
-            'welcome_credits': kMemberStartKredi,
+            'welcome_credits': startingKrediFor(email, userType: tip),
           },
         ),
       );
@@ -1518,7 +1525,7 @@ class _AuthScreenState extends State<AuthScreen> {
         _snack(
           hediyeKredi > 0
               ? 'Hoş geldin ${authUser.name}! $hediyeKredi hediye puan hesabına tanımlandı.'
-              : 'Hoş geldin ${authUser.name}! Aile rolünde $kMemberStartKredi hediye puan hesabına tanımlandı; ilan paylaşabilir, 2. el ilanlarda ücretsiz iletişim kurabilirsiniz.',
+              : 'Hoş geldin ${authUser.name}! Aile rolünde $kAileStartKredi hediye iyilik puanı hesabına tanımlandı; ilan paylaşabilir, 2. el ilanlarda ücretsiz iletişim kurabilirsiniz.',
         );
         if (mounted) setState(() => _step = 'signin');
         return;

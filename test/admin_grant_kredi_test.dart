@@ -1,3 +1,5 @@
+import 'package:engelsizclub/admin_config.dart';
+import 'package:engelsizclub/kredi_store.dart';
 import 'package:engelsizclub/widgets/admin_users_panel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -34,5 +36,15 @@ void main() {
     expect(adminKrediUnitLabel('aile'), 'iyilik puanı');
     expect(adminKrediUnitLabel('uzman'), 'puan');
     expect(adminKrediUnitLabel('bakici'), 'puan');
+  });
+
+  test('aile starts at 1 iyilik, uzman/bakici at 5', () {
+    expect(startingKrediFor('aile@example.com', userType: 'aile'), 1);
+    expect(startingKrediFor('uzman@example.com', userType: 'uzman'), 5);
+    expect(startingKrediFor('bakici@example.com', userType: 'bakici'), 5);
+    expect(
+      startingKrediFor(kAppAdminEmails.first, userType: 'aile'),
+      kAdminKredi,
+    );
   });
 }

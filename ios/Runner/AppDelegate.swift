@@ -10,10 +10,11 @@ import UserNotifications
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     GMSServices.provideAPIKey("AIzaSyAHDu7hYJInYdPhrg8i0YdEzgfl0lL502o")
-    // FCM / APNs: bildirim merkezi + uzaktan bildirim kaydı
+    let ok = super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    // Plugin kaydından sonra APNs — iOS FCM token için şart
     UNUserNotificationCenter.current().delegate = self
     application.registerForRemoteNotifications()
-    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    return ok
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
