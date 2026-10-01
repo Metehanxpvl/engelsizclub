@@ -22,7 +22,73 @@ double nutrientPercentage({required double intake, required double target}) {
   return (intake / target) * 100;
 }
 
+String _intakeSharePhrase(NutrientStat stat) {
+  final pct = stat.percentage.round();
+  return 'Girilen besinlere göre tahmini ${stat.key.labelTr.toLowerCase()} alımı '
+      'günlük referans hedefinin yaklaşık %$pct’sini karşılıyor.';
+}
+
+String buildNutritionSummary(NutritionAnalysis analysis) {
+  final low = analysis
+      .lowest(n: 4)
+      .where((e) => e.percentage < 80)
+      .map((e) => e.key.labelTr)
+      .toList();
+  final strong = analysis.nutrients.values
+      .where((e) => e.percentage >= 80)
+      .toList();
+  if (low.isEmpty) {
+    return 'Bugünkü kayıtlara göre tahmini mikro besin alımı günlük referans '
+        'hedeflerine yakın görünüyor. Bu, laboratuvar veya teşhis sonucu değildir.';
+  }
+  if (strong.isEmpty) {
+    return 'Bugünkü kayıtlara göre tahmini alım birçok mikro besinde günlük '
+        'referans hedefinin altında görünüyor. Özellikle ${low.take(3).join(', ')} '
+        'daha düşük. Bu bir eksiklik teşhisi değildir.';
+  }
+  return 'Bugünkü kayıtlara göre bazı mikro besin hedeflerini daha iyi karşılarken '
+      '${low.take(3).join(', ')} açısından daha düşük bir alım görülüyor. '
+      'Sonuçlar tahmini günlük karşılama oranıdır; teşhis değildir.';
+}
+
+List<String> buildNutritionRecommendations(NutritionAnalysis analysis) {
+  final recs = <String>[];
+  for (final s in analysis.lowest(n: 3)) {
+    if (s.percentage >= 80) continue;
+    final sources = kNutrientFoodSources[s.key] ?? '';
+    recs.add(
+      '${_intakeSharePhrase(s)} ${s.key.labelTr} içeren besinleri '
+      '($sources) artırmak günlük referans hedefe yaklaşmana yardımcı olabilir.',
+    );
+  }
+  final vitC = analysis.nutrients[NutrientKey.vitaminC];
+  final iron = analysis.nutrients[NutrientKey.iron];
+  if (vitC != null && iron != null && vitC.percentage >= 40 && iron.percentage < 100) {
+    recs.add(
+      'C vitamini içeren sebze ve meyveler bitkisel kaynaklı demirin emilimine '
+      'yardımcı olabilir. Demir yüzdesi besin kompozisyonuna göredir; emilim bonusu eklenmedi.',
+    );
+  }
+  if (analysis.analyzedFoods.any((e) => !e.portionSpecified)) {
+    recs.add(
+      'Porsiyon belirtilmeyen gıdalar standart (yaşa uygun) porsiyon üzerinden '
+      'yaklaşık hesaplandı.',
+    );
+  }
+  if (analysis.unknownTokens.isNotEmpty) {
+    recs.add(
+      'Bazı ifadeler tanınamadı; analiz yalnızca eşleşen gıdalarla devam etti.',
+    );
+  }
+  recs.add(
+    'Bu skor tıbbi anlam taşımaz. Günlük beslenme hedefinin yaklaşık ne kadarının '
+    'karşılandığını gösteren tahmini bir analizdir.',
+  );
+  return recs;
+}
+
 /// Kural tabanlı analiz. Hedefler IOM/NIH DRI tablosundan gelir.
+/// Skor yapay olarak yükseltilmez.
 NutritionAnalysis analyzeNutrition(
   String input,
   DateTime date, {
@@ -38,7 +104,7 @@ NutritionAnalysis analyzeNutrition(
   if (day.isAfter(today)) {
     throw StateError('Gelecek bir tarih seçilemez.');
   }
-  final parsed = parseNutritionInput(trimmed);
+  final parsed = parseNutritionInput(trimmed, profile: profile);
   if (parsed.foods.isEmpty) {
     throw StateError('Bu girişte analiz edilebilecek bir gıda bulunamadı.');
   }
@@ -69,7 +135,7 @@ NutritionAnalysis analyzeNutrition(
   final withPortion =
       parsed.foods.where((e) => e.portionSpecified).length;
 
-  return NutritionAnalysis(
+  final draft = NutritionAnalysis(
     nutrients: nutrients,
     analyzedFoods: parsed.foods,
     confidence: nutritionConfidence(
@@ -81,5 +147,16 @@ NutritionAnalysis analyzeNutrition(
     date: day,
     rawInput: trimmed,
     profile: profile,
+  );
+  return NutritionAnalysis(
+    nutrients: draft.nutrients,
+    analyzedFoods: draft.analyzedFoods,
+    confidence: draft.confidence,
+    unknownTokens: draft.unknownTokens,
+    date: draft.date,
+    rawInput: draft.rawInput,
+    profile: draft.profile,
+    analysisSummary: buildNutritionSummary(draft),
+    recommendations: buildNutritionRecommendations(draft),
   );
 }

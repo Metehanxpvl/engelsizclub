@@ -77,10 +77,10 @@ void main() {
   });
 
   test('percentage bands and food sources for a nutrient', () {
-    expect(nutritionBand(28).labelTr, 'Kritik Eksik');
+    expect(nutritionBand(28).labelTr, 'Hedefin altında');
     expect(nutritionBand(28).rangeTr, '%0–49');
-    expect(nutritionBand(90).labelTr, 'İdeal Hedef');
-    expect(nutritionBand(160).labelTr, 'Yüksek Alım');
+    expect(nutritionBand(90).labelTr, 'Hedefe yakın');
+    expect(nutritionBand(160).labelTr, 'Günlük hedefin üzerinde');
     final dFoods = catalogFoodsForNutrient(NutrientKey.vitaminD);
     expect(dFoods.map((e) => e.id), containsAll(['fish', 'egg']));
     final result = analyzeNutrition('2 yumurta, 150 gram tavuk', day);
@@ -211,6 +211,61 @@ void main() {
         ),
       ),
       throwsA(isA<StateError>()),
+    );
+  });
+
+  test('single egg is not inflated and JSON matches engine shape', () {
+    final egg = analyzeNutrition('1 yumurta', day);
+    expect(egg.overallFillPercent, lessThan(40));
+    expect(egg.nutrients[NutrientKey.vitaminC]!.percentage, 0);
+    expect(egg.analysisSummary.toLowerCase(), isNot(contains('eksikliğin var')));
+    expect(
+      egg.recommendations.join(' ').toLowerCase(),
+      isNot(contains('kesinlikle')),
+    );
+    final json = egg.toJson();
+    expect(json['total_fulfillment_percentage'], egg.overallFillPercent.round());
+    expect(json['analysis_summary'], isA<String>());
+    expect(json['vitamins_breakdown'], isA<Map>());
+    expect(json['minerals_breakdown'], isA<Map>());
+    expect(json['recommendations'], isA<List>());
+    expect(
+      (json['vitamins_breakdown'] as Map)['vitamin_c']['percentage'],
+      isA<int>(),
+    );
+  });
+
+  test('high vitamin C does not lift overall score above 100', () {
+    final result = analyzeNutrition('100 gram brokoli', day);
+    final c = result.nutrients[NutrientKey.vitaminC]!.percentage;
+    expect(c, closeTo(99, 2));
+    expect(result.overallFillPercent, lessThan(c));
+    expect(result.overallFillPercent, lessThanOrEqualTo(100));
+  });
+
+  test('3 almonds use piece weight not a handful', () {
+    final counted = analyzeNutrition('3 badem', day);
+    final handful = analyzeNutrition('bir avuç badem', day);
+    expect(counted.analyzedFoods.single.grams, closeTo(3.6, 0.05));
+    expect(handful.analyzedFoods.single.grams, closeTo(28, 0.1));
+    expect(
+      counted.nutrients[NutrientKey.vitaminE]!.intake,
+      lessThan(handful.nutrients[NutrientKey.vitaminE]!.intake / 4),
+    );
+  });
+
+  test('child profile uses child RDA not adult', () {
+    const child = NutritionUserProfile(
+      ageBand: NutritionAgeBand.y4to8,
+      sex: NutritionSex.male,
+    );
+    final adult = analyzeNutrition('100 gram brokoli', day);
+    final kid = analyzeNutrition('100 gram brokoli', day, profile: child);
+    expect(kid.nutrients[NutrientKey.vitaminC]!.target, 25);
+    expect(adult.nutrients[NutrientKey.vitaminC]!.target, 90);
+    expect(
+      kid.nutrients[NutrientKey.vitaminC]!.percentage,
+      greaterThan(adult.nutrients[NutrientKey.vitaminC]!.percentage),
     );
   });
 }

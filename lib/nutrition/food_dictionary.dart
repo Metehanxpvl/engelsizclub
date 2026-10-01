@@ -82,7 +82,7 @@ final kFoodDictionary = List<FoodDictionaryEntry>.unmodifiable(<FoodDictionaryEn
   ], g: 30, emoji: '🍞'),
   _e('lentil_soup', 'Mercimek çorbası', FoodCategory.soup, [
     'mercimek corbasi', 'mercimek corba',
-  ], g: 200, emoji: '🥣'),
+  ], g: 250, emoji: '🥣'),
   _e('salad', 'Salata', FoodCategory.vegetable, [
     'salata', 'yesil salata', 'mevsim salata', 'coban salata',
   ], g: 120, emoji: '🥗'),
@@ -94,7 +94,7 @@ final kFoodDictionary = List<FoodDictionaryEntry>.unmodifiable(<FoodDictionaryEn
   ], g: 200, emoji: '🥛', liquid: true),
   _e('almond', 'Badem', FoodCategory.nut, [
     'badem', 'badem ici',
-  ], g: 20, piece: 1.2, emoji: '🥜'),
+  ], g: 28, piece: 1.2, emoji: '🥜'),
   _e('banana', 'Muz', FoodCategory.fruit, ['muz'], g: 120, emoji: '🍌'),
   _e('milk', 'Süt', FoodCategory.dairy, [
     'sut', 'sut bardagi',
@@ -128,10 +128,10 @@ final kFoodDictionary = List<FoodDictionaryEntry>.unmodifiable(<FoodDictionaryEn
   ], g: 10, emoji: '🫒'),
   _e('walnut', 'Ceviz', FoodCategory.nut, [
     'ceviz', 'ceviz ici',
-  ], g: 20, piece: 4, emoji: '🥜'),
+  ], g: 28, piece: 4, emoji: '🥜'),
   _e('hazelnut', 'Fındık', FoodCategory.nut, [
     'findik', 'findiklar', 'findik ici', 'kavrulmus findik', 'cig findik',
-  ], g: 20, piece: 1.4, emoji: '🌰'),
+  ], g: 28, piece: 1.4, emoji: '🌰'),
   _e('cucumber', 'Salatalık', FoodCategory.vegetable, ['salatalik'], g: 80, emoji: '🥒'),
   _e('potato', 'Patates', FoodCategory.vegetable, [
     'patates', 'haslanmis patates',
@@ -217,13 +217,13 @@ final kFoodDictionary = List<FoodDictionaryEntry>.unmodifiable(<FoodDictionaryEn
   _e('dried_apricot', 'Kuru kayısı', FoodCategory.fruit, ['kuru kayisi'], g: 30, emoji: '🟠'),
 
   // --- Kuruyemiş ---
-  _e('cashew', 'Kaju', FoodCategory.nut, ['kaju'], g: 20, piece: 1.6, emoji: '🥜'),
+  _e('cashew', 'Kaju', FoodCategory.nut, ['kaju'], g: 28, piece: 1.6, emoji: '🥜'),
   _e('pistachio', 'Antep fıstığı', FoodCategory.nut, [
     'antep fistigi', 'antep fistik',
-  ], g: 20, piece: 1.2, emoji: '🥜'),
+  ], g: 28, piece: 1.2, emoji: '🥜'),
   _e('peanut', 'Yer fıstığı', FoodCategory.nut, [
     'yer fistigi', 'yerfistigi',
-  ], g: 20, piece: 1, emoji: '🥜'),
+  ], g: 28, piece: 1, emoji: '🥜'),
   _e('pine_nut', 'Çam fıstığı', FoodCategory.nut, ['cam fistigi'], g: 15, emoji: '🥜'),
   _e('pumpkin_seed', 'Kabak çekirdeği', FoodCategory.nut, [
     'kabak cekirdegi',
@@ -272,12 +272,12 @@ final kFoodDictionary = List<FoodDictionaryEntry>.unmodifiable(<FoodDictionaryEn
   _e('quinoa', 'Kinoa', FoodCategory.grain, ['kinoa'], g: 150, emoji: '🍚'),
 
   // --- Çorba / yemek ---
-  _e('ezogelin_soup', 'Ezogelin çorbası', FoodCategory.soup, ['ezogelin corbasi', 'ezogelin'], g: 200, emoji: '🥣'),
-  _e('tarhana_soup', 'Tarhana çorbası', FoodCategory.soup, ['tarhana corbasi', 'tarhana'], g: 200, emoji: '🥣'),
-  _e('tomato_soup', 'Domates çorbası', FoodCategory.soup, ['domates corbasi'], g: 200, emoji: '🥣'),
-  _e('vegetable_soup', 'Sebze çorbası', FoodCategory.soup, ['sebze corbasi'], g: 200, emoji: '🥣'),
-  _e('chicken_soup', 'Tavuk çorbası', FoodCategory.soup, ['tavuk corbasi'], g: 200, emoji: '🥣'),
-  _e('yayla_soup', 'Yayla çorbası', FoodCategory.soup, ['yayla corbasi'], g: 200, emoji: '🥣'),
+  _e('ezogelin_soup', 'Ezogelin çorbası', FoodCategory.soup, ['ezogelin corbasi', 'ezogelin'], g: 250, emoji: '🥣'),
+  _e('tarhana_soup', 'Tarhana çorbası', FoodCategory.soup, ['tarhana corbasi', 'tarhana'], g: 250, emoji: '🥣'),
+  _e('tomato_soup', 'Domates çorbası', FoodCategory.soup, ['domates corbasi'], g: 250, emoji: '🥣'),
+  _e('vegetable_soup', 'Sebze çorbası', FoodCategory.soup, ['sebze corbasi'], g: 250, emoji: '🥣'),
+  _e('chicken_soup', 'Tavuk çorbası', FoodCategory.soup, ['tavuk corbasi'], g: 250, emoji: '🥣'),
+  _e('yayla_soup', 'Yayla çorbası', FoodCategory.soup, ['yayla corbasi'], g: 250, emoji: '🥣'),
   _e('turlu', 'Türlü', FoodCategory.dish, ['turlu'], g: 200, emoji: '🍲'),
   _e('olive_oil_beans', 'Zeytinyağlı fasulye', FoodCategory.dish, ['zeytinyagli fasulye'], g: 180, emoji: '🍲'),
   _e('imam_bayildi', 'İmam bayıldı', FoodCategory.dish, ['imam bayildi'], g: 180, emoji: '🍆'),

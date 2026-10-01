@@ -4,11 +4,11 @@ import 'nutrition_types.dart';
 export 'food_dictionary.dart' show nutritionFold, FoodDictionaryEntry, kFoodDictionary;
 
 final _qtyRe = RegExp(
-  r'(\d+(?:[.,]\d+)?)\s*(kg|gram|gr|mililitre|ml|litre|lt|yemek kasigi|tatli kasigi|cay kasigi|su bardagi|cay bardagi|adet|tane|dilim|kase|avuc|bardak|fincan|sise|kutu|porsiyon|g|l)?\s*(.*)$',
+  r'(\d+(?:[.,]\d+)?)\s*(kg|gram|gr|mililitre|ml|litre|lt|yemek kasigi|tatli kasigi|cay kasigi|su bardagi|cay bardagi|adet|tane|dilim|kase|tabak|avuc|bardak|fincan|sise|kutu|porsiyon|g|l)?\s*(.*)$',
 );
 
 final _qtyPrefixRe = RegExp(
-  r'^\d+(?:[.,]\d+)?\s*(kg|gram|gr|mililitre|ml|litre|lt|yemek kasigi|tatli kasigi|cay kasigi|su bardagi|cay bardagi|adet|tane|dilim|kase|avuc|bardak|fincan|sise|kutu|porsiyon|g|l)?\s*',
+  r'^\d+(?:[.,]\d+)?\s*(kg|gram|gr|mililitre|ml|litre|lt|yemek kasigi|tatli kasigi|cay kasigi|su bardagi|cay bardagi|adet|tane|dilim|kase|tabak|avuc|bardak|fincan|sise|kutu|porsiyon|g|l)?\s*',
 );
 
 const _kTrNumbers = <String, String>{
@@ -110,9 +110,11 @@ double _gramsFor({
               ? food.pieceGrams
               : 25);
     case 'kase':
-      return qty * (food.category == FoodCategory.soup ? 200 : food.defaultServingGrams);
+      return qty * (food.category == FoodCategory.soup ? 250 : food.defaultServingGrams);
+    case 'tabak':
+      return qty * food.defaultServingGrams;
     case 'avuc':
-      return qty * (food.category == FoodCategory.nut ? 20 : 25);
+      return qty * (food.category == FoodCategory.nut ? 28 : 25);
     case 'bardak':
     case 'subardagi':
       return qty * (food.liquid ? 200 : food.defaultServingGrams);
@@ -236,6 +238,7 @@ class NutritionParseResult {
 List<String> _chunks(String input) {
   final normalized = input
       .replaceAll(RegExp(r'[;•·|/]'), ',')
+      .replaceAll(RegExp(r'\s*\+\s*'), ',')
       .replaceAll(RegExp(r'\s+ve\s+', caseSensitive: false), ',')
       .replaceAll('\n', ',');
   return normalized
@@ -296,9 +299,32 @@ bool _isNoise(String folded) {
   return parts.every((w) => noise.contains(w) || w.length < 2 || _kTrNumbers.containsKey(w));
 }
 
-NutritionParseResult parseNutritionInput(String raw) {
+bool _scaleHouseholdForAge(String unitToken, bool specified) {
+  if (!specified) return true;
+  switch (_normUnit(unitToken)) {
+    case 'kase':
+    case 'tabak':
+    case 'avuc':
+    case 'bardak':
+    case 'subardagi':
+    case 'caybardagi':
+    case 'fincan':
+    case 'porsiyon':
+    case 'sise':
+    case 'kutu':
+      return true;
+    default:
+      return false;
+  }
+}
+
+NutritionParseResult parseNutritionInput(
+  String raw, {
+  NutritionUserProfile profile = const NutritionUserProfile(),
+}) {
   final foods = <ParsedFood>[];
   final unknown = <String>[];
+  final ageFactor = profile.ageBand.portionFactor;
   for (final chunk in _chunks(raw)) {
     var remaining = chunk;
     while (remaining.length >= 2) {
@@ -315,12 +341,15 @@ NutritionParseResult parseNutritionInput(String raw) {
       }
       final specified = split.qty != null;
       final qty = split.qty ?? 1;
-      final grams = _gramsFor(
+      var grams = _gramsFor(
         food: food,
         qty: qty,
         unitToken: split.unit,
         specified: specified,
       );
+      if (ageFactor < 1 && _scaleHouseholdForAge(split.unit, specified)) {
+        grams *= ageFactor;
+      }
       foods.add(
         ParsedFood(
           foodId: food.id,

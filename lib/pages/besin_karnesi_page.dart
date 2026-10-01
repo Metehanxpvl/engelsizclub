@@ -326,6 +326,15 @@ class _BesinKarnesiPageState extends State<BesinKarnesiPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                L10nText(
+                  analysis.analysisSummary,
+                  style: GoogleFonts.nunito(
+                    fontSize: 14,
+                    height: 1.45,
+                    color: MetoColors.foreground,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -334,7 +343,7 @@ class _BesinKarnesiPageState extends State<BesinKarnesiPage> {
                     border: Border.all(color: MetoColors.border),
                   ),
                   child: L10nText(
-                    'Yaklaşık hesaplamadır; laboratuvar veya tıbbi sonuç değildir.',
+                    'Günlük beslenme hedefinin yaklaşık ne kadarının karşılandığını gösteren tahmini bir analizdir. Laboratuvar testi veya teşhis değildir.',
                     style: GoogleFonts.nunito(
                       fontSize: 12,
                       height: 1.4,
@@ -389,9 +398,22 @@ class _BesinKarnesiPageState extends State<BesinKarnesiPage> {
                 ),
                 const SizedBox(height: 20),
                 L10nText(
-                  'Eksiği kapatmaya yardımcı kaynaklar',
+                  'Günlük hedefe yaklaşmaya yardımcı olabilecek besinler',
                   style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
                 ),
+                const SizedBox(height: 8),
+                for (final rec in analysis.recommendations)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: L10nText(
+                      rec,
+                      style: GoogleFonts.nunito(
+                        fontSize: 13,
+                        height: 1.4,
+                        color: MetoColors.mutedFg,
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 for (final s in analysis.lowest())
                   Padding(
@@ -553,10 +575,10 @@ class _PercentColorLegend extends StatelessWidget {
   const _PercentColorLegend();
 
   static const _cells = <(NutritionBand, String, String, bool)>[
-    (NutritionBand.low, '%0–49', 'Kritik Eksik', false),
-    (NutritionBand.mid, '%50–79', 'Geliştirilmeli', false),
-    (NutritionBand.target, '%80–120', 'İdeal Hedef', true),
-    (NutritionBand.high, '%150+', 'Yüksek Alım', false),
+    (NutritionBand.low, '%0–49', 'Hedefin altında', false),
+    (NutritionBand.mid, '%50–79', 'Hedefe yaklaşmalı', false),
+    (NutritionBand.target, '%80–120', 'Hedefe yakın', true),
+    (NutritionBand.high, '%150+', 'Hedefin üzerinde', false),
   ];
 
   @override
@@ -832,7 +854,7 @@ Future<void> showNutrientFoodsSheet(
                 ),
                 const SizedBox(height: 6),
                 L10nText(
-                  'Alım: ${stat.intake.toStringAsFixed(stat.intake >= 10 ? 0 : 1)} ${stat.unit}  ·  referans: ${stat.target.toStringAsFixed(stat.target >= 10 ? 0 : 1)} ${stat.unit}',
+                  'Alım: ${stat.intake.toStringAsFixed(stat.intake >= 10 ? 0 : 1)} ${stat.unit}  ·  günlük referans hedefi: ${stat.target.toStringAsFixed(stat.target >= 10 ? 0 : 1)} ${stat.unit}',
                   style: GoogleFonts.nunito(
                     fontSize: 12,
                     color: MetoColors.mutedFg,

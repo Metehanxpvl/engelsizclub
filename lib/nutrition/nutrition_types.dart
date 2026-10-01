@@ -48,7 +48,7 @@ extension NutrientKeyX on NutrientKey {
       };
 
   String get unit => switch (this) {
-        NutrientKey.vitaminA ||
+        NutrientKey.vitaminA => 'µg RAE',
         NutrientKey.vitaminK ||
         NutrientKey.folate ||
         NutrientKey.iodine ||
@@ -193,13 +193,18 @@ class NutrientStat {
   bool get inTargetBand => percentage >= 80 && percentage <= 120;
 
   Map<String, dynamic> toJson() => {
-        'intake': intake,
-        'target': target,
-        'percentage': percentage,
+        'intake': _roundIntake(intake),
+        'target': _roundIntake(target),
         'unit': unit,
+        'percentage': percentage.round(),
         'referenceType': referenceType.name,
-        if (upperLimit != null) 'upperLimit': upperLimit,
+        if (upperLimit != null) 'upperLimit': _roundIntake(upperLimit!),
       };
+}
+
+double _roundIntake(double v) {
+  if (v >= 100) return v.roundToDouble();
+  return double.parse(v.toStringAsFixed(1));
 }
 
 class ParsedFood {
@@ -244,6 +249,8 @@ class NutritionAnalysis {
     required this.rawInput,
     this.profile = const NutritionUserProfile(),
     this.version = kNutritionAnalysisVersion,
+    this.analysisSummary = '',
+    this.recommendations = const [],
   });
 
   final Map<NutrientKey, NutrientStat> nutrients;
@@ -254,6 +261,16 @@ class NutritionAnalysis {
   final String rawInput;
   final String version;
   final NutritionUserProfile profile;
+  final String analysisSummary;
+  final List<String> recommendations;
+
+  String get dataQuality {
+    if (analyzedFoods.any((e) => !e.portionSpecified) ||
+        unknownTokens.isNotEmpty) {
+      return 'estimated';
+    }
+    return 'parsed';
+  }
 
   int get inRangeCount =>
       nutrients.values.where((e) => e.inTargetBand).length;
@@ -261,12 +278,13 @@ class NutritionAnalysis {
   int get nutrientCount => NutrientKey.values.length;
 
   String get balanceLabel {
-    if (inRangeCount >= 9) return 'Dengeli';
-    if (inRangeCount >= 5) return 'Kısmen dengeli';
-    return 'Eksikler öne çıkıyor';
+    if (inRangeCount >= 9) return 'Dengeli görünüyor';
+    if (inRangeCount >= 5) return 'Kısmen dengeli görünüyor';
+    return 'Bazı hedefler daha düşük görünüyor';
   }
 
-  /// Referansların %100 ile sınırlı ortalaması; tıbbi başarı skoru değildir.
+  /// %100 ile sınırlı ortalama; tek yüksek besin diğerlerini maskelemez.
+  /// Tıbbi skor değildir.
   double get overallFillPercent {
     var sum = 0.0;
     for (final s in nutrients.values) {
@@ -283,6 +301,9 @@ class NutritionAnalysis {
         'confidence': confidence.name,
         'profile': profile.id,
         'overallFillPercent': overallFillPercent.round(),
+        'total_fulfillment_percentage': overallFillPercent.round(),
+        'analysis_summary': analysisSummary,
+        'data_quality': dataQuality,
       };
 
   List<NutrientStat> lowest({int n = 3}) {
@@ -294,9 +315,21 @@ class NutritionAnalysis {
   Map<String, dynamic> toJson() => {
         'version': version,
         'confidence': confidence.name,
+        'data_quality': dataQuality,
         'profile': profile.id,
         'date': date.toIso8601String(),
+        'total_fulfillment_percentage': overallFillPercent.round(),
+        'analysis_summary': analysisSummary,
         'summary': summary,
+        'vitamins_breakdown': {
+          for (final e in nutrients.entries)
+            if (e.key.group == NutrientGroup.vitamin) e.key.id: e.value.toJson(),
+        },
+        'minerals_breakdown': {
+          for (final e in nutrients.entries)
+            if (e.key.group == NutrientGroup.mineral) e.key.id: e.value.toJson(),
+        },
+        'recommendations': recommendations,
         'nutrients': {
           for (final e in nutrients.entries) e.key.id: e.value.toJson(),
         },
@@ -306,14 +339,15 @@ class NutritionAnalysis {
               'food': f.foodId,
               'quantity': f.quantity,
               'unit': f.unit.name,
-              'grams': f.grams,
+              'grams': _roundIntake(f.grams),
               'portionSpecified': f.portionSpecified,
             },
         ],
+        if (unknownTokens.isNotEmpty) 'unknown': unknownTokens,
       };
 }
 
-const kNutritionAnalysisVersion = '3';
+const kNutritionAnalysisVersion = '4';
 const kNutritionMinInputChars = 6;
 
 enum NutritionSex { male, female, all }
@@ -358,6 +392,15 @@ enum NutritionAgeBand {
   bool get needsSex => ageMin >= 9;
 
   int get representativeAge => ageMin;
+
+  /// Belirtilmemiş / ev ölçüleri için yaşa uygun porsiyon katsayısı.
+  double get portionFactor => switch (this) {
+        NutritionAgeBand.y1to3 => 0.45,
+        NutritionAgeBand.y4to8 => 0.6,
+        NutritionAgeBand.y9to13 => 0.75,
+        NutritionAgeBand.y14to18 => 0.9,
+        _ => 1.0,
+      };
 }
 
 class NutritionUserProfile {
@@ -399,11 +442,11 @@ NutritionBand nutritionBand(double percentage) {
 
 extension NutritionBandX on NutritionBand {
   String get labelTr => switch (this) {
-        NutritionBand.low => 'Kritik Eksik',
-        NutritionBand.mid => 'Geliştirilmeli',
-        NutritionBand.target => 'İdeal Hedef',
-        NutritionBand.above => 'Hedef üstü',
-        NutritionBand.high => 'Yüksek Alım',
+        NutritionBand.low => 'Hedefin altında',
+        NutritionBand.mid => 'Hedefe yaklaşmalı',
+        NutritionBand.target => 'Hedefe yakın',
+        NutritionBand.above => 'Günlük hedefin üzerinde',
+        NutritionBand.high => 'Günlük hedefin üzerinde',
       };
 
   String get rangeTr => switch (this) {
@@ -415,10 +458,15 @@ extension NutritionBandX on NutritionBand {
       };
 
   String get meaningTr => switch (this) {
-        NutritionBand.low => 'Kritik eksik',
-        NutritionBand.mid => 'Geliştirilmeli',
-        NutritionBand.target => 'İdeal hedef',
-        NutritionBand.above => 'Hedefin üzerinde',
-        NutritionBand.high => 'Yüksek alım',
+        NutritionBand.low =>
+          'Girilen besinlere göre tahmini alım, günlük referans hedefinin altında görünüyor. Bu bir teşhis değildir.',
+        NutritionBand.mid =>
+          'Günlük referans hedefine yaklaşmak için bu besin grubunu artırmak yardımcı olabilir.',
+        NutritionBand.target =>
+          'Tahmini alım günlük referans hedefine yakın görünüyor.',
+        NutritionBand.above =>
+          'Günlük hedefin üzerinde. Bu, toksisite veya UL aşımı anlamına gelmez.',
+        NutritionBand.high =>
+          'Günlük hedefin üzerinde. RDA/AI üstü olmak UL aşımı demek değildir.',
       };
 }
