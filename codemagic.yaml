@@ -96,16 +96,16 @@ workflows:
             EngelsizClub_AppStore|EngelsizClub_AppStore.)
               echo "ERROR: Eski provisioning profile hâlâ seçili: '${PROF}'"
               echo "Codemagic → Settings → Code signing identities → engelsiz_club profilini sil,"
-              echo "Fetch profiles → EngelsizClub_AppStore_v2 → reference: engelsiz_club"
+              echo "Fetch profiles → EngelsizClub_AppStore_v3 → reference: engelsiz_club"
               echo "Apple Developer → Profiles → EngelsizClub_AppStore.* sil"
               exit 1
               ;;
-            EngelsizClub_AppStore_v2)
-              echo "OK: doğru profil"
+            EngelsizClub_AppStore_v2|EngelsizClub_AppStore_v3)
+              echo "OK: profil ${PROF}"
               ;;
             *)
               echo "ERROR: Beklenmeyen profil: '${PROF:-<empty>}'"
-              echo "EngelsizClub_AppStore_v2 olmalı (Sign In with Apple)."
+              echo "EngelsizClub_AppStore_v3 olmalı (Sign In with Apple + Push)."
               exit 1
               ;;
           esac
@@ -200,10 +200,15 @@ workflows:
           fi
           xcode-project use-profiles
           PROF="$(xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings 2>/dev/null | awk -F' = ' '/PROVISIONING_PROFILE_SPECIFIER/ {print $2; exit}')"
-          if [ "$PROF" != "EngelsizClub_AppStore_v2" ]; then
-            echo "ERROR: Yanlış provisioning profile: '${PROF:-<empty>}' — EngelsizClub_AppStore_v2 bekleniyor."
-            exit 1
-          fi
+          case "$PROF" in
+            EngelsizClub_AppStore_v2|EngelsizClub_AppStore_v3)
+              echo "OK: profil ${PROF}"
+              ;;
+            *)
+              echo "ERROR: Yanlış provisioning profile: '${PROF:-<empty>}' — EngelsizClub_AppStore_v3 bekleniyor."
+              exit 1
+              ;;
+          esac
       - name: Flutter build IPA
         script: |
           #!/usr/bin/env sh
