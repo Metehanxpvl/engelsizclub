@@ -353,29 +353,38 @@ class _BesinKarnesiPageState extends State<BesinKarnesiPage> {
                 ),
                 const SizedBox(height: 14),
                 const _PercentColorLegend(),
-                const SizedBox(height: 16),
-                TabBar(
-                  labelColor: MetoColors.primary,
-                  unselectedLabelColor: MetoColors.mutedFg,
-                  indicatorColor: MetoColors.primary,
-                  labelStyle: GoogleFonts.nunito(fontWeight: FontWeight.w800),
-                  tabs: const [
-                    Tab(text: 'Vitaminler'),
-                    Tab(text: 'Mineraller'),
-                  ],
+                const SizedBox(height: 18),
+                L10nText(
+                  'Vitamin ve mineral menüsü',
+                  style: GoogleFonts.nunito(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    color: MetoColors.foreground,
+                  ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 10),
+                const _VitaminMineralTabBar(),
+                const SizedBox(height: 8),
                 L10nText(
                   'Çubuğa dokun: o besini içeren gıdalar.',
                   style: GoogleFonts.nunito(
-                    fontSize: 12,
-                    color: MetoColors.mutedFg,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: MetoColors.foreground,
                   ),
                 ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 220,
-                  child: TabBarView(
+                const SizedBox(height: 10),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: MetoColors.card,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: MetoColors.primary.withValues(alpha: 0.22),
+                    ),
+                  ),
+                  child: SizedBox(
+                    height: 268,
+                    child: TabBarView(
                     children: [
                       _NutrientBars(
                         analysis: analysis,
@@ -395,6 +404,7 @@ class _BesinKarnesiPageState extends State<BesinKarnesiPage> {
                       ),
                     ],
                   ),
+                ),
                 ),
                 const SizedBox(height: 20),
                 L10nText(
@@ -568,6 +578,94 @@ class _ChoiceChip extends StatelessWidget {
     );
     if (!expand) return button;
     return SizedBox(width: double.infinity, child: button);
+  }
+}
+
+class _VitaminMineralTabBar extends StatelessWidget {
+  const _VitaminMineralTabBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: MetoColors.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: MetoColors.primary.withValues(alpha: 0.5),
+          width: 1.8,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: MetoColors.primary.withValues(alpha: 0.14),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(5),
+        child: TabBar(
+          indicator: BoxDecoration(
+            color: MetoColors.primary,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          indicatorSize: TabBarIndicatorSize.tab,
+          dividerColor: Colors.transparent,
+          overlayColor: WidgetStateProperty.all(
+            MetoColors.primary.withValues(alpha: 0.08),
+          ),
+          labelColor: Colors.white,
+          unselectedLabelColor: MetoColors.foreground,
+          labelStyle: GoogleFonts.nunito(
+            fontWeight: FontWeight.w800,
+            fontSize: 16,
+          ),
+          unselectedLabelStyle: GoogleFonts.nunito(
+            fontWeight: FontWeight.w800,
+            fontSize: 16,
+          ),
+          splashBorderRadius: BorderRadius.circular(12),
+          tabs: const [
+            Tab(
+              height: 52,
+              child: _NutrientTabLabel(
+                icon: Icons.eco,
+                label: 'Vitaminler',
+              ),
+            ),
+            Tab(
+              height: 52,
+              child: _NutrientTabLabel(
+                icon: Icons.diamond_outlined,
+                label: 'Mineraller',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NutrientTabLabel extends StatelessWidget {
+  const _NutrientTabLabel({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, size: 22),
+        const SizedBox(width: 8),
+        L10nText(
+          label,
+          style: GoogleFonts.nunito(fontWeight: FontWeight.w800, fontSize: 16),
+        ),
+      ],
+    );
   }
 }
 
