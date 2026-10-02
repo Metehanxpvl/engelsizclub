@@ -1,8 +1,8 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-10-01T13:46:48Z",
+  "fetchedAt": "2026-10-02T13:02:27Z",
   "ok": true,
-  "count": 175,
+  "count": 178,
   "items": [
     {
       "id": "52cc34e35e75e3963893e988",
@@ -351,6 +351,20 @@
       "source_url": "https://www.bbc.co.uk/news/articles/cq63gdddgj6o?at_medium=RSS&at_campaign=rss",
       "image_url": "",
       "published_at": "Tue, 01 Sep 2026 08:27:25 GMT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "774f9b2eab48fde699f4a5a3",
+      "title": "Osteopeni milyonlarca insanın kemiklerini sessizce zayıflatıyor",
+      "title_original": "Osteopenia is silently weakening bones in millions of people",
+      "summary": "Osteopeni, kemiklerin yoğunluğunu kaybederek daha kırılgan hale gelmesine neden olan yaygın ancak genellikle göz ardı edilen bir durumdur. Sessizce ilerlediği için birçok kişi bu duruma sahip olduğunu ancak bir kırık veya kemik taraması sonrasında öğrenmektedir. Yaşlanma, menopoz, yetersiz beslenme ve hareketsizlik kemik kaybına katkıda bulunabilir. Egzersiz, yeterli kalsiyum ve D vitamini alımı ile sağlıklı alışkanlıklar bu kaybı yavaşlatabilir veya kısmen tersine çevirebilir.",
+      "summary_original": "Osteopenia is a common but often overlooked condition that causes bones to become less dense and more fragile. Because it develops silently, many people only discover they have it after a fracture or bone scan. Aging, menopause, poor diet, and inactivity can all contribute to bone loss. Fortunately, exercise, adequate calcium and vitamin D, and other healthy habits can slow or even partially reverse the decline.",
+      "category": "tedavi",
+      "source_name": "ScienceDaily Genetics",
+      "source_url": "https://www.sciencedaily.com/releases/2026/06/260624025511.htm",
+      "image_url": "",
+      "published_at": "Thu, 25 Jun 2026 00:25:26 EDT",
       "status": "pending_review",
       "lang": "tr"
     },
@@ -911,6 +925,34 @@
       "source_url": "https://www.disabilityscoop.com/2026/09/11/family-raises-1-6-million-to-build-adaptive-playground/32169/",
       "image_url": "",
       "published_at": "Fri, 11 Sep 2026 02:01:32 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "194b8923ba31522367c888b7",
+      "title": "Baskı Altındaki FEMA, Engelli Odaklı Acil Durum Müdahale Eğitimini Yeniden Başlatacak",
+      "title_original": "Under Pressure, FEMA To Restore Emergency Response Training Focused On Disabilities",
+      "summary": "Ülkenin en büyük acil durum müdahale ajansı, geçen yıl askıya alınan, afetlerde engelli bireylerin ihtiyaçlarının karşılanmasına yönelik eğitimin yeniden başlatılacağını duyurdu.",
+      "summary_original": "The country's top emergency response agency says it will bring back training on meeting the needs of people with disabilities in disasters after it was halted last year. The post Under Pressure, FEMA To Restore Emergency Response Training Focused On Disabilities appeared first on Disability Scoop .",
+      "category": "erisilebilirlik",
+      "source_name": "Disability Scoop",
+      "source_url": "https://www.disabilityscoop.com/2026/10/02/under-pressure-fema-to-restore-emergency-response-training-focused-on-disabilities/32206/",
+      "image_url": "",
+      "published_at": "Fri, 02 Oct 2026 02:02:22 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "1f082cbfb1c4a207c9530287",
+      "title": "Wrigley Field, MLB'nin İlk Sertifikalı Otizm Merkezi Oldu",
+      "title_original": "Wrigley Field Becomes MLB’s First Certified Autism Center",
+      "summary": "Chicago Cubs'ın sahası olan tarihi Wrigley Field stadyumu, Major League Baseball (MLB) liginde Sertifikalı Otizm Merkezi unvanını alan ilk beyzbol stadyumu oldu. Bu kapsamda personelin otizm farkındalığı ve konuk ağırlama konularında özel eğitimden geçeceği belirtildi.",
+      "summary_original": "Baseball's historic Wrigley Field, home of the Chicago Cubs, has become the first Major League Baseball stadium to be designated as a Certified Autism Center. The post Wrigley Field Becomes MLB&#8217;s First Certified Autism Center appeared first on Disability Scoop .",
+      "category": "erisilebilirlik",
+      "source_name": "Disability Scoop",
+      "source_url": "https://www.disabilityscoop.com/2026/10/02/wrigley-field-becomes-mlbs-first-certified-autism-center/32207/",
+      "image_url": "",
+      "published_at": "Fri, 02 Oct 2026 02:01:22 +0000",
       "status": "pending_review",
       "lang": "tr"
     },
