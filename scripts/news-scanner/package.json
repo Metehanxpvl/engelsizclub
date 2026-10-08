@@ -1,0 +1,12 @@
+{
+  "name": "engelsizclub-daily-news-scanner",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "scan": "node index.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.5.1"
+  }
+}

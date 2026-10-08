@@ -1,0 +1,52 @@
+# Günlük gazete taraması → public.news_candidates (status=pending).
+# useful-content-collector / update_global_news / kariyer workflow'larına dokunmaz.
+# Otomatik yayın ve FCM yok; admin onaylar.
+#
+# Gerekli repo secrets:
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+#   GEMINI_API_KEY   (yoksa AI_API_KEY)
+#
+# Cron 02:00 UTC = 05:00 Europe/Istanbul.
+# Elle: Actions → Daily news scan → Run workflow (main).
+name: Daily news scan
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-news-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+      - name: Install scanner deps
+        working-directory: scripts/news-scanner
+        run: npm ci
+      - name: Scanner unit tests
+        working-directory: scripts/news-scanner
+        run: npm test
+      - name: Scan newspapers → pending
+        working-directory: scripts/news-scanner
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+        run: |
+          SUPABASE_URL="${SUPABASE_URL//qycrkqwqrysypvqipqn/qycrkqwqrysypvqaipqn}"
+          SUPABASE_URL="${SUPABASE_URL//ypvqipqn.supabase.co/ypvqaipqn.supabase.co}"
+          export SUPABASE_URL
+          node index.mjs
