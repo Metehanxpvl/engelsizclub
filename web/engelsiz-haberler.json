@@ -1,6 +1,6 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-10-09T13:39:05Z",
+  "fetchedAt": "2026-10-10T12:55:27Z",
   "ok": true,
   "count": 180,
   "items": [
@@ -845,6 +845,20 @@
       "lang": "tr"
     },
     {
+      "id": "5e6227fafecba4052f19f6bb",
+      "title": "Van Morrison'ın eski okulunun özel okula dönüştürülmesi planları ertelendi",
+      "title_original": "Plans to turn Van Morrison's former primary into a special school delayed",
+      "summary": "Eski Elmgrove İlkokulu'nun Eylül 2026'da özel okul olarak yeniden açılması planlanıyordu ancak bu projede gecikme yaşandı.",
+      "summary_original": "It was originally hoped that the former Elmgrove Primary School could re-open as a special school in September 2026.",
+      "category": "erisilebilirlik",
+      "source_name": "BBC Disability",
+      "source_url": "https://www.bbc.co.uk/news/articles/crx2dp681lj4o?at_medium=RSS&at_campaign=rss",
+      "image_url": "",
+      "published_at": "Sat, 10 Oct 2026 05:44:16 GMT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
       "id": "5db5b77ecbb507f2af2f629c",
       "title": "Özel Eğitim İhtiyacı Olan Çocukların Taksi Hizmetindeki Belirsizlik Aileleri Endişelendiriyor",
       "title_original": "'Hurt' at lack of clarity over SEN taxi - 24 hours before girl, 7, returns to school",
@@ -1121,6 +1135,20 @@
       "source_url": "https://www.disabilityscoop.com/2026/09/11/family-raises-1-6-million-to-build-adaptive-playground/32169/",
       "image_url": "",
       "published_at": "Fri, 11 Sep 2026 02:01:32 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "cf163366a2cc54990287c781",
+      "title": "New York'taki Engelli Gaziler İçin Mali Durumu İyileştirme Yolları",
+      "title_original": "How Disabled Veterans in New York Can Improve Finances",
+      "summary": "New York'ta yaşayan engelli gaziler; PACT Yasası kapsamındaki engellilik derecelendirmeleri, 55-b ve 55-c programları dahilindeki kamu istihdamı fırsatları ve ekonomik açıdan daha güçlü bölgelere taşınma seçenekleri aracılığıyla mali durumlarını iyileştirebilir.",
+      "summary_original": "How disabled veterans in New York can improve their finances through PACT Act disability ratings, 55-b and 55-c state jobs, and relocation to stronger economies",
+      "category": "haklar",
+      "source_name": "Disabled World",
+      "source_url": "https://www.disabled-world.com/news/veterans/veterans-finance.php",
+      "image_url": "",
+      "published_at": "Fri, 09 Oct 2026 13:28:00 GMT",
       "status": "pending_review",
       "lang": "tr"
     },
@@ -2493,34 +2521,6 @@
       "source_url": "https://clinicaltrials.gov/study/NCT06626893",
       "image_url": "",
       "published_at": "2026-09-26T11:42:27Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "0f3a37d8d86275adcd65ecb9",
-      "title": "Down Sendromlu Bebekler İçin Koşum Takımı Tabanlı Hareketlilik Girişimi",
-      "title_original": "Harness-based Mobility Intervention for Infants With Down Syndrome",
-      "summary": "Down sendromlu bebeklerde emekleme ve yürüme gecikir, ancak erken hareketlilik öğrenme ve sosyalleşme için temel oluşturur. Vücut ağırlığını destekleyen koşum sistemleri, bebeklerin keşif ve iletişim becerilerini destekleyebilir. Bu pilot proje, Down sendromlu bebeklere yönelik özel bir hareketlilik müdahalesinin fizibilitesini test ederek gelecekteki klinik araştırmalara zemin hazırlamaktadır.",
-      "summary_original": "The emergence of crawling and walking is significantly delayed in infants with Down syndrome (DS), but the development of independent mobility provides infants with new opportunities for exploring the environment and interacting with objects and people that are important foundations for early learning. Increasing infant mobility early in development with body weight supported harness systems may support infant exploration, communication, and social interaction. This project will set the stage for the first clinical trial of a mobility-related intervention specifically tailored for infants with DS by testing the feasibility of harness systems with infants and families and identifying measures that will serve as primary outcome variables. Upon completion of this pilot project, necessary prel",
-      "category": "erisilebilirlik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT06219863",
-      "image_url": "",
-      "published_at": "2026-09-26T11:42:24Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "51727076e9d3a10f06212d34",
-      "title": "İlk Kök Hücre Nakli Sonrası Nükseden Yüksek Riskli Kan Kanseri Hastalarında Optimize Edilmiş Kordon Kanı Nakli Tedavisi",
-      "title_original": "Optimized Cord Blood Transplantation for the Treatment of Patients With High-risk Hematologic Malignancies Who Have Relapsed After First Allogeneic Stem Cell Transplantation",
-      "summary": "Bu klinik araştırmanın amacı, ikinci bir allojenik kök hücre nakline ihtiyaç duyan yüksek riskli hematolojik maligniteli hastalarda, orta yoğunlukta hazırlık tedavisi ve ardından kordon kanı naklinin hastalığı kontrol etmeye yardımcı olup olmadığını incelemektir.",
-      "summary_original": "The goal of this clinical research study is to learn if intermediate-intensity conditioning therapy followed by a cord blood transplant can help to control high-risk hematological malignancies in patients who need a second allogeneic stem cell transplantation.",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT06807606",
-      "image_url": "",
-      "published_at": "2026-09-26T11:42:12Z",
       "status": "pending_review",
       "lang": "tr"
     }
