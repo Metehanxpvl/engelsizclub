@@ -582,15 +582,19 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     _navTourStarted = true;
     await Future<void>.delayed(const Duration(milliseconds: 600));
     if (!mounted) return;
-    ShowcaseView.get().startShowCase([
-      _navTourKeys[MetoTab.home]!,
-      _navTourKeys[MetoTab.ilanlar]!,
-      _navTourKeys[MetoTab.tarama]!,
-      _navTourKeys[MetoTab.kesfet]!,
-      _navTourKeys[MetoTab.forum]!,
-      _moreNavTourKey,
-      _messagesTourKey,
-    ]);
+    try {
+      ShowcaseView.get().startShowCase([
+        _navTourKeys[MetoTab.home]!,
+        _navTourKeys[MetoTab.ilanlar]!,
+        _navTourKeys[MetoTab.tarama]!,
+        _navTourKeys[MetoTab.kesfet]!,
+        _navTourKeys[MetoTab.forum]!,
+        _moreNavTourKey,
+        _messagesTourKey,
+      ]);
+    } catch (e, st) {
+      debugPrint('Nav tour start: $e\n$st');
+    }
   }
 
   Future<void> _finishNavTour() async {

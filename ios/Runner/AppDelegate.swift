@@ -56,6 +56,8 @@ enum PushLaunchBridge {
     }
     application.registerForRemoteNotifications()
     let ok = super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    let splash = UIColor(red: 0.949, green: 0.969, blue: 0.957, alpha: 1)
+    window?.backgroundColor = splash
     UNUserNotificationCenter.current().delegate = self
     application.registerForRemoteNotifications()
     return ok

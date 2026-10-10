@@ -203,12 +203,29 @@ Future<void> _bootstrapPlatformServices() async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Safari ITP / Private Relay fonts.gstatic.com'u kesince google_fonts ilk kareyi
-  // bekletebiliyor veya boş ekran bırakabiliyor. Web'de sistem/Roboto yedek.
-  if (kIsWeb) {
-    GoogleFonts.config.allowRuntimeFetching = false;
-  }
-  // Theme Nunito (same family as İlanlar/Keşfet) — full TTF, not a latin-only subset.
+  // fonts.gstatic.com yavaş/kesik olunca GoogleFonts ilk kareyi bekletip
+  // Play’de gri ekran bırakabiliyor. Sistem/Roboto yedek yeter.
+  GoogleFonts.config.allowRuntimeFetching = false;
+  ErrorWidget.builder = (details) {
+    debugPrint('ErrorWidget: ${details.exception}');
+    return const Material(
+      color: MetoColors.background,
+      child: Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Bir şey ters gitti. Uygulamayı kapatıp tekrar açın.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: MetoColors.foreground,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  };
 
   try {
     await withNetworkTimeout(
@@ -222,7 +239,7 @@ Future<void> main() async {
           detectSessionInUri: false,
         ),
       ),
-      timeout: kBootstrapTimeout,
+      timeout: kUiTimeout,
       message: 'Sunucu bağlantısı zaman aşımına uğradı.',
     );
   } catch (e, st) {
@@ -637,7 +654,11 @@ class _MetoCareAppState extends State<MetoCareApp> {
               textDirection:
                   lang.isRtl ? TextDirection.rtl : TextDirection.ltr,
               child: ForceUpdateGate(
-                child: child ?? const SizedBox.shrink(),
+                child: child ??
+                    const ColoredBox(
+                      color: MetoColors.background,
+                      child: SizedBox.expand(),
+                    ),
               ),
             );
           },

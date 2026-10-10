@@ -14,8 +14,8 @@ import 'force_update_logic.dart';
 export 'force_update_logic.dart';
 
 /// pubspec marketing / `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
-const kAppVersionName = '1.1.19';
-const kAppBuildNumber = 202610101320;
+const kAppVersionName = '1.1.20';
+const kAppBuildNumber = 202610101710;
 
 /// Açılışta semver + Play kontrolü. Splash kilidi yok.
 ///
