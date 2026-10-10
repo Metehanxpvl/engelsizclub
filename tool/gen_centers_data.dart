@@ -218,7 +218,7 @@ const kCenterCategories = <String>[
 
 const kVendorFilterLabels = <String>['Tümü', "SGK'lı", 'Kargo Var', 'İstanbul'];
 
-const kAllIlceler = 'Tümü İlçeler';
+const kAllIlceler = 'İlçeler';
 const kDefaultCity = 'İstanbul';
 
 /// İki koordinat arasındaki kuş uçuşu mesafe (km) — Haversine.

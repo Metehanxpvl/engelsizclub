@@ -28,6 +28,7 @@ import 'ilan_store.dart';
 import 'content_view_store.dart';
 import 'kesfet/kesfet_page.dart';
 import 'kredi_store.dart';
+import 'iyilik_market_store.dart';
 import 'kullanici_profil_store.dart';
 import 'l10n/app_strings.dart';
 import 'l10n/locale_controller.dart';
@@ -45,6 +46,7 @@ import 'pages/boyama_page.dart';
 import 'features/scientific_research/admin_science_review_screen.dart';
 import 'features/city_posters/admin_city_posters_screen.dart';
 import 'features/useful_opportunities/opportunities_screen.dart';
+import 'features/daily_news/admin_daily_news_screen.dart';
 import 'remote/app_screen_config.dart';
 import 'pages/gelisim_etkinlikleri_page.dart';
 import 'pages/besin_karnesi_page.dart';
@@ -67,6 +69,7 @@ import 'pages/merkezler_page.dart';
 import 'pages/tibbi_sorumluluk_reddi_page.dart';
 import 'presence_store.dart';
 import 'profil_foto_store.dart';
+import 'services/force_update_service.dart';
 import 'services/google_play_availability.dart';
 import 'services/broadcast_push_service.dart';
 import 'services/play_billing_service.dart';
@@ -78,11 +81,13 @@ import 'user_cloud_store.dart';
 import 'user_safety_store.dart';
 import 'utils/price_format.dart';
 import 'widgets/user_avatar.dart';
+import 'widgets/iyilik_market_konfeti.dart';
 import 'widgets/user_safety_sheet.dart';
 import 'widgets/admin_kesfet_panel.dart';
 import 'widgets/admin_iyilik_liderleri_panel.dart';
 import 'widgets/admin_users_panel.dart';
 import 'widgets/admin_did_you_know_sheet.dart';
+import 'widgets/sohbet_receipt_ticks.dart';
 import 'widgets/section_editors_panel.dart';
 import 'section_editors.dart';
 import 'package:showcaseview/showcaseview.dart';
@@ -225,6 +230,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   BildirimAyarlari _bildirimler = const BildirimAyarlari();
   String? _profilFoto;
   late int _userKredi;
+  int _iyilikMarketPuan = 0;
+  int _marketKonfetiPlayId = 0;
   bool _krediHosBonusGosterildi = false;
   int _ilanlarUnread = 0;
   int _newIlanlarCount = 0;
@@ -425,8 +432,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     ),
   ];
 
-  String get _role =>
-      (widget.user.userType ?? 'aile').trim().toLowerCase();
+  String get _role => normalizedUserType(widget.user.userType);
 
   bool get _isProf => _role == 'uzman' || _role == 'bakici';
   /// Rol bazlı; admin aile rolündeyken ₺69 puan fiyatı / teklif metni gösterilmez.
@@ -453,6 +459,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !_isGuest) {
+      unawaited(_consumePendingPush());
+    }
     if (!_isGuest || _guestSessionExpired) return;
     if (state == AppLifecycleState.resumed) {
       _guestSessionTickAt = DateTime.now();
@@ -477,6 +486,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       WidgetsBinding.instance.removeObserver(this);
       unawaited(GuestLimitStore.clearAll());
     }
+    if (!_isGuest &&
+        oldWidget.user.userType != widget.user.userType) {
+      unawaited(
+        PushNotificationService.instance.syncTopics(
+          _bildirimler,
+          userType: _role,
+        ),
+      );
+    }
   }
 
   @override
@@ -492,6 +510,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     _tabPageController = PageController(initialPage: swipe >= 0 ? swipe : 0);
     if (_isGuest) {
       _userKredi = 0;
+      _iyilikMarketPuan = 0;
       WidgetsBinding.instance.addObserver(this);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         unawaited(_maybeShowMedicalWelcome());
@@ -524,6 +543,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       },
     );
     unawaited(_refreshFeedDots());
+    WidgetsBinding.instance.addObserver(this);
     _listenPushOpens();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_maybeShowMedicalWelcome());
@@ -1413,11 +1433,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     return [
       for (final o in ozetler)
         if ((byKey[o.sohbetKey] ?? 0) > o.unreadCount)
-          SohbetOzet(
-            sohbetKey: o.sohbetKey,
-            peerEmail: o.peerEmail,
-            lastMsg: o.lastMsg,
-            lastTime: o.lastTime,
+          o.copyWith(
             unreadCount: byKey[o.sohbetKey]!,
             lastFromPeer: true,
           )
@@ -1497,14 +1513,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         _sohbetOzetleri = [
           for (final x in _sohbetOzetleri)
             if (x.sohbetKey == o.sohbetKey)
-              SohbetOzet(
-                sohbetKey: x.sohbetKey,
-                peerEmail: x.peerEmail,
-                lastMsg: x.lastMsg,
-                lastTime: x.lastTime,
-                unreadCount: 0,
-                lastFromPeer: x.lastFromPeer,
-              )
+              x.copyWith(unreadCount: 0)
             else
               x,
         ];
@@ -1942,24 +1951,78 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   void _listenPushOpens() {
     if (_isGuest) return;
-    final pending = PushNotificationService.instance.takePendingOpenData();
-    if (pending != null && pending.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _openPushData(pending);
-      });
-    }
+    _pushOpenSub?.cancel();
     _pushOpenSub = PushNotificationService.instance.onOpenedData.listen((data) {
       if (!mounted || data.isEmpty) return;
       _openPushData(data);
     });
+    unawaited(_consumePendingPush());
   }
 
+  Future<void> _consumePendingPush() async {
+    if (_isGuest || !mounted) return;
+    for (var i = 0; i < 8; i++) {
+      if (!mounted || _isGuest) return;
+      final pending =
+          await PushNotificationService.instance.recoverLaunchNotification();
+      if (pending != null && pending.isNotEmpty) {
+        if (!mounted) return;
+        _openPushData(pending);
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+    }
+  }
+
+  String _peerFromSohbetKey(String sohbetKey) {
+    return peerEmailFromSohbetKey(sohbetKey, widget.user.email);
+  }
+
+  void _closeOverlaysForPush() {
+    _showMesajlar = false;
+    _showBildirimler = false;
+    _showProfilPanel = false;
+    _showIlanlarim = false;
+    _showKaydedilenler = false;
+  }
+
+  String? _lastOpenedPushSig;
+
   void _openPushData(Map<String, String> data) {
+    var type = (data['type'] ?? data['notification_type'] ?? '')
+        .trim()
+        .toLowerCase();
+    if (type == kAppUpdatePushType) {
+      unawaited(ForceUpdateService.instance.openStore());
+      return;
+    }
     if (_isGuest) return;
-    final type = (data['type'] ?? '').trim().toLowerCase();
-    final id = int.tryParse((data['id'] ?? data['ilan_id'] ?? '').trim());
-    final sohbetKey = (data['sohbet_key'] ?? '').trim();
-    var actorEmail = (data['actor_email'] ?? '').trim().toLowerCase();
+    final id = int.tryParse(
+      (data['id'] ?? data['ilan_id'] ?? data['post_id'] ?? '').trim(),
+    );
+    final sohbetKey = (data['sohbet_key'] ?? data['sohbetkey'] ?? '').trim();
+    var actorEmail =
+        (data['actor_email'] ?? data['from'] ?? data['sender_email'] ?? '')
+            .trim()
+            .toLowerCase();
+    if (actorEmail.isEmpty) {
+      actorEmail = _peerFromSohbetKey(sohbetKey);
+    }
+    if (type.isEmpty) {
+      if (sohbetKey.contains('|') || actorEmail.contains('@')) {
+        type = 'mesaj';
+      } else if ((data['kind'] ?? '').trim().isNotEmpty) {
+        type = 'ilan';
+      } else if (sohbetKey.startsWith('c:') ||
+          (data['post_id'] ?? '').trim().isNotEmpty) {
+        type = 'forum';
+      } else if (id != null && id > 0) {
+        type = 'forum';
+      }
+    }
+    final sig = '$type|$id|$sohbetKey|$actorEmail';
+    if (type.isNotEmpty && sig == _lastOpenedPushSig) return;
+    if (type.isNotEmpty) _lastOpenedPushSig = sig;
 
     if (type == 'etkinlik_oneri') {
       unawaited(
@@ -1989,6 +2052,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         EtkinliklerPage.open(
           context,
           userEmail: widget.user.email,
+        ),
+      );
+      return;
+    }
+
+    if (type == 'gelisim') {
+      unawaited(
+        GelisimEtkinlikleriPage.open(
+          context,
+          adminEmail: widget.user.email,
         ),
       );
       return;
@@ -2032,9 +2105,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     if (type.startsWith('forum')) {
       if (id != null && id > 0) {
         setState(() {
-          _showMesajlar = false;
-          _showBildirimler = false;
-          _showProfilPanel = false;
+          _closeOverlaysForPush();
           _openForumPostId = id;
           _openForumCommentId = parseForumCommentRef(sohbetKey);
           _openForumToken++;
@@ -2045,20 +2116,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     }
 
     if (type == 'mesaj' || type == 'teklif') {
-      if (actorEmail.isEmpty && sohbetKey.contains('|')) {
-        final me = widget.user.email.trim().toLowerCase();
-        for (final part in sohbetKey.split('|')) {
-          final e = part.trim().toLowerCase();
-          if (e.isNotEmpty && e != me) {
-            actorEmail = e;
-            break;
-          }
-        }
+      if (actorEmail.isEmpty) {
+        actorEmail = _peerFromSohbetKey(sohbetKey);
       }
       if (actorEmail.isEmpty) {
         _openMesajlar();
         return;
       }
+      setState(_closeOverlaysForPush);
       final name = _peerDisplayName(actorEmail);
       final kisi = SohbetKisi(
         ad: name,
@@ -2089,7 +2154,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     }
 
     if (type == 'ilan' && id != null && id > 0) {
-      _openIlanDetay(kind: (data['kind'] ?? 'uzman').trim(), id: id);
+      _openIlanDetay(
+        kind: (data['kind'] ?? '').trim(),
+        id: id,
+      );
+      return;
+    }
+
+    if (type == 'duyuru') {
+      setState(_closeOverlaysForPush);
+      _goToTab(MetoTab.home);
     }
   }
 
@@ -2448,19 +2522,36 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                                           ),
                                         ),
                                         const SizedBox(height: 3),
-                                        Text(
-                                          scrubEmailsInText(o.lastMsg),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: o.hasUnread
-                                                ? FontWeight.w800
-                                                : FontWeight.w400,
-                                            color: o.hasUnread
-                                                ? const Color(0xFF111827)
-                                                : MetoColors.mutedFg,
-                                          ),
+                                        Row(
+                                          children: [
+                                            if (!o.lastFromPeer &&
+                                                o.lastReceipt != null) ...[
+                                              SohbetReceiptTicks(
+                                                receipt: o.lastReceipt!,
+                                                color: MetoColors.mutedFg,
+                                                readColor:
+                                                    const Color(0xFF53BDEB),
+                                                size: 15,
+                                              ),
+                                              const SizedBox(width: 4),
+                                            ],
+                                            Expanded(
+                                              child: Text(
+                                                scrubEmailsInText(o.lastMsg),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: o.hasUnread
+                                                      ? FontWeight.w800
+                                                      : FontWeight.w400,
+                                                  color: o.hasUnread
+                                                      ? const Color(0xFF111827)
+                                                      : MetoColors.mutedFg,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
@@ -2540,10 +2631,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       _favoriler = cloud.favorites;
       _bildirimler = cloud.notifications;
     });
-    unawaited(
-      PushNotificationService.instance.syncTopics(cloud.notifications),
-    );
-    unawaited(PushNotificationService.instance.ensureTokenRegistered());
+    unawaited(() async {
+      await PushNotificationService.instance.ensureTokenRegistered();
+      await PushNotificationService.instance.syncTopics(
+        cloud.notifications,
+        userType: _role,
+      );
+    }());
   }
 
   Future<void> _loadIlanlarVeFoto() async {
@@ -2625,21 +2719,32 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     setState(() => _profilFoto = null);
   }
 
-  Future<void> _loadKredi() async {
+  Future<void> _loadKredi({String? userType}) async {
     final prefs = await SharedPreferences.getInstance();
     final snap = await loadUserKredi(
       email: widget.user.email,
-      userType: widget.user.userType,
+      userType: userType ?? widget.user.userType,
     );
     if (mounted) {
+      final market = await loadIyilikMarketPuan(email: widget.user.email);
+      if (!mounted) return;
       setState(() {
         _userKredi = snap.balance;
+        _iyilikMarketPuan = market;
         _krediHosBonusGosterildi = _isProf
             ? (prefs.getBool(_welcomeDismissKey) ?? false)
             : true;
       });
     }
 
+  }
+
+  void _onMarketPuanGuncelle(int n) {
+    if (!mounted) return;
+    setState(() {
+      _iyilikMarketPuan = n;
+      _marketKonfetiPlayId++;
+    });
   }
 
   bool _roleSwitching = false;
@@ -2666,8 +2771,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       final updated = widget.user.copyWith(userType: next);
       widget.onUserChanged?.call(updated);
 
-      // Aynı e-posta = aynı kredi havuzu (uzman ↔ bakıcı bağlı)
-      await _loadKredi();
+      // Aynı e-posta = aynı kredi havuzu (uzman ↔ bakıcı bağlı).
+      // widget.user henüz eski rolde kalabilir; yeni rolü açık ver.
+      await _loadKredi(userType: next);
 
       if (!mounted) return;
       final label = switch (next) {
@@ -2675,6 +2781,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         'bakici' => 'Bakıcı',
         _ => 'Aile',
       };
+      unawaited(
+        PushNotificationService.instance.syncTopics(
+          _bildirimler,
+          userType: next,
+        ),
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -2868,6 +2980,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           onKrediChanged: (n) {
             if (mounted) setState(() => _userKredi = n);
           },
+          onMarketPuanChanged: _onMarketPuanGuncelle,
           openIlanKind: _openIlanKind,
           openIlanId: _openIlanId,
           openIlanToken: _openIlanToken,
@@ -2905,6 +3018,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           onKrediChanged: (n) {
             if (mounted) setState(() => _userKredi = n);
           },
+          onMarketPuanChanged: _onMarketPuanGuncelle,
           openPostId: _openForumPostId,
           openCommentId: _openForumCommentId,
           openPostToken: _openForumToken,
@@ -2916,6 +3030,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     if (_activeTab == MetoTab.merkezler) {
         overlay = _KeepAliveTab(
           child: MerkezlerPage(
+            key: ValueKey('merkezler-$_role'),
             userEmail: widget.user.email,
             userType: _role,
             isGuest: _isGuest,
@@ -2925,6 +3040,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             onKrediChanged: (n) {
               if (mounted) setState(() => _userKredi = n);
             },
+            onMarketPuanChanged: _onMarketPuanGuncelle,
           ),
         );
     } else if (_activeTab == MetoTab.haklar) {
@@ -3177,6 +3293,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 (_krediSatin && _isTabletLayout)
                     ? _buildKrediCenteredOverlay()
                     : _buildProfilOverlay(),
+              if (_marketKonfetiPlayId > 0)
+                Positioned.fill(
+                  child: IyilikMarketKonfeti(
+                    playId: _marketKonfetiPlayId,
+                    onFinished: () {
+                      if (!mounted) return;
+                      setState(() => _marketKonfetiPlayId = 0);
+                    },
+                  ),
+                ),
             ],
           ),
         );
@@ -3447,9 +3573,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   void _openIlanDetay({required String kind, required int id}) {
     setState(() {
-      _showIlanlarim = false;
-      _showKaydedilenler = false;
-      _showProfilPanel = false;
+      _closeOverlaysForPush();
       _activeTab = MetoTab.ilanlar;
       _openIlanKind = kind;
       _openIlanId = id;
@@ -4172,7 +4296,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       );
       if (!mounted) return;
       setState(() => _bildirimler = next);
-      unawaited(PushNotificationService.instance.syncTopics(next));
+      unawaited(
+        PushNotificationService.instance.syncTopics(next, userType: _role),
+      );
     }
 
     return Column(
@@ -4410,6 +4536,23 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     context,
                     adminEmail: widget.user.email,
                     reviewQueue: true,
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '📰',
+              label: 'Yeni Haberler',
+              sub: 'Gazete taraması · onay kuyruğu',
+              highlight: true,
+              onTap: () {
+                unawaited(
+                  AdminDailyNewsScreen.open(
+                    context,
+                    adminEmail: widget.user.email,
                   ),
                 );
               },
@@ -4700,7 +4843,53 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+          if (_isAileRole)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F766E),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        L10nText(
+                          'İyilik Market Puanı',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$_iyilikMarketPuan',
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        L10nText(
+                          'Yer bildirimi, ilan ve forum paylaşımında +1',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white.withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Text('🛒', style: TextStyle(fontSize: 36)),
+                ],
+              ),
+            ),
+          if (_isAileRole) const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: _openKrediYukle,
             style: FilledButton.styleFrom(
@@ -4865,6 +5054,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             onTap: () => _showIletisimModal(),
           ),
         ),
+        if (!_isGuest)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '🔑',
+              label: S.t('menu_change_password'),
+              sub: S.t('menu_change_password_sub'),
+              onTap: _showParolaDegistirDialog,
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: _menuTile(
@@ -5343,6 +5542,313 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         ),
       ],
     );
+  }
+
+  Future<void> _showParolaDegistirDialog() async {
+    if (_isGuest) return;
+    final email = widget.user.email.trim();
+    final currentCtrl = TextEditingController();
+    final nextCtrl = TextEditingController();
+    final next2Ctrl = TextEditingController();
+    final codeCtrl = TextEditingController();
+    var obscure = true;
+    var loading = false;
+    var codeSent = false;
+    String? errorText;
+
+    Future<void> snack(String msg) async {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: L10nText(msg)),
+      );
+    }
+
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: !loading,
+        builder: (dCtx) {
+          return StatefulBuilder(
+            builder: (dCtx, setLocal) {
+              Future<void> verifyCodeAndSetPassword(String token, String next) async {
+                AuthResponse res;
+                try {
+                  res = await Supabase.instance.client.auth.verifyOTP(
+                    type: OtpType.email,
+                    email: email,
+                    token: token,
+                  );
+                } catch (_) {
+                  res = await Supabase.instance.client.auth.verifyOTP(
+                    type: OtpType.recovery,
+                    email: email,
+                    token: token,
+                  );
+                }
+                if (res.session == null && res.user == null) {
+                  throw const AuthException(
+                    'Kod doğrulanamadı. E-postadaki 6 haneli kodu kontrol edin.',
+                  );
+                }
+                await Supabase.instance.client.auth.updateUser(
+                  UserAttributes(password: next),
+                );
+              }
+
+              Future<void> submit() async {
+                if (loading) return;
+                if (email.isEmpty || !email.contains('@')) {
+                  setLocal(
+                    () => errorText =
+                        'Parola değiştirmek için e-posta hesabı gerekir.',
+                  );
+                  return;
+                }
+                final current = currentCtrl.text;
+                final next = nextCtrl.text;
+                final next2 = next2Ctrl.text;
+                final token = codeCtrl.text.trim().replaceAll(RegExp(r'\s+'), '');
+                if (next.length < 6) {
+                  setLocal(
+                    () => errorText = 'Yeni parola en az 6 karakter olmalı.',
+                  );
+                  return;
+                }
+                if (next != next2) {
+                  setLocal(() => errorText = 'Yeni parolalar eşleşmiyor.');
+                  return;
+                }
+                if (token.isEmpty && current.isEmpty) {
+                  setLocal(
+                    () => errorText =
+                        'Mevcut parolanızı girin veya e-postanıza kod gönderin.',
+                  );
+                  return;
+                }
+                if (token.isEmpty && next == current) {
+                  setLocal(
+                    () => errorText =
+                        'Yeni parola mevcut paroladan farklı olmalı.',
+                  );
+                  return;
+                }
+                setLocal(() {
+                  loading = true;
+                  errorText = null;
+                });
+                try {
+                  if (token.isNotEmpty) {
+                    if (token.length < 6) {
+                      setLocal(() {
+                        loading = false;
+                        errorText = 'E-postadaki 6 haneli kodu girin.';
+                      });
+                      return;
+                    }
+                    await verifyCodeAndSetPassword(token, next);
+                  } else {
+                    await Supabase.instance.client.auth.signInWithPassword(
+                      email: email,
+                      password: current,
+                    );
+                    await Supabase.instance.client.auth.updateUser(
+                      UserAttributes(password: next),
+                    );
+                  }
+                  if (dCtx.mounted) Navigator.pop(dCtx);
+                  await snack('Parolanız güncellendi.');
+                } catch (e) {
+                  if (dCtx.mounted) {
+                    setLocal(() {
+                      loading = false;
+                      errorText = _parolaDegistirHata(e);
+                    });
+                  }
+                }
+              }
+
+              Future<void> sendCode() async {
+                if (loading) return;
+                if (email.isEmpty || !email.contains('@')) {
+                  setLocal(
+                    () => errorText =
+                        'Kod göndermek için e-posta hesabı gerekir.',
+                  );
+                  return;
+                }
+                setLocal(() {
+                  loading = true;
+                  errorText = null;
+                });
+                try {
+                  await Supabase.instance.client.auth.signInWithOtp(
+                    email: email,
+                    shouldCreateUser: false,
+                  );
+                  if (dCtx.mounted) {
+                    setLocal(() {
+                      loading = false;
+                      codeSent = true;
+                      errorText =
+                          '6 haneli kod $email adresine gönderildi. Gelen kutusu ve Spam klasörüne bakın.';
+                    });
+                  }
+                } catch (e) {
+                  if (dCtx.mounted) {
+                    setLocal(() {
+                      loading = false;
+                      errorText = _parolaDegistirHata(e);
+                    });
+                  }
+                }
+              }
+
+              InputDecoration deco(String hint) => InputDecoration(
+                    hintText: S.auto(hint),
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  );
+
+              final infoColor = errorText != null &&
+                      errorText!.contains('gönderildi')
+                  ? MetoColors.primary
+                  : const Color(0xFFDC2626);
+
+              return AlertDialog(
+                title: L10nText(S.t('menu_change_password')),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const L10nText(
+                        'Mevcut parolanızı biliyorsanız girin. Bilmiyorsanız '
+                        'e-postanıza kod gönderin, kodu ve yeni parolanızı yazın. '
+                        'Oturumunuz açık kalır.',
+                      ),
+                      if (errorText != null) ...[
+                        const SizedBox(height: 10),
+                        L10nText(
+                          errorText!,
+                          style: TextStyle(
+                            color: infoColor,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: currentCtrl,
+                        obscureText: obscure,
+                        enabled: !loading,
+                        textInputAction: TextInputAction.next,
+                        decoration: deco('Mevcut parola (varsa)').copyWith(
+                          suffixIcon: IconButton(
+                            onPressed: loading
+                                ? null
+                                : () => setLocal(() => obscure = !obscure),
+                            icon: Icon(
+                              obscure
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      if (codeSent) ...[
+                        TextField(
+                          controller: codeCtrl,
+                          enabled: !loading,
+                          keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [AutofillHints.oneTimeCode],
+                          decoration: deco('E-postadaki 6 haneli kod'),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                      TextField(
+                        controller: nextCtrl,
+                        obscureText: obscure,
+                        enabled: !loading,
+                        textInputAction: TextInputAction.next,
+                        decoration: deco('Yeni parola'),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: next2Ctrl,
+                        obscureText: obscure,
+                        enabled: !loading,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => submit(),
+                        decoration: deco('Yeni parola (tekrar)'),
+                      ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          onPressed: loading ? null : sendCode,
+                          child: L10nText(
+                            codeSent ? 'Kodu tekrar gönder' : 'Kod gönder',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: loading ? null : () => Navigator.pop(dCtx),
+                    child: const L10nText('Vazgeç'),
+                  ),
+                  FilledButton(
+                    onPressed: loading ? null : submit,
+                    child: loading
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const L10nText('Parolayı kaydet'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      currentCtrl.dispose();
+      nextCtrl.dispose();
+      next2Ctrl.dispose();
+      codeCtrl.dispose();
+    }
+  }
+
+  String _parolaDegistirHata(Object e) {
+    final raw = e is AuthException ? e.message : e.toString();
+    final s = raw.toLowerCase();
+    if (s.contains('invalid login') ||
+        s.contains('invalid credentials') ||
+        s.contains('invalid_grant')) {
+      return 'Mevcut parola yanlış. Parolanızı hatırlamıyorsanız kod gönderin.';
+    }
+    if (s.contains('otp') ||
+        s.contains('token') ||
+        s.contains('expired')) {
+      return 'Kod hatalı veya süresi dolmuş. Yeni kod gönderin.';
+    }
+    if (s.contains('same password') || s.contains('should be different')) {
+      return 'Yeni parola mevcut paroladan farklı olmalı.';
+    }
+    if (s.contains('weak') || s.contains('at least')) {
+      return 'Yeni parola en az 6 karakter olmalı.';
+    }
+    return 'Parola güncellenemedi. Biraz sonra tekrar deneyin.';
   }
 
   Future<void> _showHesapSilDialog() async {

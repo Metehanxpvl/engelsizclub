@@ -79,4 +79,7 @@ create policy "user_push_tokens_delete_own"
     )
   );
 
+create index if not exists user_push_tokens_owner_idx
+  on public.user_push_tokens (owner_id);
+
 notify pgrst, 'reload schema';

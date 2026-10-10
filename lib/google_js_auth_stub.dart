@@ -2,3 +2,7 @@
 Future<Map<String, String?>?> firebaseGooglePopupJs() async => null;
 
 Future<Map<String, String?>?> firebaseGoogleRedirectResultJs() async => null;
+
+bool shouldUseGoogleAuthPage() => false;
+
+void goToGoogleAuthPage() {}

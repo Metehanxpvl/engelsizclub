@@ -328,9 +328,14 @@ async function insertPending(existing, source, raw, stats, dateStats) {
     return false;
   }
   if (freshness.action === 'skip') {
-    dateStats.unknownSkipped += 1;
-    console.log(`tarihsiz atlandı (unknown): ${raw.title || raw.sourceUrl}`);
-    return false;
+    const blob = `${raw.title || ''} ${raw.summary || ''}`;
+    if (!shouldKeepCandidate(blob)) {
+      dateStats.unknownSkipped += 1;
+      console.log(`tarihsiz atlandı (unknown): ${raw.title || raw.sourceUrl}`);
+      return false;
+    }
+    dateStats.unknownKept += 1;
+    console.log(`tarihsiz kelime ile alındı: ${raw.title || raw.sourceUrl}`);
   }
   if (freshness.contentKind === 'active_opportunity' && freshness.dateStatus !== 'recent') {
     dateStats.activeAmongOlder += 1;

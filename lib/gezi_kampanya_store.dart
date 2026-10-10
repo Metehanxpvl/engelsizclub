@@ -1281,6 +1281,13 @@ Future<GeziItem> addGeziItem({
       'created_by': adminEmail.trim().toLowerCase(),
     }).select().single();
     invalidateGeziCache();
+    unawaited(
+      BroadcastPushService.instance.gezi(
+        title: 'Gezi Rehberi',
+        body: geziPushBody(name),
+        city: name,
+      ),
+    );
     return GeziItem.fromJson(Map<String, dynamic>.from(row));
   } catch (e) {
     final raw = e.toString();
@@ -1537,6 +1544,17 @@ Future<KampanyaItem> _addScopedFeedItem({
     final item = KampanyaItem.fromJson(Map<String, dynamic>.from(row));
     if (table == kKampanyaTable) {
       _notifyYeniKampanya(item);
+    } else if (table == kEtkinlikTable &&
+        isEtkinlikListed(item) &&
+        item.source.trim() != kEtkinlikSourceScrape) {
+      unawaited(
+        BroadcastPushService.instance.etkinlik(
+          title: item.title.trim().isEmpty ? 'Etkinlik var' : item.title.trim(),
+          body: etkinlikPushBody(item),
+          imageUrl: item.imageUrl,
+          etkinlikId: '${item.id}',
+        ),
+      );
     }
     return item;
   } catch (e) {
@@ -1929,6 +1947,17 @@ Future<void> approveEtkinlik({
       'is_active': true,
     }).eq('id', id);
     invalidateEtkinlikCache();
+    try {
+      final row = await Supabase.instance.client
+          .from(kEtkinlikTable)
+          .select()
+          .eq('id', id)
+          .maybeSingle();
+      if (row != null) {
+        final item = KampanyaItem.fromJson(Map<String, dynamic>.from(row));
+        unawaited(notifyEtkinlikPush(item, adminEmail: adminEmail));
+      }
+    } catch (_) {}
   } catch (e) {
     throw _etkinlikOneriSchemaError(e);
   }

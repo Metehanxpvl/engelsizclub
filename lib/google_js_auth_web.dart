@@ -1,3 +1,4 @@
+import 'dart:html' as html;
 import 'dart:js_util' as js_util;
 
 Map<String, String?> _mapFromJs(dynamic raw) {
@@ -28,9 +29,16 @@ Future<Map<String, String?>?> firebaseGooglePopupJs() async {
     );
   }
 
-  final raw = await js_util.promiseToFuture<dynamic>(
-    js_util.callMethod(js_util.globalThis, '__engelsizGoogleSignIn', []),
-  );
+  final raw = await js_util
+      .promiseToFuture<dynamic>(
+        js_util.callMethod(js_util.globalThis, '__engelsizGoogleSignIn', []),
+      )
+      .timeout(
+        const Duration(seconds: 90),
+        onTimeout: () => throw StateError(
+          'Google giriş zaman aşımına uğradı. Tekrar deneyin.',
+        ),
+      );
   if (raw == null) return null;
   return _mapFromJs(raw);
 }
@@ -49,4 +57,20 @@ Future<Map<String, String?>?> firebaseGoogleRedirectResultJs() async {
   );
   if (raw == null) return null;
   return _mapFromJs(raw);
+}
+
+/// Telefonda GIS One Tap Flutter canvas altında kalıyor (Samsung vb.).
+bool shouldUseGoogleAuthPage() {
+  final ua = html.window.navigator.userAgent.toLowerCase();
+  return ua.contains('android') ||
+      ua.contains('iphone') ||
+      ua.contains('ipad') ||
+      ua.contains('ipod') ||
+      ua.contains('mobile') ||
+      ua.contains('samsung');
+}
+
+void goToGoogleAuthPage() {
+  final origin = html.window.location.origin;
+  html.window.location.assign('$origin/mobile_google_auth.html?return=web');
 }

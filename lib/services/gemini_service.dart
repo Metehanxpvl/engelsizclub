@@ -69,6 +69,40 @@ class GeminiService {
   /// Görsel analiz: gömülü anahtar veya public gemini-proxy URL.
   static bool get hasVision => isConfigured || _hasProxyUrl;
 
+  /// Öğün fotoğrafı → JSON metin (gıda adları + tahmini gram). Karne parser’ına gider.
+  static Future<String> analyzeMealPhotoJson({
+    required Uint8List imageBytes,
+    String imageMimeType = 'image/jpeg',
+  }) async {
+    lastError = null;
+    if (imageBytes.isEmpty) {
+      lastError = 'Fotoğraf okunamadı.';
+      throw StateError(lastError!);
+    }
+    if (!hasVision && !canCall) {
+      lastError = _serviceUnavailable;
+      throw StateError(lastError!);
+    }
+    const prompt =
+        'Bu bir tabak veya öğün fotoğrafı. Yalnız JSON dön. Markdown yok.\n'
+        'Format: {"foods":[{"name":"yumurta","grams":55,"portion":"1 adet"},{"name":"peynir","grams":30}]}\n'
+        'name: Türkçe yaygın gıda adı (yumurta, peynir, domates, ekmek, yoğurt, salatalık).\n'
+        'grams: tahmini yenilebilir miktar (tam sayı). Tartım değil, tahmin.\n'
+        'Her görünen yiyeceği ayrı yaz. Kalori/protein yazma. Boş tabaksa {"foods":[]}.\n'
+        'Tıbbi iddia yazma.';
+    final vision = await _geminiVision(
+      prompt: prompt,
+      imageBytes: imageBytes,
+      mimeType: imageMimeType,
+    );
+    final raw = vision.$1;
+    if (raw == null || raw.isEmpty) {
+      lastError = vision.$2 ?? _serviceUnavailable;
+      throw StateError(lastError!);
+    }
+    return raw;
+  }
+
   static bool get _hasProxyUrl =>
       LlmConfig.hasProxyUrl || _supabaseProxy.startsWith('http');
 

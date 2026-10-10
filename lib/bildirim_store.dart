@@ -217,7 +217,10 @@ Future<void> notifySohbetMesaj({
 }) async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
-  final actorEmail = (user?.email ?? '').trim().toLowerCase();
+  var actorEmail = (user?.email ?? '').trim().toLowerCase();
+  if (user != null && actorEmail.isEmpty) {
+    actorEmail = await currentSohbetEmail();
+  }
   final owner = peerEmail.trim().toLowerCase();
   if (user == null || actorEmail.isEmpty || owner.isEmpty) return;
   if (owner == actorEmail) return;
@@ -277,8 +280,8 @@ Future<void> notifySohbetMesaj({
     } catch (_) {}
   }
 
-  unawaited(
-    BroadcastPushService.instance.sendToUser(
+  try {
+    await BroadcastPushService.instance.sendToUser(
       toEmail: owner,
       title: title,
       body: preview,
@@ -289,8 +292,8 @@ Future<void> notifySohbetMesaj({
         'sohbet_key': key,
         'actor_email': actorEmail,
       },
-    ),
-  );
+    );
+  } catch (_) {}
 }
 
 /// Aynı kişiden biriken mesaj bildirimlerini tek satıra indir (en son saat kalır).
@@ -618,7 +621,10 @@ Future<void> _insertBildirim({
 }) async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
-  final actorEmail = (user?.email ?? '').trim().toLowerCase();
+  var actorEmail = (user?.email ?? '').trim().toLowerCase();
+  if (user != null && actorEmail.isEmpty) {
+    actorEmail = await currentSohbetEmail();
+  }
   final owner = ownerEmail.trim().toLowerCase();
   if (user == null || actorEmail.isEmpty || owner.isEmpty) return;
   if (owner == actorEmail) return;
@@ -647,8 +653,8 @@ Future<void> _insertBildirim({
     'ilan' || 'ilan_yorum' => 'ilanlar',
     _ => 'forum',
   };
-  unawaited(
-    BroadcastPushService.instance.sendToUser(
+  try {
+    await BroadcastPushService.instance.sendToUser(
       toEmail: owner,
       title: title,
       body: safeBody,
@@ -659,8 +665,8 @@ Future<void> _insertBildirim({
         if (sohbetKey != null) 'sohbet_key': sohbetKey,
         'actor_email': actorEmail,
       },
-    ),
-  );
+    );
+  } catch (_) {}
 }
 
 /// Forum yorum referansı (bildirim → deep link).
@@ -686,13 +692,14 @@ Future<void> notifyForumPostComment({
 }) async {
   final me = (Supabase.instance.client.auth.currentUser?.email ?? '').trim();
   final name = notificationActorLabel(me, actorName);
-  final text = 'Mesajınıza $name cevap verdi';
+  final preview = commentPreview.trim();
+  const title = 'Gönderinize yorum yapıldı';
   await _insertBildirim(
     ownerEmail: postOwnerEmail,
     actorName: name,
     type: 'forum_comment',
-    title: text,
-    body: text,
+    title: title,
+    body: preview.isEmpty ? '$name gönderinize yorum yaptı.' : preview,
     ilanId: postId,
     sohbetKey: forumCommentRef(commentId),
   );
@@ -708,13 +715,14 @@ Future<void> notifyForumCommentReply({
 }) async {
   final me = (Supabase.instance.client.auth.currentUser?.email ?? '').trim();
   final name = notificationActorLabel(me, actorName);
-  final text = 'Mesajınıza $name cevap verdi';
+  final preview = replyPreview.trim();
+  const title = 'Yorumunuza cevap verildi';
   await _insertBildirim(
     ownerEmail: commentOwnerEmail,
     actorName: name,
     type: 'forum_reply',
-    title: text,
-    body: text,
+    title: title,
+    body: preview.isEmpty ? '$name yorumunuza cevap verdi.' : preview,
     ilanId: postId,
     sohbetKey: forumCommentRef(commentId),
   );
@@ -730,13 +738,14 @@ Future<void> notifyForumCommentLike({
 }) async {
   final me = (Supabase.instance.client.auth.currentUser?.email ?? '').trim();
   final name = notificationActorLabel(me, actorName);
+  const title = 'Yorumunuz beğenildi';
   final text = 'Yorumunuzu $name beğendi';
   await _insertBildirim(
     ownerEmail: commentOwnerEmail,
     actorName: name,
     type: 'forum_like',
-    title: text,
-    body: text,
+    title: title,
+    body: commentPreview.trim().isEmpty ? text : commentPreview.trim(),
     ilanId: postId,
     sohbetKey: forumCommentRef(commentId),
   );
@@ -751,13 +760,14 @@ Future<void> notifyForumPostLike({
 }) async {
   final me = (Supabase.instance.client.auth.currentUser?.email ?? '').trim();
   final name = notificationActorLabel(me, actorName);
-  final text = 'Yorumunuzu $name beğendi';
+  const title = 'Gönderiniz beğenildi';
+  final text = 'Gönderinizi $name beğendi';
   await _insertBildirim(
     ownerEmail: postOwnerEmail,
     actorName: name,
     type: 'forum_like',
-    title: text,
-    body: text,
+    title: title,
+    body: postTitle.trim().isEmpty ? text : postTitle.trim(),
     ilanId: postId,
   );
 }

@@ -430,6 +430,138 @@ Future<CatalogUpsertResult> upsertCatalogOption({
   }
 }
 
+/// Admin: İlanlar hub kartının görünen adı ve görseli (liste filtresi değişmez).
+Future<CatalogUpsertResult> upsertCatalogHubCard({
+  required String id,
+  required String label,
+  String icon = '',
+  Map<String, dynamic>? meta,
+  int? sortOrder,
+}) async {
+  final user = Supabase.instance.client.auth.currentUser;
+  if (user == null) throw StateError('Giriş gerekli.');
+  if (!isAppAdmin(user.email)) {
+    throw StateError('Yalnızca admin kart düzenleyebilir.');
+  }
+  final name = label.trim();
+  if (name.isEmpty) throw StateError('Ad gerekli.');
+  if (name.length > 48) throw StateError('Ad en fazla 48 karakter olabilir.');
+  final hubId = id.trim();
+  if (hubId.isEmpty) throw StateError('Kart kimliği gerekli.');
+
+  final existing = AppCatalogService.instance.categoriesOf(kIlanHubScope);
+  Map<String, dynamic>? current;
+  for (final e in existing) {
+    if ((e['id']?.toString() ?? '') == hubId) {
+      current = e;
+      break;
+    }
+  }
+  var order = existing.length + 10;
+  if (sortOrder != null) {
+    order = sortOrder;
+  } else if (current != null) {
+    order = (current['sort_order'] as num?)?.toInt() ?? order;
+  } else {
+    for (final e in existing) {
+      final n = (e['sort_order'] as num?)?.toInt() ?? 0;
+      if (n >= order) order = n + 1;
+    }
+  }
+
+  final payload = <String, dynamic>{
+    'id': hubId,
+    'scope': kIlanHubScope,
+    'label': name,
+    'icon': icon.trim(),
+    'sort_order': order,
+    'active': true,
+    'meta': meta ??
+        (current?['meta'] is Map
+            ? Map<String, dynamic>.from(current!['meta'] as Map)
+            : const <String, dynamic>{}),
+    'updated_at': DateTime.now().toUtc().toIso8601String(),
+  };
+
+  try {
+    final row = await _upsertCategoryRow(payload);
+    await AppCatalogService.instance.replaceCategoryRow(row);
+    return (row: row, synced: true, warning: null);
+  } catch (e) {
+    await AppCatalogService.instance.replaceCategoryRow(payload);
+    return (
+      row: payload,
+      synced: false,
+      warning: _catalogUpsertError(e),
+    );
+  }
+}
+
+/// Admin: hub kartlarını verilen sıraya yazar (`sort_order` 10, 20, 30…).
+Future<CatalogUpsertResult> reorderIlanHubCards(
+  List<({String id, String fallbackTitle, Map<String, dynamic>? meta})> items,
+) async {
+  CatalogUpsertResult last = (
+    row: const <String, dynamic>{},
+    synced: true,
+    warning: null,
+  );
+  for (var i = 0; i < items.length; i++) {
+    final it = items[i];
+    final style = CatalogAdapters.ilanHubStyle(it.id, it.fallbackTitle);
+    last = await upsertCatalogHubCard(
+      id: it.id,
+      label: style.title,
+      icon: style.imageUrl,
+      meta: ilanHubWriteMeta(it.id, it.meta),
+      sortOrder: (i + 1) * 10,
+    );
+  }
+  return last;
+}
+
+/// Admin: İlanlar hub kutucuğunu herkesten gizler (ilanlar silinmez).
+Future<CatalogUpsertResult> hideIlanHubCard({
+  required String id,
+  required String fallbackTitle,
+  Map<String, dynamic>? meta,
+}) async {
+  final user = Supabase.instance.client.auth.currentUser;
+  if (user == null) throw StateError('Giriş gerekli.');
+  if (!isAppAdmin(user.email)) {
+    throw StateError('Yalnızca admin kart kaldırabilir.');
+  }
+  await AdminCatalogExtras.instance.markRemoved(kIlanHubScope, id);
+  final style = CatalogAdapters.ilanHubStyle(id, fallbackTitle);
+  return upsertCatalogHubCard(
+    id: id,
+    label: style.title,
+    icon: style.imageUrl,
+    meta: ilanHubWriteMeta(id, meta, hidden: true),
+  );
+}
+
+/// Admin: gizlenen hub kutucuğunu geri getirir.
+Future<CatalogUpsertResult> restoreIlanHubCard({
+  required String id,
+  required String fallbackTitle,
+  Map<String, dynamic>? meta,
+}) async {
+  final user = Supabase.instance.client.auth.currentUser;
+  if (user == null) throw StateError('Giriş gerekli.');
+  if (!isAppAdmin(user.email)) {
+    throw StateError('Yalnızca admin kart geri getirebilir.');
+  }
+  await AdminCatalogExtras.instance.unmarkRemoved(kIlanHubScope, id);
+  final style = CatalogAdapters.ilanHubStyle(id, fallbackTitle);
+  return upsertCatalogHubCard(
+    id: id,
+    label: style.title,
+    icon: style.imageUrl,
+    meta: ilanHubWriteMeta(id, meta, hidden: false),
+  );
+}
+
 Future<String?> promptAdminNewOption({
   required BuildContext context,
   required String title,
@@ -471,14 +603,14 @@ Future<({String label, String kind})?> promptAdminNewIlanKategori(
   BuildContext context,
 ) async {
   final ctrl = TextEditingController();
-  var kind = 'uzman';
+  var kind = 'ikinciel';
   final added = await showDialog<({String label, String kind})>(
     context: context,
     builder: (ctx) {
       return StatefulBuilder(
         builder: (ctx, setLocal) {
           return AlertDialog(
-            title: const Text('Yeni ilan kategorisi'),
+            title: const Text('Yeni kutucuk'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -502,9 +634,9 @@ Future<({String label, String kind})?> promptAdminNewIlanKategori(
                   ),
                   const SizedBox(height: 8),
                   for (final opt in const [
+                    ('ikinciel', '2. El ürün sat'),
                     ('uzman', 'Uzman Ara'),
                     ('bakici', 'Bakıcı/Temizlik'),
-                    ('ikinciel', '2. El Aletler'),
                   ])
                     RadioListTile<String>(
                       dense: true,

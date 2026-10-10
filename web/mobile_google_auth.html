@@ -37,10 +37,31 @@
     var CLIENT_ID =
       '59695056324-3dk4r1lsht7n5agn811vjj9777l0qdce.apps.googleusercontent.com';
     var done = false;
+    var webReturn = /(?:\?|&)return=web(?:&|$)/.test(location.search || '');
 
     function setMsg(t) { document.getElementById('msg').textContent = t; }
 
+    function goHome(params) {
+      if (done) return;
+      done = true;
+      try {
+        if (params && params.cancelled) {
+          sessionStorage.removeItem('engelsiz_google_tokens');
+        } else if (params && params.id_token) {
+          sessionStorage.setItem('engelsiz_google_tokens', JSON.stringify({
+            idToken: params.id_token,
+            accessToken: params.access_token || null
+          }));
+        }
+      } catch (_) {}
+      window.location.replace(location.origin + '/');
+    }
+
     function goApp(params) {
+      if (webReturn) {
+        goHome(params);
+        return;
+      }
       if (done) return;
       done = true;
       var q = [];
@@ -57,7 +78,7 @@
         setMsg('Kimlik jetonu alınamadı. Tekrar deneyin.');
         return;
       }
-      setMsg('Uygulamaya dönülüyor…');
+      setMsg(webReturn ? 'Siteye dönülüyor…' : 'Uygulamaya dönülüyor…');
       goApp({ id_token: idToken });
     }
 
@@ -96,7 +117,7 @@
         context: 'signin',
         ux_mode: 'popup',
         itp_support: true,
-        use_fedcm_for_prompt: true
+        use_fedcm_for_prompt: false
       });
       google.accounts.id.renderButton(document.getElementById('gis'), {
         type: 'standard',

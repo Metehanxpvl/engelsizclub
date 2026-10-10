@@ -1,9 +1,16 @@
 import 'package:engelsizclub/data/centers_data.dart';
 import 'package:engelsizclub/harita_yer_store.dart';
+import 'package:engelsizclub/iyilik_market_store.dart';
+import 'package:engelsizclub/kredi_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('map city/district dropdown labels', () {
+    expect(kAllIlceler, 'İlçeler');
+    expect(kDefaultCity, 'İstanbul');
+  });
+
   test('haritaFoldName folds Turkish and strips junk', () {
     expect(haritaFoldName('  Güneş Özel Eğitim  '), 'gunes ozel egitim');
     expect(haritaFoldName('İstanbul'), 'istanbul');
@@ -95,6 +102,26 @@ void main() {
     expect(haritaYerSahibiMi(center.id, 'ali@example.com'), isFalse);
   });
 
+  test('generic map pins get unique names by coordinates', () {
+    expect(
+      haritaYerBildirimAdi(name: '', city: 'Ankara', lat: 39.91, lng: 32.85),
+      'Ankara — haritada işaretlenen yer (39.9100, 32.8500)',
+    );
+    expect(
+      haritaYerBildirimAdi(name: 'Cafe Güneş', city: 'Ankara', lat: 39.91, lng: 32.85),
+      'Cafe Güneş',
+    );
+    expect(
+      haritaYerBildirimAdi(
+        name: 'Ankara — haritada işaretlenen yer',
+        city: 'Ankara',
+        lat: 39.9,
+        lng: 32.8,
+      ),
+      isNot('Ankara — haritada işaretlenen yer'),
+    );
+  });
+
   test('aile: every report awards one iyilik point', () {
     expect(haritaIyilikOdulThisReport(0), isFalse);
     expect(haritaIyilikOdulThisReport(1), isTrue);
@@ -103,6 +130,13 @@ void main() {
     expect(haritaIyilikKalan(0), 1);
     expect(haritaIyilikKalan(1), 0);
     expect(haritaIyilikKalan(7), 0);
+  });
+
+  test('uzman and bakici do not get map-report iyilik points', () {
+    expect(awardsIyilikForShare('uzman'), isFalse);
+    expect(awardsIyilikForShare('bakici'), isFalse);
+    expect(haritaShareSnack(awardedMarket: true),
+        'Yer kaydedildi. +1 iyilik market puanı');
   });
 
   test('nearby member report overlays Google place detail', () {

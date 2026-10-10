@@ -198,7 +198,7 @@ create or replace function public.trg_notify_forum_comment()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, auth
 as $$
 declare
   actor text;
@@ -218,7 +218,6 @@ begin
   end if;
 
   name := public.notif_public_actor_name(actor, coalesce(new.author, ''));
-  text_line := 'Mesajınıza ' || name || ' cevap verdi';
   parent_id_val := nullif(to_jsonb(new) ->> 'parent_id', '')::bigint;
 
   if parent_id_val is not null and parent_id_val > 0 then
@@ -227,35 +226,45 @@ begin
     from public.forum_comments c
     where c.id = parent_id_val;
     if parent_owner is not null and parent_owner <> '' and parent_owner <> actor then
+      text_line := 'Yorumunuza cevap verildi';
       perform public.insert_social_bildirim(
         parent_owner,
         actor,
         name,
         'forum_reply',
         text_line,
-        text_line,
+        coalesce(nullif(btrim(coalesce(to_jsonb(new) ->> 'body', '')), ''), text_line),
         new.post_id,
         'c:' || new.id::text
       );
     end if;
   end if;
 
-  select lower(btrim(coalesce(p.owner_email, '')))
+  select lower(btrim(coalesce(
+    nullif(p.owner_email, ''),
+    au.email,
+    up.owner_email,
+    ''
+  )))
   into post_owner
   from public.forum_posts p
-  where p.id = new.post_id;
+  left join auth.users au on au.id = p.owner_id
+  left join public.user_profiles up on up.owner_id = p.owner_id
+  where p.id = new.post_id
+  limit 1;
 
   if post_owner is not null
      and post_owner <> ''
      and post_owner <> actor
      and post_owner is distinct from parent_owner then
+    text_line := 'Gönderinize yorum yapıldı';
     perform public.insert_social_bildirim(
       post_owner,
       actor,
       name,
       'forum_comment',
       text_line,
-      text_line,
+      coalesce(nullif(btrim(coalesce(to_jsonb(new) ->> 'body', '')), ''), name || ' yorum yaptı'),
       new.post_id,
       'c:' || new.id::text
     );
@@ -276,44 +285,64 @@ create or replace function public.trg_notify_forum_comment_like()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, auth
 as $$
 declare
   actor text;
+  actor_id uuid;
   name text;
   text_line text;
   owner text;
+  owner_id_val uuid;
   post_id_val bigint;
 begin
   if tg_op <> 'INSERT' then
     return new;
   end if;
 
+  actor_id := new.owner_id;
   actor := lower(btrim(coalesce(new.owner_email, '')));
-  if actor = '' then
-    return new;
+  if actor = '' and actor_id is not null then
+    select lower(btrim(coalesce(nullif(au.email, ''), up.owner_email, '')))
+    into actor
+    from auth.users au
+    left join public.user_profiles up on up.owner_id = au.id
+    where au.id = actor_id
+    limit 1;
   end if;
 
   select
-    lower(btrim(coalesce(c.owner_email, ''))),
+    lower(btrim(coalesce(
+      nullif(c.owner_email, ''),
+      au.email,
+      up.owner_email,
+      ''
+    ))),
+    c.owner_id,
     c.post_id
-  into owner, post_id_val
+  into owner, owner_id_val, post_id_val
   from public.forum_comments c
-  where c.id = new.comment_id;
+  left join auth.users au on au.id = c.owner_id
+  left join public.user_profiles up on up.owner_id = c.owner_id
+  where c.id = new.comment_id
+  limit 1;
 
-  if owner is null or owner = '' or owner = actor then
+  if owner_id_val is not null and actor_id is not null and owner_id_val = actor_id then
+    return new;
+  end if;
+  if owner is null or owner = '' or actor is null or actor = '' or owner = actor then
     return new;
   end if;
 
   name := public.notif_public_actor_name(actor, '');
-  text_line := 'Yorumunuzu ' || name || ' beğendi';
+  text_line := 'Yorumunuz beğenildi';
   perform public.insert_social_bildirim(
     owner,
     actor,
     name,
     'forum_like',
     text_line,
-    text_line,
+    coalesce('Yorumunuzu ' || name || ' beğendi', text_line),
     post_id_val,
     'c:' || new.comment_id::text
   );
@@ -327,46 +356,73 @@ create trigger forum_comment_likes_social_notify
   for each row
   execute function public.trg_notify_forum_comment_like();
 
+drop trigger if exists forum_comment_likes_fcm on public.forum_comment_likes;
+create trigger forum_comment_likes_fcm
+  after insert on public.forum_comment_likes
+  for each row
+  execute function public.trg_fcm_db();
+
 -- ── Gönderi beğenisi ─────────────────────────────────────────
 create or replace function public.trg_notify_forum_post_like()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, auth
 as $$
 declare
   actor text;
+  actor_id uuid;
   name text;
   text_line text;
   owner text;
+  owner_id_val uuid;
 begin
   if tg_op <> 'INSERT' then
     return new;
   end if;
 
+  actor_id := new.owner_id;
   actor := lower(btrim(coalesce(new.owner_email, '')));
-  if actor = '' then
-    return new;
+  if actor = '' and actor_id is not null then
+    select lower(btrim(coalesce(nullif(au.email, ''), up.owner_email, '')))
+    into actor
+    from auth.users au
+    left join public.user_profiles up on up.owner_id = au.id
+    where au.id = actor_id
+    limit 1;
   end if;
 
-  select lower(btrim(coalesce(p.owner_email, '')))
-  into owner
+  select
+    lower(btrim(coalesce(
+      nullif(p.owner_email, ''),
+      au.email,
+      up.owner_email,
+      ''
+    ))),
+    p.owner_id
+  into owner, owner_id_val
   from public.forum_posts p
-  where p.id = new.post_id;
+  left join auth.users au on au.id = p.owner_id
+  left join public.user_profiles up on up.owner_id = p.owner_id
+  where p.id = new.post_id
+  limit 1;
 
-  if owner is null or owner = '' or owner = actor then
+  if owner_id_val is not null and actor_id is not null and owner_id_val = actor_id then
+    return new;
+  end if;
+  if owner is null or owner = '' or actor is null or actor = '' or owner = actor then
     return new;
   end if;
 
   name := public.notif_public_actor_name(actor, '');
-  text_line := 'Yorumunuzu ' || name || ' beğendi';
+  text_line := 'Gönderiniz beğenildi';
   perform public.insert_social_bildirim(
     owner,
     actor,
     name,
     'forum_like',
     text_line,
-    text_line,
+    coalesce('Gönderinizi ' || name || ' beğendi', text_line),
     new.post_id,
     null
   );

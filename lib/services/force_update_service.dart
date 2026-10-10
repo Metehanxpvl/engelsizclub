@@ -7,13 +7,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../admin_config.dart';
+import 'broadcast_push_service.dart';
 import 'force_update_logic.dart';
 
 export 'force_update_logic.dart';
 
 /// pubspec marketing / `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
-const kAppVersionName = '1.1.16';
-const kAppBuildNumber = 202610010021;
+const kAppVersionName = '1.1.19';
+const kAppBuildNumber = 202610101320;
 
 /// Açılışta semver + Play kontrolü. Splash kilidi yok.
 ///
@@ -42,6 +44,7 @@ class ForceUpdateService extends ChangeNotifier {
   String localVersion = '';
   String latestVersion = '';
   String minVersion = '';
+  int _playAvailableBuild = 0;
 
   bool _checking = false;
 
@@ -87,10 +90,11 @@ class ForceUpdateService extends ChangeNotifier {
           skippedLatest: skipped,
         );
       }
-      if (next == UpdatePromptKind.none &&
-          defaultTargetPlatform == TargetPlatform.android) {
-        next = await _playStoreUpdateKind();
-        if (next != UpdatePromptKind.none) {
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        final playKind = await _playStoreUpdateKind();
+        if (next == UpdatePromptKind.none &&
+            playKind != UpdatePromptKind.none) {
+          next = playKind;
           storeUrl = defaultPlayUrl;
           latestVersion =
               latestVersion.isNotEmpty ? latestVersion : localVersion;
@@ -108,6 +112,7 @@ class ForceUpdateService extends ChangeNotifier {
       } else if (next != UpdatePromptKind.none) {
         notifyListeners();
       }
+      unawaited(_maybeAnnounceAppUpdate());
     } catch (e) {
       debugPrint('ForceUpdateService: $e');
     } finally {
@@ -248,6 +253,7 @@ class ForceUpdateService extends ChangeNotifier {
     try {
       final info = await InAppUpdate.checkForUpdate();
       final available = info.availableVersionCode ?? 0;
+      _playAvailableBuild = available;
       final hasNewer = info.updateAvailability ==
               UpdateAvailability.updateAvailable &&
           available > 0 &&
@@ -257,6 +263,93 @@ class ForceUpdateService extends ChangeNotifier {
     } catch (e) {
       debugPrint('ForceUpdate Play check skipped: $e');
       return UpdatePromptKind.none;
+    }
+  }
+
+  /// Admin telefonu yeni sürümü görünce (Play veya yüklü build) bir kez FCM.
+  Future<void> _maybeAnnounceAppUpdate() async {
+    if (kIsWeb || kDebugMode) return;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (!isAppAdmin(user?.email)) return;
+    final id = appUpdateAnnouncementId(
+      localBuild: localBuild,
+      playAvailableBuild: _playAvailableBuild,
+    );
+    if (id == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final localKey = 'app_update_push_sent_$id';
+      if (prefs.getBool(localKey) == true) return;
+      final previous = await _appUpdatePushValue();
+      if (appUpdateIdAlreadyAnnounced(previous, id)) {
+        await prefs.setBool(localKey, true);
+        return;
+      }
+      final build = int.tryParse(id.split(':').last) ?? localBuild;
+      final version = latestVersion.trim().isNotEmpty
+          ? latestVersion.trim()
+          : localVersion.trim();
+      final ver = version.isEmpty ? kAppVersionName : version;
+      final claimed = await _markAppUpdateAnnounced(
+        id: id,
+        version: ver,
+        build: build,
+        previous: previous,
+      );
+      if (!claimed) return;
+      final sent = await BroadcastPushService.instance.yeniSurum(
+        version: ver,
+        build: build,
+      );
+      if (!sent) {
+        debugPrint('ForceUpdate app-update push gönderilemedi ($id)');
+        return;
+      }
+      await prefs.setBool(localKey, true);
+    } catch (e) {
+      debugPrint('ForceUpdate app-update push: $e');
+    }
+  }
+
+  Future<Object?> _appUpdatePushValue() async {
+    try {
+      final row = await Supabase.instance.client
+          .from('app_settings')
+          .select('value')
+          .eq('key', kAppUpdatePushSettingsKey)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 8));
+      return row?['value'];
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> _markAppUpdateAnnounced({
+    required String id,
+    required String version,
+    required int build,
+    Object? previous,
+  }) async {
+    try {
+      await Supabase.instance.client.from('app_settings').upsert(
+        {
+          'key': kAppUpdatePushSettingsKey,
+          'value': mergeAppUpdatePushValue(
+            previous: previous,
+            id: id,
+            version: version,
+            build: build,
+            at: DateTime.now().toUtc().toIso8601String(),
+          ),
+          'description': 'Son otomatik sürüm push’u; aynı id tekrar gitmez.',
+        },
+        onConflict: 'key',
+      );
+      return true;
+    } catch (e) {
+      debugPrint('ForceUpdate app-update mark: $e');
+      return false;
     }
   }
 }

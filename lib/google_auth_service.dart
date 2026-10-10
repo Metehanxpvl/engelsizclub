@@ -91,7 +91,17 @@ class GoogleAuthService {
     return _signInMobileBridge();
   }
 
+  static void cancelPendingSignIn() {
+    if (_mobileWait != null && !_mobileWait!.isCompleted) {
+      _mobileWait!.complete(null);
+    }
+  }
+
   static Future<AuthResponse?> _signInWeb() async {
+    if (google_js.shouldUseGoogleAuthPage()) {
+      google_js.goToGoogleAuthPage();
+      throw const GoogleAuthRedirecting();
+    }
     final js = await google_js.firebaseGooglePopupJs();
     if (js == null) return null;
     if (js['cancelled'] == 'true') return null;

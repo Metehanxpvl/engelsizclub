@@ -3,6 +3,17 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'photo_gallery_lightbox.dart';
+
+/// Profil fotoğrafını tam ekran (pinch-zoom) açar. Görsel yoksa false.
+bool openAvatarPhoto(BuildContext context, String? raw) {
+  if (!isAvatarImageSource(raw)) return false;
+  final img = galleryImageProvider(raw);
+  if (img == null) return false;
+  openPhotoGallery(context, images: [img]);
+  return true;
+}
+
 /// Avatar alanı görsel mi (data URL / http), yoksa baş harf mi?
 bool isAvatarImageSource(String? raw) {
   final s = (raw ?? '').trim();
@@ -32,6 +43,7 @@ class UserAvatar extends StatelessWidget {
     required this.color,
     this.radius = 18,
     this.fallbackName = '',
+    this.openPhotoOnTap = true,
   });
 
   /// data:image… / http(s) veya baş harf metni
@@ -39,6 +51,9 @@ class UserAvatar extends StatelessWidget {
   final Color color;
   final double radius;
   final String fallbackName;
+
+  /// Gerçek fotoğraf varsa tıklayınca lightbox (Facebook tarzı).
+  final bool openPhotoOnTap;
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +84,15 @@ class UserAvatar extends StatelessWidget {
             fontWeight: FontWeight.w800,
             fontSize: radius * 0.72,
           ),
+        ),
+      );
+    }
+    if (openPhotoOnTap && isAvatarImageSource(src)) {
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: () => openAvatarPhoto(context, src),
+          child: child,
         ),
       );
     }

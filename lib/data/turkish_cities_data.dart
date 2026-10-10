@@ -94,7 +94,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.0000,
     lng: 35.3213,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Aladağ',
       'Ceyhan',
       'Çukurova',
@@ -116,7 +116,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.7648,
     lng: 38.2786,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Besni',
       'Çelikhan',
       'Gerger',
@@ -132,7 +132,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 38.7507,
     lng: 30.5567,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Başmakçı',
       'Bayat',
       'Bolvadin',
@@ -157,7 +157,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 39.7191,
     lng: 43.0503,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Diyadin',
       'Doğubayazıt',
       'Eleşkirt',
@@ -172,7 +172,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.6499,
     lng: 35.8353,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Göynücek',
       'Gümüşhacıköy',
       'Hamamözü',
@@ -186,7 +186,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 39.9334,
     lng: 32.8597,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Akyurt',
       'Altındağ',
       'Ayaş',
@@ -218,7 +218,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 36.8969,
     lng: 30.7133,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Akseki',
       'Aksu',
       'Alanya',
@@ -244,7 +244,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 41.1828,
     lng: 41.8183,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Ardanuç',
       'Arhavi',
       'Borçka',
@@ -260,7 +260,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.8444,
     lng: 27.8458,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Bozdoğan',
       'Buharkent',
       'Çine',
@@ -284,7 +284,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 39.6484,
     lng: 27.8826,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Altıeylül',
       'Ayvalık',
       'Balya',
@@ -311,7 +311,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 41.6344,
     lng: 32.3375,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Amasra',
       'Kurucaşile',
       'Merkez',
@@ -322,7 +322,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.8812,
     lng: 41.1351,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Beşiri',
       'Gercüş',
       'Hasankeyf',
@@ -335,7 +335,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.2552,
     lng: 40.2249,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Aydıntepe',
       'Demirözü',
       'Merkez',
@@ -345,7 +345,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.1506,
     lng: 29.9792,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Bozüyük',
       'Gölpazarı',
       'İnhisar',
@@ -360,7 +360,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 38.8854,
     lng: 40.4981,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Adaklı',
       'Genç',
       'Karlıova',
@@ -375,7 +375,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 38.4006,
     lng: 42.1095,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Adilcevaz',
       'Ahlat',
       'Güroymak',
@@ -389,7 +389,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.7360,
     lng: 31.6060,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Dörtdivan',
       'Gerede',
       'Göynük',
@@ -405,7 +405,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.7205,
     lng: 30.2903,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Ağlasun',
       'Altınyayla',
       'Bucak',
@@ -423,7 +423,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.1885,
     lng: 29.0610,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Büyükorhan',
       'Gemlik',
       'Gürsu',
@@ -447,7 +447,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.1553,
     lng: 26.4142,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Ayvacık',
       'Bayramiç',
       'Biga',
@@ -466,7 +466,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.6013,
     lng: 33.6134,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Atkaracalar',
       'Bayramören',
       'Çerkeş',
@@ -485,7 +485,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.5506,
     lng: 34.9556,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Alaca',
       'Bayat',
       'Boğazkale',
@@ -506,7 +506,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.7765,
     lng: 29.0864,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Acıpayam',
       'Babadağ',
       'Baklan',
@@ -532,7 +532,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.9144,
     lng: 40.2306,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Bağlar',
       'Bismil',
       'Çermik',
@@ -556,7 +556,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.8438,
     lng: 31.1565,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Akçakoca',
       'Cumayeri',
       'Çilimli',
@@ -571,7 +571,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 41.6818,
     lng: 26.5623,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Enez',
       'Havsa',
       'İpsala',
@@ -587,7 +587,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 38.6810,
     lng: 39.2264,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Ağın',
       'Alacakaya',
       'Arıcak',
@@ -605,7 +605,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 39.7500,
     lng: 39.5000,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Çayırlı',
       'İliç',
       'Kemah',
@@ -621,7 +621,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 39.9055,
     lng: 41.2658,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Aşkale',
       'Aziziye',
       'Çat',
@@ -648,7 +648,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 39.7767,
     lng: 30.5206,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Alpu',
       'Beylikova',
       'Çifteler',
@@ -669,7 +669,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.0662,
     lng: 37.3833,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Araban',
       'İslahiye',
       'Karkamış',
@@ -685,7 +685,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.9128,
     lng: 38.3895,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Alucra',
       'Bulancak',
       'Çamoluk',
@@ -708,7 +708,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.4386,
     lng: 39.4814,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Kelkit',
       'Köse',
       'Kürtün',
@@ -721,7 +721,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.5744,
     lng: 43.7408,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Çukurca',
       'Derecik',
       'Merkez',
@@ -733,7 +733,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 36.2021,
     lng: 36.1603,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Altınözü',
       'Antakya',
       'Arsuz',
@@ -755,7 +755,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 39.9167,
     lng: 44.0333,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Aralık',
       'Karakoyunlu',
       'Merkez',
@@ -766,7 +766,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.7648,
     lng: 30.5566,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Aksu',
       'Atabey',
       'Eğirdir',
@@ -786,7 +786,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 41.0082,
     lng: 28.9784,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Adalar',
       'Arnavutköy',
       'Ataşehir',
@@ -832,7 +832,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 38.4192,
     lng: 27.1287,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Aliağa',
       'Balçova',
       'Bayındır',
@@ -869,7 +869,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.5858,
     lng: 36.9371,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Afşin',
       'Andırın',
       'Çağlayancerit',
@@ -887,7 +887,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 41.2061,
     lng: 32.6204,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Eflani',
       'Eskipazar',
       'Merkez',
@@ -900,7 +900,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.1759,
     lng: 33.2287,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Ayrancı',
       'Başyayla',
       'Ermenek',
@@ -913,7 +913,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.6013,
     lng: 43.0975,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Akyaka',
       'Arpaçay',
       'Digor',
@@ -928,7 +928,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 41.3887,
     lng: 33.7827,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Abana',
       'Ağlı',
       'Araç',
@@ -955,7 +955,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 38.7225,
     lng: 35.4875,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Akkışla',
       'Bünyan',
       'Develi',
@@ -978,7 +978,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 36.7184,
     lng: 37.1212,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Elbeyli',
       'Merkez',
       'Musabeyli',
@@ -989,7 +989,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 39.8468,
     lng: 33.5153,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Bahşili',
       'Balışeyh',
       'Çelebi',
@@ -1005,7 +1005,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 41.7333,
     lng: 27.2167,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Babaeski',
       'Demirköy',
       'Kofçaz',
@@ -1020,7 +1020,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 39.1458,
     lng: 34.1614,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Akçakent',
       'Akpınar',
       'Boztepe',
@@ -1034,7 +1034,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.8533,
     lng: 29.8815,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Başiskele',
       'Çayırova',
       'Darıca',
@@ -1052,7 +1052,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.8746,
     lng: 32.4932,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Ahırlı',
       'Akören',
       'Akşehir',
@@ -1090,7 +1090,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 39.4167,
     lng: 29.9833,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Altıntaş',
       'Aslanapa',
       'Çavdarhisar',
@@ -1110,7 +1110,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 38.3552,
     lng: 38.3095,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Akçadağ',
       'Arapgir',
       'Arguvan',
@@ -1130,7 +1130,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 38.6191,
     lng: 27.4289,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Ahmetli',
       'Akhisar',
       'Alaşehir',
@@ -1155,7 +1155,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.3212,
     lng: 40.7245,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Artuklu',
       'Dargeçit',
       'Derik',
@@ -1172,7 +1172,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 36.8000,
     lng: 34.6333,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Akdeniz',
       'Anamur',
       'Aydıncık',
@@ -1192,7 +1192,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.2153,
     lng: 28.3636,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Bodrum',
       'Dalaman',
       'Datça',
@@ -1212,7 +1212,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 38.7432,
     lng: 41.4914,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Bulanık',
       'Hasköy',
       'Korkut',
@@ -1225,7 +1225,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 38.6939,
     lng: 34.6857,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Acıgöl',
       'Avanos',
       'Derinkuyu',
@@ -1240,7 +1240,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.9667,
     lng: 34.6833,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Altunhisar',
       'Bor',
       'Çamardı',
@@ -1253,7 +1253,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.9860,
     lng: 37.8797,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Akkuş',
       'Altınordu',
       'Aybastı',
@@ -1279,7 +1279,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.0742,
     lng: 36.2464,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Bahçe',
       'Düziçi',
       'Hasanbeyli',
@@ -1293,7 +1293,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 41.0201,
     lng: 40.5234,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Ardeşen',
       'Çamlıhemşin',
       'Çayeli',
@@ -1312,7 +1312,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.6940,
     lng: 30.4358,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Adapazarı',
       'Akyazı',
       'Arifiye',
@@ -1336,7 +1336,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 41.2867,
     lng: 36.3300,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Alaçam',
       'Asarcık',
       'Atakum',
@@ -1360,7 +1360,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.9333,
     lng: 41.9500,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Baykan',
       'Eruh',
       'Kurtalan',
@@ -1374,7 +1374,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 42.0231,
     lng: 35.1531,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Ayancık',
       'Boyabat',
       'Dikmen',
@@ -1390,7 +1390,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 39.7477,
     lng: 37.0179,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Akıncılar',
       'Altınyayla',
       'Divriği',
@@ -1414,7 +1414,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.1591,
     lng: 38.7969,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Akçakale',
       'Birecik',
       'Bozova',
@@ -1434,7 +1434,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 37.5164,
     lng: 42.4611,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Beytüşşebap',
       'Cizre',
       'Güçlükonak',
@@ -1448,7 +1448,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.9781,
     lng: 27.5115,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Çerkezköy',
       'Çorlu',
       'Ergene',
@@ -1466,7 +1466,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.3167,
     lng: 36.5500,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Almus',
       'Artova',
       'Başçiftlik',
@@ -1485,7 +1485,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 41.0015,
     lng: 39.7178,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Akçaabat',
       'Araklı',
       'Arsin',
@@ -1510,7 +1510,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 39.1079,
     lng: 39.5401,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Çemişgezek',
       'Hozat',
       'Mazgirt',
@@ -1525,7 +1525,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 38.6823,
     lng: 29.4082,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Banaz',
       'Eşme',
       'Karahallı',
@@ -1538,7 +1538,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 38.4891,
     lng: 43.4089,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Bahçesaray',
       'Başkale',
       'Çaldıran',
@@ -1558,7 +1558,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 40.6500,
     lng: 29.2667,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Altınova',
       'Armutlu',
       'Çiftlikköy',
@@ -1571,7 +1571,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 39.8181,
     lng: 34.8147,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Akdağmadeni',
       'Aydıncık',
       'Boğazlıyan',
@@ -1592,7 +1592,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 41.4564,
     lng: 31.7987,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Alaplı',
       'Çaycuma',
       'Devrek',
@@ -1606,7 +1606,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 38.3687,
     lng: 34.0370,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Ağaçören',
       'Eskil',
       'Gülağaç',
@@ -1621,7 +1621,7 @@ const kTurkishCities = <String, TurkishCity>{
     lat: 41.1105,
     lng: 42.7022,
     ilceler: [
-      'Tümü İlçeler',
+      'İlçeler',
       'Çıldır',
       'Damal',
       'Göle',

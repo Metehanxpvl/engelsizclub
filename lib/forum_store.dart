@@ -6,6 +6,7 @@ import 'bildirim_store.dart';
 import 'data/forum_data.dart';
 import 'forum_post_follow_store.dart';
 import 'meto_theme.dart';
+import 'sohbet_store.dart';
 import 'utils/async_timeout.dart';
 
 String forumRelativeTime(DateTime createdAt) {
@@ -431,16 +432,29 @@ Future<ForumComment> addForumComment({
   try {
     final post = await client
         .from('forum_posts')
-        .select('comments, owner_email, title')
+        .select('comments, owner_email, owner_id, title')
         .eq('id', postId)
         .maybeSingle();
     final current = (post?['comments'] as num?)?.toInt() ?? 0;
-    await client
-        .from('forum_posts')
-        .update({'comments': current + 1}).eq('id', postId);
+    try {
+      await client
+          .from('forum_posts')
+          .update({'comments': current + 1}).eq('id', postId);
+    } catch (_) {}
 
     final me = authorEmail.trim().toLowerCase();
-    final postOwner = (post?['owner_email']?.toString() ?? '').toLowerCase();
+    var postOwner = (post?['owner_email']?.toString() ?? '').toLowerCase();
+    final ownerId = post?['owner_id']?.toString() ?? '';
+    if (postOwner.isEmpty && ownerId.isNotEmpty) {
+      try {
+        final prof = await client
+            .from('user_profiles')
+            .select('owner_email')
+            .eq('owner_id', ownerId)
+            .maybeSingle();
+        postOwner = (prof?['owner_email']?.toString() ?? '').toLowerCase();
+      } catch (_) {}
+    }
     final postTitle = post?['title']?.toString() ?? '';
     final newCommentId = (row['id'] as num?)?.toInt();
     String? parentOwner;
@@ -479,7 +493,6 @@ Future<ForumComment> addForumComment({
         commentId: newCommentId,
       );
     }
-    // Gönderiyi takip edenlere + daha önce yorum yazanlara
     await ForumPostFollowStore.notifyFollowersOfComment(
       postId: postId,
       postTitle: postTitle,
@@ -492,7 +505,6 @@ Future<ForumComment> addForumComment({
         if (parentOwner != null && parentOwner.isNotEmpty) parentOwner,
       },
     );
-    // Yorum yazan, bu gönderiden bildirim almaya başlar (mute değilse)
     await ForumPostFollowStore.ensureFollowingAfterComment(
       email: me,
       postId: postId,
@@ -536,10 +548,13 @@ Future<({bool liked, int likes})> toggleForumCommentLike(int commentId) async {
     return (liked: false, likes: likes);
   }
 
+  var likerEmail = (user.email ?? '').trim().toLowerCase();
+  if (likerEmail.isEmpty) likerEmail = await currentSohbetEmail();
+
   await client.from('forum_comment_likes').insert({
     'comment_id': commentId,
     'owner_id': user.id,
-    'owner_email': (user.email ?? '').toLowerCase(),
+    'owner_email': likerEmail,
   });
   likes = likes + 1;
   await client
@@ -549,18 +564,33 @@ Future<({bool liked, int likes})> toggleForumCommentLike(int commentId) async {
   try {
     final full = await client
         .from('forum_comments')
-        .select('owner_email, body, post_id, author')
+        .select('owner_email, owner_id, body, post_id, author')
         .eq('id', commentId)
         .maybeSingle();
-    final owner = (full?['owner_email']?.toString() ?? '').toLowerCase();
+    var owner = (full?['owner_email']?.toString() ?? '').toLowerCase();
+    final commentOwnerId = (full?['owner_id']?.toString() ?? '').trim();
+    if (commentOwnerId.isNotEmpty && commentOwnerId == user.id) {
+      return (liked: true, likes: likes);
+    }
+    if (owner.isEmpty && commentOwnerId.isNotEmpty) {
+      try {
+        final prof = await client
+            .from('user_profiles')
+            .select('owner_email')
+            .eq('owner_id', commentOwnerId)
+            .maybeSingle();
+        owner = (prof?['owner_email']?.toString() ?? '').toLowerCase();
+      } catch (_) {}
+    }
     final preview = full?['body']?.toString() ?? '';
     final postId = (full?['post_id'] as num?)?.toInt();
-    final me = (user.email ?? '').trim().toLowerCase();
+    var me = (user.email ?? '').trim().toLowerCase();
+    if (me.isEmpty) me = await currentSohbetEmail();
     final actorName = (user.userMetadata?['name']?.toString() ?? '')
             .trim()
             .isNotEmpty
         ? user.userMetadata!['name'].toString().trim()
-        : (user.email ?? 'Birisi').split('@').first;
+        : (me.isNotEmpty ? me.split('@').first : 'Birisi');
     if (owner.isNotEmpty && owner != me) {
       await notifyForumCommentLike(
         commentOwnerEmail: owner,
@@ -591,7 +621,7 @@ Future<({bool liked, int likes})> toggleForumLike(int postId) async {
 
   final post = await client
       .from('forum_posts')
-      .select('likes, owner_email, title')
+      .select('likes, owner_email, owner_id, title')
       .eq('id', postId)
       .maybeSingle();
   var likes = (post?['likes'] as num?)?.toInt() ?? 0;
@@ -607,23 +637,41 @@ Future<({bool liked, int likes})> toggleForumLike(int postId) async {
     return (liked: false, likes: likes);
   }
 
+  var likerEmail = (user.email ?? '').trim().toLowerCase();
+  if (likerEmail.isEmpty) likerEmail = await currentSohbetEmail();
+
   await client.from('forum_likes').insert({
     'post_id': postId,
     'owner_id': user.id,
-    'owner_email': (user.email ?? '').toLowerCase(),
+    'owner_email': likerEmail,
   });
   likes = likes + 1;
   await client.from('forum_posts').update({'likes': likes}).eq('id', postId);
 
   try {
-    final owner = (post?['owner_email']?.toString() ?? '').toLowerCase();
+    var owner = (post?['owner_email']?.toString() ?? '').toLowerCase();
+    final postOwnerId = (post?['owner_id']?.toString() ?? '').trim();
+    if (postOwnerId.isNotEmpty && postOwnerId == user.id) {
+      return (liked: true, likes: likes);
+    }
+    if (owner.isEmpty && postOwnerId.isNotEmpty) {
+      try {
+        final prof = await client
+            .from('user_profiles')
+            .select('owner_email')
+            .eq('owner_id', postOwnerId)
+            .maybeSingle();
+        owner = (prof?['owner_email']?.toString() ?? '').toLowerCase();
+      } catch (_) {}
+    }
     final title = post?['title']?.toString() ?? '';
-    final me = (user.email ?? '').trim().toLowerCase();
+    var me = likerEmail;
+    if (me.isEmpty) me = await currentSohbetEmail();
     final actorName = (user.userMetadata?['name']?.toString() ?? '')
             .trim()
             .isNotEmpty
         ? user.userMetadata!['name'].toString().trim()
-        : (user.email ?? 'Birisi').split('@').first;
+        : (me.isNotEmpty ? me.split('@').first : 'Birisi');
     if (owner.isNotEmpty && owner != me) {
       await notifyForumPostLike(
         postOwnerEmail: owner,

@@ -913,7 +913,7 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  /// splash | signin | loading | verify_email
+  /// splash | signin | loading | verify_email | reset_password
   String _step = 'splash';
   String _authTab = 'giris'; // giris | kayit
 
@@ -944,6 +944,14 @@ class _AuthScreenState extends State<AuthScreen> {
   String _verifyCode = '';
   bool _verifyLoading = false;
   bool _resendLoading = false;
+
+  /// Parola sıfırlama (kod + yeni şifre)
+  String _resetEmail = '';
+  String _resetCode = '';
+  String _resetSifre = '';
+  String _resetSifre2 = '';
+  bool _resetLoading = false;
+  bool _resetResendLoading = false;
 
   @override
   void initState() {
@@ -1143,7 +1151,7 @@ class _AuthScreenState extends State<AuthScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const L10nText(
-                'Şifre sıfırlama bağlantısını göndereceğimiz e-posta adresinizi girin.',
+                '6 haneli sıfırlama kodunu göndereceğimiz e-posta adresinizi girin.',
                 style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
               ),
               const SizedBox(height: 14),
@@ -1188,13 +1196,126 @@ class _AuthScreenState extends State<AuthScreen> {
               : GoogleAuthService.mobileRedirect,
         ),
       );
+      if (!mounted) return;
+      setState(() {
+        _resetEmail = email;
+        _girisEmail = email;
+        _resetCode = '';
+        _resetSifre = '';
+        _resetSifre2 = '';
+        _step = 'reset_password';
+      });
       _snack(
-        'Sıfırlama bağlantısı gönderildi. E-postanızı kontrol edin '
-        '(Spam klasörüne de bakın).',
+        '6 haneli kod $email adresine gönderildi. '
+        'Gelen kutusu ve Spam klasörünü kontrol edin.',
       );
     } catch (e) {
       _snack(_authErrorMessage(e));
     }
+  }
+
+  Future<void> _resendResetCode() async {
+    final email = _resetEmail.trim();
+    if (email.isEmpty) return;
+    setState(() => _resetResendLoading = true);
+    try {
+      await withNetworkTimeout(
+        Supabase.instance.client.auth.resetPasswordForEmail(
+          email,
+          redirectTo: kIsWeb
+              ? Uri.base.origin
+              : GoogleAuthService.mobileRedirect,
+        ),
+      );
+      if (mounted) {
+        _snack('Yeni kod gönderildi. Gelen kutusu ve Spam klasörüne bakın.');
+      }
+    } catch (e) {
+      if (mounted) _snack(_authErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => _resetResendLoading = false);
+    }
+  }
+
+  Future<void> _submitResetPassword() async {
+    final email = _resetEmail.trim();
+    final token = _resetCode.trim().replaceAll(RegExp(r'\s+'), '');
+    final p1 = _resetSifre;
+    final p2 = _resetSifre2;
+    if (email.isEmpty) {
+      _snack('E-posta bulunamadı. Giriş ekranına dönün.');
+      return;
+    }
+    if (token.length < 6) {
+      _snack('E-postadaki 6 haneli kodu girin.');
+      return;
+    }
+    if (p1.length < 6) {
+      _snack('Yeni şifre en az 6 karakter olmalı.');
+      return;
+    }
+    if (p1 != p2) {
+      _snack('Şifreler eşleşmiyor.');
+      return;
+    }
+    setState(() => _resetLoading = true);
+    try {
+      AuthResponse res;
+      try {
+        res = await withNetworkTimeout(
+          Supabase.instance.client.auth.verifyOTP(
+            type: OtpType.recovery,
+            email: email,
+            token: token,
+          ),
+        );
+      } catch (_) {
+        res = await withNetworkTimeout(
+          Supabase.instance.client.auth.verifyOTP(
+            type: OtpType.email,
+            email: email,
+            token: token,
+          ),
+        );
+      }
+      if (res.user == null || res.session == null) {
+        throw const AuthException('Kod hatalı veya süresi dolmuş.');
+      }
+      await withNetworkTimeout(
+        Supabase.instance.client.auth.updateUser(
+          UserAttributes(password: p1),
+        ),
+      );
+      final authUser = authUserFromSupabase(
+        res.user!,
+        fallbackUserType: _girisHesapTip,
+      );
+      widget.onLogin?.call(authUser);
+      _snack('Şifreniz güncellendi. Hoş geldin ${authUser.name}!');
+      if (mounted) {
+        setState(() {
+          _step = 'signin';
+          _resetCode = '';
+          _resetSifre = '';
+          _resetSifre2 = '';
+        });
+      }
+    } catch (e) {
+      if (mounted) _snack(_authErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => _resetLoading = false);
+    }
+  }
+
+  void _backFromReset() {
+    setState(() {
+      _step = 'signin';
+      _authTab = 'giris';
+      _girisEmail = _resetEmail;
+      _resetCode = '';
+      _resetSifre = '';
+      _resetSifre2 = '';
+    });
   }
 
   Future<void> _signInWithGoogle(String? role) async {
@@ -1205,7 +1326,8 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() {
       _girisLoading = true;
       _kayitLoading = true;
-      _step = 'loading';
+      // Web’de GIS hesap seçici Flutter yükleme ekranının altında kalıyor.
+      if (!kIsWeb) _step = 'loading';
     });
     try {
       await savePendingGoogleRole(role);
@@ -1216,14 +1338,15 @@ class _AuthScreenState extends State<AuthScreen> {
       if (user == null) {
         if (mounted) {
           setState(() => _step = 'signin');
-          if (!kIsWeb) {
-            _snack(
-              'Tarayıcı açıldı. Google ile giriş yapın; uygulama kendiliğinden açılacak.',
-            );
-          }
+          _snack(
+            kIsWeb
+                ? 'Google girişi iptal edildi veya tamamlanamadı. Tekrar deneyin.'
+                : 'Tarayıcı açıldı. Google ile giriş yapın; uygulama kendiliğinden açılacak.',
+          );
         }
         return;
       }
+      if (mounted) setState(() => _step = 'loading');
 
       final finalized = await withNetworkTimeout(
         finalizePendingGoogleRole(user),
@@ -1245,10 +1368,9 @@ class _AuthScreenState extends State<AuthScreen> {
       _snack(notice ?? 'Hoş geldin, ${safeUser.name}!');
       if (mounted) setState(() => _step = 'signin');
     } on GoogleAuthRedirecting {
-      // Redirect sonrası sayfa yenilenecek; pending rol SharedPreferences’ta
+      // Telefonda /mobile_google_auth.html’e gidiliyor; yükleme ekranında takılma.
       if (mounted) {
-        setState(() => _step = 'loading');
-        _snack('Google’a yönlendiriliyorsunuz…');
+        _snack('Google hesabınızı seçin…');
       }
       return;
     } catch (e) {
@@ -1623,10 +1745,17 @@ class _AuthScreenState extends State<AuthScreen> {
     if (email.isEmpty) return;
     setState(() => _resendLoading = true);
     try {
-      await Supabase.instance.client.auth.resend(
-        type: OtpType.signup,
-        email: email,
-      );
+      try {
+        await Supabase.instance.client.auth.resend(
+          type: OtpType.signup,
+          email: email,
+        );
+      } catch (_) {
+        await Supabase.instance.client.auth.signInWithOtp(
+          email: email,
+          shouldCreateUser: false,
+        );
+      }
       if (mounted) {
         _snack('Yeni doğrulama kodu gönderildi. Gelen kutunuzu kontrol edin.');
       }
@@ -1719,6 +1848,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                         'loading' => _LoadingStep(
                             onCancel: () {
+                              GoogleAuthService.cancelPendingSignIn();
                               setState(() {
                                 _step = 'signin';
                                 _girisLoading = false;
@@ -1735,6 +1865,20 @@ class _AuthScreenState extends State<AuthScreen> {
                             onVerify: _verifyEmailCode,
                             onResend: _resendVerifyCode,
                             onBack: _backFromVerify,
+                          ),
+                        'reset_password' => _ResetPasswordStep(
+                            email: _resetEmail,
+                            code: _resetCode,
+                            sifre: _resetSifre,
+                            sifre2: _resetSifre2,
+                            loading: _resetLoading,
+                            resendLoading: _resetResendLoading,
+                            onCode: (v) => setState(() => _resetCode = v),
+                            onSifre: (v) => setState(() => _resetSifre = v),
+                            onSifre2: (v) => setState(() => _resetSifre2 = v),
+                            onSubmit: _submitResetPassword,
+                            onResend: _resendResetCode,
+                            onBack: _backFromReset,
                           ),
                         _ => _SignInStep(
                             authTab: _authTab,
@@ -1795,6 +1939,195 @@ class _AuthScreenState extends State<AuthScreen> {
 }
 
 // ─── E-posta doğrulama (kayıt sonrası OTP) ───────────────────────────────────
+
+class _ResetPasswordStep extends StatelessWidget {
+  const _ResetPasswordStep({
+    required this.email,
+    required this.code,
+    required this.sifre,
+    required this.sifre2,
+    required this.loading,
+    required this.resendLoading,
+    required this.onCode,
+    required this.onSifre,
+    required this.onSifre2,
+    required this.onSubmit,
+    required this.onResend,
+    required this.onBack,
+  });
+
+  final String email;
+  final String code;
+  final String sifre;
+  final String sifre2;
+  final bool loading;
+  final bool resendLoading;
+  final ValueChanged<String> onCode;
+  final ValueChanged<String> onSifre;
+  final ValueChanged<String> onSifre2;
+  final VoidCallback onSubmit;
+  final VoidCallback onResend;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: loading ? null : onBack,
+              icon: const Icon(Icons.chevron_left, size: 20),
+              label: const L10nText('Geri'),
+              style: TextButton.styleFrom(
+                foregroundColor: MetoColors.primary,
+                padding: EdgeInsets.zero,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          L10nText(
+            'Parola sıfırlama',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.nunito(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: MetoColors.foreground,
+            ),
+          ),
+          const SizedBox(height: 8),
+          L10nText(
+            'E-postanıza gelen 6 haneli kodu ve yeni parolanızı girin.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.nunito(
+              fontSize: 14,
+              color: MetoColors.mutedFg,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            email,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.nunito(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: MetoColors.primary,
+            ),
+          ),
+          const SizedBox(height: 24),
+          TextField(
+            onChanged: onCode,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            maxLength: 8,
+            style: GoogleFonts.nunito(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 6,
+            ),
+            decoration: InputDecoration(
+              counterText: '',
+              hintText: S.auto('••••••'),
+              hintStyle: GoogleFonts.nunito(
+                letterSpacing: 6,
+                color: MetoColors.mutedFg,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              filled: true,
+              fillColor: MetoColors.card,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            onChanged: onSifre,
+            obscureText: true,
+            decoration: InputDecoration(
+              hintText: S.auto('Yeni parola'),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              filled: true,
+              fillColor: MetoColors.card,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            onChanged: onSifre2,
+            obscureText: true,
+            decoration: InputDecoration(
+              hintText: S.auto('Yeni parola (tekrar)'),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              filled: true,
+              fillColor: MetoColors.card,
+            ),
+            onSubmitted: (_) => onSubmit(),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 56,
+            child: ElevatedButton(
+              onPressed: loading ? null : onSubmit,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: MetoColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: loading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : L10nText(
+                      'Parolayı güncelle',
+                      style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: (loading || resendLoading) ? null : onResend,
+            child: resendLoading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : L10nText(
+                    'Kodu tekrar gönder',
+                    style: GoogleFonts.nunito(
+                      fontWeight: FontWeight.w700,
+                      color: MetoColors.primary,
+                    ),
+                  ),
+          ),
+          const SizedBox(height: 8),
+          L10nText(
+            'Kod gelmediyse spam/gereksiz klasörünü kontrol edin.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.nunito(
+              fontSize: 12,
+              color: MetoColors.mutedFg,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _VerifyEmailStep extends StatelessWidget {
   const _VerifyEmailStep({
@@ -3001,7 +3334,7 @@ class _LoadingStepState extends State<_LoadingStep>
           ),
           const SizedBox(height: 20),
           L10nText(
-            _showCancel ? 'Bağlantı bekleniyor…' : 'Giriş yapılıyor…',
+            _showCancel ? 'Hâlâ bekleniyor…' : 'Giriş yapılıyor…',
             style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
@@ -3011,7 +3344,7 @@ class _LoadingStepState extends State<_LoadingStep>
           const SizedBox(height: 4),
           L10nText(
             _showCancel
-                ? 'Sunucu yanıt vermiyor. Biraz daha bekleyin veya iptal edin.'
+                ? 'Google penceresi açıksa hesabınızı seçin. Değilse iptal edip tekrar deneyin.'
                 : 'Hesabınız doğrulanıyor',
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 14, color: MetoColors.mutedFg),

@@ -162,11 +162,26 @@ List<DuyuruItem> duyurularForHomeStrip(
       ? items.where((d) => d.id > 0 && d.isActive)
       : visibleDuyurularNow(items, now: now);
   final sorted = sortDuyurular(
-    pool.where((d) => !d.isPopup).toList(),
+    pool.where((d) => !d.isPopup && !isDidYouKnowDuyuru(d)).toList(),
     seenIds,
   );
   if (sorted.length <= maxItems) return sorted;
   return sorted.take(maxItems).toList();
+}
+
+bool isDidYouKnowDuyuru(DuyuruItem d) {
+  final src = (d.sourceUrl ?? '').trim();
+  return src == kDidYouKnowSource || d.title.trim() == kDidYouKnowTitle;
+}
+
+/// Ana sayfa köşesi: yeniden eskiye, görünür kayıtlar.
+List<DuyuruItem> didYouKnowForHome(
+  Iterable<DuyuruItem> items, {
+  DateTime? now,
+}) {
+  return sortDuyurularByDate(
+    items.where((d) => isDidYouKnowDuyuru(d) && d.isVisibleNow(now)),
+  );
 }
 
 /// [forceRefresh] true değilse ve taze önbellek varsa ağ çağrısı yapılmaz.

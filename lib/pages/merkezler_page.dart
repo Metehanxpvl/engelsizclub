@@ -10,7 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../data/centers_data.dart';
 import '../data/turkish_cities_data.dart';
 import '../harita_yer_store.dart';
-import '../kredi_store.dart';
+import '../iyilik_market_store.dart';
 import '../meto_theme.dart';
 import '../utils/async_timeout.dart';
 import '../services/centers_google_geocode_service.dart';
@@ -41,6 +41,7 @@ class MerkezlerPage extends StatefulWidget {
     this.isGuest = false,
     this.onRequireLogin,
     this.onKrediChanged,
+    this.onMarketPuanChanged,
   });
 
   final String userEmail;
@@ -48,6 +49,7 @@ class MerkezlerPage extends StatefulWidget {
   final bool isGuest;
   final VoidCallback? onRequireLogin;
   final ValueChanged<int>? onKrediChanged;
+  final ValueChanged<int>? onMarketPuanChanged;
 
   @override
   State<MerkezlerPage> createState() => _MerkezlerPageState();
@@ -141,6 +143,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
         initialPhone: phone == '—' ? '' : phone,
         initialCategory: from?.category,
         existing: existing,
+        userType: widget.userType,
       ),
     );
     if (result == null || !mounted) return;
@@ -155,10 +158,12 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       _selectedCenter = center;
     });
     final balance = result.newBalance;
-    if (balance != null) widget.onKrediChanged?.call(balance);
+    if (result.awarded && balance != null) {
+      widget.onMarketPuanChanged?.call(balance);
+    }
     final msg = existing != null
         ? 'Yer bildirimi güncellendi.'
-        : _yerBildirSnack(result);
+        : haritaShareSnack(awardedMarket: result.awarded);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
@@ -203,13 +208,6 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
         SnackBar(content: Text('$e'.replaceFirst('Bad state: ', ''))),
       );
     }
-  }
-
-  String _yerBildirSnack(HaritaYerBildirResult result) {
-    if (result.awarded && awardsIyilikForShare(widget.userType)) {
-      return 'Yer kaydedildi. +1 iyilik puanı 💚';
-    }
-    return 'Yer kaydedildi.';
   }
 
   void _onSearchChanged(String raw) {
@@ -899,6 +897,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                       child: _CityDropdown(
                         value: _selectedCity,
                         items: kCityNames,
+                        hint: 'İl',
                         onChanged: _onCityChanged,
                       ),
                     ),
@@ -1771,14 +1770,22 @@ class _CityDropdown extends StatelessWidget {
     required this.value,
     required this.items,
     required this.onChanged,
+    this.hint,
   });
 
   final String value;
   final List<String> items;
   final ValueChanged<String> onChanged;
+  /// Kapalı kutuda gösterilecek etiket (ör. İl). Açık listede gerçek adlar durur.
+  final String? hint;
 
   @override
   Widget build(BuildContext context) {
+    final closedStyle = const TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+      color: MetoColors.foreground,
+    );
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
@@ -1790,13 +1797,24 @@ class _CityDropdown extends StatelessWidget {
         child: DropdownButton<String>(
           value: value,
           isExpanded: true,
+          hint: hint == null ? null : L10nText(hint!, style: closedStyle),
+          selectedItemBuilder: hint == null
+              ? null
+              : (context) => [
+                    for (final _ in items)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: L10nText(
+                          hint!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: closedStyle,
+                        ),
+                      ),
+                  ],
           icon: const Icon(Icons.expand_more,
               size: 18, color: MetoColors.mutedFg),
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: MetoColors.foreground,
-          ),
+          style: closedStyle,
           dropdownColor: MetoColors.card,
           borderRadius: BorderRadius.circular(12),
           items: [

@@ -2,6 +2,24 @@
 
 enum NutrientGroup { vitamin, mineral }
 
+enum NutritionMealSlot {
+  breakfast,
+  lunch,
+  snack,
+  dinner,
+}
+
+extension NutritionMealSlotX on NutritionMealSlot {
+  String get id => name;
+
+  String get labelTr => switch (this) {
+        NutritionMealSlot.breakfast => 'Kahvaltı',
+        NutritionMealSlot.lunch => 'Öğle',
+        NutritionMealSlot.snack => 'Ara Öğün',
+        NutritionMealSlot.dinner => 'Akşam',
+      };
+}
+
 enum NutrientKey {
   vitaminA,
   vitaminC,
@@ -171,6 +189,64 @@ class NutrientAmounts {
   }
 }
 
+/// Kalori ve makrobesinler (100 g profili). Vitamin/mineral [NutrientAmounts] ile karışmaz.
+class MacroAmounts {
+  const MacroAmounts({
+    this.caloriesKcal = 0,
+    this.proteinG = 0,
+    this.carbohydratesG = 0,
+    this.fatG = 0,
+    this.fiberG = 0,
+    this.sugarG = 0,
+    this.sodiumMg = 0,
+  });
+
+  factory MacroAmounts.zero() => const MacroAmounts();
+
+  final double caloriesKcal;
+  final double proteinG;
+  final double carbohydratesG;
+  final double fatG;
+  final double fiberG;
+  final double sugarG;
+  final double sodiumMg;
+
+  MacroAmounts operator +(MacroAmounts o) {
+    return MacroAmounts(
+      caloriesKcal: caloriesKcal + o.caloriesKcal,
+      proteinG: proteinG + o.proteinG,
+      carbohydratesG: carbohydratesG + o.carbohydratesG,
+      fatG: fatG + o.fatG,
+      fiberG: fiberG + o.fiberG,
+      sugarG: sugarG + o.sugarG,
+      sodiumMg: sodiumMg + o.sodiumMg,
+    );
+  }
+
+  MacroAmounts scaledGrams(double grams) {
+    final f = grams / 100.0;
+    return MacroAmounts(
+      caloriesKcal: caloriesKcal * f,
+      proteinG: proteinG * f,
+      carbohydratesG: carbohydratesG * f,
+      fatG: fatG * f,
+      fiberG: fiberG * f,
+      sugarG: sugarG * f,
+      sodiumMg: sodiumMg * f,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'calories_kcal': _roundIntake(caloriesKcal),
+        'protein_g': _roundIntake(proteinG),
+        'carbohydrates_g': _roundIntake(carbohydratesG),
+        'fat_g': _roundIntake(fatG),
+        'fiber_g': _roundIntake(fiberG),
+        'sugar_g': _roundIntake(sugarG),
+        'sodium_mg': _roundIntake(sodiumMg),
+      };
+}
+
 class NutrientStat {
   const NutrientStat({
     required this.key,
@@ -217,6 +293,7 @@ class ParsedFood {
     required this.grams,
     required this.portionSpecified,
     required this.raw,
+    this.macros = const MacroAmounts(),
   });
 
   final String foodId;
@@ -227,6 +304,28 @@ class ParsedFood {
   final double grams;
   final bool portionSpecified;
   final String raw;
+  final MacroAmounts macros;
+
+  ParsedFood copyWith({
+    double? quantity,
+    NutritionUnit? unit,
+    double? grams,
+    bool? portionSpecified,
+    String? raw,
+    MacroAmounts? macros,
+  }) {
+    return ParsedFood(
+      foodId: foodId,
+      labelTr: labelTr,
+      emoji: emoji,
+      quantity: quantity ?? this.quantity,
+      unit: unit ?? this.unit,
+      grams: grams ?? this.grams,
+      portionSpecified: portionSpecified ?? this.portionSpecified,
+      raw: raw ?? this.raw,
+      macros: macros ?? this.macros,
+    );
+  }
 
   String get displayLine {
     if (!portionSpecified) return '$emoji $labelTr (porsiyon belirtilmedi)';
@@ -251,6 +350,7 @@ class NutritionAnalysis {
     this.version = kNutritionAnalysisVersion,
     this.analysisSummary = '',
     this.recommendations = const [],
+    this.macros = const MacroAmounts(),
   });
 
   final Map<NutrientKey, NutrientStat> nutrients;
@@ -263,6 +363,7 @@ class NutritionAnalysis {
   final NutritionUserProfile profile;
   final String analysisSummary;
   final List<String> recommendations;
+  final MacroAmounts macros;
 
   String get dataQuality {
     if (analyzedFoods.any((e) => !e.portionSpecified) ||
@@ -333,6 +434,7 @@ class NutritionAnalysis {
         'nutrients': {
           for (final e in nutrients.entries) e.key.id: e.value.toJson(),
         },
+        'macros': macros.toJson(),
         'foods': [
           for (final f in analyzedFoods)
             {
@@ -341,13 +443,14 @@ class NutritionAnalysis {
               'unit': f.unit.name,
               'grams': _roundIntake(f.grams),
               'portionSpecified': f.portionSpecified,
+              'macros': f.macros.toJson(),
             },
         ],
         if (unknownTokens.isNotEmpty) 'unknown': unknownTokens,
       };
 }
 
-const kNutritionAnalysisVersion = '4';
+const kNutritionAnalysisVersion = '5';
 const kNutritionMinInputChars = 6;
 
 enum NutritionSex { male, female, all }

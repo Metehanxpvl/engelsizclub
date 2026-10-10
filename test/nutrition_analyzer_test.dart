@@ -254,6 +254,35 @@ void main() {
     );
   });
 
+  test('macros scale with grams and stay independent of vitamin DRI', () {
+    final egg100 = analyzeNutrition('100 gram yumurta', day);
+    final egg50 = analyzeNutrition('50 gram yumurta', day);
+    expect(egg100.macros.caloriesKcal, closeTo(155, 0.2));
+    expect(egg100.macros.proteinG, closeTo(13, 0.05));
+    expect(egg50.macros.caloriesKcal, closeTo(77.5, 0.2));
+    expect(egg50.macros.proteinG, closeTo(egg100.macros.proteinG / 2, 0.05));
+    expect(egg100.summary['nutrientCount'], 18);
+    expect(egg100.nutrients[NutrientKey.vitaminC]!.percentage, 0);
+    final json = egg100.toJson();
+    expect(json['macros'], isA<Map>());
+    expect((json['macros'] as Map)['calories_kcal'], isA<num>());
+    expect((json['macros'] as Map)['protein_g'], isA<num>());
+    expect((json['macros'] as Map)['sodium_mg'], isA<num>());
+    final foods = json['foods'] as List;
+    expect((foods.first as Map)['macros']['fat_g'], isA<num>());
+  });
+
+  test('gram restitch keeps vitamin and macro totals consistent', () {
+    final a = analyzeNutrition('55 g yumurta, 60 g ekmek', day);
+    final raw = foodsToRawInput(a.analyzedFoods);
+    final b = analyzeNutrition(raw, day);
+    expect(b.macros.caloriesKcal, closeTo(a.macros.caloriesKcal, 0.5));
+    expect(
+      b.nutrients[NutrientKey.vitaminA]!.intake,
+      closeTo(a.nutrients[NutrientKey.vitaminA]!.intake, 0.05),
+    );
+  });
+
   test('child profile uses child RDA not adult', () {
     const child = NutritionUserProfile(
       ageBand: NutritionAgeBand.y4to8,

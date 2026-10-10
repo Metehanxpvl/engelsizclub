@@ -69,6 +69,7 @@ class _EngelsizKariyerAdminSheetState extends State<EngelsizKariyerAdminSheet> {
         date: _date.text,
         applyUrl: _url.text.trim().isEmpty ? kKariyerSourceUrl : _url.text,
         custom: edit?.custom ?? true,
+        notifyPush: !_isEdit,
       );
       if (!mounted) return;
       Navigator.of(context).pop(true);

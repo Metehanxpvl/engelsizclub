@@ -2,10 +2,26 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../admin_config.dart';
+import 'force_update_logic.dart';
 
-const kDidYouKnowTitle = 'Bunu biliyor muydunuz?';
+const kDidYouKnowTitle = 'Bunu biliyor musunuz?';
 const kDidYouKnowType = 'biliyor_muydunuz';
+const kDidYouKnowSource = 'did_you_know';
 const kDidYouKnowMaxChars = 800;
+
+/// 2. el ilanları (aile dahil, tercih açıksa).
+const kIlanlarTopic = 'ilanlar';
+
+/// Uzman / bakıcı / temizlikçi ilanları — yalnız uzman ve bakıcı rolü abone.
+const kIlanlarProfTopic = 'ilanlar_prof';
+
+bool isProfSeekIlanKind(String kind) {
+  final k = kind.trim().toLowerCase();
+  return k == 'uzman' || k == 'bakici';
+}
+
+String ilanPushTopicForKind(String kind) =>
+    isProfSeekIlanKind(kind) ? kIlanlarProfTopic : kIlanlarTopic;
 
 String didYouKnowPushBody(String message) => message.trim();
 
@@ -27,9 +43,22 @@ class BroadcastPushService {
   }) async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return false;
-    if (requireAdmin && !isAppAdmin(user.email)) {
-      debugPrint('broadcast-push: admin değil, atlandı');
-      return false;
+    if (requireAdmin) {
+      var email = (user.email ?? '').trim().toLowerCase();
+      if (!isAppAdmin(email)) {
+        try {
+          final row = await Supabase.instance.client
+              .from('user_profiles')
+              .select('owner_email')
+              .eq('owner_id', user.id)
+              .maybeSingle();
+          email = (row?['owner_email'] as String? ?? '').trim().toLowerCase();
+        } catch (_) {}
+      }
+      if (!isAppAdmin(email)) {
+        debugPrint('broadcast-push: admin değil, atlandı');
+        return false;
+      }
     }
 
     final img = (imageUrl ?? '').trim();
@@ -39,8 +68,13 @@ class BroadcastPushService {
             : null;
 
     try {
+      final token =
+          Supabase.instance.client.auth.currentSession?.accessToken ?? '';
       final res = await Supabase.instance.client.functions.invoke(
         'broadcast-push',
+        headers: {
+          if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+        },
         body: {
           'topic': topic,
           'title': title,
@@ -135,6 +169,22 @@ class BroadcastPushService {
         requireAdmin: true,
       );
 
+  Future<bool> gelisim({
+    required String title,
+    required String body,
+    String? etkinlikId,
+  }) =>
+      sendToTopic(
+        topic: 'duyurular',
+        title: title.isEmpty ? 'Yeni gelişim etkinliği' : title,
+        body: body.isEmpty ? 'Gelişim Etkinlikleri’ne yeni içerik eklendi.' : body,
+        data: {
+          'type': 'gelisim',
+          if (etkinlikId != null) 'id': etkinlikId,
+        },
+        requireAdmin: true,
+      );
+
   /// Admin: bugünkü kamu / özel sektör ilan sayısı (haberlerle aynı topic).
   Future<bool> kariyer({
     required String title,
@@ -172,12 +222,27 @@ class BroadcastPushService {
       );
 
   /// Admin serbest mesaj: başlık «Bunu biliyor muydunuz?», gövde admin metni.
-  Future<bool> biliyorMuydunuz({required String message}) {
+  Future<bool> biliyorMuydunuz({
+    required String message,
+    String? adminEmail,
+  }) async {
     final body = didYouKnowPushBody(message);
-    if (body.isEmpty) return Future.value(false);
+    if (body.isEmpty) return false;
     final clipped = body.length > kDidYouKnowMaxChars
         ? body.substring(0, kDidYouKnowMaxChars).trim()
         : body;
+
+    // Yorum bildirimiyle aynı yol: pg_net → Edge `source=db` (functions JWT gerekmez).
+    try {
+      await Supabase.instance.client.rpc(
+        'admin_send_did_you_know',
+        params: {'p_body': clipped},
+      );
+      return true;
+    } catch (e) {
+      debugPrint('did-you-know rpc: $e');
+    }
+
     return sendToTopic(
       topic: 'duyurular',
       title: kDidYouKnowTitle,
@@ -185,6 +250,25 @@ class BroadcastPushService {
       data: {
         'type': kDidYouKnowType,
         'text': clipped,
+      },
+      requireAdmin: !isAppAdmin(adminEmail),
+    );
+  }
+
+  /// Mağazada yeni sürüm. `duyurular` topic — mevcut cihazlar zaten abone.
+  Future<bool> yeniSurum({
+    required String version,
+    required int build,
+  }) {
+    final ver = version.trim().isEmpty ? 'yeni sürüm' : version.trim();
+    return sendToTopic(
+      topic: 'duyurular',
+      title: 'Yeni sürüm yayınlandı',
+      body: 'Engelsiz Club $ver mağazada. Güncellemek için dokunun.',
+      data: {
+        'type': kAppUpdatePushType,
+        'version': ver,
+        'build': '$build',
       },
       requireAdmin: true,
     );
@@ -194,17 +278,19 @@ class BroadcastPushService {
     required String title,
     required String kind,
     String? ilanId,
-  }) =>
-      sendToTopic(
-        topic: 'ilanlar',
-        title: 'Yeni ilan',
-        body: title,
-        data: {
-          'type': 'ilan',
-          'kind': kind,
-          if (ilanId != null) 'id': ilanId,
-        },
-      );
+  }) {
+    final k = kind.trim().toLowerCase();
+    return sendToTopic(
+      topic: ilanPushTopicForKind(k),
+      title: 'Yeni ilan',
+      body: title,
+      data: {
+        'type': 'ilan',
+        'kind': k,
+        if (ilanId != null && ilanId.trim().isNotEmpty) 'id': ilanId.trim(),
+      },
+    );
+  }
 
   Future<bool> forumPost({
     required String title,
@@ -236,8 +322,13 @@ class BroadcastPushService {
     if (target == me) return false;
 
     try {
+      final token =
+          Supabase.instance.client.auth.currentSession?.accessToken ?? '';
       final res = await Supabase.instance.client.functions.invoke(
         'broadcast-push',
+        headers: {
+          if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+        },
         body: {
           'toEmail': target,
           'title': title,

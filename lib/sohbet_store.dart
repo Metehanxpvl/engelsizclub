@@ -1,8 +1,19 @@
+import 'dart:async';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_config.dart';
 import 'user_safety_store.dart';
+
+enum SohbetReceipt { sending, sent, delivered, read }
+
+SohbetReceipt sohbetReceiptOf(SohbetMesaj m) {
+  if (m.id <= 0) return SohbetReceipt.sending;
+  if (m.isRead) return SohbetReceipt.read;
+  if (m.isDelivered) return SohbetReceipt.delivered;
+  return SohbetReceipt.sent;
+}
 
 class SohbetMesaj {
   const SohbetMesaj({
@@ -12,6 +23,7 @@ class SohbetMesaj {
     required this.receiverEmail,
     required this.body,
     required this.createdAt,
+    this.deliveredAt,
     this.readAt,
   });
 
@@ -21,9 +33,12 @@ class SohbetMesaj {
   final String receiverEmail;
   final String body;
   final DateTime createdAt;
+  final DateTime? deliveredAt;
   final DateTime? readAt;
 
   bool get isRead => readAt != null;
+  bool get isDelivered => deliveredAt != null || isRead;
+  SohbetReceipt get receipt => sohbetReceiptOf(this);
 
   factory SohbetMesaj.fromJson(Map<String, dynamic> json) => SohbetMesaj(
         id: (json['id'] as num?)?.toInt() ?? 0,
@@ -33,6 +48,7 @@ class SohbetMesaj {
         body: json['body']?.toString() ?? '',
         createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ??
             DateTime.now(),
+        deliveredAt: DateTime.tryParse(json['delivered_at']?.toString() ?? ''),
         readAt: DateTime.tryParse(json['read_at']?.toString() ?? ''),
       );
 
@@ -52,6 +68,7 @@ class SohbetOzet {
     required this.lastTime,
     this.unreadCount = 0,
     this.lastFromPeer = false,
+    this.lastReceipt,
   });
 
   final String sohbetKey;
@@ -61,8 +78,25 @@ class SohbetOzet {
   /// Bana gelen ve henüz okunmamış mesaj sayısı (read_at == null).
   final int unreadCount;
   final bool lastFromPeer;
+  /// Son mesaj benden ise iletildi/okundu. Karşı taraftan ise null.
+  final SohbetReceipt? lastReceipt;
 
   bool get hasUnread => unreadCount > 0;
+
+  SohbetOzet copyWith({
+    int? unreadCount,
+    bool? lastFromPeer,
+    SohbetReceipt? lastReceipt,
+  }) =>
+      SohbetOzet(
+        sohbetKey: sohbetKey,
+        peerEmail: peerEmail,
+        lastMsg: lastMsg,
+        lastTime: lastTime,
+        unreadCount: unreadCount ?? this.unreadCount,
+        lastFromPeer: lastFromPeer ?? this.lastFromPeer,
+        lastReceipt: lastReceipt ?? this.lastReceipt,
+      );
 }
 
 String sohbetKeyFor(String emailA, String emailB) {
@@ -70,6 +104,41 @@ String sohbetKeyFor(String emailA, String emailB) {
   final b = emailB.trim().toLowerCase();
   final pair = [a, b]..sort();
   return '${pair[0]}|${pair[1]}';
+}
+
+/// `a@x|b@y` anahtarından benim dışımdaki gerçek e-postayı çıkarır.
+/// Liste özetinde `ad ↔ ad` veya boş peer kalınca cevap kutusu kaybolmasın.
+String peerEmailFromSohbetKey(String sohbetKey, String myEmail) {
+  final me = myEmail.trim().toLowerCase();
+  final emails = sohbetKey
+      .split('|')
+      .map((p) => p.trim().toLowerCase())
+      .where((p) => p.contains('@'))
+      .toList();
+  if (emails.isEmpty) return '';
+  if (me.isEmpty) return emails.first;
+  for (final e in emails) {
+    if (e != me) return e;
+  }
+  return '';
+}
+
+/// JWT e-postası boşsa (Apple) profil e-postasını kullan.
+Future<String> currentSohbetEmail() async {
+  final client = Supabase.instance.client;
+  final user = client.auth.currentUser;
+  if (user == null) return '';
+  var email = (user.email ?? '').trim().toLowerCase();
+  if (email.isNotEmpty) return email;
+  try {
+    final row = await client
+        .from('user_profiles')
+        .select('owner_email')
+        .eq('owner_id', user.id)
+        .maybeSingle();
+    email = (row?['owner_email'] as String? ?? '').trim().toLowerCase();
+  } catch (_) {}
+  return email;
 }
 
 Future<List<SohbetMesaj>> loadSohbetMesajlari(String sohbetKey) async {
@@ -99,7 +168,10 @@ Future<SohbetMesaj> sendSohbetMesaj({
 }) async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
-  final myEmail = (user?.email ?? '').trim().toLowerCase();
+  var myEmail = (user?.email ?? '').trim().toLowerCase();
+  if (user != null && myEmail.isEmpty) {
+    myEmail = await currentSohbetEmail();
+  }
   final peer = peerEmail.trim().toLowerCase();
   if (user == null || myEmail.isEmpty) {
     throw StateError('Mesaj göndermek için giriş yapın.');
@@ -161,10 +233,36 @@ List<SohbetMesaj> dedupeSohbetMesajlari(List<SohbetMesaj> list) {
     }
     if (out[i].id <= 0 && m.id > 0) {
       out[i] = m;
+    } else if ((m.isRead && !out[i].isRead) ||
+        (m.isDelivered && !out[i].isDelivered)) {
+      out[i] = m;
     }
   }
   out.sort((a, b) => a.createdAt.compareTo(b.createdAt));
   return out;
+}
+
+/// Sohbetteki bana gelen mesajları iletildi işaretler (okunmadan).
+Future<void> markSohbetMesajlariIletildi({String? sohbetKey}) async {
+  final client = Supabase.instance.client;
+  final user = client.auth.currentUser;
+  var me = (user?.email ?? '').trim().toLowerCase();
+  if (user == null) return;
+  if (me.isEmpty) me = await currentSohbetEmail();
+  if (me.isEmpty) return;
+  final now = DateTime.now().toUtc().toIso8601String();
+  try {
+    var q = client
+        .from('sohbet_mesajlari')
+        .update({'delivered_at': now})
+        .eq('receiver_email', me)
+        .isFilter('delivered_at', null);
+    final key = sohbetKey?.trim() ?? '';
+    if (key.isNotEmpty) q = q.eq('sohbet_key', key);
+    await q;
+  } catch (_) {
+    // Kolon henüz yoksa sessizce geç
+  }
 }
 
 /// Sohbetteki bana gelen okunmamış mesajları okundu işaretler.
@@ -182,10 +280,19 @@ Future<void> markSohbetMesajlariOkundu(String sohbetKey) async {
     await prefs.setString(_localReadKey(me, key), now.toIso8601String());
   } catch (_) {}
 
+  final stamp = now.toIso8601String();
   try {
     await client
         .from('sohbet_mesajlari')
-        .update({'read_at': now.toIso8601String()})
+        .update({'delivered_at': stamp})
+        .eq('sohbet_key', key)
+        .eq('receiver_email', me)
+        .isFilter('delivered_at', null);
+  } catch (_) {}
+  try {
+    await client
+        .from('sohbet_mesajlari')
+        .update({'read_at': stamp})
         .eq('sohbet_key', key)
         .eq('receiver_email', me)
         .isFilter('read_at', null);
@@ -247,30 +354,27 @@ Future<void> deleteSohbet(String sohbetKey) async {
 }
 
 /// Benim tarafım olduğum sohbetlerin son mesaj özetleri.
-/// Admin tüm sohbetleri görür (moderasyon).
+/// Admin de yalnızca kendi kutusu — başkasının teklif sohbetinde
+/// cevap kutusu kaybolmasın / "Üye" diye yanlış thread açılmasın.
 Future<List<SohbetOzet>> loadSohbetOzetleri(String myEmail) async {
   final authEmail =
       (Supabase.instance.client.auth.currentUser?.email ?? '')
           .trim()
           .toLowerCase();
-  final me = myEmail.trim().toLowerCase().isNotEmpty
+  var me = myEmail.trim().toLowerCase().isNotEmpty
       ? myEmail.trim().toLowerCase()
       : authEmail;
+  if (me.isEmpty) {
+    me = await currentSohbetEmail();
+  }
   if (me.isEmpty) return const [];
-  final admin = isAppAdmin(me);
   try {
-    final rows = admin
-        ? await Supabase.instance.client
-            .from('sohbet_mesajlari')
-            .select()
-            .order('created_at', ascending: false)
-            .limit(400)
-        : await Supabase.instance.client
-            .from('sohbet_mesajlari')
-            .select()
-            .or('sender_email.eq.$me,receiver_email.eq.$me')
-            .order('created_at', ascending: false)
-            .limit(200);
+    final rows = await Supabase.instance.client
+        .from('sohbet_mesajlari')
+        .select()
+        .or('sender_email.eq.$me,receiver_email.eq.$me')
+        .order('created_at', ascending: false)
+        .limit(200);
     final rawList = (rows as List).whereType<Map>().toList();
     final list = rawList
         .map((e) => SohbetMesaj.fromJson(Map<String, dynamic>.from(e)))
@@ -284,6 +388,12 @@ Future<List<SohbetOzet>> loadSohbetOzetleri(String myEmail) async {
     bool isIncomingToMe(SohbetMesaj m) {
       return m.receiverEmail == me ||
           (authEmail.isNotEmpty && m.receiverEmail == authEmail);
+    }
+
+    final hasUndeliveredIncoming =
+        list.any((m) => isIncomingToMe(m) && m.deliveredAt == null);
+    if (hasUndeliveredIncoming) {
+      unawaited(markSohbetMesajlariIletildi());
     }
 
     // Okunmamış = bana gelen + read_at null (is_read == false)
@@ -303,15 +413,20 @@ Future<List<SohbetOzet>> loadSohbetOzetleri(String myEmail) async {
     final ozets = <SohbetOzet>[];
     for (final m in list) {
       if (!seen.add(m.sohbetKey)) continue;
-      String peer;
-      if (m.senderEmail == me || m.senderEmail == authEmail) {
-        peer = m.receiverEmail;
-      } else if (isIncomingToMe(m)) {
-        peer = m.senderEmail;
-      } else {
-        final a = m.senderEmail.split('@').first;
-        final b = m.receiverEmail.split('@').first;
-        peer = '$a ↔ $b';
+      var peer = peerEmailFromSohbetKey(m.sohbetKey, me);
+      if (peer.isEmpty) {
+        peer = peerEmailFromSohbetKey(m.sohbetKey, authEmail);
+      }
+      if (peer.isEmpty) {
+        if (m.senderEmail == me || m.senderEmail == authEmail) {
+          peer = m.receiverEmail;
+        } else if (isIncomingToMe(m)) {
+          peer = m.senderEmail;
+        } else if (m.senderEmail.contains('@') && m.senderEmail != me) {
+          peer = m.senderEmail;
+        } else if (m.receiverEmail.contains('@') && m.receiverEmail != me) {
+          peer = m.receiverEmail;
+        }
       }
 
       var unread = unreadByKey[m.sohbetKey] ?? 0;
@@ -333,6 +448,7 @@ Future<List<SohbetOzet>> loadSohbetOzetleri(String myEmail) async {
         lastTime: m.createdAt,
         unreadCount: unread,
         lastFromPeer: lastFromPeer,
+        lastReceipt: lastFromPeer ? null : m.receipt,
       ));
     }
     return ozets;

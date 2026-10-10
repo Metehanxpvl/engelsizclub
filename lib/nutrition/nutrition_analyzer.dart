@@ -105,15 +105,40 @@ NutritionAnalysis analyzeNutrition(
     throw StateError('Gelecek bir tarih seçilemez.');
   }
   final parsed = parseNutritionInput(trimmed, profile: profile);
-  if (parsed.foods.isEmpty) {
+  return nutritionAnalysisFromFoods(
+    foods: parsed.foods,
+    unknownTokens: parsed.unknown,
+    date: day,
+    rawInput: trimmed,
+    profile: profile,
+  );
+}
+
+/// Aynı DRI tablosuyla ParsedFood listesinden karne.
+NutritionAnalysis nutritionAnalysisFromFoods({
+  required List<ParsedFood> foods,
+  required DateTime date,
+  required NutritionUserProfile profile,
+  String rawInput = '',
+  List<String> unknownTokens = const [],
+}) {
+  if (foods.isEmpty) {
     throw StateError('Bu girişte analiz edilebilecek bir gıda bulunamadı.');
   }
-
+  final day = DateTime(date.year, date.month, date.day);
   var total = NutrientAmounts.zero();
-  for (final item in parsed.foods) {
+  var macros = MacroAmounts.zero();
+  final scaledFoods = <ParsedFood>[];
+  for (final item in foods) {
     final food = foodById(item.foodId);
-    if (food == null) continue;
+    if (food == null) {
+      scaledFoods.add(item);
+      continue;
+    }
     total += food.per100g.scaledGrams(item.grams);
+    final itemMacros = food.macrosPer100g.scaledGrams(item.grams);
+    macros += itemMacros;
+    scaledFoods.add(item.copyWith(macros: itemMacros));
   }
 
   final refs = resolveDriReferences(profile);
@@ -132,21 +157,20 @@ NutritionAnalysis analyzeNutrition(
     );
   }
 
-  final withPortion =
-      parsed.foods.where((e) => e.portionSpecified).length;
-
+  final withPortion = scaledFoods.where((e) => e.portionSpecified).length;
   final draft = NutritionAnalysis(
     nutrients: nutrients,
-    analyzedFoods: parsed.foods,
+    analyzedFoods: scaledFoods,
     confidence: nutritionConfidence(
-      parsed: parsed.foods.length,
+      parsed: scaledFoods.length,
       withPortion: withPortion,
-      unknown: parsed.unknown.length,
+      unknown: unknownTokens.length,
     ),
-    unknownTokens: parsed.unknown,
+    unknownTokens: unknownTokens,
     date: day,
-    rawInput: trimmed,
+    rawInput: rawInput,
     profile: profile,
+    macros: macros,
   );
   return NutritionAnalysis(
     nutrients: draft.nutrients,
@@ -158,5 +182,31 @@ NutritionAnalysis analyzeNutrition(
     profile: draft.profile,
     analysisSummary: buildNutritionSummary(draft),
     recommendations: buildNutritionRecommendations(draft),
+    macros: draft.macros,
+  );
+}
+
+/// Gram düzenlemesi sonrası parser’ın yeniden okuyacağı metin.
+String foodsToRawInput(List<ParsedFood> foods) {
+  return foods
+      .map((f) => '${f.grams.round()} g ${f.labelTr}')
+      .join(', ');
+}
+
+/// Lokal öğünleri toplayıp günlük karneyi üretir (AI yok).
+NutritionAnalysis combineMealAnalyses(
+  List<NutritionAnalysis> meals, {
+  required DateTime date,
+  required NutritionUserProfile profile,
+}) {
+  if (meals.isEmpty) {
+    throw StateError('Bugün kaydedilmiş bir öğün yok.');
+  }
+  return nutritionAnalysisFromFoods(
+    foods: [for (final m in meals) ...m.analyzedFoods],
+    unknownTokens: [for (final m in meals) ...m.unknownTokens],
+    date: date,
+    rawInput: meals.map((e) => e.rawInput).where((e) => e.isNotEmpty).join('\n'),
+    profile: profile,
   );
 }

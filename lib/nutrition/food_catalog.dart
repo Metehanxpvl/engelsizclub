@@ -10,6 +10,7 @@ class FoodItem {
     required this.aliases,
     required this.gramsPerPiece,
     required this.per100g,
+    required this.macrosPer100g,
     this.liquid = false,
   });
 
@@ -19,6 +20,7 @@ class FoodItem {
   final List<String> aliases;
   final double gramsPerPiece;
   final NutrientAmounts per100g;
+  final MacroAmounts macrosPer100g;
   final bool liquid;
 }
 
@@ -30,6 +32,7 @@ FoodItem _toItem(FoodDictionaryEntry e) {
     aliases: e.aliases,
     gramsPerPiece: e.defaultServingGrams,
     per100g: nutritionAmountsFor(e),
+    macrosPer100g: macroAmountsFor(e),
     liquid: e.liquid,
   );
 }

@@ -9,10 +9,13 @@ create table if not exists public.sohbet_mesajlari (
   receiver_email text not null,
   body text not null,
   created_at timestamptz not null default now(),
+  delivered_at timestamptz,
   read_at timestamptz
 );
 
 -- Mevcut tablolara kolon ekle
+alter table public.sohbet_mesajlari
+  add column if not exists delivered_at timestamptz;
 alter table public.sohbet_mesajlari
   add column if not exists read_at timestamptz;
 
@@ -23,6 +26,9 @@ create index if not exists sohbet_mesajlari_receiver_idx
 create index if not exists sohbet_mesajlari_unread_idx
   on public.sohbet_mesajlari (receiver_email, created_at desc)
   where read_at is null;
+create index if not exists sohbet_mesajlari_undelivered_idx
+  on public.sohbet_mesajlari (receiver_email, created_at desc)
+  where delivered_at is null;
 
 alter table public.sohbet_mesajlari enable row level security;
 

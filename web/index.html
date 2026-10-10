@@ -366,42 +366,22 @@
           context: 'signin',
           ux_mode: 'popup',
           itp_support: true,
-          use_fedcm_for_prompt: true
+          use_fedcm_for_prompt: false
         });
 
-        var promptVisible = false;
         function showChooser() {
-          if (settled || promptVisible || document.getElementById('engelsiz-google-overlay')) return;
+          if (settled || document.getElementById('engelsiz-google-overlay')) return;
           __engelsizShowGoogleOverlay(function () {
             finish({ cancelled: true });
           });
         }
 
-        try {
-          google.accounts.id.prompt(function (notification) {
-            if (settled) return;
-            try {
-              if (notification.isDisplayMoment && notification.isDisplayMoment()) {
-                promptVisible = true;
-                return;
-              }
-              promptVisible = false;
-              if (notification.isNotDisplayed() ||
-                  notification.isSkippedMoment() ||
-                  notification.isDismissedMoment()) {
-                showChooser();
-              }
-            } catch (_) {
-              showChooser();
-            }
-          });
-        } catch (_) {
-          showChooser();
-        }
+        showChooser();
+        try { google.accounts.id.prompt(); } catch (_) {}
 
         setTimeout(function () {
-          if (!promptVisible) showChooser();
-        }, 1200);
+          if (!settled) finish({ error: 'Google giriş zaman aşımına uğradı. Tekrar deneyin.' });
+        }, 90000);
       });
     };
   </script>

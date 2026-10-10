@@ -1,16 +1,19 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../firebase_options.dart';
+import '../kredi_store.dart';
 import '../user_cloud_store.dart';
+import 'broadcast_push_service.dart';
 
 /// Arka planda (isolate) gelen FCM mesajları.
 @pragma('vm:entry-point')
@@ -31,20 +34,24 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 /// FCM + yerel bildirim (ön planda BigPicture destekli).
-class PushNotificationService {
+class PushNotificationService with WidgetsBindingObserver {
   PushNotificationService._();
   static final PushNotificationService instance = PushNotificationService._();
 
   static const _androidChannelId = 'engelsizclub_default';
   static const _androidChannelName = 'Engelsiz Club';
+  static const _pendingOpenPrefsKey = 'fcm_pending_open_v1';
 
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _local =
       FlutterLocalNotificationsPlugin();
 
   bool _initialized = false;
+  bool _refreshing = false;
   String? fcmToken;
   RemoteMessage? _pendingOpen;
+  BildirimAyarlari? _topicPrefs;
+  String? _topicUserType;
 
   final StreamController<RemoteMessage> _opens =
       StreamController<RemoteMessage>.broadcast();
@@ -53,32 +60,88 @@ class PushNotificationService {
   Map<String, String> _stringData(RemoteMessage message) =>
       message.data.map((k, v) => MapEntry(k, '$v'));
 
+  Map<String, String> _normalizeData(Map<String, String> raw) {
+    final out = <String, String>{};
+    raw.forEach((k, v) {
+      final key = k.trim();
+      if (key.isEmpty) return;
+      out[key] = v.trim();
+      out[key.toLowerCase()] = v.trim();
+    });
+    return out;
+  }
+
+  Future<void> _persistOpenData(Map<String, String> data) async {
+    if (data.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_pendingOpenPrefsKey, jsonEncode(data));
+    } catch (e) {
+      debugPrint('FCM pending kaydı: $e');
+    }
+  }
+
+  Future<Map<String, String>?> _readPersistedOpenData({required bool clear}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_pendingOpenPrefsKey);
+      if (raw == null || raw.isEmpty) return null;
+      if (clear) await prefs.remove(_pendingOpenPrefsKey);
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      return _normalizeData(
+        decoded.map((k, v) => MapEntry('$k', '$v')),
+      );
+    } catch (e) {
+      debugPrint('FCM pending okuma: $e');
+      return null;
+    }
+  }
+
   /// Shell dinlemeden önce gelen tap (soğuk açılış).
   Map<String, String>? takePendingOpenData() {
     final m = _pendingOpen;
     _pendingOpen = null;
     if (m == null) return null;
-    return _stringData(m);
+    return _normalizeData(_stringData(m));
+  }
+
+  Future<Map<String, String>?> takePendingOpenDataAsync() async {
+    final mem = takePendingOpenData();
+    if (mem != null && mem.isNotEmpty) {
+      unawaited(_readPersistedOpenData(clear: true));
+      return mem;
+    }
+    return _readPersistedOpenData(clear: true);
   }
 
   Stream<Map<String, String>> get onOpenedData =>
-      _opens.stream.map(_stringData);
+      _opens.stream.map((m) => _normalizeData(_stringData(m)));
 
   void _emitOpen(RemoteMessage message) {
     debugPrint('FCM açıldı: data=${message.data}');
     _pendingOpen = message;
+    final data = _normalizeData(_stringData(message));
+    unawaited(_persistOpenData(data));
     _opens.add(message);
   }
 
   Future<void> init() async {
     if (_initialized || kIsWeb) return;
     _initialized = true;
+    WidgetsBinding.instance.addObserver(this);
 
     try {
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     } catch (e) {
       debugPrint('FCM background handler: $e');
     }
+
+    // iOS: izin + APNs 3 sn’lik init timeout’una takılmasın.
+    unawaited(() async {
+      await _requestPermission();
+      await _refreshToken();
+    }());
 
     try {
       await _initLocalNotifications().timeout(const Duration(seconds: 3));
@@ -98,16 +161,13 @@ class PushNotificationService {
       debugPrint('FCM presentation options: $e');
     }
 
-    // iOS: izin → APNs token → FCM token sırası. Paralel olursa token boş kalır.
-    unawaited(() async {
-      await _requestPermission();
-      await _refreshToken();
-    }());
     try {
       _messaging.onTokenRefresh.listen((token) {
         fcmToken = token;
         debugPrint('FCM token yenilendi: $token');
         unawaited(registerTokenWithServer(token));
+        final prefs = _topicPrefs;
+        if (prefs != null) unawaited(_applyTopics(prefs));
       });
     } catch (e) {
       debugPrint('FCM token refresh listen: $e');
@@ -119,16 +179,26 @@ class PushNotificationService {
     } catch (e) {
       debugPrint('FCM message listen: $e');
     }
+  }
 
+  /// Soğuk açılış / bildirim tıklaması: FCM launch payload.
+  Future<Map<String, String>?> recoverLaunchNotification() async {
     try {
-      final initial = await _messaging
-          .getInitialMessage()
-          .timeout(const Duration(seconds: 3));
+      final initial = await _messaging.getInitialMessage();
       if (initial != null) {
         _handleOpen(initial);
+        return _normalizeData(_stringData(initial));
       }
     } catch (e) {
       debugPrint('FCM initial message: $e');
+    }
+    return takePendingOpenDataAsync();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(ensureTokenRegistered());
     }
   }
 
@@ -139,8 +209,22 @@ class PushNotificationService {
     if (t.isEmpty) return;
     final client = Supabase.instance.client;
     final user = client.auth.currentUser;
-    final email = (user?.email ?? '').trim().toLowerCase();
-    if (user == null || email.isEmpty) return;
+    if (user == null) return;
+    var email = (user.email ?? '').trim().toLowerCase();
+    // Apple Sign-In JWT e-postası boş kalabiliyor; profil / uid yedek.
+    if (email.isEmpty) {
+      try {
+        final row = await client
+            .from('user_profiles')
+            .select('owner_email')
+            .eq('owner_id', user.id)
+            .maybeSingle();
+        email = (row?['owner_email'] as String? ?? '').trim().toLowerCase();
+      } catch (e) {
+        debugPrint('FCM token e-posta profil: $e');
+      }
+    }
+    if (email.isEmpty) email = user.id;
     try {
       await client.from('user_push_tokens').upsert(
         {
@@ -158,8 +242,18 @@ class PushNotificationService {
   }
 
   /// Bildirim tercihlerine göre FCM topic abonelikleri.
-  Future<void> syncTopics(BildirimAyarlari prefs) async {
+  Future<void> syncTopics(BildirimAyarlari prefs, {String? userType}) async {
     if (kIsWeb || !_initialized) return;
+    _topicPrefs = prefs;
+    if (userType != null) _topicUserType = userType;
+    if ((fcmToken ?? '').trim().isEmpty) {
+      await _refreshToken();
+      return;
+    }
+    await _applyTopics(prefs);
+  }
+
+  Future<void> _applyTopics(BildirimAyarlari prefs) async {
     Future<void> set(String topic, bool on) async {
       try {
         if (on) {
@@ -173,7 +267,9 @@ class PushNotificationService {
     }
 
     await set('duyurular', prefs.duyurular);
-    await set('ilanlar', prefs.ilanlar);
+    await set(kIlanlarTopic, prefs.ilanlar);
+    final prof = isProfUserType(_topicUserType ?? currentAuthUserType());
+    await set(kIlanlarProfTopic, prefs.ilanlar && prof);
     await set('forum', prefs.forum);
     await set('mesajlar', prefs.mesajlar);
   }
@@ -204,6 +300,20 @@ class PushNotificationService {
           },
         );
         ok = true;
+        try {
+          final launch = await _local.getNotificationAppLaunchDetails();
+          final payload = launch?.notificationResponse?.payload;
+          if (launch?.didNotificationLaunchApp == true &&
+              payload != null &&
+              payload.isNotEmpty) {
+            final map = jsonDecode(payload) as Map<String, dynamic>;
+            _emitOpen(
+              RemoteMessage(data: map.map((k, v) => MapEntry(k, '$v'))),
+            );
+          }
+        } catch (e) {
+          debugPrint('FCM local launch: $e');
+        }
         break;
       } catch (e) {
         debugPrint('FCM local notify init ($icon): $e');
@@ -264,7 +374,7 @@ class PushNotificationService {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) {
       return 'ok';
     }
-    for (var i = 0; i < 12; i++) {
+    for (var i = 0; i < 24; i++) {
       try {
         final apns = await _messaging.getAPNSToken();
         if (apns != null && apns.isNotEmpty) return apns;
@@ -278,14 +388,22 @@ class PushNotificationService {
   }
 
   Future<void> _refreshToken() async {
+    if (_refreshing) return;
+    _refreshing = true;
     try {
       final apns = await _waitForApnsToken();
       if (apns == null) return;
       fcmToken = await _messaging.getToken().timeout(const Duration(seconds: 8));
       debugPrint('FCM token: $fcmToken');
       await registerTokenWithServer(fcmToken);
+      final prefs = _topicPrefs;
+      if (prefs != null && (fcmToken ?? '').trim().isNotEmpty) {
+        await _applyTopics(prefs);
+      }
     } catch (e) {
       debugPrint('FCM token alınamadı: $e');
+    } finally {
+      _refreshing = false;
     }
   }
 
@@ -317,6 +435,9 @@ class PushNotificationService {
     debugPrint(
       'FCM foreground: title=${message.notification?.title} data=${message.data}',
     );
+    // iOS: sistem banner FCM presentation options ile gelir; yerel eklenti
+    // UNUserNotificationCenter delegate'ini çalıp tıklamayı yutmasın.
+    if (defaultTargetPlatform == TargetPlatform.iOS) return;
     final n = message.notification;
     final title = n?.title ?? message.data['title']?.toString() ?? '';
     final body = n?.body ?? message.data['body']?.toString() ?? '';

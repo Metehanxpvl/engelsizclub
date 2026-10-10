@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'data/centers_data.dart';
+import 'iyilik_market_store.dart';
 import 'kredi_store.dart';
 import 'utils/async_timeout.dart';
 
@@ -339,6 +340,26 @@ bool haritaYerMatchesQuery(
 
 bool haritaIyilikOdulThisReport(int reportCount) => reportCount > 0;
 
+/// Haritada isimsiz pin: aynı şehirde her işaret aynı ada düşmesin.
+String haritaYerBildirimAdi({
+  required String name,
+  required String city,
+  double lat = 0,
+  double lng = 0,
+}) {
+  final n = name.trim();
+  final folded = n.toLowerCase();
+  final generic = n.isEmpty ||
+      n == '—' ||
+      n.length < 3 ||
+      folded.contains('haritada işaretlenen');
+  if (!generic) return n;
+  final cityName = city.trim().isEmpty ? 'Konum' : city.trim();
+  final base = '$cityName — haritada işaretlenen yer';
+  if (lat.abs() < 1e-5 && lng.abs() < 1e-5) return base;
+  return '$base (${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)})';
+}
+
 int haritaIyilikKalan(int reportCount) =>
     reportCount > 0 ? 0 : kHaritaYerBildirimPerOdul;
 
@@ -463,17 +484,34 @@ class HaritaYerBildirResult {
   final int? newBalance;
 }
 
-String _schemaError(Object e) {
+bool _rpcSignatureMissing(Object e) {
   final s = e.toString().toLowerCase();
-  if (s.contains('harita_yer_bildir') ||
-      s.contains('harita_yer_guncelle') ||
-      s.contains('harita_yer_sil') ||
-      s.contains('could not find the function') ||
+  return s.contains('could not find the function') ||
       s.contains('schema cache') ||
-      s.contains('does not exist')) {
+      s.contains('pgrst202') ||
+      s.contains('pgrst203');
+}
+
+String _schemaError(Object e) {
+  var s = e.toString();
+  s = s.replaceFirst(RegExp(r'^PostgrestException\(', caseSensitive: false), '');
+  s = s.replaceFirst(RegExp(r'^Exception: '), '');
+  s = s.replaceFirst(RegExp(r'^Bad state: '), '');
+  if (s.endsWith(')')) s = s.substring(0, s.length - 1);
+  final low = s.toLowerCase();
+  if (low.contains('zaten bildirdiniz') || low.contains('unique_violation')) {
+    return 'Bu konumu daha önce bildirdiniz.';
+  }
+  if (low.contains('harita_yer_guncelle') ||
+      low.contains('harita_yer_sil') ||
+      low.contains('harita_yer_bildirimleri') ||
+      (low.contains('does not exist') && !low.contains('harita_yer_bildir'))) {
     return 'Yer bildirimi için Supabase’de harita_yer_bildirimleri.sql dosyasını çalıştırın.';
   }
-  return e.toString().replaceFirst('Exception: ', '');
+  if (_rpcSignatureMissing(e) || low.contains('harita_yer_bildir')) {
+    return 'Yer kaydı alınamadı. Sayfayı yenileyip tekrar deneyin.';
+  }
+  return s.trim();
 }
 
 Future<List<MetoCenter>> loadHaritaYerBildirimleri({String? city}) async {
@@ -528,6 +566,7 @@ Future<HaritaYerBildirResult> submitHaritaYerBildirimi({
   String note = '',
   double lat = 0,
   double lng = 0,
+  String userType = '',
 }) async {
   final user = Supabase.instance.client.auth.currentUser;
   if (user == null) {
@@ -543,39 +582,42 @@ Future<HaritaYerBildirResult> submitHaritaYerBildirimi({
   final cat = category.trim().isEmpty
       ? kHaritaErisimKategori
       : category.trim();
+  final role = normalizedUserType(userType);
+  final params = <String, dynamic>{
+    'p_name': trimmed,
+    'p_category': cat,
+    'p_city': city.trim(),
+    'p_ilce': ilce.trim(),
+    'p_address': address.trim(),
+    'p_phone': phone.trim(),
+    'p_note': note.trim(),
+    'p_lat': lat,
+    'p_lng': lng,
+    'p_user_type': role,
+  };
   try {
-    final raw = await withNetworkTimeout(
-      Supabase.instance.client.rpc(
-        'harita_yer_bildir',
-        params: {
-          'p_name': trimmed,
-          'p_category': cat,
-          'p_city': city.trim(),
-          'p_ilce': ilce.trim(),
-          'p_address': address.trim(),
-          'p_phone': phone.trim(),
-          'p_note': note.trim(),
-          'p_lat': lat,
-          'p_lng': lng,
-        },
-      ),
+    Future<dynamic> call(Map<String, dynamic> body) => withNetworkTimeout(
+      Supabase.instance.client.rpc('harita_yer_bildir', params: body),
       message: 'Yer bildirilemedi.',
     );
+    dynamic raw;
+    try {
+      raw = await call(params);
+    } catch (e) {
+      if (!_rpcSignatureMissing(e)) rethrow;
+      final fallback = Map<String, dynamic>.from(params)..remove('p_user_type');
+      raw = await call(fallback);
+    }
     final map = _asMap(raw);
     if (map == null) {
       throw StateError('Yer kaydedilemedi.');
     }
     final id = (map['id'] as num?)?.toInt() ?? 0;
     final count = (map['report_count'] as num?)?.toInt() ?? 0;
-    final awarded = map['awarded'] == true;
-    final balance = (map['new_balance'] as num?)?.toInt();
-    if (awarded && balance != null) {
-      await saveUserKredi(
-        email: email,
-        balance: balance,
-        welcomeGiftGiven: true,
-      );
-    }
+    final market = await awardIyilikMarketPuan(
+      email: email,
+      userType: role,
+    );
     return HaritaYerBildirResult(
       item: HaritaYerBildirim(
         id: id,
@@ -591,8 +633,8 @@ Future<HaritaYerBildirResult> submitHaritaYerBildirimi({
         lng: lng,
       ),
       reportCount: count,
-      awarded: awarded,
-      newBalance: balance,
+      awarded: market != null,
+      newBalance: market,
     );
   } catch (e) {
     if (e is StateError) rethrow;

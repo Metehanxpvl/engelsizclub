@@ -79,6 +79,26 @@ void main() {
     expect(inactive.isVisibleNow(now), isFalse);
   });
 
+  test('did-you-know corner lists facts; home strip hides them', () {
+    final now = DateTime(2026, 6, 15);
+    const kTitle = 'Bunu biliyor musunuz?';
+    final fact = DuyuruItem(
+      id: 7,
+      title: kTitle,
+      body: 'Test bilgi',
+      imageUrl: '',
+      sourceUrl: 'did_you_know',
+      createdAt: DateTime(2026, 6, 10),
+      isPopup: true,
+    );
+    final news = _item(id: 1, publishAt: DateTime(2026, 6, 1));
+    expect(didYouKnowForHome([fact, news], now: now).map((e) => e.id), [7]);
+    expect(
+      duyurularForHomeStrip([fact, news], now: now).map((e) => e.id),
+      [1],
+    );
+  });
+
   group('all-screen vs home strip', () {
     test('all-screen lists every currently visible item, including popups', () {
       final now = DateTime(2026, 6, 15);

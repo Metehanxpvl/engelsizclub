@@ -23,9 +23,11 @@ class HaritaYerBildirSheet extends StatefulWidget {
     this.initialPhone = '',
     this.initialCategory,
     this.existing,
+    required this.userType,
   });
 
   final String email;
+  final String userType;
   final String city;
   final String ilce;
   final double lat;
@@ -53,11 +55,12 @@ class _HaritaYerBildirSheetState extends State<HaritaYerBildirSheet> {
     return 'Haritada işaretlenen yer';
   }
 
-  String get _submitName {
-    final name = (widget.existing?.name ?? widget.initialName).trim();
-    if (name.length >= 3) return name;
-    return '${widget.city} — haritada işaretlenen yer';
-  }
+  String get _submitName => haritaYerBildirimAdi(
+        name: widget.existing?.name ?? widget.initialName,
+        city: widget.city,
+        lat: widget.lat,
+        lng: widget.lng,
+      );
 
   bool get _isEdit => widget.existing != null;
 
@@ -154,6 +157,7 @@ class _HaritaYerBildirSheetState extends State<HaritaYerBildirSheet> {
           note: note,
           lat: widget.lat,
           lng: widget.lng,
+          userType: widget.userType,
         );
       }
       final center = result.item.toCenter();
@@ -168,7 +172,14 @@ class _HaritaYerBildirSheetState extends State<HaritaYerBildirSheet> {
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'.replaceFirst('Bad state: ', ''))),
+        SnackBar(
+          content: Text(
+            '$e'
+                .replaceFirst('Bad state: ', '')
+                .replaceFirst(RegExp(r'^PostgrestException\(', caseSensitive: false), '')
+                .replaceFirst(RegExp(r'\)$'), ''),
+          ),
+        ),
       );
     }
   }

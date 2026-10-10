@@ -123,3 +123,94 @@ NutrientAmounts nutritionAmountsFor(FoodDictionaryEntry entry) {
       kCategoryNutrition[entry.category] ??
       NutrientAmounts.zero();
 }
+
+/// 100 g makro profili. Vitamin/mineral [kNutritionDatabase] ile aynı gıda id’leri.
+final kMacroDatabase = Map<String, MacroAmounts>.unmodifiable({
+  'egg': m(kcal: 155, p: 13, c: 1.1, f: 11, fib: 0, s: 1.1, na: 124),
+  'white_cheese': m(kcal: 264, p: 17, c: 3, f: 21, fib: 0, s: 1, na: 1116),
+  'olive': m(kcal: 145, p: 1, c: 3.8, f: 15, fib: 3.3, s: 0.5, na: 1556),
+  'bread': m(kcal: 265, p: 9, c: 49, f: 3.2, fib: 2.7, s: 5, na: 491),
+  'lentil_soup': m(kcal: 56, p: 3.5, c: 8.2, f: 1.2, fib: 2, s: 1, na: 320),
+  'salad': m(kcal: 20, p: 1.2, c: 3.5, f: 0.2, fib: 1.5, s: 2, na: 15),
+  'chicken': m(kcal: 165, p: 31, c: 0, f: 3.6, fib: 0, s: 0, na: 74),
+  'ayran': m(kcal: 35, p: 2, c: 3, f: 1.5, fib: 0, s: 3, na: 45),
+  'almond': m(kcal: 579, p: 21, c: 22, f: 50, fib: 12.5, s: 4.4, na: 1),
+  'banana': m(kcal: 89, p: 1.1, c: 23, f: 0.3, fib: 2.6, s: 12, na: 1),
+  'milk': m(kcal: 61, p: 3.2, c: 4.8, f: 3.3, fib: 0, s: 5, na: 44),
+  'yogurt': m(kcal: 61, p: 3.5, c: 4.7, f: 3.3, fib: 0, s: 4.7, na: 46),
+  'rice': m(kcal: 130, p: 2.7, c: 28, f: 0.3, fib: 0.4, s: 0.1, na: 1),
+  'tomato': m(kcal: 18, p: 0.9, c: 3.9, f: 0.2, fib: 1.2, s: 2.6, na: 5),
+  'spinach': m(kcal: 23, p: 2.9, c: 3.6, f: 0.4, fib: 2.2, s: 0.4, na: 79),
+  'broccoli': m(kcal: 34, p: 2.8, c: 7, f: 0.4, fib: 2.6, s: 1.7, na: 33),
+  'orange': m(kcal: 47, p: 0.9, c: 12, f: 0.1, fib: 2.4, s: 9.4, na: 0),
+  'apple': m(kcal: 52, p: 0.3, c: 14, f: 0.2, fib: 2.4, s: 10, na: 1),
+  'red_meat': m(kcal: 250, p: 26, c: 0, f: 15, fib: 0, s: 0, na: 72),
+  'fish': m(kcal: 206, p: 22, c: 0, f: 12, fib: 0, s: 0, na: 59),
+  'chickpea': m(kcal: 164, p: 8.9, c: 27, f: 2.6, fib: 7.6, s: 4.8, na: 7),
+  'olive_oil': m(kcal: 884, p: 0, c: 0, f: 100, fib: 0, s: 0, na: 2),
+  'walnut': m(kcal: 654, p: 15, c: 14, f: 65, fib: 6.7, s: 2.6, na: 2),
+  'hazelnut': m(kcal: 628, p: 15, c: 17, f: 61, fib: 9.7, s: 4.3, na: 0),
+  'cucumber': m(kcal: 15, p: 0.7, c: 3.6, f: 0.1, fib: 0.5, s: 1.7, na: 2),
+  'potato': m(kcal: 77, p: 2, c: 17, f: 0.1, fib: 2.2, s: 0.8, na: 6),
+  'sucuk': m(kcal: 452, p: 22, c: 1.2, f: 40, fib: 0, s: 0.5, na: 1500),
+  'mineral_water': m(kcal: 0, p: 0, c: 0, f: 0, fib: 0, s: 0, na: 10),
+  'soda_drink': m(kcal: 42, p: 0, c: 10.6, f: 0, fib: 0, s: 10.6, na: 8),
+  'coffee': m(kcal: 2, p: 0.1, c: 0, f: 0, fib: 0, s: 0, na: 2),
+  'tea': m(kcal: 1, p: 0, c: 0.3, f: 0, fib: 0, s: 0, na: 3),
+  'vegetables': m(kcal: 35, p: 2, c: 7, f: 0.3, fib: 2.5, s: 3, na: 40),
+  'carrot': m(kcal: 41, p: 0.9, c: 10, f: 0.2, fib: 2.8, s: 4.7, na: 69),
+  'pepper': m(kcal: 31, p: 1, c: 6, f: 0.3, fib: 2.1, s: 4.2, na: 4),
+  'cauliflower': m(kcal: 25, p: 1.9, c: 5, f: 0.3, fib: 2, s: 1.9, na: 30),
+  'strawberry': m(kcal: 32, p: 0.7, c: 7.7, f: 0.3, fib: 2, s: 4.9, na: 1),
+  'avocado': m(kcal: 160, p: 2, c: 8.5, f: 15, fib: 6.7, s: 0.7, na: 7),
+  'cashew': m(kcal: 553, p: 18, c: 30, f: 44, fib: 3.3, s: 5.9, na: 12),
+  'pistachio': m(kcal: 560, p: 20, c: 27, f: 45, fib: 10, s: 7.7, na: 1),
+  'peanut': m(kcal: 567, p: 26, c: 16, f: 49, fib: 8.5, s: 4.7, na: 18),
+  'oats': m(kcal: 389, p: 17, c: 66, f: 6.9, fib: 10.6, s: 1, na: 2),
+  'lentils': m(kcal: 116, p: 9, c: 20, f: 0.4, fib: 7.9, s: 1.8, na: 2),
+  'honey': m(kcal: 304, p: 0.3, c: 82, f: 0, fib: 0.2, s: 82, na: 4),
+});
+
+final kCategoryMacros = Map<FoodCategory, MacroAmounts>.unmodifiable({
+  FoodCategory.vegetable: m(kcal: 35, p: 2, c: 7, f: 0.3, fib: 2.5, s: 3, na: 40),
+  FoodCategory.fruit: m(kcal: 55, p: 0.8, c: 14, f: 0.2, fib: 2.5, s: 10, na: 5),
+  FoodCategory.nut: m(kcal: 600, p: 18, c: 20, f: 52, fib: 8, s: 4, na: 5),
+  FoodCategory.dairy: m(kcal: 65, p: 3.5, c: 5, f: 3.5, fib: 0, s: 5, na: 50),
+  FoodCategory.meat: m(kcal: 180, p: 26, c: 0, f: 8, fib: 0, s: 0, na: 70),
+  FoodCategory.egg: m(kcal: 155, p: 13, c: 1.1, f: 11, fib: 0, s: 1.1, na: 124),
+  FoodCategory.legume: m(kcal: 140, p: 9, c: 23, f: 1.5, fib: 8, s: 1, na: 5),
+  FoodCategory.grain: m(kcal: 140, p: 4, c: 28, f: 1.5, fib: 2, s: 0.5, na: 200),
+  FoodCategory.soup: m(kcal: 50, p: 2.5, c: 6, f: 1.5, fib: 1.5, s: 1, na: 350),
+  FoodCategory.dish: m(kcal: 120, p: 5, c: 12, f: 6, fib: 2, s: 2, na: 300),
+  FoodCategory.oil: m(kcal: 884, p: 0, c: 0, f: 100, fib: 0, s: 0, na: 0),
+  FoodCategory.snack: m(kcal: 480, p: 7, c: 60, f: 22, fib: 3, s: 15, na: 400),
+  FoodCategory.sweet: m(kcal: 280, p: 4, c: 45, f: 10, fib: 1, s: 30, na: 80),
+  FoodCategory.drink: m(kcal: 5, p: 0, c: 1, f: 0, fib: 0, s: 0, na: 5),
+  FoodCategory.other: m(kcal: 80, p: 2, c: 10, f: 3, fib: 1, s: 2, na: 80),
+});
+
+MacroAmounts m({
+  double kcal = 0,
+  double p = 0,
+  double c = 0,
+  double f = 0,
+  double fib = 0,
+  double s = 0,
+  double na = 0,
+}) {
+  return MacroAmounts(
+    caloriesKcal: kcal,
+    proteinG: p,
+    carbohydratesG: c,
+    fatG: f,
+    fiberG: fib,
+    sugarG: s,
+    sodiumMg: na,
+  );
+}
+
+MacroAmounts macroAmountsFor(FoodDictionaryEntry entry) {
+  return kMacroDatabase[entry.id] ??
+      kCategoryMacros[entry.category] ??
+      MacroAmounts.zero();
+}

@@ -76,6 +76,18 @@ create table if not exists public.harita_yer_bildirimleri (
   unique (user_id, name_norm, city_norm)
 );
 
+drop index if exists public.harita_yer_bildirimleri_user_yer_idx;
+alter table public.harita_yer_bildirimleri
+  drop constraint if exists harita_yer_bildirimleri_user_id_name_norm_city_norm_key;
+create unique index if not exists harita_yer_bildirimleri_user_yer_idx
+  on public.harita_yer_bildirimleri (
+    user_id,
+    name_norm,
+    city_norm,
+    (round(lat::numeric, 4)),
+    (round(lng::numeric, 4))
+  );
+
 alter table public.harita_yer_bildirimleri
   alter column category set default 'Erişilebilirlik';
 
@@ -184,6 +196,9 @@ create policy "harita_yer_select"
   to anon, authenticated
   using (true);
 
+drop function if exists public.harita_yer_bildir(text, text, text, text, text, text, text, double precision, double precision);
+drop function if exists public.harita_yer_bildir(text, text, text, text, text, text, text, double precision, double precision, text);
+
 create or replace function public.harita_yer_bildir(
   p_name text,
   p_category text,
@@ -193,17 +208,20 @@ create or replace function public.harita_yer_bildir(
   p_phone text default '',
   p_note text default '',
   p_lat double precision default 0,
-  p_lng double precision default 0
+  p_lng double precision default 0,
+  p_user_type text default ''
 )
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, auth
 as $$
 declare
   v_user uuid := auth.uid();
   v_email text := lower(coalesce(auth.jwt() ->> 'email', ''));
-  v_role text := public.member_user_type(v_user);
+  v_meta_role text := '';
+  v_jwt_role text := '';
+  v_client_role text := lower(btrim(coalesce(p_user_type, '')));
   v_name text := btrim(coalesce(p_name, ''));
   v_city text := btrim(coalesce(p_city, ''));
   v_cat text := btrim(coalesce(p_category, ''));
@@ -261,17 +279,27 @@ begin
   from public.harita_yer_bildirimleri
   where user_id = v_user;
 
-  if v_role = 'aile' then
-    insert into public.user_profiles (
-      owner_id, owner_email, kredi, kredi_welcome_gift, updated_at
-    ) values (
-      v_user, v_email, 1, true, now()
-    )
-    on conflict (owner_id) do update
-      set kredi = public.user_profiles.kredi + 1,
-          updated_at = now();
-    v_awarded := true;
+  select lower(btrim(coalesce(raw_user_meta_data ->> 'user_type', '')))
+    into v_meta_role
+    from auth.users
+    where id = v_user;
+  v_jwt_role := lower(btrim(coalesce(
+    auth.jwt() -> 'user_metadata' ->> 'user_type',
+    auth.jwt() -> 'app_metadata' ->> 'user_type',
+    ''
+  )));
+  if v_client_role in ('bakici', 'bakıcı') then
+    v_client_role := 'bakici';
   end if;
+  if v_meta_role in ('bakici', 'bakıcı') then
+    v_meta_role := 'bakici';
+  end if;
+  if v_jwt_role in ('bakici', 'bakıcı') then
+    v_jwt_role := 'bakici';
+  end if;
+
+  -- Puanı uygulama yazar (yalnız aile). Bu RPC bakiyeye dokunmaz.
+  v_awarded := false;
 
   select coalesce(kredi, 0) into v_balance
   from public.user_profiles
@@ -289,11 +317,8 @@ exception
 end;
 $$;
 
-revoke all on function public.harita_yer_bildir(
-  text, text, text, text, text, text, text, double precision, double precision
-) from public;
 grant execute on function public.harita_yer_bildir(
-  text, text, text, text, text, text, text, double precision, double precision
+  text, text, text, text, text, text, text, double precision, double precision, text
 ) to authenticated;
 
 notify pgrst, 'reload schema';

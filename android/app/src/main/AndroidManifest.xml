@@ -73,6 +73,11 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- FCM bildirim tıklaması: ilgili mesaj/ilan/forum sayfasına git -->
+            <intent-filter>
+                <action android:name="FLUTTER_NOTIFICATION_CLICK" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
             <!-- Supabase Google OAuth dönüş deep link -->
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />

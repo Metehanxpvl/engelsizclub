@@ -13,6 +13,7 @@ import '../forum_store.dart';
 import '../forum_follow_store.dart';
 import '../forum_post_follow_store.dart';
 import '../kredi_store.dart';
+import '../iyilik_market_store.dart';
 import '../content_view_store.dart';
 import '../meto_theme.dart';
 import '../utils/async_timeout.dart';
@@ -57,6 +58,7 @@ class ForumPage extends StatefulWidget {
     this.isGuest = false,
     this.onRequireLogin,
     this.onKrediChanged,
+    this.onMarketPuanChanged,
     this.openPostId,
     this.openCommentId,
     this.openPostToken = 0,
@@ -70,6 +72,7 @@ class ForumPage extends StatefulWidget {
   final bool isGuest;
   final VoidCallback? onRequireLogin;
   final ValueChanged<int>? onKrediChanged;
+  final ValueChanged<int>? onMarketPuanChanged;
   /// Bildirimden açılacak gönderi / yorum.
   final int? openPostId;
   final int? openCommentId;
@@ -1165,10 +1168,16 @@ class ForumPageState extends State<ForumPage> {
         _filterTag = null;
         _publishing = false;
       });
-      final awardedIyilik = !isEdit && awardsIyilikForShare(widget.userType);
-      if (awardedIyilik) {
-        final balance = await syncCloudKredi(email: widget.userEmail);
-        if (balance != null) widget.onKrediChanged?.call(balance);
+      var awardedMarket = false;
+      if (!isEdit && isAileUserType(widget.userType)) {
+        final market = await awardIyilikMarketPuan(
+          email: widget.userEmail,
+          userType: widget.userType,
+        );
+        if (market != null) {
+          awardedMarket = true;
+          widget.onMarketPuanChanged?.call(market);
+        }
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1177,7 +1186,7 @@ class ForumPageState extends State<ForumPage> {
             forumShareSnack(
               isEdit: isEdit,
               isExpert: isExpert,
-              awardedIyilik: awardedIyilik,
+              awardedMarket: awardedMarket,
             ),
           ),
         ),

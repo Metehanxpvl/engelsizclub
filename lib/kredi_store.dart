@@ -29,6 +29,23 @@ String krediPrefsKeyFor(String email, {String fallback = 'anon'}) {
 String krediGrantPrefsKeyFor(String email) =>
     '${krediPrefsKeyFor(email)}_grant_v$kKrediGrantVersion';
 
+String krediProfStartPrefsKeyFor(String email) =>
+    '${krediPrefsKeyFor(email)}_prof_start_v1';
+
+/// Aile hediyesi 1 kaldıysa uzman/bakıcıya ilk geçişte 5 puana çekilir.
+int? profStartTopUpAmount({
+  required int current,
+  required String? userType,
+  required bool alreadyGranted,
+  required String email,
+}) {
+  if (isAppAdmin(email)) return null;
+  if (!isProfUserType(userType)) return null;
+  if (alreadyGranted) return null;
+  if (current >= kMemberStartKredi) return null;
+  return kMemberStartKredi;
+}
+
 bool isProfUserType(String? userType) {
   final t = normalizedUserType(userType);
   return t == 'uzman' || t == 'bakici';
@@ -50,9 +67,10 @@ String currentAuthUserType() {
 bool isAileUserType(String? userType) =>
     normalizedUserType(userType) == 'aile';
 
-/// İlan / forum / yer bildirimi puanı yalnızca aile rolüne.
+/// İlan / forum / yer bildirimi puanı: ekrandaki rol aile ise (boş = aile).
+/// Uzman / bakıcı asla almaz. JWT değil, çağıranın verdiği UI rolü kullanılır.
 bool awardsIyilikForShare(String? userType) =>
-    isAileUserType(userType) && !isProfUserType(userType);
+    normalizedUserType(userType) == 'aile';
 
 /// Forum / ilan paylaşımı sonrası tetikleyicinin yazdığı bakiyeyi yerelde günceller.
 Future<int?> syncCloudKredi({required String email}) async {
@@ -78,26 +96,21 @@ Future<int?> syncCloudKredi({required String email}) async {
   }
 }
 
-String forumShareSnack({
-  required bool isEdit,
-  required bool isExpert,
-  required bool awardedIyilik,
-}) {
-  if (isEdit) return 'Gönderi güncellendi ✅';
-  final base = isExpert
-      ? 'Köşe yazınız paylaşıldı — herkes görebilir ✅'
-      : 'Gönderiniz paylaşıldı — herkes görebilir ✅';
-  if (!awardedIyilik) return base;
-  return '$base +2 iyilik puanı 💚';
-}
-
-String ilanShareSnack({
-  required bool isEdit,
-  required bool awardedIyilik,
-}) {
-  if (isEdit) return 'İlan güncellendi ✅';
-  if (awardedIyilik) return 'İlanınız yayınlandı. +2 iyilik puanı 💚';
-  return 'İlanınız yayınlandı ✅';
+/// Bulut bakiyeyi okur; yerele yazmaz.
+Future<int?> readCloudKredi() async {
+  final client = Supabase.instance.client;
+  final user = client.auth.currentUser;
+  if (user == null) return null;
+  try {
+    final row = await client
+        .from('user_profiles')
+        .select('kredi')
+        .eq('owner_id', user.id)
+        .maybeSingle();
+    return (row?['kredi'] as num?)?.toInt();
+  } catch (_) {
+    return null;
+  }
 }
 
 bool canPostIlan({
@@ -159,12 +172,39 @@ Future<KrediSnapshot> loadUserKredi({
     return KrediSnapshot(balance: balance, welcomeGiftGiven: gift);
   }
 
+  Future<int> applyProfStartIfNeeded(int balance) async {
+    final profKey = krediProfStartPrefsKeyFor(email);
+    final already = prefs.getBool(profKey) ?? false;
+    final top = profStartTopUpAmount(
+      current: balance,
+      userType: userType,
+      alreadyGranted: already,
+      email: email,
+    );
+    if (top == null) {
+      if (isProfUserType(userType) &&
+          !isAppAdmin(email) &&
+          balance >= kMemberStartKredi) {
+        await prefs.setBool(profKey, true);
+      }
+      return balance;
+    }
+    await saveUserKredi(
+      email: email,
+      balance: top,
+      welcomeGiftGiven: true,
+    );
+    await prefs.setBool(profKey, true);
+    await prefs.setInt(key, top);
+    return top;
+  }
+
   Future<KrediSnapshot> applyGrantIfNeeded({
     required int? current,
     required bool welcomeGift,
   }) async {
     final granted = prefs.getBool(grantKey) ?? false;
-    final bal = current ?? 0;
+    var bal = current ?? 0;
 
     // Admin: bu grant sürümünde hedef bakiyeye çek (10000).
     if (isAppAdmin(email)) {
@@ -191,10 +231,12 @@ Future<KrediSnapshot> loadUserKredi({
       );
       if (saved) await prefs.setBool(grantKey, true);
       await prefs.setInt(key, target);
-      return finish(target);
+      bal = target;
+    } else {
+      await prefs.setBool(grantKey, true);
     }
 
-    await prefs.setBool(grantKey, true);
+    bal = await applyProfStartIfNeeded(bal);
     if (welcomeGift) await prefs.setBool(giftKey, true);
     return finish(bal, gift: true);
   }
@@ -237,14 +279,32 @@ Future<KrediSnapshot> loadUserKredi({
     }
     return finish(local ?? target);
   }
+  var bal = local ?? 0;
   if (!granted) {
     await prefs.setInt(key, target);
     await prefs.setBool(giftKey, true);
     await prefs.setBool(grantKey, true);
-    return KrediSnapshot(balance: target, welcomeGiftGiven: true);
+    bal = target;
+  } else {
+    await prefs.setBool(grantKey, true);
   }
-  await prefs.setBool(grantKey, true);
-  return finish(local ?? target, gift: true);
+  final profKey = krediProfStartPrefsKeyFor(email);
+  final top = profStartTopUpAmount(
+    current: bal,
+    userType: userType,
+    alreadyGranted: prefs.getBool(profKey) ?? false,
+    email: email,
+  );
+  if (top != null) {
+    await prefs.setInt(key, top);
+    await prefs.setBool(giftKey, true);
+    await prefs.setBool(profKey, true);
+    return KrediSnapshot(balance: top, welcomeGiftGiven: true);
+  }
+  if (isProfUserType(userType) && bal >= kMemberStartKredi) {
+    await prefs.setBool(profKey, true);
+  }
+  return finish(bal, gift: true);
 }
 
 Future<bool> saveUserKredi({

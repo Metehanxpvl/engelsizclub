@@ -51,6 +51,64 @@ UpdatePromptKind resolveUpdatePrompt({
 String forceUpdateSkipPrefsKey(String version) =>
     'force_update_skipped_v:${version.trim()}';
 
+/// Otomatik mağaza sürüm bildirimi: aynı build ikinci kez gitmesin.
+const kAppUpdatePushSettingsKey = 'app_update_push';
+const kAppUpdatePushMinBuild = 116;
+const kAppUpdatePushType = 'app_update';
+
+/// Play'de bekleyen kod varsa onu, yoksa yüklü build'i kullanır.
+String? appUpdateAnnouncementId({
+  required int localBuild,
+  int playAvailableBuild = 0,
+}) {
+  var build = localBuild;
+  if (playAvailableBuild > build) build = playAvailableBuild;
+  if (build < kAppUpdatePushMinBuild) return null;
+  return 'build:$build';
+}
+
+bool appUpdateIdAlreadyAnnounced(Object? value, String id) {
+  if (id.isEmpty || value is! Map) return false;
+  if ((value['id']?.toString() ?? '') == id) return true;
+  final ids = value['ids'];
+  if (ids is List) {
+    for (final e in ids) {
+      if (e.toString() == id) return true;
+    }
+  }
+  return false;
+}
+
+Map<String, dynamic> mergeAppUpdatePushValue({
+  required Object? previous,
+  required String id,
+  required String version,
+  required int build,
+  required String at,
+}) {
+  final ids = <String>{};
+  if (previous is Map) {
+    final prevId = previous['id']?.toString() ?? '';
+    if (prevId.isNotEmpty) ids.add(prevId);
+    final prevIds = previous['ids'];
+    if (prevIds is List) {
+      for (final e in prevIds) {
+        final s = e.toString();
+        if (s.isNotEmpty) ids.add(s);
+      }
+    }
+  }
+  ids.add(id);
+  final sorted = ids.toList()..sort();
+  return {
+    'id': id,
+    'ids': sorted,
+    'version': version,
+    'build': build,
+    'at': at,
+  };
+}
+
 /// Ağ / parse hatalarında uygulama açık kalsın.
 Future<UpdatePromptKind> resolveUpdatePromptFromFetch({
   required String current,

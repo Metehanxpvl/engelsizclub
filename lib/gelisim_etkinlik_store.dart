@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_config.dart';
 import 'data/gelisim_etkinlik_data.dart';
+import 'services/broadcast_push_service.dart';
 import 'utils/async_timeout.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
@@ -96,6 +99,17 @@ Future<GelisimEtkinlik> insertGelisimEtkinlik({
       })
       .select()
       .single();
+  if (isActive) {
+    unawaited(
+      BroadcastPushService.instance.gelisim(
+        title: title.trim().isEmpty ? 'Yeni gelişim etkinliği' : title.trim(),
+        body: description.trim().isEmpty
+            ? 'Gelişim Etkinlikleri’ne yeni içerik eklendi.'
+            : description.trim(),
+        etkinlikId: '$id',
+      ),
+    );
+  }
   return GelisimEtkinlik.fromJson(row);
 }
 

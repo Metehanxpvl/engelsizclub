@@ -3,6 +3,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'aile_kocu_schedule.dart';
+
 /// Aile Koçu — tamamen yerel bildirimler (FCM yok).
 /// Sessiz saatler: 22:00–08:00 (o aralıkta planlananlar 08:00'e kaydırılır).
 class AileKocuNotificationService {
@@ -207,7 +209,7 @@ class AileKocuNotificationService {
   }
 
   int _lessonNotifId(String lessonId, int dayOffset) =>
-      Object.hash('lesson', lessonId, dayOffset) & 0x7fffffff;
+      aileKocuLessonNotifId(lessonId, dayOffset);
 
   /// Takvim günü + saat başına tek bildirim (aynı gün tekrarlanmaz).
   int _medNotifId(String medicineId, String time, DateTime day) =>
@@ -308,9 +310,9 @@ class AileKocuNotificationService {
     required String payloadLessonId,
   }) async {
     if (!_ready || kIsWeb) return;
-    var when = _wallClock(scheduledAt);
-    when = respectQuietHours(when);
+    final when = _wallClock(scheduledAt);
     if (!when.isAfter(tz.TZDateTime.now(tz.local))) return;
+    await cancel(notificationId);
 
     await _zonedSchedule(
       id: notificationId,
@@ -320,15 +322,15 @@ class AileKocuNotificationService {
         _channelName,
         channelDescription: 'Ders hatırlatmaları',
         icon: _smallIcon,
-        importance: Importance.high,
-        priority: Priority.high,
+        importance: Importance.max,
+        priority: Priority.max,
         playSound: true,
         enableVibration: true,
         category: AndroidNotificationCategory.reminder,
         styleInformation: BigTextStyleInformation(
           '$time · $title',
-          contentTitle: '$childName · Ders hatırlatma',
-          summaryText: '2 saat kaldı',
+          contentTitle: '$childName · Ders zamanı',
+          summaryText: title,
         ),
         actions: const <AndroidNotificationAction>[
           AndroidNotificationAction('lesson_done', 'YAPILDI'),
@@ -341,10 +343,10 @@ class AileKocuNotificationService {
         presentSound: true,
         presentBadge: true,
       ),
-      mode: _scheduleMode,
+      mode: _medScheduleMode,
       payload: 'lesson|$payloadLessonId|$title|$time',
       title: '$childName · Ders',
-      body: '$time — $title (2 saat kaldı)',
+      body: '$time — $title',
     );
   }
 
@@ -558,9 +560,22 @@ class AileKocuNotificationService {
 
   Future<void> cancelLesson(String lessonId) async {
     if (kIsWeb || !_ready) return;
+    try {
+      final pending = await _plugin.pendingNotificationRequests();
+      for (final p in pending) {
+        final payload = p.payload ?? '';
+        if (payload.startsWith('lesson|$lessonId|')) {
+          await cancel(p.id);
+        }
+      }
+    } catch (e) {
+      debugPrint('AileKoçu cancelLesson pending: $e');
+    }
     await Future.wait([
-      for (var add = 0; add < _horizonDays; add++)
+      for (var add = 0; add < _horizonDays; add++) ...[
         cancel(_lessonNotifId(lessonId, add)),
+        cancel(aileKocuLessonNotifIdLegacyOffset(lessonId, add)),
+      ],
     ]);
   }
 
@@ -602,7 +617,7 @@ class AileKocuNotificationService {
     await cancel(_noteNotifId(noteId));
   }
 
-  /// Ders: bugünden itibaren önümüzdeki günler için 2 saat önce planla.
+  /// Ders: seçilen haftanın günlerinde tam saatte planla.
   Future<void> rescheduleLesson({
     required String lessonId,
     required String childName,
@@ -614,30 +629,22 @@ class AileKocuNotificationService {
     if (!_ready && !kIsWeb) await init();
     if (!_ready || kIsWeb) return;
     await cancelLesson(lessonId);
-    final parts = timeHhmm.split(':');
-    if (parts.length < 2) return;
-    final hh = int.tryParse(parts[0]) ?? 0;
-    final mm = int.tryParse(parts[1]) ?? 0;
     final now = DateTime.now();
-    for (var add = 0; add < _horizonDays; add++) {
-      final day = DateTime(now.year, now.month, now.day)
-          .add(Duration(days: add));
-      if (weekdays.isNotEmpty && !weekdays.contains(day.weekday)) continue;
-      final lessonAt = DateTime(day.year, day.month, day.day, hh, mm);
-      var notifyAt = lessonAt.subtract(const Duration(hours: 2));
-      if (!notifyAt.isAfter(now)) {
-        if (lessonAt.isAfter(now)) {
-          notifyAt = lessonAt;
-        } else {
-          continue;
-        }
-      }
+    final ats = aileKocuLessonNotifyAts(
+      timeHhmm: timeHhmm,
+      weekdays: weekdays,
+      now: now,
+      horizonDays: _horizonDays,
+    );
+    final start = DateTime(now.year, now.month, now.day);
+    for (final at in ats) {
+      final add = DateTime(at.year, at.month, at.day).difference(start).inDays;
       await showLessonNotification(
         childName: childName,
         title: title,
         time: timeHhmm,
         photoPath: photoPath,
-        scheduledAt: notifyAt,
+        scheduledAt: at,
         notificationId: _lessonNotifId(lessonId, add),
         payloadLessonId: lessonId,
       );

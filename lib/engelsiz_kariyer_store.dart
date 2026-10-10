@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -489,10 +490,12 @@ Future<void> upsertKariyerOverride({
   String? date,
   String? applyUrl,
   bool custom = false,
+  bool notifyPush = false,
 }) async {
   await _requireKariyerAdmin(adminEmail);
   final id = jobId.trim();
   if (id.isEmpty) throw StateError('İlan kimliği boş.');
+  final isCustom = custom || id.startsWith('custom-');
   try {
     await Supabase.instance.client.from('kariyer_overrides').upsert({
       'job_id': id,
@@ -501,7 +504,7 @@ Future<void> upsertKariyerOverride({
       'city': city?.trim() ?? '',
       'date_text': date?.trim() ?? '',
       'apply_url': applyUrl?.trim() ?? '',
-      'custom': custom || id.startsWith('custom-'),
+      'custom': isCustom,
       'updated_by': adminEmail.trim().toLowerCase(),
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     });
@@ -518,6 +521,19 @@ Future<void> upsertKariyerOverride({
     rethrow;
   }
   invalidateKariyerCache();
+  if (notifyPush && isCustom && hidden != true) {
+    final heading = (title ?? '').trim();
+    final loc = (city ?? '').trim();
+    unawaited(
+      BroadcastPushService.instance.kariyer(
+        title: 'Engelsiz Kariyer',
+        body: loc.isEmpty
+            ? (heading.isEmpty ? 'Engelsiz Kariyer’de yeni iş ilanı var.' : heading)
+            : (heading.isEmpty ? loc : '$heading · $loc'),
+        sektor: '',
+      ),
+    );
+  }
 }
 
 Future<void> hideKariyerJob({

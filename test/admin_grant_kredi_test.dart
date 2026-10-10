@@ -47,4 +47,52 @@ void main() {
       kAdminKredi,
     );
   });
+
+  test('switching to uzman/bakici tops aile gift 1 up to 5 once', () {
+    expect(
+      profStartTopUpAmount(
+        current: 1,
+        userType: 'uzman',
+        alreadyGranted: false,
+        email: 'a@x.com',
+      ),
+      5,
+    );
+    expect(
+      profStartTopUpAmount(
+        current: 1,
+        userType: 'bakici',
+        alreadyGranted: false,
+        email: 'a@x.com',
+      ),
+      5,
+    );
+    expect(
+      profStartTopUpAmount(
+        current: 1,
+        userType: 'uzman',
+        alreadyGranted: true,
+        email: 'a@x.com',
+      ),
+      isNull,
+    );
+    expect(
+      profStartTopUpAmount(
+        current: 1,
+        userType: 'aile',
+        alreadyGranted: false,
+        email: 'a@x.com',
+      ),
+      isNull,
+    );
+    expect(
+      profStartTopUpAmount(
+        current: 5,
+        userType: 'uzman',
+        alreadyGranted: false,
+        email: 'a@x.com',
+      ),
+      isNull,
+    );
+  });
 }

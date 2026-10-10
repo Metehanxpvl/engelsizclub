@@ -1419,7 +1419,12 @@ class _DuyuruPopupDialogState extends State<_DuyuruPopupDialog> {
   @override
   void initState() {
     super.initState();
-    Future<void>.delayed(const Duration(seconds: 5), _close);
+    final src = (widget.item.sourceUrl ?? '').trim();
+    final isFact = src == 'did_you_know' ||
+        widget.item.title.trim() == 'Bunu biliyor musunuz?';
+    if (!isFact) {
+      Future<void>.delayed(const Duration(seconds: 5), _close);
+    }
   }
 
   void _close() {

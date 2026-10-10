@@ -1,14 +1,19 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
 import '../nutrition/food_catalog.dart';
 import '../nutrition/nutrient_references.dart';
 import '../nutrition/nutrition_analyzer.dart';
+import '../nutrition/nutrition_meal_photo.dart';
+import '../nutrition/nutrition_meal_store.dart';
 import '../nutrition/nutrition_types.dart';
+import '../services/gemini_service.dart';
 
 class BesinKarnesiPage extends StatefulWidget {
   const BesinKarnesiPage({super.key, required this.userEmail});
@@ -48,6 +53,27 @@ class _BesinKarnesiPageState extends State<BesinKarnesiPage> {
   NutritionSex _sex = NutritionSex.male;
   bool _busy = false;
   NutritionAnalysis? _result;
+  NutritionAnalysis? _mealSnapshot;
+  NutritionMealSlot? _resultMeal;
+  bool _dayView = false;
+  String? _addedNotice;
+  Map<NutritionMealSlot, NutritionSavedMeal> _todayMeals = {};
+  Map<NutritionMealSlot, NutritionAnalysis> _daySlotAnalyses = {};
+
+  NutritionUserProfile get _profile =>
+      NutritionUserProfile(ageBand: _ageBand, sex: _sex);
+
+  @override
+  void initState() {
+    super.initState();
+    _reloadTodayMeals();
+  }
+
+  Future<void> _reloadTodayMeals() async {
+    final meals = await NutritionMealStore.instance.mealsFor(DateTime.now());
+    if (!mounted) return;
+    setState(() => _todayMeals = meals);
+  }
 
   @override
   void dispose() {
@@ -73,6 +99,11 @@ class _BesinKarnesiPageState extends State<BesinKarnesiPage> {
       if (!mounted) return;
       setState(() {
         _result = analysis;
+        _mealSnapshot = null;
+        _resultMeal = null;
+        _dayView = false;
+        _addedNotice = null;
+        _daySlotAnalyses = {};
         _busy = false;
       });
     } catch (e) {
@@ -85,7 +116,265 @@ class _BesinKarnesiPageState extends State<BesinKarnesiPage> {
   }
 
   void _reset() {
-    setState(() => _result = null);
+    setState(() {
+      _result = null;
+      _mealSnapshot = null;
+      _resultMeal = null;
+      _dayView = false;
+      _addedNotice = null;
+      _daySlotAnalyses = {};
+    });
+    _reloadTodayMeals();
+  }
+
+  Future<void> _photoFlow() async {
+    if (_busy) return;
+    final slot = await showModalBottomSheet<NutritionMealSlot>(
+      context: context,
+      backgroundColor: MetoColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              L10nText(
+                'Hangi öğün?',
+                style: GoogleFonts.nunito(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 12),
+              for (final s in NutritionMealSlot.values)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(ctx, s),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: MetoColors.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: L10nText(
+                      s.labelTr,
+                      style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (slot == null || !mounted) return;
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: MetoColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FilledButton.icon(
+                onPressed: () => Navigator.pop(ctx, ImageSource.camera),
+                icon: const Icon(Icons.photo_camera),
+                label: L10nText(
+                  'Kamera',
+                  style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: MetoColors.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.pop(ctx, ImageSource.gallery),
+                icon: const Icon(Icons.photo_library_outlined),
+                label: L10nText(
+                  'Galeri',
+                  style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: MetoColors.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+    late final XFile? file;
+    try {
+      file = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 1600,
+        imageQuality: 82,
+      );
+    } catch (_) {
+      file = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1600,
+        imageQuality: 82,
+      );
+    }
+    if (file == null || !mounted) return;
+    final bytes = Uint8List.fromList(await file.readAsBytes());
+    final fp = nutritionPhotoFingerprint(bytes);
+    final existing = _todayMeals[slot];
+    if (existing != null &&
+        existing.fingerprint.isNotEmpty &&
+        existing.fingerprint == fp) {
+      try {
+        final analysis = analyzeNutrition(
+          existing.rawInput,
+          DateTime.now(),
+          profile: _profile,
+        );
+        if (!mounted) return;
+        setState(() {
+          _result = analysis;
+          _mealSnapshot = analysis;
+          _resultMeal = slot;
+          _dayView = false;
+          _daySlotAnalyses = {};
+          _addedNotice = 'Bu öğün zaten karnede. Aynı fotoğraf yeniden analiz edilmedi.';
+        });
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e'.replaceFirst('Bad state: ', ''))),
+        );
+      }
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final json = await GeminiService.analyzeMealPhotoJson(imageBytes: bytes);
+      final analysis = analyzeMealPhotoInput(
+        json,
+        date: DateTime.now(),
+        profile: _profile,
+      );
+      await NutritionMealStore.instance.saveMeal(
+        date: DateTime.now(),
+        slot: slot,
+        rawInput: analysis.rawInput,
+        fingerprint: fp,
+      );
+      await _reloadTodayMeals();
+      if (!mounted) return;
+      setState(() {
+        _result = analysis;
+        _mealSnapshot = analysis;
+        _resultMeal = slot;
+        _dayView = false;
+        _daySlotAnalyses = {};
+        _addedNotice = 'Vitamin & Mineral Karnene eklendi';
+        _busy = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e'.replaceFirst('Bad state: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _computeDay() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final saved =
+          await NutritionMealStore.instance.mealsFor(DateTime.now());
+      if (saved.isEmpty) {
+        throw StateError('Bugün kaydedilmiş bir öğün yok.');
+      }
+      final slotAnalyses = <NutritionMealSlot, NutritionAnalysis>{};
+      for (final e in saved.entries) {
+        slotAnalyses[e.key] = analyzeNutrition(
+          e.value.rawInput,
+          DateTime.now(),
+          profile: _profile,
+        );
+      }
+      final combined = combineMealAnalyses(
+        slotAnalyses.values.toList(),
+        date: DateTime.now(),
+        profile: _profile,
+      );
+      if (!mounted) return;
+      setState(() {
+        _todayMeals = saved;
+        _daySlotAnalyses = slotAnalyses;
+        _result = combined;
+        _dayView = true;
+        _addedNotice = null;
+        _busy = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e'.replaceFirst('Bad state: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _adjustFoodGrams(int index, double delta) async {
+    if (_busy || _dayView) return;
+    final analysis = _result;
+    if (analysis == null) return;
+    if (index < 0 || index >= analysis.analyzedFoods.length) return;
+    final foods = [...analysis.analyzedFoods];
+    final current = foods[index];
+    final nextGrams = (current.grams + delta).clamp(5.0, 2000.0);
+    if ((nextGrams - current.grams).abs() < 0.01) return;
+    foods[index] = current.copyWith(
+      grams: nextGrams,
+      quantity: nextGrams,
+      unit: NutritionUnit.g,
+      portionSpecified: true,
+    );
+    final raw = foodsToRawInput(foods);
+    final updated = nutritionAnalysisFromFoods(
+      foods: foods,
+      date: analysis.date,
+      profile: analysis.profile,
+      rawInput: raw,
+      unknownTokens: analysis.unknownTokens,
+    );
+    final slot = _resultMeal;
+    if (slot != null) {
+      final fp = _todayMeals[slot]?.fingerprint ?? '';
+      await NutritionMealStore.instance.saveMeal(
+        date: DateTime.now(),
+        slot: slot,
+        rawInput: raw,
+        fingerprint: fp,
+      );
+      await _reloadTodayMeals();
+    }
+    if (!mounted) return;
+    setState(() {
+      _result = updated;
+      if (slot != null) _mealSnapshot = updated;
+    });
   }
 
   @override
@@ -221,6 +510,45 @@ class _BesinKarnesiPageState extends State<BesinKarnesiPage> {
             ),
           ),
         ),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: _busy ? null : _photoFlow,
+          icon: const Icon(Icons.photo_camera_outlined),
+          label: L10nText(
+            'Öğününü Fotoğraflandır',
+            style: GoogleFonts.nunito(fontWeight: FontWeight.w800, fontSize: 15),
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: MetoColors.primary,
+            side: const BorderSide(color: MetoColors.border),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+        ),
+        if (_todayMeals.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          L10nText(
+            'Bugün kaydedilen öğünler: ${_todayMeals.keys.map((e) => e.labelTr).join(', ')}',
+            style: GoogleFonts.nunito(
+              fontSize: 13,
+              color: MetoColors.mutedFg,
+            ),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: _busy ? null : _computeDay,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: MetoColors.primary,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            child: L10nText(
+              'Günlük Karneni Hesapla',
+              style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
         const SizedBox(height: 20),
         FilledButton(
           onPressed: _busy ? null : _analyze,
@@ -261,8 +589,118 @@ class _BesinKarnesiPageState extends State<BesinKarnesiPage> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
               children: [
+                if (_resultMeal != null && !_dayView) ...[
+                  L10nText(
+                    '${_resultMeal!.labelTr.toUpperCase()}  ·  Bu Öğünün Katkısı',
+                    style: GoogleFonts.nunito(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  L10nText(
+                    'Yüzdeler yalnızca bu öğünün günlük referansa katkısıdır.',
+                    style: GoogleFonts.nunito(
+                      fontSize: 13,
+                      color: MetoColors.mutedFg,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (_dayView) ...[
+                  L10nText(
+                    'Gün  ·  Bugünkü öğünlerin toplamı',
+                    style: GoogleFonts.nunito(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  L10nText(
+                    'Kahvaltı, öğle, ara öğün ve akşam lokal olarak toplandı.',
+                    style: GoogleFonts.nunito(
+                      fontSize: 13,
+                      color: MetoColors.mutedFg,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (_addedNotice != null) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: MetoColors.selectedBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: MetoColors.primary.withValues(alpha: 0.35)),
+                    ),
+                    child: L10nText(
+                      _addedNotice!,
+                      style: GoogleFonts.nunito(
+                        fontWeight: FontWeight.w800,
+                        color: MetoColors.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (_resultMeal != null || _dayView)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _ChoiceChip(
+                            label: 'Öğün',
+                            selected: !_dayView && _resultMeal != null,
+                            enabled: _resultMeal != null,
+                            expand: true,
+                            onTap: () {
+                              if (_mealSnapshot == null) return;
+                              setState(() {
+                                _dayView = false;
+                                _result = _mealSnapshot;
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _ChoiceChip(
+                            label: 'Gün',
+                            selected: _dayView,
+                            enabled: true,
+                            expand: true,
+                            onTap: _computeDay,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                _MacroSummaryCard(
+                  title: _dayView
+                      ? 'Günlük Makro Özeti'
+                      : (_resultMeal != null
+                          ? 'Bu Öğünün Makro Katkısı'
+                          : 'Tahmini Makro Özeti'),
+                  macros: analysis.macros,
+                ),
+                if (_dayView) ...[
+                  for (final slot in NutritionMealSlot.values)
+                    if (_daySlotAnalyses[slot] != null) ...[
+                      const SizedBox(height: 10),
+                      _MacroSummaryCard(
+                        title: slot.labelTr,
+                        macros: _daySlotAnalyses[slot]!.macros,
+                        compact: true,
+                      ),
+                    ],
+                ],
+                const SizedBox(height: 16),
                 L10nText(
-                  'Günün Mikro Besin Özeti',
+                  _dayView ? 'Günün Mikro Besin Özeti' : (_resultMeal != null
+                      ? 'Bu Öğünün Mikrobesin Katkısı'
+                      : 'Günün Mikro Besin Özeti'),
                   style: GoogleFonts.nunito(
                     fontWeight: FontWeight.w800,
                     fontSize: 18,
@@ -459,7 +897,9 @@ class _BesinKarnesiPageState extends State<BesinKarnesiPage> {
                   ),
                 const SizedBox(height: 8),
                 L10nText(
-                  '${analysis.analyzedFoods.length} gıda analiz edildi.',
+                  _resultMeal != null
+                      ? 'Tespit edilen yiyecekler'
+                      : '${analysis.analyzedFoods.length} gıda analiz edildi.',
                   style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
                 ),
                 if (analysis.unknownTokens.isNotEmpty) ...[
@@ -483,13 +923,12 @@ class _BesinKarnesiPageState extends State<BesinKarnesiPage> {
                   ),
                 ],
                 const SizedBox(height: 8),
-                for (final f in analysis.analyzedFoods)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Text(
-                      f.displayLine,
-                      style: GoogleFonts.nunito(fontSize: 14),
-                    ),
+                for (var i = 0; i < analysis.analyzedFoods.length; i++)
+                  _FoodPortionRow(
+                    food: analysis.analyzedFoods[i],
+                    canEdit: !_dayView,
+                    onMinus: () => _adjustFoodGrams(i, -5),
+                    onPlus: () => _adjustFoodGrams(i, 5),
                   ),
                 if (analysis.unknownTokens.isNotEmpty) ...[
                   const SizedBox(height: 8),
@@ -516,23 +955,48 @@ class _BesinKarnesiPageState extends State<BesinKarnesiPage> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: _reset,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: MetoColors.primary,
-                    side: const BorderSide(color: MetoColors.border),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_todayMeals.isNotEmpty || _resultMeal != null)
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _busy ? null : _computeDay,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: MetoColors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: L10nText(
+                          'Günlük Karneni Hesapla',
+                          style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                  if (_todayMeals.isNotEmpty || _resultMeal != null)
+                    const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: _reset,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: MetoColors.primary,
+                        side: const BorderSide(color: MetoColors.border),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: L10nText(
+                        'Düzenle',
+                        style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+                      ),
                     ),
                   ),
-                  child: L10nText(
-                    'Düzenle',
-                    style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
-                  ),
-                ),
+                ],
               ),
             ),
           ),
@@ -578,6 +1042,177 @@ class _ChoiceChip extends StatelessWidget {
     );
     if (!expand) return button;
     return SizedBox(width: double.infinity, child: button);
+  }
+}
+
+String _fmtMacroG(double v) {
+  if (v <= 0) return '0';
+  if (v >= 100) return v.round().toString();
+  final t = (v * 10).round() / 10.0;
+  if (t == t.roundToDouble()) return t.round().toString();
+  return t.toStringAsFixed(1);
+}
+
+class _MacroSummaryCard extends StatelessWidget {
+  const _MacroSummaryCard({
+    required this.title,
+    required this.macros,
+    this.compact = false,
+  });
+
+  final String title;
+  final MacroAmounts macros;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <(String, String)>[
+      ('🔥 Kalori', '${macros.caloriesKcal.round()} kcal'),
+      ('💪 Protein', '${_fmtMacroG(macros.proteinG)} g'),
+      ('🍞 Karbonhidrat', '${_fmtMacroG(macros.carbohydratesG)} g'),
+      ('🥑 Yağ', '${_fmtMacroG(macros.fatG)} g'),
+      ('🌾 Lif', '${_fmtMacroG(macros.fiberG)} g'),
+      ('🍬 Şeker', '${_fmtMacroG(macros.sugarG)} g'),
+      ('🧂 Sodyum', '${macros.sodiumMg.round()} mg'),
+    ];
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(compact ? 12 : 14),
+      decoration: BoxDecoration(
+        color: MetoColors.card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: MetoColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          L10nText(
+            title,
+            style: GoogleFonts.nunito(
+              fontWeight: FontWeight.w800,
+              fontSize: compact ? 15 : 18,
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final row in rows)
+            Padding(
+              padding: EdgeInsets.only(bottom: compact ? 3 : 5),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: L10nText(
+                      row.$1,
+                      style: GoogleFonts.nunito(
+                        fontSize: compact ? 13 : 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  L10nText(
+                    row.$2,
+                    style: GoogleFonts.nunito(
+                      fontSize: compact ? 13 : 14,
+                      fontWeight: FontWeight.w800,
+                      color: MetoColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (!compact) ...[
+            const SizedBox(height: 4),
+            L10nText(
+              'Tahmini değerler; porsiyon ve gıda kataloğuna göredir. '
+              'Günlük kalori/protein hedefi uygulanmaz.',
+              style: GoogleFonts.nunito(
+                fontSize: 12,
+                height: 1.35,
+                color: MetoColors.mutedFg,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FoodPortionRow extends StatelessWidget {
+  const _FoodPortionRow({
+    required this.food,
+    required this.canEdit,
+    required this.onMinus,
+    required this.onPlus,
+  });
+
+  final ParsedFood food;
+  final bool canEdit;
+  final VoidCallback onMinus;
+  final VoidCallback onPlus;
+
+  @override
+  Widget build(BuildContext context) {
+    final grams = food.grams.round();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+        decoration: BoxDecoration(
+          color: MetoColors.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: MetoColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            L10nText(
+              '${food.emoji} ${food.labelTr}',
+              style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 2),
+            L10nText(
+              food.portionSpecified
+                  ? 'Tahmini: $grams g'
+                  : 'Tahmini porsiyon: $grams g (standart)',
+              style: GoogleFonts.nunito(
+                fontSize: 12,
+                color: MetoColors.mutedFg,
+              ),
+            ),
+            const SizedBox(height: 2),
+            L10nText(
+              '~${food.macros.caloriesKcal.round()} kcal  ·  '
+              '${_fmtMacroG(food.macros.proteinG)} g protein',
+              style: GoogleFonts.nunito(
+                fontSize: 12,
+                color: MetoColors.mutedFg,
+              ),
+            ),
+            if (canEdit)
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: onMinus,
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.remove_circle_outline),
+                    color: MetoColors.primary,
+                  ),
+                  L10nText(
+                    '$grams g',
+                    style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+                  ),
+                  IconButton(
+                    onPressed: onPlus,
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.add_circle_outline),
+                    color: MetoColors.primary,
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

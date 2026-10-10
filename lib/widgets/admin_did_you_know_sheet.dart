@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../duyuru_store.dart';
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
 import '../services/broadcast_push_service.dart';
@@ -46,12 +47,18 @@ class _AdminDidYouKnowSheetState extends State<AdminDidYouKnowSheet> {
     try {
       final sent = await BroadcastPushService.instance.biliyorMuydunuz(
         message: message,
+        adminEmail: widget.adminEmail,
       );
       if (!mounted) return;
       if (sent) {
+        invalidateDuyuruCache();
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: L10nText('Bildirim gönderildi.')),
+          const SnackBar(
+            content: L10nText(
+              'Yayınlandı. Üyeler ana sayfada görür, bildirim de gider.',
+            ),
+          ),
         );
       } else {
         setState(() => _sending = false);
@@ -107,7 +114,7 @@ class _AdminDidYouKnowSheetState extends State<AdminDidYouKnowSheet> {
             ),
             const SizedBox(height: 6),
             L10nText(
-              'Yazdığınız metin, bu başlığın altında bildirim olarak gider.',
+              'Ana sayfada «Bunu biliyor musunuz?» köşesinde yayınlanır. Üyeler uygulamayı açınca görür, bildirim de gider.',
               style: GoogleFonts.nunito(
                 fontSize: 13,
                 color: MetoColors.mutedFg,

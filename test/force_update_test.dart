@@ -85,4 +85,54 @@ void main() {
       expect(cfg.androidUrl, kForceUpdatePlayUrl);
     });
   });
+
+  group('appUpdateAnnouncementId', () {
+    test('skips old builds', () {
+      expect(appUpdateAnnouncementId(localBuild: 115), isNull);
+      expect(
+        appUpdateAnnouncementId(localBuild: 90, playAvailableBuild: 100),
+        isNull,
+      );
+    });
+
+    test('uses the higher of local and Play available', () {
+      expect(appUpdateAnnouncementId(localBuild: 116), 'build:116');
+      expect(
+        appUpdateAnnouncementId(localBuild: 115, playAvailableBuild: 116),
+        'build:116',
+      );
+      expect(
+        appUpdateAnnouncementId(
+          localBuild: 202610010021,
+          playAvailableBuild: 116,
+        ),
+        'build:202610010021',
+      );
+    });
+
+    test('tracks announced ids without clobbering the other store', () {
+      expect(appUpdateIdAlreadyAnnounced(null, 'build:116'), isFalse);
+      expect(
+        appUpdateIdAlreadyAnnounced({'id': 'build:116'}, 'build:116'),
+        isTrue,
+      );
+      expect(
+        appUpdateIdAlreadyAnnounced({'id': 'build:116'}, 'build:202610010021'),
+        isFalse,
+      );
+      final merged = mergeAppUpdatePushValue(
+        previous: {'id': 'build:116', 'ids': ['build:116']},
+        id: 'build:202610010021',
+        version: '1.1.16',
+        build: 202610010021,
+        at: '2026-10-01T00:00:00Z',
+      );
+      expect(appUpdateIdAlreadyAnnounced(merged, 'build:116'), isTrue);
+      expect(
+        appUpdateIdAlreadyAnnounced(merged, 'build:202610010021'),
+        isTrue,
+      );
+      expect(merged['id'], 'build:202610010021');
+    });
+  });
 }

@@ -9,3 +9,5 @@ export 'nutrient_references.dart';
 export 'food_catalog.dart';
 export 'food_dictionary.dart';
 export 'nutrition_database.dart';
+export 'nutrition_meal_store.dart';
+export 'nutrition_meal_photo.dart';
