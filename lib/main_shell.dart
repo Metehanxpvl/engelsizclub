@@ -124,38 +124,14 @@ MetoTab? _metoTabFromName(String? name) {
   return null;
 }
 
-Showcase _navCoachMark({
+Widget _navCoachMark({
   required GlobalKey key,
   required String title,
   required String description,
   required Widget child,
   TooltipPosition tooltipPosition = TooltipPosition.top,
 }) {
-  return Showcase(
-    key: key,
-    title: title,
-    description: description,
-    tooltipPosition: tooltipPosition,
-    tooltipBackgroundColor: MetoColors.card,
-    textColor: MetoColors.foreground,
-    overlayColor: MetoColors.foreground,
-    overlayOpacity: 0.58,
-    tooltipBorderRadius: BorderRadius.circular(16),
-    tooltipPadding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-    titleTextStyle: GoogleFonts.nunito(
-      fontSize: 15,
-      fontWeight: FontWeight.w800,
-      color: MetoColors.primary,
-    ),
-    descTextStyle: GoogleFonts.nunito(
-      fontSize: 13,
-      fontWeight: FontWeight.w600,
-      height: 1.35,
-      color: MetoColors.foreground,
-    ),
-    targetBorderRadius: BorderRadius.circular(12),
-    child: child,
-  );
+  return child;
 }
 
 enum _KrediStep { paket, odeme }
@@ -508,6 +484,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     }
     final swipe = _swipePageOf(_activeTab);
     _tabPageController = PageController(initialPage: swipe >= 0 ? swipe : 0);
+    try {
     if (_isGuest) {
       _userKredi = 0;
       _iyilikMarketPuan = 0;
@@ -549,6 +526,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       unawaited(_maybeShowMedicalWelcome());
       unawaited(_initStoreBilling());
     });
+    } catch (e, st) {
+      debugPrint('MainShell init: $e\n$st');
+    }
   }
 
   Future<void> _maybeShowMedicalWelcome() async {
@@ -575,27 +555,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     });
   }
 
-  Future<void> _maybeStartNavTour() async {
-    if (!mounted || _navTourStarted) return;
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool(_navTourDoneKey) == true) return;
-    _navTourStarted = true;
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    if (!mounted) return;
-    try {
-      ShowcaseView.get().startShowCase([
-        _navTourKeys[MetoTab.home]!,
-        _navTourKeys[MetoTab.ilanlar]!,
-        _navTourKeys[MetoTab.tarama]!,
-        _navTourKeys[MetoTab.kesfet]!,
-        _navTourKeys[MetoTab.forum]!,
-        _moreNavTourKey,
-        _messagesTourKey,
-      ]);
-    } catch (e, st) {
-      debugPrint('Nav tour start: $e\n$st');
-    }
-  }
+  Future<void> _maybeStartNavTour() async {}
 
   Future<void> _finishNavTour() async {
     final prefs = await SharedPreferences.getInstance();
@@ -3229,32 +3189,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         if (didPop) return;
         _handleSystemBack();
       },
-      child: ShowCaseWidget(
-        onFinish: () {
-          unawaited(_finishNavTour());
-        },
-        onDismiss: (_) {
-          unawaited(_finishNavTour());
-        },
-        globalTooltipActionConfig: const TooltipActionConfig(
-          alignment: MainAxisAlignment.end,
-        ),
-        globalTooltipActions: [
-          TooltipActionButton(
-            type: TooltipDefaultActionType.skip,
-            name: S.t('nav_skip'),
-            backgroundColor: MetoColors.muted,
-            textStyle: GoogleFonts.nunito(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: MetoColors.primary,
-            ),
-            onTap: () {
-              ShowcaseView.get().dismiss();
-              unawaited(_finishNavTour());
-            },
-          ),
-        ],
+      child: Builder(
         builder: (context) {
           final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
           return Scaffold(
@@ -7547,6 +7482,9 @@ class _BrandBar extends StatelessWidget {
                           child: Image.asset(
                             'src/imports/119686.png',
                             fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const ColoredBox(
+                              color: Color(0xFF1A6B4A),
+                            ),
                           ),
                         ),
                       ),

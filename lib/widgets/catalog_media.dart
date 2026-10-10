@@ -75,7 +75,11 @@ class CatalogImage extends StatelessWidget {
       fit: fit,
       width: width,
       height: height,
-      errorBuilder: errorBuilder,
+      errorBuilder: errorBuilder ??
+          (_, __, ___) => ColoredBox(
+                color: Colors.black12,
+                child: SizedBox(width: width, height: height),
+              ),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../admin_catalog_extras.dart';
@@ -8,6 +9,35 @@ import '../data/diseases_data.dart';
 import '../data/ilanlar_data.dart';
 import '../data/rights_data.dart';
 import '../services/app_catalog_service.dart';
+
+int? catalogInt(dynamic v) {
+  if (v == null) return null;
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  if (v is String) {
+    final t = v.trim();
+    if (t.isEmpty) return null;
+    return int.tryParse(t) ??
+        int.tryParse(
+          t.startsWith('0x') || t.startsWith('0X') ? t.substring(2) : t,
+          radix: 16,
+        );
+  }
+  return null;
+}
+
+Color catalogColor(dynamic v, int fallback) {
+  if (v == null) return Color(fallback);
+  if (v is num) return Color(v.toInt());
+  if (v is String) {
+    final t = v.trim();
+    if (t.isEmpty) return Color(fallback);
+    final n = int.tryParse(t);
+    if (n != null) return Color(n);
+    return colorFromHex(t, Color(fallback));
+  }
+  return Color(fallback);
+}
 
 /// Forum chip / dropdown sırası (kullanıcı tercihi).
 const _forumDiseaseOrder = <String>[
@@ -294,15 +324,30 @@ class CatalogAdapters {
   static List<RightItem> rightsItems() {
     final rows = AppCatalogService.instance.list(CatalogPack.rights);
     if (rows.isEmpty) return allRights;
-    return [for (final r in rows) _rightFromRow(r)];
+    final mapped = <RightItem>[];
+    for (final r in rows) {
+      try {
+        final item = _rightFromRow(r);
+        if (item.id.isNotEmpty) mapped.add(item);
+      } catch (e, st) {
+        debugPrint('catalog right row: $e\n$st');
+      }
+    }
+    return mapped.isEmpty ? allRights : mapped;
   }
 
   static List<DiseaseInfo> diseases() {
     final rows = AppCatalogService.instance.list(CatalogPack.diseases);
     if (rows.isEmpty) return kDiseases;
-    final mapped = <DiseaseInfo>[
-      for (final r in rows) _diseaseFromRow(r),
-    ].where((d) => d.id.isNotEmpty).toList();
+    final mapped = <DiseaseInfo>[];
+    for (final r in rows) {
+      try {
+        final d = _diseaseFromRow(r);
+        if (d.id.isNotEmpty) mapped.add(d);
+      } catch (e, st) {
+        debugPrint('catalog disease row: $e\n$st');
+      }
+    }
     if (mapped.isEmpty) return kDiseases;
     // Yerel rehber sayfaları remote katalogda yoksa ekle (ör. prematüre, 0–2 yaş).
     const localGuideIds = {'premature', 'yas02'};
@@ -319,12 +364,18 @@ class CatalogAdapters {
         .list(CatalogPack.content)
         .where((e) => (e['scope']?.toString() ?? '') == 'cards')
         .toList()
-      ..sort((a, b) => ((a['sort_order'] as num?)?.toInt() ?? 0)
-          .compareTo((b['sort_order'] as num?)?.toInt() ?? 0));
+      ..sort((a, b) => (catalogInt(a['sort_order']) ?? 0)
+          .compareTo(catalogInt(b['sort_order']) ?? 0));
     if (rows.isEmpty) return kNeedCards;
-    final mapped = <NeedCard>[
-      for (final r in rows) _cardFromContent(r),
-    ].where((c) => c.id > 0 && c.label.isNotEmpty).toList();
+    final mapped = <NeedCard>[];
+    for (final r in rows) {
+      try {
+        final c = _cardFromContent(r);
+        if (c.id > 0 && c.label.isNotEmpty) mapped.add(c);
+      } catch (e, st) {
+        debugPrint('catalog card row: $e\n$st');
+      }
+    }
     return mapped.isEmpty ? kNeedCards : mapped;
   }
 
@@ -335,10 +386,10 @@ class CatalogAdapters {
       amount: r['amount']?.toString() ?? '',
       category: r['category']?.toString() ?? 'maddi',
       icon: r['icon']?.toString() ?? '',
-      color: Color((r['color'] as num?)?.toInt() ?? 0xFF1A6B4A),
-      bg: Color((r['bg'] as num?)?.toInt() ?? 0xFFE8F5EE),
-      minRate: (r['min_rate'] as num?)?.toInt() ?? 0,
-      maxAge: (r['max_age'] as num?)?.toInt() ?? 99,
+      color: catalogColor(r['color'], 0xFF1A6B4A),
+      bg: catalogColor(r['bg'], 0xFFE8F5EE),
+      minRate: catalogInt(r['min_rate']) ?? 0,
+      maxAge: catalogInt(r['max_age']) ?? 99,
       incomeLimit: r['income_limit'] == true,
       desc: r['description']?.toString() ?? '',
       steps: _stepsFrom(r['steps']),
@@ -401,8 +452,8 @@ class CatalogAdapters {
       id: r['id']?.toString() ?? '',
       name: r['name']?.toString() ?? '',
       icon: r['icon']?.toString() ?? '',
-      color: Color((r['color'] as num?)?.toInt() ?? 0xFF1A6B4A),
-      bg: Color((r['bg'] as num?)?.toInt() ?? 0xFFE8F5EE),
+      color: catalogColor(r['color'], 0xFF1A6B4A),
+      bg: catalogColor(r['bg'], 0xFFE8F5EE),
       photo: (photo == null || photo.isEmpty) ? null : photo,
       desc: r['description']?.toString() ?? '',
       symptoms: symptoms,
@@ -417,24 +468,12 @@ class CatalogAdapters {
     final m = meta is Map
         ? Map<String, dynamic>.from(meta)
         : const <String, dynamic>{};
-    final id = (m['id'] as num?)?.toInt() ??
+    final id = catalogInt(m['id']) ??
         int.tryParse(
             r['id']?.toString().replaceAll(RegExp(r'[^0-9]'), '') ?? '') ??
         0;
-    final colorVal = m['color'];
-    final bgVal = m['bg'];
-    Color color = const Color(0xFF1A6B4A);
-    Color bg = const Color(0xFFE8F5EE);
-    if (colorVal is num) {
-      color = Color(colorVal.toInt());
-    } else if (colorVal is String && colorVal.isNotEmpty) {
-      color = colorFromHex(colorVal);
-    }
-    if (bgVal is num) {
-      bg = Color(bgVal.toInt());
-    } else if (bgVal is String && bgVal.isNotEmpty) {
-      bg = colorFromHex(bgVal);
-    }
+    final color = catalogColor(m['color'], 0xFF1A6B4A);
+    final bg = catalogColor(m['bg'], 0xFFE8F5EE);
     final photo = (r['media_url']?.toString().trim().isNotEmpty == true)
         ? r['media_url'].toString()
         : m['photo']?.toString();
@@ -488,7 +527,7 @@ int ilanHubSortOrder(String hubId, {int fallback = 0}) {
   final ids = ilanHubLookupIds(hubId).toSet();
   for (final r in AppCatalogService.instance.categoriesOf(kIlanHubScope)) {
     if (ids.contains(r['id']?.toString() ?? '')) {
-      return (r['sort_order'] as num?)?.toInt() ?? fallback;
+      return catalogInt(r['sort_order']) ?? fallback;
     }
   }
   return fallback;

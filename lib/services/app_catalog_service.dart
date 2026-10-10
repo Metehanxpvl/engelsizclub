@@ -6,6 +6,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../utils/async_timeout.dart';
 
+int _jsonInt(dynamic v, [int fallback = 0]) {
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  if (v is String) return int.tryParse(v.trim()) ?? fallback;
+  return fallback;
+}
+
 /// Dinamik katalog paket adları (Supabase app_catalog_versions.name).
 abstract final class CatalogPack {
   static const settings = 'settings';
@@ -74,8 +81,7 @@ class AppCatalogService extends ChangeNotifier {
         .where((e) => e['active'] != false)
         .toList()
       ..sort((a, b) =>
-          ((a['sort_order'] as num?)?.toInt() ?? 0)
-              .compareTo((b['sort_order'] as num?)?.toInt() ?? 0));
+          _jsonInt(a['sort_order']).compareTo(_jsonInt(b['sort_order'])));
   }
 
   /// Uygulama açılışında bir kez çağır.
@@ -96,6 +102,10 @@ class AppCatalogService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      if (!Supabase.instance.isInitialized) {
+        debugPrint('catalog sync skipped: supabase not ready');
+        return;
+      }
       final client = Supabase.instance.client;
       final ttlHours = settingInt('catalog_ttl_hours', 6);
       final ttl = Duration(hours: ttlHours.clamp(1, 168));
@@ -109,7 +119,7 @@ class AppCatalogService extends ChangeNotifier {
         for (final raw in (rows as List)) {
           if (raw is! Map) continue;
           final name = raw['name']?.toString() ?? '';
-          final ver = (raw['version'] as num?)?.toInt() ?? 0;
+          final ver = _jsonInt(raw['version']);
           if (name.isNotEmpty) remoteVersions[name] = ver;
         }
       } catch (e) {
@@ -300,8 +310,8 @@ class AppCatalogService extends ChangeNotifier {
       list.add(row);
     }
     list.sort(
-      (a, b) => ((a['sort_order'] as num?)?.toInt() ?? 0)
-          .compareTo((b['sort_order'] as num?)?.toInt() ?? 0),
+      (a, b) =>
+          _jsonInt(a['sort_order']).compareTo(_jsonInt(b['sort_order'])),
     );
     _lists[CatalogPack.diseases] = list;
     _localVersions[CatalogPack.diseases] =
@@ -327,8 +337,8 @@ class AppCatalogService extends ChangeNotifier {
       list.add(row);
     }
     list.sort(
-      (a, b) => ((a['sort_order'] as num?)?.toInt() ?? 0)
-          .compareTo((b['sort_order'] as num?)?.toInt() ?? 0),
+      (a, b) =>
+          _jsonInt(a['sort_order']).compareTo(_jsonInt(b['sort_order'])),
     );
     _lists[CatalogPack.rights] = list;
     _localVersions[CatalogPack.rights] =
@@ -367,8 +377,8 @@ class AppCatalogService extends ChangeNotifier {
       list.add(row);
     }
     list.sort(
-      (a, b) => ((a['sort_order'] as num?)?.toInt() ?? 0)
-          .compareTo((b['sort_order'] as num?)?.toInt() ?? 0),
+      (a, b) =>
+          _jsonInt(a['sort_order']).compareTo(_jsonInt(b['sort_order'])),
     );
     _lists[CatalogPack.categories] = list;
     _localVersions[CatalogPack.categories] =

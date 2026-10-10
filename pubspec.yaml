@@ -1,10 +1,10 @@
 name: engelsizclub
 description: MetoCare — özel gereksinimli kahramanlarımız için rehber
 publish_to: "none"
-# iOS CFBundleVersion = +sayı (202610101710; int32'ye sığmaz).
-# Android AAB: --build-number 201020 (Play 201019 gri açılış hotfix).
+# iOS CFBundleVersion = +sayı (202610102010; int32'ye sığmaz).
+# Android AAB: --build-number 201022 (Play 201021 beyaz ekran).
 # iOS: onaylı 1.1.15 treni kapalı; ShortVersion 1.1.16+ ve CFBundleVersion > 202609302236.
-version: 1.1.20+202610101710
+version: 1.1.22+202610102010
 environment:
   sdk: ^3.5.0
 

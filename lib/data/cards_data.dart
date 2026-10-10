@@ -110,11 +110,19 @@ String colorToHex(Color c) {
       '${b.toRadixString(16).padLeft(2, '0')}';
 }
 
-Color colorFromHex(String hex) {
-  var h = hex.trim();
-  if (h.startsWith('#')) h = h.substring(1);
-  if (h.length == 6) h = 'FF$h';
-  return Color(int.parse(h, radix: 16));
+Color colorFromHex(String hex, [Color fallback = const Color(0xFF1A6B4A)]) {
+  try {
+    var h = hex.trim();
+    if (h.startsWith('#')) h = h.substring(1);
+    if (h.startsWith('0x') || h.startsWith('0X')) h = h.substring(2);
+    if (h.length == 6) h = 'FF$h';
+    if (h.length != 8) return fallback;
+    final n = int.tryParse(h, radix: 16);
+    if (n == null) return fallback;
+    return Color(n);
+  } catch (_) {
+    return fallback;
+  }
 }
 
 class CardPaletteColor {

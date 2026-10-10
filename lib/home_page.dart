@@ -60,7 +60,14 @@ class _HomePageState extends State<HomePage> {
   Timer? _heroTimer;
   List<HomeHeroSlide> _heroSlides = List<HomeHeroSlide>.from(kDefaultHomeHeroSlides);
 
-  List<DiseaseInfo> get _diseases => CatalogAdapters.diseases();
+  List<DiseaseInfo> get _diseases {
+    try {
+      return CatalogAdapters.diseases();
+    } catch (e, st) {
+      debugPrint('Home diseases: $e\n$st');
+      return kDiseases;
+    }
+  }
 
   bool get _isAdmin => isAppAdmin(widget.userEmail);
 
@@ -241,6 +248,7 @@ class _HomePageState extends State<HomePage> {
     return ListenableBuilder(
       listenable: AppCatalogService.instance,
       builder: (context, _) {
+        try {
         if (_activeDisease == 'nadir') {
           final nadir = _selectedNadir;
           if (nadir != null) return _buildNadirItemDetail(nadir);
@@ -249,6 +257,22 @@ class _HomePageState extends State<HomePage> {
         final selected = _selected;
         if (selected != null) return _buildDiseaseDetail(selected);
         return _buildHome();
+        } catch (e, st) {
+          debugPrint('HomePage: $e\n$st');
+          return const ColoredBox(
+            color: MetoColors.background,
+            child: Center(
+              child: Text(
+                'Engelsiz Club',
+                style: TextStyle(
+                  color: MetoColors.primary,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          );
+        }
       },
     );
   }

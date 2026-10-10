@@ -201,25 +201,33 @@ Future<void> _bootstrapPlatformServices() async {
   }
 }
 
+final Completer<void> _supabaseReady = Completer<void>();
+
+bool get isSupabaseReady {
+  try {
+    return Supabase.instance.isInitialized;
+  } catch (_) {
+    return false;
+  }
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // fonts.gstatic.com yavaş/kesik olunca GoogleFonts ilk kareyi bekletip
-  // Play’de gri ekran bırakabiliyor. Sistem/Roboto yedek yeter.
   GoogleFonts.config.allowRuntimeFetching = false;
   ErrorWidget.builder = (details) {
-    debugPrint('ErrorWidget: ${details.exception}');
-    return const Material(
-      color: MetoColors.background,
-      child: Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
+    debugPrint('ErrorWidget: ${details.exception}\n${details.stack}');
+    return const Directionality(
+      textDirection: TextDirection.ltr,
+      child: Material(
+        color: MetoColors.background,
+        child: Center(
           child: Text(
-            'Bir şey ters gitti. Uygulamayı kapatıp tekrar açın.',
+            'Engelsiz Club',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: MetoColors.foreground,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
+              color: MetoColors.primary,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ),
@@ -227,6 +235,18 @@ Future<void> main() async {
     );
   };
 
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+    ),
+  );
+  // İlk kareyi ağ / SharedPreferences bekletmeden çiz.
+  runApp(const ProviderScope(child: MetoCareApp()));
+  unawaited(_initSupabaseAndServices());
+}
+
+Future<void> _initSupabaseAndServices() async {
   try {
     await withNetworkTimeout(
       Supabase.initialize(
@@ -234,25 +254,17 @@ Future<void> main() async {
         anonKey: 'sb_publishable_N7UfnXDF97YsuDTsFTq9zQ_lhnNtMgF',
         authOptions: const FlutterAuthClientOptions(
           authFlowType: AuthFlowType.pkce,
-          // Oturum URL’si _bootstrapAuth içinde dinleyici hazır olduktan sonra işlenir
-          // (şifre sıfırlama + mobil deep link; Google OAuth ayrı akış).
           detectSessionInUri: false,
         ),
       ),
-      timeout: kUiTimeout,
+      timeout: kBootstrapTimeout,
       message: 'Sunucu bağlantısı zaman aşımına uğradı.',
     );
   } catch (e, st) {
     debugPrint('Supabase init failed: $e\n$st');
+  } finally {
+    if (!_supabaseReady.isCompleted) _supabaseReady.complete();
   }
-
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-    ),
-  );
-  runApp(const ProviderScope(child: MetoCareApp()));
   unawaited(_bootstrapPlatformServices());
   unawaited(_deferredAfterFirstFrame());
 }
@@ -310,10 +322,20 @@ class _MetoCareAppState extends State<MetoCareApp> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(bootstrapAileKocuReminders());
     });
+    unawaited(LocaleController.instance.ensureLoaded());
+    unawaited(ContentTranslator.instance.ensureLoaded());
+    unawaited(AdminCatalogExtras.instance.ensureLoaded());
+    unawaited(_attachAuthWhenReady());
+  }
+
+  Future<void> _attachAuthWhenReady() async {
+    await _supabaseReady.future;
+    if (!mounted) return;
     try {
-      unawaited(LocaleController.instance.ensureLoaded());
-      unawaited(ContentTranslator.instance.ensureLoaded());
-      unawaited(AdminCatalogExtras.instance.ensureLoaded());
+      if (!isSupabaseReady) {
+        _finishBooting();
+        return;
+      }
       _authSub =
           Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
         if (data.event == AuthChangeEvent.passwordRecovery) {
@@ -406,6 +428,7 @@ class _MetoCareAppState extends State<MetoCareApp> {
     } catch (e, st) {
       debugPrint('Auth bootstrap failed: $e\n$st');
       _finishBooting();
+      return;
     }
     unawaited(_bootstrapAuth());
   }
@@ -447,6 +470,7 @@ class _MetoCareAppState extends State<MetoCareApp> {
   }
 
   Future<void> _bootstrapAuthImpl() async {
+    if (!isSupabaseReady) return;
     if (kIsWeb && _urlHasSupabaseAuthCallback()) {
       try {
         await withNetworkTimeout(
@@ -640,8 +664,6 @@ class _MetoCareAppState extends State<MetoCareApp> {
           theme: ThemeData(
             useMaterial3: true,
             scaffoldBackgroundColor: MetoColors.background,
-            textTheme: GoogleFonts.nunitoTextTheme(),
-            primaryTextTheme: GoogleFonts.nunitoTextTheme(),
             colorScheme: const ColorScheme.light(
               primary: MetoColors.primary,
               onPrimary: Colors.white,
@@ -990,26 +1012,7 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  Future<void> _maybeStartAuthTour() async {
-    if (!mounted || _authTourStarted || _step != 'signin') return;
-    if (widget.openOnSignIn) return;
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool(_authTourDoneKey) == true) return;
-    _authTourStarted = true;
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    if (!mounted || _step != 'signin') return;
-    setState(() {
-      _authTab = 'giris';
-      _authTourActive = true;
-      _girisHesapTip ??= 'aile';
-    });
-    await Future<void>.delayed(const Duration(milliseconds: 120));
-    if (!mounted) return;
-    ShowcaseView.get().startShowCase([
-      _roleTourKey,
-      _googleTourKey,
-    ]);
-  }
+  Future<void> _maybeStartAuthTour() async {}
 
   Future<void> _finishAuthTour() async {
     if (mounted) setState(() => _authTourActive = false);
@@ -1018,7 +1021,11 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   void _skipAuthTour() {
-    ShowcaseView.get().dismiss();
+    try {
+      ShowcaseView.get().dismiss();
+    } catch (e, st) {
+      debugPrint('Auth tour skip: $e\n$st');
+    }
     unawaited(_finishAuthTour());
   }
 
@@ -1799,17 +1806,7 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     // Masaüstünde telefon çerçevesi yok — arka plan tam sayfa; form ortalanır.
-    return ShowCaseWidget(
-      onFinish: () {
-        unawaited(_finishAuthTour());
-      },
-      onComplete: (index, _) {
-        // Rol adımından sonra Google vurgusu için örnek rol seçili kalsın
-        if (index == 0 && _girisHesapTip == null && mounted) {
-          setState(() => _girisHesapTip = 'aile');
-        }
-      },
-      builder: (context) => Scaffold(
+    return Scaffold(
         body: ColoredBox(
           color: MetoColors.background,
           child: SafeArea(
@@ -1954,7 +1951,6 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
         ),
-      ),
     );
   }
 }
@@ -2593,21 +2589,7 @@ class _SignInStep extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
-        Showcase(
-          key: roleTourKey,
-          title: 'Hesap türünü seç',
-          description:
-              'Girişten önce Aile, Uzman veya Bakıcı seçmelisin. '
-              'Rol seçmeden Google veya e-posta ile giriş yapılamaz.',
-          targetBorderRadius: BorderRadius.circular(14),
-          tooltipActions: [
-            TooltipActionButton(
-              type: TooltipDefaultActionType.skip,
-              name: 'Geç',
-              onTap: onSkipTour,
-            ),
-          ],
-          child: Row(
+        Row(
             children: [
               _HesapTipCard(
                 emoji: '👨‍👩‍👧',
@@ -2634,7 +2616,6 @@ class _SignInStep extends StatelessWidget {
               ),
             ],
           ),
-        ),
         const SizedBox(height: 16),
         if (AppleAuthService.isAvailable) ...[
           _AppleSignInButton(
@@ -2655,21 +2636,7 @@ class _SignInStep extends StatelessWidget {
           ),
           const SizedBox(height: 10),
         ],
-        Showcase(
-          key: googleTourKey,
-          title: 'Google ile giriş',
-          description:
-              'Üyeliğini hızlıca başlatmak için buraya dokun ve Google '
-              'hesabınla devam et.',
-          targetBorderRadius: BorderRadius.circular(10),
-          tooltipActions: [
-            TooltipActionButton(
-              type: TooltipDefaultActionType.skip,
-              name: 'Geç',
-              onTap: onSkipTour,
-            ),
-          ],
-          child: Stack(
+        Stack(
             clipBehavior: Clip.none,
             children: [
               _GoogleSignInButton(
@@ -2700,7 +2667,6 @@ class _SignInStep extends StatelessWidget {
                 ),
             ],
           ),
-        ),
         if (girisHesapTip == null) ...[
           const SizedBox(height: 10),
           const L10nText(
