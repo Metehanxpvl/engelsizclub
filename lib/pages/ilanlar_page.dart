@@ -2145,6 +2145,10 @@ class IlanlarPageState extends State<IlanlarPage> {
               else ...[
                 if (_normalizedRole == 'uzman' || _normalizedRole == 'bakici')
                   _buildCreditBar(),
+                if (_seekListingsOwnerOnly &&
+                    (_kategori == IlanKategori.uzmanlar ||
+                        _kategori == IlanKategori.bakici))
+                  _buildOwnSeekListingsNotice(),
                 _buildLocationFilter(),
                 if (_kategori != IlanKategori.ikinciel) _buildKmFilter(),
                 if (_kategori == IlanKategori.uzmanlar) ...[
@@ -3179,6 +3183,37 @@ class IlanlarPageState extends State<IlanlarPage> {
     );
   }
 
+  Widget _buildOwnSeekListingsNotice() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Material(
+        color: const Color(0xFFE8F5EE),
+        borderRadius: BorderRadius.circular(12),
+        child: const Padding(
+          padding: EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline, size: 20, color: MetoColors.primary),
+              SizedBox(width: 10),
+              Expanded(
+                child: L10nText(
+                  'Bu sayfada yalnızca kendi uzman, bakıcı ve temizlikçi ilanlarınız listelenir. Tüm ilanları görmek için aile rolünden çıkıp uzman veya bakıcı rolüne geçin (Menü → Hesap rolü).',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: MetoColors.foreground,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildLocationFilter() {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -3228,7 +3263,7 @@ class IlanlarPageState extends State<IlanlarPage> {
           padding: const EdgeInsets.symmetric(vertical: 16),
           child: L10nText(
             ownSeekEmpty
-                ? 'Bu kategoride yalnızca kendi ilanlarınız görünür. Henüz ilanınız yoksa İlan Ver ile paylaşabilirsiniz.'
+                ? 'Bu kategoride yalnızca kendi ilanlarınız görünür. Tüm ilanları görmek için aile rolünden çıkıp uzman veya bakıcı rolüne geçin. Henüz ilanınız yoksa İlan Ver ile paylaşabilirsiniz.'
                 : 'Bu filtrede ilan yok',
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 13, color: MetoColors.mutedFg),

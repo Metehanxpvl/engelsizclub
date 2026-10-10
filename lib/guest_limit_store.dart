@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Misafir (guest) freemium limitleri.
@@ -61,6 +62,7 @@ class GuestLimitStore {
 
   /// Yeni arama yapılabilir mi? (0 veya 1 → evet; ≥2 → hayır)
   static Future<bool> canSearch() async {
+    if (kIsWeb) return true;
     return (await searchCount()) < maxSearches;
   }
 
@@ -76,6 +78,7 @@ class GuestLimitStore {
   /// Haklar / Kartlar / M-CHAT: ilk girişte timestamp yazar.
   /// Süre dolmuşsa false.
   static Future<bool> allowTimedTab(String tab) async {
+    if (kIsWeb) return true;
     final prefs = await _prefs();
     if (prefs == null) return true;
     final key = _tabKey(tab);
@@ -118,6 +121,7 @@ class GuestLimitStore {
   }
 
   static Future<bool> kesfetAllowed() async {
+    if (kIsWeb) return true;
     return (await kesfetRemainingMs()) > 0;
   }
 
@@ -135,6 +139,7 @@ class GuestLimitStore {
   }
 
   static Future<bool> sessionAllowed() async {
+    if (kIsWeb) return true;
     return (await sessionRemainingMs()) > 0;
   }
 

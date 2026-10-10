@@ -100,7 +100,11 @@ class LocaleController extends ChangeNotifier {
       await prefs.setString(_prefsKey, _lang.code);
     }
     _loaded = true;
-    notifyListeners();
+    // SharedPreferences web'de ilk karede bitebilir; build sırasında
+    // notifyListeners ErrorWidget üretir (tam sayfa “sorun oluştu”).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      notifyListeners();
+    });
   }
 
   Future<void> setLang(AppLang lang) async {

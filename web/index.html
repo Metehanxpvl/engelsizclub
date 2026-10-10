@@ -21,9 +21,10 @@
 
   <title>Engelsiz Club</title>
   <link rel="manifest" href="manifest.json">
-  <!-- Safari: CanvasKit + main.dart.js indirmesini erken başlat (wasm MIME = application/wasm). -->
+  <!-- main.dart.js klasik <script> ile yüklenir; preload as=script ile eşleşir.
+       canvaskit.js Flutter tarafından import() (ES module) ile yüklenir —
+       as="script" preload tüketilmez ve konsolda unused preload uyarısı verir. -->
   <link rel="preload" href="main.dart.js" as="script">
-  <link rel="preload" href="canvaskit/canvaskit.js" as="script">
   <link rel="preload" href="canvaskit/canvaskit.wasm" as="fetch" crossorigin>
 
   <style>
@@ -187,7 +188,7 @@
       }
     }
 
-    // Eski / bozuk service worker mobil boş ekranına yol açabiliyor.
+    // Eski service worker varsa kaldır; Flutter açılışını bekletme.
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(function (regs) {
         regs.forEach(function (r) { r.unregister(); });

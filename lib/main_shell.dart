@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -268,6 +269,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), duration: const Duration(seconds: 3)),
     );
+    if (kIsWeb) return;
     (widget.onRequireSignup ?? widget.onRequireLogin)?.call();
   }
 
@@ -532,16 +534,20 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   }
 
   Future<void> _maybeShowMedicalWelcome() async {
-    if (!mounted) return;
-    final accepted = await isMedicalWelcomeAccepted();
-    if (accepted || !mounted) {
+    try {
+      if (!mounted) return;
+      final accepted = await isMedicalWelcomeAccepted();
+      if (accepted || !mounted) {
+        unawaited(_maybeStartNavTour());
+        return;
+      }
+      await showMedicalWelcomeDialog(context);
+      await acceptMedicalWelcome();
+      if (!mounted) return;
       unawaited(_maybeStartNavTour());
-      return;
+    } catch (e, st) {
+      debugPrint('Medical welcome: $e\n$st');
     }
-    await showMedicalWelcomeDialog(context);
-    await acceptMedicalWelcome();
-    if (!mounted) return;
-    unawaited(_maybeStartNavTour());
   }
 
   Future<void> _refreshFeedDots() async {
@@ -2902,9 +2908,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   }
 
   String get _initials {
-    final parts = _publicDisplayName.split(RegExp(r'\s+'));
-    final letters = parts.map((w) => w.isEmpty ? '' : w[0]).join();
-    return letters.toUpperCase().substring(0, letters.length.clamp(0, 2));
+    try {
+      final parts = _publicDisplayName.split(RegExp(r'\s+'));
+      final letters = parts.map((w) => w.isEmpty ? '' : w[0]).join();
+      if (letters.isEmpty) return '?';
+      return letters.toUpperCase().substring(0, letters.length.clamp(0, 2));
+    } catch (_) {
+      return '?';
+    }
   }
 
   Widget get _body {
@@ -3183,6 +3194,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    try {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -3248,6 +3260,22 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         },
       ),
     );
+    } catch (e, st) {
+      debugPrint('MainShell build: $e\n$st');
+      return const Scaffold(
+        backgroundColor: MetoColors.background,
+        body: Center(
+          child: Text(
+            'Engelsiz Club',
+            style: TextStyle(
+              color: MetoColors.primary,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildKrediCenteredOverlay() {

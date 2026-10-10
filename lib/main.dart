@@ -33,6 +33,7 @@ import 'remote/app_screen_config.dart';
 import 'services/app_catalog_service.dart';
 import 'services/push_notification_service.dart';
 import 'utils/async_timeout.dart';
+import 'utils/reload_app_page.dart';
 import 'widgets/force_update_gate.dart';
 
 export 'meto_theme.dart';
@@ -213,21 +214,52 @@ bool get isSupabaseReady {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  GoogleFonts.config.allowRuntimeFetching = false;
+  // Web: Nunito pakette yok; fetch kapalıysa build ErrorWidget (boş mint ekran).
+  // Native: ağdan font bekletmesin diye kapalı.
+  GoogleFonts.config.allowRuntimeFetching = kIsWeb;
   ErrorWidget.builder = (details) {
     debugPrint('ErrorWidget: ${details.exception}\n${details.stack}');
-    return const Directionality(
+    return Directionality(
       textDirection: TextDirection.ltr,
       child: Material(
         color: MetoColors.background,
         child: Center(
-          child: Text(
-            'Engelsiz Club',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: MetoColors.primary,
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Engelsiz Club',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: MetoColors.primary,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (kIsWeb) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Sayfa yüklenirken bir sorun oluştu.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: MetoColors.mutedFg,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: reloadAppPage,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: MetoColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Tekrar dene'),
+                  ),
+                ],
+              ],
             ),
           ),
         ),
@@ -548,7 +580,10 @@ class _MetoCareAppState extends State<MetoCareApp> {
     if (session == null) {
       if (mounted) {
         var stayGuest = _user?.isGuest == true;
-        if (stayGuest && !await GuestLimitStore.sessionAllowed()) {
+        // Web: 2 dk misafir kotası tüm siteyi kilitlemesin.
+        if (stayGuest &&
+            !kIsWeb &&
+            !await GuestLimitStore.sessionAllowed()) {
           stayGuest = false;
         }
         setState(() {
@@ -641,7 +676,12 @@ class _MetoCareAppState extends State<MetoCareApp> {
         ContentTranslator.instance,
       ]),
       builder: (context, _) {
-        final lang = LocaleController.instance.lang;
+        AppLang lang;
+        try {
+          lang = LocaleController.instance.lang;
+        } catch (_) {
+          lang = AppLang.tr;
+        }
         return MaterialApp(
           title: 'EngelsizClub',
           debugShowCheckedModeBanner: false,
@@ -712,10 +752,12 @@ class _MetoCareAppState extends State<MetoCareApp> {
                           initialAuthTab:
                               _authOpenOnSignup ? 'kayit' : 'giris',
                           openOnSignIn: _authOpenOnSignup,
-                          allowGuestExplore: !_authOpenOnSignup,
+                          allowGuestExplore:
+                              kIsWeb || !_authOpenOnSignup,
                           onLogin: (u) async {
                             if (!mounted) return;
                             if (u.isGuest &&
+                                !kIsWeb &&
                                 !await GuestLimitStore.sessionAllowed()) {
                               if (!mounted) return;
                               setState(() {
@@ -1031,7 +1073,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _continueAsGuest() async {
     if (!widget.allowGuestExplore ||
-        !await GuestLimitStore.sessionAllowed()) {
+        (!kIsWeb && !await GuestLimitStore.sessionAllowed())) {
       if (!mounted) return;
       _snack(GuestLimitStore.sessionExpiredMessage);
       setState(() {
