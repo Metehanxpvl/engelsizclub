@@ -1,6 +1,6 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-10-10T12:55:27Z",
+  "fetchedAt": "2026-10-11T13:19:05Z",
   "ok": true,
   "count": 180,
   "items": [
@@ -775,6 +775,20 @@
       "lang": "tr"
     },
     {
+      "id": "047abdac3b5a6426819acc7e",
+      "title": "Direkten 9 metre düşerek felç kalan işçiye 10 milyon sterlin tazminat ödendi",
+      "title_original": "Worker paralysed in 30ft fall from pylon gets £10m payout",
+      "summary": "İş Sağlığı ve Güvenliği İdaresi, uygun güvenlik önlemleri alınsaydı Gavin Pugh'un yaralanmalarının önlenebileceğini tespit etti.",
+      "summary_original": "The HSE found Gavin Pugh's injuries could have been prevented if correct safety steps were followed.",
+      "category": "haklar",
+      "source_name": "BBC Disability",
+      "source_url": "https://www.bbc.co.uk/news/articles/cmn4ev4llwpno?at_medium=RSS&at_campaign=rss",
+      "image_url": "",
+      "published_at": "Sun, 11 Oct 2026 06:00:17 GMT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
       "id": "edd83f9e211f6c605620398d",
       "title": "95 Yaşındaki Görme Engelli Gazi, Ehliyetini Bıraktıktan Sonra Yeniden Araç Kullandı",
       "title_original": "'Fantastic' moment blind veteran, 95, drives again after giving up licence",
@@ -841,6 +855,34 @@
       "source_url": "https://www.bbc.co.uk/news/articles/cvgyqddpdrdo?at_medium=RSS&at_campaign=rss",
       "image_url": "",
       "published_at": "Sat, 12 Sep 2026 00:37:41 GMT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "26bb769c40f4eb8bded72c37",
+      "title": "Doula Nedir? Doğum Desteği, Engellilik ve Erişim",
+      "title_original": "What Is a Doula? Birth Support, Disability, and Access",
+      "summary": "Doulanın ne olduğunu, doğum öncesinde, sırasında ve sonrasında neler yaptığını ve engelli ebeveynler ile bakım ekipleri için sürekli desteğin neden önemli olduğunu öğrenin.",
+      "summary_original": "Learn what a doula is, what doulas do before, during, and after birth, and why continuous support matters for disabled parents and their care teams",
+      "category": "erisilebilirlik",
+      "source_name": "Disabled World",
+      "source_url": "https://www.disabled-world.com/medical/rehabilitation/doula.php",
+      "image_url": "",
+      "published_at": "Sat, 10 Oct 2026 17:36:00 GMT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "9ae293f5b152afa16829bb14",
+      "title": "Tek Elle Açılan Çocuk Korumalı İlaç Kutusu Eczanelerde",
+      "title_original": "SnapSlide: One-Handed Child-Resistant Prescription Vial",
+      "summary": "Artrit, inme, Parkinson veya el becerisi kısıtlılığı olan bireyler için tasarlanan tek elle açılabilen çocuk korumalı SnapSlide reçeteli ilaç şişesi, ülke genelindeki eczanelerde yerini aldı.",
+      "summary_original": "SnapSlide, a one-handed child-resistant prescription vial for people with arthritis, stroke, Parkinson’s, or limited dexterity, is now at pharmacies nationwide",
+      "category": "erisilebilirlik",
+      "source_name": "Disabled World",
+      "source_url": "https://www.disabled-world.com/assistivedevices/household/snapslide.php",
+      "image_url": "",
+      "published_at": "Sat, 10 Oct 2026 14:04:00 GMT",
       "status": "pending_review",
       "lang": "tr"
     },
@@ -2479,48 +2521,6 @@
       "source_url": "https://clinicaltrials.gov/study/NCT06701214",
       "image_url": "",
       "published_at": "2026-09-26T11:42:35Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "5ad19ff5398bb5d5469e3664",
-      "title": "Araştırma Erişimindeki Engellerin Kaldırılması",
-      "title_original": "Breaking Barriers to Research Access",
-      "summary": "NHS bünyesindeki araştırmalara ve klinik çalışmalara erişimin artırılması gerekmektedir. Etnik azınlıklar, düşük sosyoekonomik statüdekiler ve kısıtlı kapasiteye sahipler araştırmalarda yetersiz temsil edilmektedir. Bu durum sağlık hizmetlerinde eşitsizliğe yol açmaktadır. Araştırma erişimini artırmak, sağlık eşitliğini sağlayacak, hastalık mekanizmalarının daha iyi anlaşılmasını ve bulguların tüm hasta popülasyonuna genellenebilmesini mümkün kılacaktır. Cheshire ve Merseyside bölgelerinde sosyoekonomik sorunlar sağlık zorlukları getirmektedir.",
-      "summary_original": "There is a need to improve accessibility to research and clinical trials within the NHS. Key groups are consistently under-represented in research: those from minority ethnic backgrounds, those with lower socio-economic status and those with impaired capacity. This leads to inequality of healthcare and an inequality of patient experience. Increasing access to research would not only broaden research opportunities and bridge gaps in health equality; diverse research representation means better understanding of disease mechanisms and greater generalisability of findings across the patient population. There are well described socio-economic issues across the region that this trust serves within Cheshire and Merseyside. This brings health challenges for patients. Clatterbridge Cancer Centre is",
-      "category": "erisilebilirlik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT07342335",
-      "image_url": "",
-      "published_at": "2026-09-26T11:42:32Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "63222f3930e2683d956b4434",
-      "title": "Glokomda Lazer Tedavisinin Etkinliği ve Sürdürülebilirliği Araştırılıyor",
-      "title_original": "Glaucoma Laser Assessment of Stability and Sustainability",
-      "summary": "GLASS Çalışması, erken evre glokom veya göz tansiyonu hastalarında tekrarlayan non-invaziv lazer tedavisi olan DSLT'nin (Doğrudan Selektif Lazer Trabeküloplasti) göz içi basıncını kontrol etmedeki etkinliğini araştırmaktadır. Çalışmada, katılımcıların her iki gözüne ilk lazer uygulandıktan üç ay sonra, rastgele seçilen bir göze ikinci seans uygulanarak tek ve çift uygulamanın göz damlası ihtiyacını azaltmadaki başarısı karşılaştırılacaktır. Bir yıl sürecek takip ile güvenlik ve basınç düzeyleri izlenecektir.",
-      "summary_original": "The GLASS Study is designed to help researchers learn whether repeating a non-invasive laser treatment called DSLT (Direct Selective Laser Trabeculoplasty) can better control eye pressure in patients with early-stage glaucoma or ocular hypertension. All participants will receive the laser treatment in both eyes. After three months, one eye will be randomly selected to receive a second treatment, while the other eye will serve as a comparison. The goal is to see whether two treatments work better than one at keeping eye pressure low without using daily eye drops. This study will help doctors decide the best way to use this laser treatment to manage glaucoma and delay the need for medication. Participants will be followed for one year to monitor safety, eye pressure, and the need for any add",
-      "category": "tedavi",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT06963684",
-      "image_url": "",
-      "published_at": "2026-09-26T11:42:30Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "5322c9507b631310cd62764a",
-      "title": "Lösemi Hedef Tespiti ve Eşleşen Tedavi Müdahalesi İçin Entegratif 'Omik' Yaklaşımları",
-      "title_original": "Integrative \"Omics\" Approaches for Leukemia Target Identification and Matched Therapeutic Intervention",
-      "summary": "Bu klinik araştırma, geleneksel tedaviye yanıt vermeyen veya nükseden akut lösemilerde yeni tedavi hedefleri belirlemek amacıyla çoklu 'omik' bilimlerini kullanmayı hedeflemektedir. Çalışma, en az bir tedavi çizgisi sonrası nükseden akut miyeloid lösemi (AML) ve akut lenfoblastik lösemi (ALL) hastalarında, bilinen biyolojik aktiviteye sahip moleküllerin yeni stratejiler sunup sunamayacağını araştırmaktadır.",
-      "summary_original": "The goal of this clinical trial is to use multiple \"omics\" sciences to more thoroughly investigate Acute Recurrent/Refractory Leukemias (LA R/R) after conventional therapy in order to identify new targets and/or therapeutic approaches, in patients with a diagnosis of Acute Myeloid Leukemia (AML), Acute Lymphoblastic Leukemia/ Lymphoblastic Lymphoma B(ALL-B), Acute Lymphoblastic Leukemia/Lymphoblastic Lymphoma T (ALL-T), Acute Biphenotypic Leukemia/II as defined by WHO( World Health Organization) 2016, relapsed or refractory after at least one line of therapy. The main question that the trial aims to answer is: \"Can molecules with known biological activity be active and represent possible new therapeutic strategies in relapsed/refractory Acute Leukemias on the basis of response profiles ide",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT06626893",
-      "image_url": "",
-      "published_at": "2026-09-26T11:42:27Z",
       "status": "pending_review",
       "lang": "tr"
     }
