@@ -1,6 +1,6 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-10-12T15:56:48Z",
+  "fetchedAt": "2026-10-13T14:49:21Z",
   "ok": true,
   "count": 180,
   "items": [
@@ -337,6 +337,20 @@
       "source_url": "https://www.disabilityscoop.com/2026/09/15/cracked-and-blocked-sidewalks-make-routine-trips-a-serious-risk/32174/",
       "image_url": "",
       "published_at": "Tue, 15 Sep 2026 02:01:49 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "17df798a55c0a28f3c655f00",
+      "title": "Breaking Bad'in Yıldızı RJ Mitte Serebral Palsi Algısını Nasıl Değiştirdi",
+      "title_original": "How Breaking Bad's RJ Mitte changed the way we see cerebral palsy",
+      "summary": "34 yaşında hayatını kaybeden oyuncu, ekranlarda engelliliğin daha iyi temsil edilmesi için mücadele etti.",
+      "summary_original": "The star, who has died at the age of 34, fought for better representation of disabilities on screen.",
+      "category": "erisilebilirlik",
+      "source_name": "BBC Disability",
+      "source_url": "https://www.bbc.co.uk/news/articles/cvp8gj20j2ljo?at_medium=RSS&at_campaign=rss",
+      "image_url": "",
+      "published_at": "Tue, 13 Oct 2026 14:07:33 GMT",
       "status": "pending_review",
       "lang": "tr"
     },
@@ -1247,6 +1261,20 @@
       "source_url": "https://www.disabilityscoop.com/2026/10/02/wrigley-field-becomes-mlbs-first-certified-autism-center/32207/",
       "image_url": "",
       "published_at": "Fri, 02 Oct 2026 02:01:22 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "3e5c97a6176e7acd03bf9902",
+      "title": "Zor İyileşen Yaraların Onarımı için Doku Mühendisliği Ürünü Derinin Hızlı Üretimi",
+      "title_original": "Rapid Construction of Tissue-engineered Skin for Repairing Difficult-to-heal Wounds",
+      "summary": "Bu çok merkezli gerçek dünya çalışması, zor iyileşen yaraların onarımında otolog epidermal kök hücreler kullanılarak doku mühendisliği ürünü derinin ameliyat sırasında hızlı bir şekilde oluşturulmasına yönelik yeni bir tekniğin etkinlik ve güvenliğini değerlendirmektedir. Çalışmada hastalar, hızlı üretilen kök hücreli greft veya kontrol grubu olarak hücresiz iskele kombinasyonu ile tedavi edilmek üzere randomize edilmektedir. Birincil sonuç 4. haftadaki tam yara iyileşme oranıdır.",
+      "summary_original": "This multicenter real-world study evaluates the efficacy and safety of a novel technique for rapid intraoperative construction of tissue-engineered skin using autologous epidermal stem cells （EpiSCs） for repairing difficult-to-heal wounds. Eligible patients are randomized to receive either: （1） the experimental intervention （rapidly constructed EpiSCs-loaded scaffold combined with split-thickness skin graft via one-step or two-step procedure）， or （2） control intervention （acellular scaffold combined with split-thickness skin graft）. The primary outcome is the complete wound healing rate at 4 weeks post-surgery. Secondary outcomes include wound recurrence, scar quality （VSS/POSAS）， functional recovery （sweat test）， mortality, amputation rate, and safety profile.",
+      "category": "tedavi",
+      "source_name": "ClinicalTrials.gov",
+      "source_url": "https://clinicaltrials.gov/study/NCT07562230",
+      "image_url": "",
+      "published_at": "2026-10-13T14:46:28Z",
       "status": "pending_review",
       "lang": "tr"
     },
@@ -2493,34 +2521,6 @@
       "source_url": "https://clinicaltrials.gov/study/NCT07294014",
       "image_url": "",
       "published_at": "2026-09-26T11:42:51Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "c14e24a03116a60d90e5f5ce",
-      "title": "Kişiselleştirilmiş Beslenme ve Aktivite Programının Yaşlı Hastaların Fiziksel Performansına Etkisi",
-      "title_original": "The Effect of a Combined Personalized Nutritional Intervention and a Personalized Graded Activity Functional Training Program on Physical Performance in Hospitalized Older Patients, Compared to Usual Care",
-      "summary": "Bu proje, hastaneye yatan yaşlı hastalarda kişiselleştirilmiş beslenme müdahalesi ve fiziksel aktivite programı ile fiziksel performansı artırmayı amaçlamaktadır. Hastaneye yatışla başlayan süreç, taburculuk sonrası evde bakım ortamında e-sağlık uygulaması desteğiyle devam etmektedir.",
-      "summary_original": "This project aims to improve physical performance in older patients, by offering a personalized combined nutritional intervention with a physical activity training program. The intervention starts at hospital admittance and is continued after discharge in the home care setting, supported by an e-health application.",
-      "category": "tedavi",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT05413616",
-      "image_url": "",
-      "published_at": "2026-09-26T11:42:48Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "9ee925055bc45d651d91bb1f",
-      "title": "Eş Zamanlı Madde Kullanımı ve Ruh Sağlığı Bozukluklarında Tedavi Erişimi ve İyileşmenin Desteklenmesi",
-      "title_original": "Supporting Treatment Access and Recovery in COD",
-      "summary": "Bu 4 yıllık çalışma, opioid kullanım bozukluğu ve ruh sağlığı sorunları olan 1.000 kişiyi içeren bir araştırmadır. Çalışma, çok bileşenli bir ekip yaklaşımı olan MISSION programının, standart opioid kullanım bozukluğu tedavisine kıyasla tedaviye katılım, madde kullanımı ve ruh sağlığı üzerindeki etkinliğini değerlendirmeyi amaçlamaktadır.",
-      "summary_original": "This 4-year study will randomize 1,000 people with co-occurring opioid use and mental health disorders (COD) at medication for opioid use disorder (MOUD) clinics to evaluate the effectiveness of MISSION, a multi-component team approach, or its components with MOUD versus MOUD alone, as well as the incremental benefits of MISSION or its components for improving outcomes. We expect that individuals receiving MISSION or its parts + MOUD will show greater improvement over MOUD alone on: engagement, substance use, and mental health.",
-      "category": "tedavi",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT05138614",
-      "image_url": "",
-      "published_at": "2026-09-26T11:42:45Z",
       "status": "pending_review",
       "lang": "tr"
     }
