@@ -1,14 +1,13 @@
 # 81 il valilik resmi .gov.tr bağlantıları → web/valilikler.json
 #
-# Cron 04:00 UTC = 07:00 Türkiye. Kariyer (05:00), küresel haber (06:30),
-# useful-content (07:30) ile çakışmaz.
+# Cron her gün 05:00 Türkiye = 02:00 UTC.
 # Elle: Actions → Update valilikler catalog → Run workflow (main).
 # Repo Settings → Actions → Workflow permissions → Read and write.
 name: Update valilikler catalog
 
 on:
   schedule:
-    - cron: '0 4 * * *'
+    - cron: '0 2 * * *'
   workflow_dispatch:
 
 permissions:

@@ -1,6 +1,6 @@
 # İŞKUR Engelli kotası (tüm meslekler) → web/engelsiz-kariyer.json
 #
-# Cron 08:00 Türkiye = 05:00 UTC. Yalnızca default branch'te çalışır.
+# Cron her gün 05:00 Türkiye = 02:00 UTC. Yalnızca default branch'te çalışır.
 # Elle: Actions → Fetch Engelsiz Kariyer → Run workflow (main).
 # Repo Settings → Actions → General → Workflow permissions → Read and write.
 # Secret gerekmez.
@@ -8,7 +8,7 @@ name: Fetch Engelsiz Kariyer
 
 on:
   schedule:
-    - cron: '0 5 * * *'
+    - cron: '0 2 * * *'
   workflow_dispatch:
   push:
     paths:
