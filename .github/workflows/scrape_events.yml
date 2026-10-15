@@ -11,8 +11,8 @@ name: Scrape AVM family events
 
 on:
   schedule:
-    # Daily 05:00 UTC — Gemini prompt asks for the coming week's events.
-    - cron: '0 5 * * *'
+    # Daily 05:00 Türkiye = 02:00 UTC — Istanbul today/future/ongoing events.
+    - cron: '0 2 * * *'
   workflow_dispatch:
 
 jobs:
@@ -26,6 +26,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
+      - name: Date filter unit tests
+        run: python scripts/avm_event_dates_test.py
       - name: Install scraper deps
         run: |
           pip install -r scripts/requirements-avm.txt

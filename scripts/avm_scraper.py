@@ -33,10 +33,17 @@ import random
 import re
 import sys
 import time
-from datetime import date
 from pathlib import Path
 from typing import Any, NamedTuple
 from urllib.parse import urljoin, urlparse
+
+from avm_event_dates import (
+    date_text_from_row,
+    event_has_ended,
+    event_is_live,
+    today_istanbul,
+    today_tr_label,
+)
 
 import httpx
 from bs4 import BeautifulSoup
@@ -73,7 +80,14 @@ SORT_FLOOR = 1000
 # kayıt anlamlı olduğu için tek seferlik düşürüp tekrar denenir; zorunlu
 # kolonlar (city/avm_name/event_name/event_date/title/external_id) asla.
 STRIPPABLE_COLUMNS = frozenset(
-    {"image_url", "created_by", "sort_order", "sort_index", "user_edited"}
+    {
+        "image_url",
+        "created_by",
+        "sort_order",
+        "sort_index",
+        "user_edited",
+        "event_date",
+    }
 )
 _MISSING_COLUMN_RE = re.compile(
     r"Could not find the '([^']+)' column of '([^']+)'", re.I
@@ -86,27 +100,6 @@ GEMINI_MODELS = (
 )
 
 SKIP_STATUS = {401, 403, 404, 410, 429, 500, 502, 503, 504}
-
-_TR_MONTHS = (
-    "",
-    "Ocak",
-    "Şubat",
-    "Mart",
-    "Nisan",
-    "Mayıs",
-    "Haziran",
-    "Temmuz",
-    "Ağustos",
-    "Eylül",
-    "Ekim",
-    "Kasım",
-    "Aralık",
-)
-
-
-def _today_tr() -> str:
-    d = date.today()
-    return f"{d.day} {_TR_MONTHS[d.month]} {d.year}"
 
 
 def _load_dotenv() -> None:
@@ -587,15 +580,20 @@ def chunk_text(text: str) -> list[str]:
 
 def gemini_prompt(city: str, avm_name: str, today: str, page_text: str) -> str:
     return f"""Sen Engelsiz Club için AVM etkinlik ayrıştırıcısısın.
-Bugünün tarihi: {today} (Türkiye).
+Bugünün tarihi: {today} (Europe/Istanbul).
 Kaynak AVM: {avm_name}, şehir: {city}.
 
 Görevin: Aşağıdaki sayfa metninden çocuklara, ailelere veya genel ziyaretçilere
 yönelik TÜM etkinlikleri çıkar.
-Tarih kuralı: Tarihi açıkça yazılmış etkinliklerde bu haftayı (7 gün) tercih et,
-AMA tarih belirtilmemişse veya "her hafta sonu", "sürekli", "devam ediyor" gibi
-ifadeler varsa onları DA dahil et — event_date alanına "Her hafta sonu" veya
-"Devam ediyor" yaz.
+Tarih kuralı (kesin):
+- Başlangıcı bugünden önce olan tek günlük etkinliği EKLEME.
+- Başlangıcı bugün veya gelecekte olanları dahil et (gelecek hafta/ay dahil;
+  yalnız bu haftayla sınırlama).
+- Birden fazla gün: başlangıç geçmiş olsa bile bitiş bugün veya gelecekteyse
+  hâlâ devam ediyor — dahil et (ör. 14–16 {today.split()[1]} bugün {today} ise kabul).
+- Tarih belirsizse ("her hafta sonu", "sürekli", "devam ediyor") tarih UYDURMA;
+  event_date alanına o ifadeyi yaz ve dahil et.
+- Takvim tarihi uydurma.
 
 Şunları DAHİL ET: çocuk atölyesi, masal saati, 23 Nisan, aile festivali,
 oyun alanı etkinliği, bebek/çocuk kulübü, ücretsiz minik etkinlikleri,
@@ -680,8 +678,15 @@ class GeminiClient:
         self._models = models
 
     def extract_events(
-        self, city: str, avm_name: str, today: str, page_text: str
+        self,
+        city: str,
+        avm_name: str,
+        today: str,
+        page_text: str,
+        *,
+        today_date=None,
     ) -> list[dict[str, Any]]:
+        live_on = today_date or today_istanbul()
         merged: dict[str, dict[str, Any]] = {}
         for chunk in chunk_text(page_text):
             prompt = gemini_prompt(city, avm_name, today, chunk)
@@ -689,6 +694,8 @@ class GeminiClient:
             for row in rows:
                 event = coerce_event(row, city, avm_name)
                 if not event:
+                    continue
+                if not event_is_live(event["event_date"], live_on):
                     continue
                 key = (
                     event["city"],
@@ -1108,19 +1115,30 @@ class Supabase:
         }
 
     def scraped_etkinlikler(self) -> dict[str, dict[str, Any]]:
-        res = self._req(
-            "GET",
-            "/rest/v1/etkinlikler",
-            params={
-                "select": "id,external_id,user_edited,is_active,sort_index",
-                "source": "eq.avm_scrape",
-                "limit": "20000",
-            },
+        selects = (
+            "id,external_id,user_edited,is_active,sort_index,description,event_date",
+            "id,external_id,user_edited,is_active,sort_index,description",
+            "id,external_id,user_edited,is_active,sort_index",
         )
-        if res.status_code >= 400:
+        res = None
+        for select in selects:
+            res = self._req(
+                "GET",
+                "/rest/v1/etkinlikler",
+                params={
+                    "select": select,
+                    "source": "eq.avm_scrape",
+                    "limit": "20000",
+                },
+            )
+            if res.status_code < 400:
+                break
+            if not _missing_column(res):
+                break
+        if res is None or res.status_code >= 400:
             raise RuntimeError(
-                f"etkinlikler GET HTTP {res.status_code}: "
-                f"{_redact_error(res.text[:400])}"
+                f"etkinlikler GET HTTP {res.status_code if res else '?'}: "
+                f"{_redact_error((res.text if res else '')[:400])}"
             )
         out: dict[str, dict[str, Any]] = {}
         for row in res.json():
@@ -1200,11 +1218,39 @@ def etkinlik_description(event: dict[str, str]) -> str:
     return date_line
 
 
+def filter_live_events(
+    events: list[dict[str, str]], today=None
+) -> list[dict[str, str]]:
+    """Yazmadan hemen önce: geçmiş tek günlük kayıt yeni eklenmez."""
+    live_on = today or today_istanbul()
+    return [e for e in events if event_is_live(e.get("event_date") or "", live_on)]
+
+
+def archive_past_etkinlikler(db: Supabase, today=None) -> int:
+    """Geçmiş AVM scrape satırlarını is_active=false yap; silme."""
+    live_on = today or today_istanbul()
+    existing = db.scraped_etkinlikler()
+    archived = 0
+    for row in existing.values():
+        if row.get("user_edited") is True:
+            continue
+        if row.get("is_active") is False:
+            continue
+        text = date_text_from_row(row)
+        if not event_has_ended(text, live_on):
+            continue
+        db.patch_etkinlik(int(row["id"]), {"is_active": False})
+        archived += 1
+    return archived
+
+
 def sync_etkinlikler(
     db: Supabase,
     events: list[dict[str, str]],
     covers: dict[tuple[str, str], str],
+    today=None,
 ) -> tuple[int, int, int]:
+    live_on = today or today_istanbul()
     deleted = db.deleted_ids()
     existing = db.scraped_etkinlikler()
     next_sort = db.max_sort_index()
@@ -1212,6 +1258,9 @@ def sync_etkinlikler(
     updated = 0
     skipped = 0
     for event in events:
+        if not event_is_live(event.get("event_date") or "", live_on):
+            skipped += 1
+            continue
         eid = external_id(
             event["city"],
             event["avm_name"],
@@ -1228,6 +1277,7 @@ def sync_etkinlikler(
             "description": etkinlik_description(event),
             "city": event["city"],
             "avm_name": event["avm_name"],
+            "event_date": event["event_date"],
         }
         row = existing.get(eid)
         if row:
@@ -1383,7 +1433,8 @@ def main() -> int:
         )
         return 1
 
-    today_label = _today_tr()
+    today_date = today_istanbul()
+    today_label = today_tr_label(today_date)
 
     all_events: list[dict[str, str]] = []
     covers: dict[tuple[str, str], str] = {}
@@ -1415,7 +1466,13 @@ def main() -> int:
                 covers[(city, avm)] = mall_cover
             candidates = extract_image_candidates(fetched.html, fetched.final_url)
             try:
-                events = gemini.extract_events(city, avm, today_label, fetched.text)
+                events = gemini.extract_events(
+                    city,
+                    avm,
+                    today_label,
+                    fetched.text,
+                    today_date=today_date,
+                )
             except Exception as exc:  # noqa: BLE001 — skip mall, keep going
                 print(f"  parse atlandı: {_redact_error(str(exc))}", file=sys.stderr)
                 stats_fail.append(label)
@@ -1462,6 +1519,8 @@ def main() -> int:
                 flush=True,
             )
 
+        all_events = filter_live_events(all_events, today_date)
+
         if args.dry_run:
             print(json.dumps(all_events, ensure_ascii=False, indent=2))
             print(f"Toplam {len(all_events)} (dry-run, yazılmadı)")
@@ -1471,8 +1530,9 @@ def main() -> int:
         try:
             n_events = db.upsert_events(all_events)
             inserted, updated, skipped = sync_etkinlikler(
-                db, all_events, covers
+                db, all_events, covers, today=today_date
             )
+            archived = archive_past_etkinlikler(db, today=today_date)
         except Exception as exc:  # noqa: BLE001 — true fatal: DB write
             print(
                 f"Supabase yazma başarısız: {_redact_error(str(exc))}",
@@ -1481,7 +1541,8 @@ def main() -> int:
             return 1
         print(
             f"events upsert={n_events}; "
-            f"etkinlikler insert={inserted} update={updated} skip={skipped}"
+            f"etkinlikler insert={inserted} update={updated} skip={skipped} "
+            f"archive={archived}"
         )
     # Partial source failures are warnings only. Exit 0 when the scrape
     # loop finished and (if not dry-run) Supabase write succeeded —
