@@ -1,6 +1,6 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-10-16T11:51:11Z",
+  "fetchedAt": "2026-10-17T11:05:00Z",
   "ok": true,
   "count": 180,
   "items": [
@@ -705,6 +705,20 @@
       "lang": "tr"
     },
     {
+      "id": "dc0fc3622a4c730b9c4be3b1",
+      "title": "Bilim insanları egzersizin kas yaşlanmasını nasıl tersine çevirdiğini keşfetti",
+      "title_original": "Scientists discover how exercise reverses muscle aging",
+      "summary": "Bilim insanları, egzersizin kas yaşlanmasının neden olduğu hasarı nasıl tersine çevirebileceğini açıklayan gizli bir biyolojik mekanizma ortaya çıkardı. Yaşla birlikte aşırı aktif hale gelen ve kasların hasarlı proteinleri temizleme yeteneğine müdahale eden DEAF1 adlı gen, bu sürecin anahtarıdır. Egzersiz bu dengenin yeniden kurulmasına yardımcı olarak yaşlı kasların güçlenmesini sağlar.",
+      "summary_original": "Scientists have uncovered a hidden biological mechanism that helps explain how exercise can reverse some of the damage caused by muscle aging. The key is a gene called DEAF1, which becomes overactive with age and interferes with the muscles’ ability to clear damaged proteins and repair themselves. Exercise can help restore this balance, allowing older muscles to rebuild and regain strength, although the benefits may diminish when the system becomes too disrupted.",
+      "category": "tedavi",
+      "source_name": "ScienceDaily Genetics",
+      "source_url": "https://www.sciencedaily.com/releases/2026/10/261015003550.htm",
+      "image_url": "",
+      "published_at": "Thu, 15 Oct 2026 20:41:45 EDT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
       "id": "fb00663ab45b3076d4709946",
       "title": "Snowball Erişilebilirlik Uygulaması TIME'ın En İyi Buluşları Arasında Seçildi",
       "title_original": "Snowball Accessibility App Named in TIME's Best Inventions",
@@ -1289,6 +1303,20 @@
       "source_url": "https://www.disabilityscoop.com/2026/09/18/impossible-doesnt-exist-man-becomes-first-blind-swimmer-to-lap-michigans-mackinac-island/32178/",
       "image_url": "",
       "published_at": "Fri, 18 Sep 2026 02:01:06 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "775b299fca64b84ff863f1c9",
+      "title": "Görünmez Bir Engellilik Olarak Crohn Hastalığı ile Yaşamak",
+      "title_original": "Living With Crohn's Disease as an Invisible Disability",
+      "summary": "Crohn hastası bir lisansüstü öğrencisi, kronik bir rahatsızlığa ve görünmez engelliliğe sahip olmanın, tedavi masrafları ve sağlık hizmetlerine erişimle birlikte eğitim ve iş hayatını nasıl şekillendirdiğini anlatıyor.",
+      "summary_original": "A graduate student with Crohn's disease explains how chronic illness, invisible disability, treatment costs and healthcare access shape education and work",
+      "category": "haklar",
+      "source_name": "Disabled World",
+      "source_url": "https://www.disabled-world.com/disability/blogs/cd-id.php",
+      "image_url": "",
+      "published_at": "Fri, 16 Oct 2026 18:13:00 GMT",
       "status": "pending_review",
       "lang": "tr"
     },
@@ -2493,34 +2521,6 @@
       "source_url": "https://clinicaltrials.gov/study/NCT07747454",
       "image_url": "",
       "published_at": "2026-10-03T11:55:29Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "e2d3e8300b2ac624a1cacdfc",
-      "title": "Subakromiyal Ağrı Sendromunda Düzeltici Dış Destek ve Bölgesel Titreşim Uygulamalarının Etkileri",
-      "title_original": "Effects of Corrective External Support and Regional Vibration Applications in Subacromial Pain Syndrome",
-      "summary": "Kronik subakromiyal ağrı sendromlu 63 bireyin dahil edileceği çalışmada; ağrı şiddeti VAS ile, eklem hareketi ve propriosepsiyon inklinometreyle, omuz kas kuvveti dijital dinamometreyle ölçülecektir. Fonksiyonellik SPADI ve Q-DASH ile, tendon kalınlığı ve akromiohumeral mesafe ultrasonografiyle, hasta memnuniyeti ve yaşam kalitesi ise anketlerle değerlendirilecektir.",
-      "summary_original": "Sixty three individuals with chronic subacromial pain syndrome will be included in our study. In the evaluations to be made to the participants; Pain intensity will be measured with the Visual Analogue Scale (VAS), joint movement and shoulder proprioception will be measured with the inclinometer, and shoulder muscle strength will be measured with the digital hand dynamometer. In addition, functionality and disability levels will be determined by SPADI and Short form-Questionnaire for Arm, Shoulder and Hand Problems (Q-DASH). Supraspinatus tendon thickness and acromiohumeral space measurements will be made by ultrasonographic imaging. Patient satisfaction will be evaluated with the Visual Analog Patient Satisfaction Scale survey and quality of life will be evaluated with the SF-12 survey (T",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT06409442",
-      "image_url": "",
-      "published_at": "2026-10-03T11:55:26Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "2b289d7a5f6bc70864b0dc82",
-      "title": "ICD Kararlarını İyileştirmek İçin Dijital Destek Aracı Geliştirilmesi",
-      "title_original": "Developing a Digital Aid to Improve ICD Decisions",
-      "summary": "İleri evre kalp yetmezliği, ani kardiyak ölüm riskini artırır. Kalp Pili ve Defibrilatör (ICD) cihazları bu riski önlemeye yardımcı olurken bazı dezavantajlar da taşır. Bu protokol, kalp yetmezliği hastalarının ICD yerleştirilmesinin fayda ve dezavantajlarını dengeleyerek bilinçli karar vermelerine yardımcı olacak dijital bir karar destek aracının geliştirilmesini amaçlamaktadır. Çalışma kapsamında anketler, odak grupları ve mülakatlar kullanılacaktır.",
-      "summary_original": "Advanced heart failure, affecting 7 million Americans, has multiple causes and results in greatly increased risk of disability and death. A major problem is sudden cardiac death, when the damaged heart develops an abnormal pattern of electrical conduction that can result in cessation of heart activity. While placement of an Implantable Cardioverter-Defibrillator (ICD) in a patient's chest can help prevent sudden cardiac death, these devices have several important downsides. This protocol focuses on development of a digital decision aid that helps heart failure patients make informed decisions that balance the benefits and downsides of ICD placement. This protocol covers the use of participant surveys, focus groups, and interviews to obtain the needed background information to guide the dev",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT07084142",
-      "image_url": "",
-      "published_at": "2026-10-03T11:55:24Z",
       "status": "pending_review",
       "lang": "tr"
     }
