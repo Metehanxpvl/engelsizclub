@@ -1,6 +1,6 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-10-24T11:29:36Z",
+  "fetchedAt": "2026-10-25T11:56:26Z",
   "ok": true,
   "count": 180,
   "items": [
@@ -1097,6 +1097,20 @@
       "lang": "tr"
     },
     {
+      "id": "736e6d7bd871ae2f314f9318",
+      "title": "DEHB hizmetlerine erişmekte yıllarca zorlandım",
+      "title_original": "'I struggled for years to access services for ADHD'",
+      "summary": "28 yaşındaki Jordan, aile üyelerinin endişelerinin ardından burada DEHB hizmetlerine erişmekte zorlandığını belirtti.",
+      "summary_original": "28-year-old Jordan says he struggled to get access to ADHD services here after concerns from family members",
+      "category": "haklar",
+      "source_name": "BBC Disability",
+      "source_url": "https://www.bbc.co.uk/news/videos/crly0x8wqn4qo?at_medium=RSS&at_campaign=rss",
+      "image_url": "",
+      "published_at": "Sun, 25 Oct 2026 06:48:24 GMT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
       "id": "588bfacbfdb45c9391ed4f31",
       "title": "Tüberküloz Geçirmiş Ünlü İsimler: A'dan Z'ye Liste",
       "title_original": "Famous People Who Have or Had Tuberculosis: A to Z List",
@@ -1205,6 +1219,34 @@
       "source_url": "https://www.sciencedaily.com/releases/2026/08/260801042814.htm",
       "image_url": "",
       "published_at": "Sun, 02 Aug 2026 09:23:34 EDT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "ee7b2c47a58c78b18452d37c",
+      "title": "John Nash: Şizofreni, Deha ve Gerçekliğin Teyidi",
+      "title_original": "John Nash: Schizophrenia, Genius and Verifying Reality",
+      "summary": "Nobel ödüllü matematikçi John Nash'in şizofreni mücadelesini, oyun teorisi çalışmalarını ve Princeton'a dönüşünü konu alan deneme; üstün zekanın tek başına bir bireyin gerçeklikle olan bağını teyit etmeye neden yetmediğini irdeliyor.",
+      "summary_original": "Essay on John Nash's schizophrenia, Nobel-winning game theory and return to Princeton, examining why intelligence alone cannot verify a person's grip on reality",
+      "category": "klinik",
+      "source_name": "Disabled World",
+      "source_url": "https://www.disabled-world.com/disability/awareness/famous/john-nash.php",
+      "image_url": "",
+      "published_at": "Sat, 24 Oct 2026 13:11:00 GMT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "a8fd0d47fe04d35471cbb238",
+      "title": "Bilim insanları yağ yakan ve yeni yağ hücrelerini engelleyen gizli bir anahtar keşfetti",
+      "title_original": "Scientists discover a hidden switch that burns fat and blocks new fat cells",
+      "summary": "Bilim insanları, Mitch adı verilen bir proteinin kapatılmasının insan hücrelerinin daha fazla yağ yakmasını sağladığını ve yeni yağ hücrelerinin gelişmesini engellediğini keşfetti. Fareler üzerindeki deneylere dayanan bu çığır açıcı bulgu, obeziteye karşı direnç ve kas dayanıklılığında artış göstererek kilo verme tedavisinde yeni bir yaklaşım umudunu artırıyor.",
+      "summary_original": "Scientists have discovered that switching off a protein called Mitch makes human cells burn more fat and prevents new fat cells from developing. The breakthrough builds on experiments in mice that showed remarkable resistance to obesity and improved muscular endurance, raising hopes for a new approach to weight-loss treatment.",
+      "category": "tedavi",
+      "source_name": "ScienceDaily Genetics",
+      "source_url": "https://www.sciencedaily.com/releases/2026/10/261023002905.htm",
+      "image_url": "",
+      "published_at": "Sat, 24 Oct 2026 07:16:08 EDT",
       "status": "pending_review",
       "lang": "tr"
     },
@@ -2479,48 +2521,6 @@
       "source_url": "https://clinicaltrials.gov/study/NCT05493241",
       "image_url": "",
       "published_at": "2026-10-15T12:06:21Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "8842cdfc54ca9534e0350535",
-      "title": "Depresyon ve Anksiyete İçin Yapay Zeka Destekli BDT",
-      "title_original": "AI-Guided CBT for Depression and Anxiety",
-      "summary": "Bu çalışma, hafif düzeyde depresyon ve anksiyete bozukluğu olan yetişkinlerde yapay zeka destekli bilişsel davranışçı terapi programının etkinliğini değerlendirmeyi amaçlamaktadır. Kaynak yetersizliği ve uzun bekleme süreleri psikoterapiye erişimi sınırladığından, yapay zeka destekli dijital müdahaleler kanıta dayalı tedavilerin erişilebilirliğini ve ölçeklenebilirliğini artırma potansiyeli sunmaktadır.",
-      "summary_original": "This study aims to evaluate the effectiveness of an artificial intelligence (AI)-guided cognitive behavioral therapy (CBT) program for the treatment of mild depression and anxiety disorders in adults. Depression and anxiety disorders are among the most common mental health conditions worldwide and are associated with significant individual and societal burden. Despite the availability of effective treatments, access to psychotherapy remains limited due to insufficient resources and long waiting times. Digital mental health interventions, particularly those supported by artificial intelligence, have the potential to increase accessibility and scalability of evidence-based treatments. In this controlled clinical trial, participants diagnosed with mild depressive disorder and/or anxiety disor",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT07576686",
-      "image_url": "",
-      "published_at": "2026-10-15T12:06:18Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "fc94d34b72600df115d7def7",
-      "title": "Otolog Olmayan Kök Hücre Nakli Sonrası Gelişen aGvHD'de Dışkı Mikrobiyotası Transplantasyonu",
-      "title_original": "Fecal Microbiota Transplantation in aGvHD After ASCT",
-      "summary": "Akut graft-versus-host hastalığı (aGvHD), allojenik kök hücre nakli sonrasında sık görülen bir komplikasyondur. Dışkı mikrobiyotası transplantasyonu (FMT), sağlıklı bir vericinin dışkı mikrobiyotasının hastanın sindirim sistemine verilmesiyle bağırsak disbiozis spazmını tedavi etmeyi amaçlayan bir terapötik yaklaşımdır. Bu yöntem, gastrointestinal aGvHD hastalarındaki bozulmuş kolon mikrobiyotasını dengelemek amacıyla kullanılmaktadır.",
-      "summary_original": "Acute graft-versus-host-disease (aGvHD) is a typical complication after allogeneic hematopoetic stem cell transplantation (ASCT). About 30-60% of patients after ASCT are affected by aGvHD, which constitutes a relevant burden of morbidity and mortality in these patients. Fecal microbiota transplantation (FMT) is a therapeutic concept to treat intestinal dysbiosis of various origin by infusion of the stool microbiota of a healthy donor into the gastrointestinal tract (GI) of a patient. FMT can be performed endoscopically by colonoscopic deployment of the donor microbiota into the patient´s caecum and terminal ileum. Patients with gastrointestinal aGvHD (GI-aGvHD) are known to comprise a significant dysbiotic colonic microbiota that can be attenuated by FMT.",
-      "category": "tedavi",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT03819803",
-      "image_url": "",
-      "published_at": "2026-10-15T12:06:16Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "d0af15c1a49f8c8c3437c257",
-      "title": "Parkinson Hastalığında Öz-Şefkat ve Öz-Yeterlilik: Belirtiler, İşlevsellik ve Yaşam Kalitesi ile İlişkileri",
-      "title_original": "\"Self-Compassion and Self-Efficacy in Parkinson's Disease: Associations With Symptoms, Function, and Quality of Life\"",
-      "summary": "Bu çalışma, Parkinson hastalarında öz-şefkat ve öz-yeterlilik düzeylerinin belirti şiddeti, işlevsel durum ve yaşam kalitesi ile ilişkilerini değerlendirmeyi amaçlamaktadır.",
-      "summary_original": "The aim of this study is to evaluate the associations of self-compassion and self-efficacy levels with symptom severity, functional status, and quality of life in individuals with Parkinson's disease.",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT07488351",
-      "image_url": "",
-      "published_at": "2026-10-15T12:06:14Z",
       "status": "pending_review",
       "lang": "tr"
     }
