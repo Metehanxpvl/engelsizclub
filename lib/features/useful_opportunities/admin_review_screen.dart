@@ -502,9 +502,30 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
               runSpacing: 6,
               children: [
                 Chip(
+                  label: const Text('Yeni / Onay bekliyor'),
+                  visualDensity: VisualDensity.compact,
+                  backgroundColor: const Color(0xFFFEF3C7),
+                  labelStyle: GoogleFonts.nunito(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
+                    color: const Color(0xFFB45309),
+                  ),
+                ),
+                Chip(
                   label: Text(item.categoryLabel),
                   visualDensity: VisualDensity.compact,
                 ),
+                if (item.isDeadlineUrgent)
+                  Chip(
+                    label: const Text('Acil'),
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: const Color(0xFFFEE2E2),
+                    labelStyle: GoogleFonts.nunito(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11,
+                      color: const Color(0xFFB91C1C),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 8),
@@ -542,13 +563,31 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
               ),
             ],
             if (item.summary.isNotEmpty) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
+              Text(
+                'AI özeti',
+                style: GoogleFonts.nunito(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: MetoColors.mutedFg,
+                ),
+              ),
+              const SizedBox(height: 2),
               Text(
                 item.summary,
                 style: GoogleFonts.nunito(height: 1.35),
               ),
             ],
             const SizedBox(height: 8),
+            Text(
+              'Kaynak',
+              style: GoogleFonts.nunito(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: MetoColors.mutedFg,
+              ),
+            ),
+            const SizedBox(height: 2),
             _sourceLabel(item),
             const SizedBox(height: 14),
             Text(

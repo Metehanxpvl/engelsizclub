@@ -40,6 +40,20 @@ class DailyNewsRepository {
         .toList();
   }
 
+  Future<void> updateCopy({
+    required String id,
+    required String title,
+    required String summary,
+  }) async {
+    _requireAdmin();
+    await withNetworkTimeout(
+      _db.from(_table).update({
+        'title': title.trim(),
+        'summary': summary.trim(),
+      }).eq('id', id).eq('status', 'pending'),
+    );
+  }
+
   Future<void> reject(String id) async {
     _requireAdmin();
     await withNetworkTimeout(

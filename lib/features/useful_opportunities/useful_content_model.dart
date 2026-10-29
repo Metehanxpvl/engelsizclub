@@ -166,6 +166,30 @@ String usefulContentDuyuruBody(
   );
 }
 
+/// Geçmiş deadline'ları çıkar; kalanları son tarihe göre artan sırala.
+List<UsefulContentItem> sortUsefulOpportunities(
+  List<UsefulContentItem> items, [
+  DateTime? now,
+]) {
+  final n = now ?? DateTime.now();
+  final open = [
+    for (final e in items)
+      if (e.deadlineAt == null || (e.daysLeft(n) ?? 0) >= 0) e,
+  ];
+  open.sort((a, b) {
+    final da = a.deadlineAt;
+    final db = b.deadlineAt;
+    if (da != null && db != null) return da.compareTo(db);
+    if (da != null) return -1;
+    if (db != null) return 1;
+    final ca = a.createdAt ?? a.publishedAt;
+    final cb = b.createdAt ?? b.publishedAt;
+    if (ca != null && cb != null) return cb.compareTo(ca);
+    return 0;
+  });
+  return open;
+}
+
 class UsefulContentItem {
   const UsefulContentItem({
     required this.id,
@@ -240,6 +264,22 @@ class UsefulContentItem {
 
   String get categoryLabel =>
       kUsefulContentCategories[category] ?? kUsefulContentCategories['diger']!;
+
+  int? daysLeft([DateTime? now]) {
+    final d = deadlineAt;
+    if (d == null) return null;
+    final n = now ?? DateTime.now();
+    final a = DateTime(d.year, d.month, d.day);
+    final b = DateTime(n.year, n.month, n.day);
+    return a.difference(b).inDays;
+  }
+
+  bool get isDeadlineExpired => deadlineAt != null && (daysLeft() ?? 0) < 0;
+
+  bool get isDeadlineUrgent {
+    final left = daysLeft();
+    return left != null && left >= 0 && left <= 7;
+  }
 
   factory UsefulContentItem.fromJson(Map<String, dynamic> json) {
     DateTime? parseTs(Object? raw) {

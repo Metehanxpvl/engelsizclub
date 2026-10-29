@@ -83,7 +83,7 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
       );
       if (!mounted) return;
       setState(() {
-        _items = items;
+        _items = sortUsefulOpportunities(items);
         _loading = false;
       });
     } catch (e) {
@@ -325,12 +325,36 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                                           ],
                                           if (item.deadlineAt != null) ...[
                                             const SizedBox(height: 8),
-                                            Text(
-                                              'Son tarih: ${dateFmt.format(item.deadlineAt!)}',
-                                              style: GoogleFonts.nunito(
-                                                fontWeight: FontWeight.w700,
-                                                color: MetoColors.primary,
-                                              ),
+                                            Wrap(
+                                              spacing: 6,
+                                              runSpacing: 6,
+                                              children: [
+                                                Text(
+                                                  'Son tarih: ${dateFmt.format(item.deadlineAt!)}'
+                                                  '${item.daysLeft() != null ? ' · ${item.daysLeft()} gün' : ''}',
+                                                  style: GoogleFonts.nunito(
+                                                    fontWeight: FontWeight.w700,
+                                                    color: MetoColors.primary,
+                                                  ),
+                                                ),
+                                                if (item.isDeadlineUrgent)
+                                                  Chip(
+                                                    label: const Text('Acil'),
+                                                    visualDensity:
+                                                        VisualDensity.compact,
+                                                    backgroundColor:
+                                                        const Color(0xFFFEF3C7),
+                                                    labelStyle:
+                                                        GoogleFonts.nunito(
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      fontSize: 11,
+                                                      color: const Color(
+                                                        0xFFB45309,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
                                             ),
                                           ],
                                         ],

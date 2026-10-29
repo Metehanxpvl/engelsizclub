@@ -1,0 +1,117 @@
+# Otomatik içerik taraması → mevcut admin kuyrukları (pending).
+# haber → public.news_candidates (Yeni Haberler)
+# fırsat/destek → public.useful_content (Fırsatlar ve Destekler)
+# bilim → public.scientific_researches (Bilim inceleme)
+# Yayın / FCM yok. Auto-approve varsayılan KAPALI.
+#
+# Mevcut daily-news-scan / useful-content-collector / scientific-research-collector
+# duruyor (gazete RSS, belediye, PubMed/FDA). Bu iş akışı config/sources.json
+# Google News + GDELT + DergiPark + OpenAlex katmanını ekler.
+#
+# Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+#          ANTHROPIC_API_KEY (tercih) veya GEMINI_API_KEY / AI_API_KEY
+# İsteğe bağlı: CONTENT_SCAN_AUTO_APPROVE=true (varsayılan kapalı)
+#
+# Haber: 06:00 / 12:00 / 18:00 TR = 03:00 / 09:00 / 15:00 UTC
+# Bilim: günde 1 kez (06:00 TR)
+name: Content scan
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+    - cron: '0 9 * * *'
+    - cron: '0 15 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Tarama kipi'
+        type: choice
+        options:
+          - news
+          - science
+          - all
+        default: all
+
+permissions:
+  contents: read
+
+jobs:
+  news:
+    if: ${{ github.event_name == 'schedule' || inputs.mode == 'news' || inputs.mode == 'all' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: content-scan-news
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: scripts/content-scan/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: scripts/content-scan/.cache
+          key: content-scan-seen-news-${{ github.run_id }}
+          restore-keys: content-scan-seen-news-
+      - name: Install
+        working-directory: scripts/content-scan
+        run: npm ci
+      - name: Unit tests
+        working-directory: scripts/content-scan
+        run: npm test
+      - name: Scan news → pending
+        working-directory: scripts/content-scan
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          CONTENT_SCAN_AUTO_APPROVE: ${{ secrets.CONTENT_SCAN_AUTO_APPROVE }}
+        run: |
+          SUPABASE_URL="${SUPABASE_URL//qycrkqwqrysypvqipqn/qycrkqwqrysypvqaipqn}"
+          SUPABASE_URL="${SUPABASE_URL//ypvqipqn.supabase.co/ypvqaipqn.supabase.co}"
+          export SUPABASE_URL
+          node index.mjs --mode=news
+
+  science:
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '0 3 * * *') || inputs.mode == 'science' || inputs.mode == 'all' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: content-scan-science
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: scripts/content-scan/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: scripts/content-scan/.cache
+          key: content-scan-seen-science-${{ github.run_id }}
+          restore-keys: content-scan-seen-science-
+      - name: Install
+        working-directory: scripts/content-scan
+        run: npm ci
+      - name: Unit tests
+        working-directory: scripts/content-scan
+        run: npm test
+      - name: Scan science → pending
+        working-directory: scripts/content-scan
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+        run: |
+          SUPABASE_URL="${SUPABASE_URL//qycrkqwqrysypvqipqn/qycrkqwqrysypvqaipqn}"
+          SUPABASE_URL="${SUPABASE_URL//ypvqipqn.supabase.co/ypvqaipqn.supabase.co}"
+          export SUPABASE_URL
+          node index.mjs --mode=science

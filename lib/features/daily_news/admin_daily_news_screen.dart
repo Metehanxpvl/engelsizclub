@@ -96,6 +96,65 @@ class _AdminDailyNewsScreenState extends State<AdminDailyNewsScreen> {
     }
   }
 
+  Future<void> _edit(DailyNewsCandidate item) async {
+    final titleCtrl = TextEditingController(text: item.title);
+    final summaryCtrl = TextEditingController(text: item.summary);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          'Metni düzenle',
+          style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleCtrl,
+                decoration: const InputDecoration(labelText: 'Başlık'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: summaryCtrl,
+                maxLines: 5,
+                decoration: const InputDecoration(labelText: 'AI özeti'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: MetoColors.primary),
+            child: const Text('Kaydet'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _busyId = item.id);
+    try {
+      await _repo.updateCopy(
+        id: item.id,
+        title: titleCtrl.text,
+        summary: summaryCtrl.text,
+      );
+      await _reload();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Kaydedilemedi: $e'.replaceFirst('Bad state: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _busyId = null);
+    }
+  }
+
   Future<void> _reject(DailyNewsCandidate item) async {
     setState(() => _busyId = item.id);
     try {
@@ -175,6 +234,7 @@ class _AdminDailyNewsScreenState extends State<AdminDailyNewsScreen> {
                             return _NewsCandidateCard(
                               item: item,
                               busy: _busyId == item.id,
+                              onEdit: () => _edit(item),
                               onApprove: () => _approve(item),
                               onReject: () => _reject(item),
                             );
@@ -188,12 +248,14 @@ class _NewsCandidateCard extends StatelessWidget {
   const _NewsCandidateCard({
     required this.item,
     required this.busy,
+    required this.onEdit,
     required this.onApprove,
     required this.onReject,
   });
 
   final DailyNewsCandidate item;
   final bool busy;
+  final VoidCallback onEdit;
   final VoidCallback onApprove;
   final VoidCallback onReject;
 
@@ -215,6 +277,28 @@ class _NewsCandidateCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              Chip(
+                label: const Text('Yeni / Onay bekliyor'),
+                visualDensity: VisualDensity.compact,
+                backgroundColor: const Color(0xFFFEF3C7),
+                labelStyle: GoogleFonts.nunito(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11,
+                  color: const Color(0xFFB45309),
+                ),
+              ),
+              if (item.category.isNotEmpty)
+                Chip(
+                  label: Text(item.category),
+                  visualDensity: VisualDensity.compact,
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
           Text(
             item.title,
             style: GoogleFonts.nunito(fontWeight: FontWeight.w800, fontSize: 16),
@@ -222,9 +306,7 @@ class _NewsCandidateCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             [
-              item.sourceName,
               if (dateLabel.isNotEmpty) dateLabel,
-              item.category,
               '${item.importanceLabelTr} · ${item.relevanceScore}',
             ].join('  ·  '),
             style: GoogleFonts.nunito(
@@ -236,14 +318,34 @@ class _NewsCandidateCard extends StatelessWidget {
           if (item.summary.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
+              'AI özeti',
+              style: GoogleFonts.nunito(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: MetoColors.mutedFg,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
               item.summary,
               style: GoogleFonts.nunito(fontSize: 13, height: 1.4),
             ),
           ],
-          if (item.aiReason.isNotEmpty) ...[
+          if (item.sourceName.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
-              'AI: ${item.aiReason}',
+              'Kaynak: ${item.sourceName}',
+              style: GoogleFonts.nunito(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: MetoColors.mutedFg,
+              ),
+            ),
+          ],
+          if (item.aiReason.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              item.aiReason,
               style: GoogleFonts.nunito(
                 fontSize: 12,
                 height: 1.35,
@@ -268,6 +370,10 @@ class _NewsCandidateCard extends StatelessWidget {
                         },
                   child: const L10nText('Haberi aç'),
                 ),
+              OutlinedButton(
+                onPressed: busy ? null : onEdit,
+                child: const L10nText('Düzenle'),
+              ),
               FilledButton(
                 onPressed: busy ? null : onApprove,
                 style: FilledButton.styleFrom(backgroundColor: MetoColors.primary),

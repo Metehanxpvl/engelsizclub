@@ -1,0 +1,15 @@
+[
+  {"id":"cp","ad":"Serebral Palsi","tr":["serebral palsi","SP hastası","CP"],"en":["cerebral palsy"]},
+  {"id":"sma","ad":"SMA","tr":["SMA","spinal musküler atrofi"],"en":["spinal muscular atrophy"]},
+  {"id":"otizm","ad":"Otizm","tr":["otizm","OSB","otizm spektrum"],"en":["autism","ASD"]},
+  {"id":"down","ad":"Down Sendromu","tr":["down sendromu"],"en":["down syndrome"]},
+  {"id":"dmd","ad":"Kas Hastalıkları","tr":["DMD","Duchenne","kas hastalığı"],"en":["muscular dystrophy"]},
+  {"id":"spina","ad":"Spina Bifida","tr":["spina bifida","omurilik felci"],"en":["spina bifida"]},
+  {"id":"epilepsi","ad":"Epilepsi","tr":["epilepsi","sara"],"en":["epilepsy"]},
+  {"id":"rett","ad":"Rett Sendromu","tr":["rett sendromu"],"en":["rett syndrome"]},
+  {"id":"gorme","ad":"Görme Engelli","tr":["görme engelli","az gören","körlük"],"en":["visual impairment","blindness"]},
+  {"id":"isitme","ad":"İşitme Engelli","tr":["işitme engelli","sağır","koklear implant"],"en":["hearing loss","cochlear implant"]},
+  {"id":"ogrenme","ad":"Öğrenme Güçlüğü","tr":["öğrenme güçlüğü","disleksi"],"en":["learning disability","dyslexia"]},
+  {"id":"dehb","ad":"DEHB","tr":["DEHB","dikkat eksikliği"],"en":["ADHD"]},
+  {"id":"zihinsel","ad":"Zihinsel Yetersizlik","tr":["zihinsel engelli","zihinsel yetersizlik"],"en":["intellectual disability"]}
+]

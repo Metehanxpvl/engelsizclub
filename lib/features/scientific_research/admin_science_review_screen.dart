@@ -412,6 +412,19 @@ class _ScienceReviewCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (item.status == 'pending_review') ...[
+              Chip(
+                label: const Text('Yeni / Onay bekliyor'),
+                visualDensity: VisualDensity.compact,
+                backgroundColor: const Color(0xFFFEF3C7),
+                labelStyle: GoogleFonts.nunito(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11,
+                  color: const Color(0xFFB45309),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             Text(
               item.displayTitle,
               style: GoogleFonts.nunito(
@@ -447,7 +460,7 @@ class _ScienceReviewCard extends StatelessWidget {
             ),
             if (!isBlankOrUnspecified(item.summary)) ...[
               const SizedBox(height: 10),
-              Text(item.summary, style: GoogleFonts.nunito(height: 1.35)),
+              _labeled('AI özeti', item.summary),
             ],
             if (!isBlankOrUnspecified(item.whyImportant)) ...[
               const SizedBox(height: 8),
@@ -491,19 +504,41 @@ class _ScienceReviewCard extends StatelessWidget {
                 ),
               ),
             ],
-            if (item.sourceUrl.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              InkWell(
-                onTap: () => _open(item.sourceUrl),
-                child: Text(
-                  item.sourceUrl,
-                  style: GoogleFonts.nunito(
-                    fontSize: 12,
-                    color: MetoColors.primary,
-                    decoration: TextDecoration.underline,
-                  ),
+            if (item.sourceName.isNotEmpty || item.sourceUrl.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Kaynak',
+                style: GoogleFonts.nunito(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: MetoColors.mutedFg,
                 ),
               ),
+              const SizedBox(height: 2),
+              if (item.sourceName.isNotEmpty)
+                Text(
+                  item.sourceName,
+                  style: GoogleFonts.nunito(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              if (item.sourceUrl.isNotEmpty)
+                InkWell(
+                  onTap: () => _open(item.sourceUrl),
+                  child: Text(
+                    item.sourceUrl,
+                    style: GoogleFonts.nunito(
+                      fontSize: 12,
+                      color: MetoColors.primary,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+            ],
+            if (!isBlankOrUnspecified(item.aiNotes)) ...[
+              const SizedBox(height: 8),
+              _labeled('AI notu', item.aiNotes),
             ],
             const SizedBox(height: 12),
             Wrap(
