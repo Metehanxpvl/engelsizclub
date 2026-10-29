@@ -1,0 +1,78 @@
+{
+  "google_news": {
+    "template": "https://news.google.com/rss/search?q={q}+when:2d&hl=tr&gl=TR&ceid=TR:tr",
+    "queries": [
+      "engelli", "özel gereksinimli", "engelli desteği", "engelli maaşı",
+      "bakım maaşı", "evde bakım yardımı", "engelli kartı", "EKPSS",
+      "engelli burs", "engelli hibe", "engelli istihdam", "özel eğitim",
+      "erişilebilirlik", "engelli aracı ÖTV", "engelli rapor",
+      "engelli site:bel.tr", "engelli site:gov.tr"
+    ]
+  },
+  "official_via_news": {
+    "template": "https://news.google.com/rss/search?q={q}+when:7d&hl=tr&gl=TR&ceid=TR:tr",
+    "queries": [
+      "engelli site:aile.gov.tr", "engelli site:sgk.gov.tr",
+      "engelli site:iskur.gov.tr", "engelli site:meb.gov.tr",
+      "engelli site:yok.gov.tr", "engelli site:kosgeb.gov.tr",
+      "engelli site:tubitak.gov.tr", "engelli site:resmigazete.gov.tr"
+    ]
+  },
+  "science": {
+    "openalex": "https://api.openalex.org/works?search={q}&filter=from_publication_date:{date}&per-page=50",
+    "pubmed": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term={q}&datetype=pdat&reldate=60&retmax=50&retmode=json",
+    "clinicaltrials": "https://clinicaltrials.gov/api/v2/studies?query.cond={q}&query.locn=Turkey&filter.overallStatus=RECRUITING&pageSize=50"
+  },
+  "trust": {
+    "resmi": ["gov.tr", "bel.tr", "edu.tr", "resmigazete.gov.tr"],
+    "akademik": ["pubmed.ncbi.nlm.nih.gov", "openalex.org", "clinicaltrials.gov"]
+  },
+  "gdelt": {
+    "url": "https://api.gdeltproject.org/api/v2/doc/doc",
+    "news_query": "(engelli OR \"özel gereksinim\" OR \"engelli maaşı\" OR EKPSS OR \"evde bakım\") sourcelang:turkish sourcecountry:TU",
+    "science_query": "(disability OR \"cerebral palsy\" OR autism OR SMA OR \"down syndrome\" OR \"spinal muscular\") sourcelang:turkish sourcecountry:TU",
+    "mode": "ArtList",
+    "format": "json",
+    "maxrecords": 50,
+    "timespan_news": "2d",
+    "timespan_science": "7d"
+  },
+  "dergipark": {
+    "oai": "https://dergipark.org.tr/api/public/oai",
+    "metadata_prefix": "oai_dc"
+  },
+  "catalog": [
+    {"id": "gnews", "name": "Google News TR", "kind": "google_news", "group": "news"},
+    {"id": "official_news", "name": "Resmi kaynaklar (News)", "kind": "official_via_news", "group": "official"},
+    {"id": "gdelt_tr", "name": "GDELT Türkiye", "kind": "gdelt", "group": "news"},
+    {"id": "openalex", "name": "OpenAlex", "kind": "openalex", "group": "science"},
+    {"id": "pubmed", "name": "PubMed", "kind": "pubmed", "group": "science"},
+    {"id": "clinicaltrials", "name": "ClinicalTrials.gov", "kind": "clinicaltrials", "group": "science"},
+    {"id": "dergipark", "name": "DergiPark OAI-PMH", "kind": "dergipark", "group": "science"},
+    {"id": "ashb", "name": "Aile ve Sosyal Hizmetler", "kind": "google_query", "group": "official", "q": "engelli site:aile.gov.tr"},
+    {"id": "eyhgm", "name": "EYHGM", "kind": "google_query", "group": "official", "q": "engelli site:eyh.aile.gov.tr OR site:eyhgm.aile.gov.tr"},
+    {"id": "sgk", "name": "SGK", "kind": "google_query", "group": "official", "q": "engelli site:sgk.gov.tr"},
+    {"id": "iskur", "name": "İŞKUR", "kind": "google_query", "group": "official", "q": "engelli site:iskur.gov.tr"},
+    {"id": "meb", "name": "MEB", "kind": "google_query", "group": "official", "q": "engelli OR \"özel eğitim\" site:meb.gov.tr"},
+    {"id": "orgm", "name": "ORGM", "kind": "google_query", "group": "official", "q": "engelli site:orgm.meb.gov.tr"},
+    {"id": "yok", "name": "YÖK", "kind": "google_query", "group": "official", "q": "engelli burs site:yok.gov.tr"},
+    {"id": "kosgeb", "name": "KOSGEB", "kind": "google_query", "group": "official", "q": "engelli hibe site:kosgeb.gov.tr"},
+    {"id": "tubitak", "name": "TÜBİTAK", "kind": "google_query", "group": "official", "q": "engelli site:tubitak.gov.tr"},
+    {"id": "resmigazete", "name": "Resmi Gazete", "kind": "google_query", "group": "official", "q": "engelli site:resmigazete.gov.tr"},
+    {"id": "saglik", "name": "Sağlık Bakanlığı", "kind": "google_query", "group": "official", "q": "engelli site:saglik.gov.tr"},
+    {"id": "csgb", "name": "Çalışma ve Sosyal Güvenlik", "kind": "google_query", "group": "official", "q": "engelli site:csgb.gov.tr"},
+    {"id": "icisleri", "name": "İçişleri", "kind": "google_query", "group": "official", "q": "engelli site:icisleri.gov.tr"},
+    {"id": "ibb", "name": "İstanbul BB", "kind": "google_query", "group": "official", "q": "engelli site:ibb.istanbul OR site:istanbul.bel.tr"},
+    {"id": "abb", "name": "Ankara BB", "kind": "google_query", "group": "official", "q": "engelli site:ankara.bel.tr"},
+    {"id": "izmir", "name": "İzmir BB", "kind": "google_query", "group": "official", "q": "engelli site:izmir.bel.tr"},
+    {"id": "bursa", "name": "Bursa BB", "kind": "google_query", "group": "official", "q": "engelli site:bursa.bel.tr"},
+    {"id": "antalya", "name": "Antalya BB", "kind": "google_query", "group": "official", "q": "engelli site:antalya.bel.tr"},
+    {"id": "konya", "name": "Konya BB", "kind": "google_query", "group": "official", "q": "engelli site:konya.bel.tr"},
+    {"id": "adana", "name": "Adana BB", "kind": "google_query", "group": "official", "q": "engelli site:adana.bel.tr"},
+    {"id": "gaziantep", "name": "Gaziantep BB", "kind": "google_query", "group": "official", "q": "engelli site:gaziantep.bel.tr"},
+    {"id": "kayseri", "name": "Kayseri BB", "kind": "google_query", "group": "official", "q": "engelli site:kayseri.bel.tr"},
+    {"id": "mersin", "name": "Mersin BB", "kind": "google_query", "group": "official", "q": "engelli site:mersin.bel.tr"},
+    {"id": "samsun", "name": "Samsun BB", "kind": "google_query", "group": "official", "q": "engelli site:samsun.bel.tr"},
+    {"id": "teyit_gov", "name": "genel gov.tr", "kind": "google_query", "group": "official", "q": "\"engelli desteği\" OR \"engelli bursu\" site:gov.tr"}
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "engelsizclub-content-scan",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "scan": "node index.mjs",
+    "scan:news": "node index.mjs --mode=news",
+    "scan:science": "node index.mjs --mode=science",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.5.1"
+  }
+}

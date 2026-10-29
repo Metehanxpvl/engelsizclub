@@ -1,0 +1,11 @@
+{
+  "auto_approve": false,
+  "auto_approve_min_confidence": 0.85,
+  "max_llm_per_run": 60,
+  "request_timeout_ms": 12000,
+  "source_delay_ms": 250,
+  "fuzzy_ratio": 0.85,
+  "seen_keep": 300,
+  "user_agent": "EngelsizClub-ContentScan/1.0 (+https://engelsizclub.com; sakir.caykara@gmail.com)",
+  "health_note": "Bilgilendirme amaçlıdır, karar için doktorunuza danışın."
+}
