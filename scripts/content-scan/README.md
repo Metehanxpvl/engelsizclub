@@ -23,7 +23,7 @@ Mevcut gazete RSS (`daily-news-scan`), belediye collector ve bilimsel collector 
    - yoksa mevcut `GEMINI_API_KEY` / `AI_API_KEY`
    - isteğe bağlı `NCBI_API_KEY`
 2. (Önerilir) Dashboard → SQL Editor → `supabase/content_scan_optional.sql` Run.
-3. Actions → **Content scan** → Run workflow. Cron: haber 06/12/18 TR, bilim 06:00 TR.
+3. Actions → **Content scan** → Run workflow. Cron: her gün 09:00 Türkiye (06:00 UTC).
 
 Auto-approve kapalıdır. Açmak için secret `CONTENT_SCAN_AUTO_APPROVE=true` **veya** `config/pipeline.json` içinde `"auto_approve": true`. Açılsa bile haber ve bilim yine pending kalır; risk_flag olan kayıt asla otomatik geçmez.
 
