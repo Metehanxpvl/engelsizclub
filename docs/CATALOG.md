@@ -57,8 +57,8 @@ Flutter: `AppCatalogService` + `CatalogAdapters` — remote boşsa yerel `lib/da
 
 1. Supabase SQL Editor → `supabase/events.sql` (mevcut etkinlikleri silmez)
 2. GitHub secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`
-3. GitHub → **Actions** → **Scrape AVM family events** (`scrape_events`) → **Run workflow**  
-   Cron yalnızca **main**’de çalışır.
+3. GitHub → **Actions** → **Etkinlikler scrape** (`scrape_etkinlikler`) → **Run workflow**  
+   Cron yalnızca **main**’de çalışır. Eski **Scrape AVM family events** kaldırıldı.
 
 Yerel deneme: `python scripts/avm_scraper.py --max-sources 3`
 

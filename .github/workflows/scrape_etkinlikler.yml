@@ -1,29 +1,30 @@
-# AVM çocuk/aile etkinlikleri → public.events + public.etkinlikler
+# Etkinlikler: AVM + belediye/müze/dernek kaynakları → public.events + public.etkinlikler
+#
+# Eski "Scrape AVM family events" (scrape_events.yml) kaldırıldı; aynı tablolara
+# iki cron yazmasın.
 #
 # Cron only runs on the default branch (main). workflow_dispatch works on any
 # branch that contains this file.
 #
 # Before the first run:
-#   1) Supabase SQL Editor → supabase/events.sql (additive; does not delete rows)
+#   1) Supabase SQL Editor → supabase/etkinlikler_date_cleanup.sql
 #   2) Repo secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY
-#   3) GitHub → Actions → "Scrape AVM family events" → Run workflow
-name: Scrape AVM family events
+#   3) GitHub → Actions → "Etkinlikler scrape" → Run workflow
+name: Etkinlikler scrape
 
 on:
   schedule:
-    # Daily 07:00 Türkiye = 04:00 UTC — Istanbul today/future/ongoing events.
+    # Daily 07:00 Türkiye = 04:00 UTC
     - cron: '0 4 * * *'
   workflow_dispatch:
 
 concurrency:
-  group: scrape-avm-events
+  group: scrape-etkinlikler
   cancel-in-progress: true
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    # ~100 AVM sources: fetch + Gemini per mall. Default job limit is 360m;
-    # 90m is enough for a full run with polite delays.
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
@@ -52,18 +53,17 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Extra source fixture tests
         run: python scripts/events/test_events.py
-      - name: Fetch mall pages → Gemini → Supabase
+      - name: Fetch pages → Gemini → Supabase
         env:
           PYTHONUNBUFFERED: '1'
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          echo "AVM job start $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          # Secret may omit the extra `a` in the project ref; rewrite before python.
+          echo "Etkinlikler job start $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           SUPABASE_URL="${SUPABASE_URL//qycrkqwqrysypvqipqn/qycrkqwqrysypvqaipqn}"
           SUPABASE_URL="${SUPABASE_URL//ypvqipqn.supabase.co/ypvqaipqn.supabase.co}"
           export SUPABASE_URL
           python scripts/avm_scraper.py
           python scripts/events/run.py
-          echo "AVM job end $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "Etkinlikler job end $(date -u +%Y-%m-%dT%H:%M:%SZ)"
