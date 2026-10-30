@@ -11,9 +11,13 @@ name: Scrape AVM family events
 
 on:
   schedule:
-    # Daily 05:00 Türkiye = 02:00 UTC — Istanbul today/future/ongoing events.
-    - cron: '0 2 * * *'
+    # Daily 07:00 Türkiye = 04:00 UTC — Istanbul today/future/ongoing events.
+    - cron: '0 4 * * *'
   workflow_dispatch:
+
+concurrency:
+  group: scrape-avm-events
+  cancel-in-progress: true
 
 jobs:
   scrape:
@@ -26,20 +30,40 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
+          cache: pip
+          cache-dependency-path: scripts/requirements-avm.txt
+      - name: Cache source health
+        uses: actions/cache@v4
+        with:
+          path: scripts/events/.health.json
+          key: events-source-health
+          restore-keys: |
+            events-source-health
       - name: Date filter unit tests
         run: python scripts/avm_event_dates_test.py
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('scripts/requirements-avm.txt') }}
       - name: Install scraper deps
         run: |
           pip install -r scripts/requirements-avm.txt
           python -m playwright install --with-deps chromium
+      - name: Extra source fixture tests
+        run: python scripts/events/test_events.py
       - name: Fetch mall pages → Gemini → Supabase
         env:
+          PYTHONUNBUFFERED: '1'
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
+          echo "AVM job start $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           # Secret may omit the extra `a` in the project ref; rewrite before python.
           SUPABASE_URL="${SUPABASE_URL//qycrkqwqrysypvqipqn/qycrkqwqrysypvqaipqn}"
           SUPABASE_URL="${SUPABASE_URL//ypvqipqn.supabase.co/ypvqaipqn.supabase.co}"
           export SUPABASE_URL
           python scripts/avm_scraper.py
+          python scripts/events/run.py
+          echo "AVM job end $(date -u +%Y-%m-%dT%H:%M:%SZ)"

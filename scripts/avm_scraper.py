@@ -37,13 +37,19 @@ from pathlib import Path
 from typing import Any, NamedTuple
 from urllib.parse import urljoin, urlparse
 
+from datetime import datetime, timedelta, timezone
+
 from avm_event_dates import (
-    date_text_from_row,
-    event_has_ended,
+    accessibility_tags,
     event_is_live,
+    make_dedupe_key,
+    parse_event_blob,
+    row_has_ended,
+    row_is_unknown,
     today_istanbul,
     today_tr_label,
 )
+from events.jsonld import extract_jsonld_events
 
 import httpx
 from bs4 import BeautifulSoup
@@ -68,8 +74,9 @@ FETCH_TIMEOUT = 30.0
 FETCH_RETRIES = 3
 RETRY_HTTP_STATUS = {429, 502, 503, 504}
 GEMINI_TIMEOUT = 45.0
-DELAY_MIN = 1.0
-DELAY_MAX = 2.0
+# Kaynak başına ~0.5s; 1–2s aralığı 100 AVM’de 2–3 dk boş kota yiyordu.
+DELAY_MIN = 0.35
+DELAY_MAX = 0.7
 MAX_HTML_BYTES = 1_800_000
 CHUNK_CHARS = 12_000
 CHUNK_OVERLAP = 400
@@ -87,6 +94,19 @@ STRIPPABLE_COLUMNS = frozenset(
         "sort_index",
         "user_edited",
         "event_date",
+        "start_date",
+        "end_date",
+        "start_time",
+        "source_url",
+        "source_type",
+        "accessibility_tags",
+        "date_status",
+        "date_source",
+        "year_inferred",
+        "needs_review",
+        "last_seen_at",
+        "scraped_at",
+        "dedupe_key",
     }
 )
 _MISSING_COLUMN_RE = re.compile(
@@ -163,6 +183,26 @@ def _redact_error(msg: str) -> str:
 
 def polite_sleep() -> None:
     time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
+
+
+def format_duration(seconds: float) -> str:
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    return f"{seconds / 60:.1f} dk ({int(seconds)}s)"
+
+
+def write_run_summary(lines: list[str]) -> None:
+    """GitHub Actions job summary + stdout (kota ölçümü)."""
+    text = "\n".join(lines)
+    print(text, flush=True)
+    path = (os.environ.get("GITHUB_STEP_SUMMARY") or "").strip()
+    if not path:
+        return
+    try:
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(text + "\n")
+    except OSError:
+        return
 
 
 def normalize_ws(value: str) -> str:
@@ -591,9 +631,10 @@ Tarih kuralı (kesin):
   yalnız bu haftayla sınırlama).
 - Birden fazla gün: başlangıç geçmiş olsa bile bitiş bugün veya gelecekteyse
   hâlâ devam ediyor — dahil et (ör. 14–16 {today.split()[1]} bugün {today} ise kabul).
-- Tarih belirsizse ("her hafta sonu", "sürekli", "devam ediyor") tarih UYDURMA;
-  event_date alanına o ifadeyi yaz ve dahil et.
-- Takvim tarihi uydurma.
+- Tarih belirsizse ("her hafta sonu", "sürekli", "devam ediyor") tarih UYDURMA
+  ve kaydı EKLEME. event_date alanına "Devam ediyor" yazma.
+- Afişte veya metinde aralık varsa birebir yaz (ör. "26 Haziran - 5 Temmuz").
+- Takvim tarihi uydurma. Yıl yoksa ay ve günü yaz; yılı uydurma.
 
 Şunları DAHİL ET: çocuk atölyesi, masal saati, 23 Nisan, aile festivali,
 oyun alanı etkinliği, bebek/çocuk kulübü, ücretsiz minik etkinlikleri,
@@ -670,6 +711,7 @@ class GeminiClient:
     def __init__(self, api_key: str, http: httpx.Client) -> None:
         self._key = api_key
         self._http = http
+        self.calls = 0
         preferred = _env("GEMINI_MODEL") or GEMINI_MODELS[0]
         models: list[str] = []
         for m in (preferred, *GEMINI_MODELS):
@@ -688,7 +730,8 @@ class GeminiClient:
     ) -> list[dict[str, Any]]:
         live_on = today_date or today_istanbul()
         merged: dict[str, dict[str, Any]] = {}
-        for chunk in chunk_text(page_text):
+        chunks = chunk_text(page_text)
+        for i, chunk in enumerate(chunks):
             prompt = gemini_prompt(city, avm_name, today, chunk)
             rows = self._generate_array(prompt)
             for row in rows:
@@ -704,10 +747,12 @@ class GeminiClient:
                     event["event_date"],
                 )
                 merged[key] = event
-            polite_sleep()
+            if i + 1 < len(chunks):
+                polite_sleep()
         return list(merged.values())
 
     def _generate_array(self, prompt: str) -> list[dict[str, Any]]:
+        self.calls += 1
         last_err = ""
         configs: list[dict[str, Any]] = [
             {
@@ -762,7 +807,7 @@ class GeminiClient:
 
 def coerce_event(
     row: dict[str, Any], city: str, avm_name: str
-) -> dict[str, str] | None:
+) -> dict[str, Any] | None:
     name = normalize_ws(str(row.get("event_name") or row.get("title") or ""))
     event_date = normalize_ws(
         str(row.get("event_date") or row.get("date") or "")
@@ -775,14 +820,149 @@ def coerce_event(
     )
     if image_url and not image_url.startswith(("http://", "https://")):
         image_url = ""
+    return enrich_event(
+        {
+            "city": normalize_ws(city)[:120],
+            "avm_name": normalize_ws(avm_name)[:160],
+            "event_name": name[:240],
+            "event_date": event_date[:160],
+            "description": desc[:2000],
+            "image_url": image_url[:500],
+        }
+    )
+
+
+def enrich_event(
+    event: dict[str, Any],
+    today=None,
+    *,
+    date_source: str = "html",
+    source_type: str = "avm",
+) -> dict[str, Any]:
+    live_on = today or today_istanbul()
+    parsed = parse_event_blob(
+        str(event.get("event_date") or ""),
+        str(event.get("event_name") or event.get("title") or ""),
+        str(event.get("description") or ""),
+        str(event.get("source_url") or ""),
+        today=live_on,
+    )
+    start = parsed.start if parsed else None
+    end = parsed.end if parsed else None
+    if parsed and end is None:
+        end = start
+    status = parsed.status(live_on) if parsed else "unknown"
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    source_id = (
+        str(event.get("source_id") or "")
+        or f"{source_type}:{event.get('city')}:{event.get('avm_name')}"
+    )
+    out = dict(event)
+    out.update(
+        {
+            "start_date": start.isoformat() if start else None,
+            "end_date": end.isoformat() if end else None,
+            "source_type": source_type,
+            "date_status": status,
+            "date_source": date_source,
+            "year_inferred": bool(parsed.year_inferred) if parsed else False,
+            "needs_review": parsed is None,
+            "last_seen_at": now,
+            "scraped_at": now,
+            "dedupe_key": make_dedupe_key(
+                source_id, str(event.get("event_name") or ""), start
+            ),
+            "accessibility_tags": accessibility_tags(
+                str(event.get("event_name") or ""),
+                str(event.get("description") or ""),
+            ),
+        }
+    )
+    return out
+
+
+def events_from_jsonld(
+    html: str, city: str, avm_name: str, today=None
+) -> list[dict[str, Any]]:
+    live_on = today or today_istanbul()
+    out: list[dict[str, Any]] = []
+    for item in extract_jsonld_events(html):
+        row = coerce_event(item, city, avm_name)
+        if not row:
+            continue
+        row = enrich_event(row, live_on, date_source="jsonld", source_type="avm")
+        if event_is_live(row.get("event_date") or "", live_on):
+            out.append(row)
+    return out
+
+
+def _playwright_context_kwargs() -> dict[str, Any]:
     return {
-        "city": normalize_ws(city)[:120],
-        "avm_name": normalize_ws(avm_name)[:160],
-        "event_name": name[:240],
-        "event_date": event_date[:160],
-        "description": desc[:2000],
-        "image_url": image_url[:500],
+        "user_agent": USER_AGENT,
+        "locale": "tr-TR",
+        "viewport": {"width": 1280, "height": 900},
+        "extra_http_headers": {
+            "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Upgrade-Insecure-Requests": "1",
+        },
     }
+
+
+def _render_with_browser(browser: Any, url: str) -> str | None:
+    ctx = browser.new_context(**_playwright_context_kwargs())
+    try:
+        page = ctx.new_page()
+        page.goto(url, wait_until="domcontentloaded", timeout=35_000)
+        page.wait_for_timeout(3000)
+        return page.content()
+    finally:
+        ctx.close()
+
+
+class PlaywrightSession:
+    """Tek Chromium süreci; her SPA için yeniden launch kota yer."""
+
+    def __init__(self) -> None:
+        self.renders = 0
+        self._cm: Any = None
+        self._browser: Any = None
+
+    def __enter__(self) -> PlaywrightSession:
+        if not HAS_PLAYWRIGHT:
+            return self
+        try:
+            self._cm = sync_playwright()
+            pw = self._cm.__enter__()
+            self._browser = pw.chromium.launch(headless=True)
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"  playwright başlatılamadı: {_redact_error(str(exc))}",
+                file=sys.stderr,
+            )
+            self._browser = None
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        try:
+            if self._browser is not None:
+                self._browser.close()
+        except Exception:
+            pass
+        if self._cm is not None:
+            try:
+                self._cm.__exit__(*exc)
+            except Exception:
+                pass
+
+    def render(self, url: str) -> str | None:
+        self.renders += 1
+        try:
+            if self._browser is not None:
+                return _render_with_browser(self._browser, url)
+            return _fetch_with_playwright(url)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  playwright hatası: {_redact_error(str(exc))}", file=sys.stderr)
+            return None
 
 
 def _fetch_with_playwright(url: str) -> str | None:
@@ -792,20 +972,7 @@ def _fetch_with_playwright(url: str) -> str | None:
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
-            ctx = browser.new_context(
-                user_agent=USER_AGENT,
-                locale="tr-TR",
-                viewport={"width": 1280, "height": 900},
-                extra_http_headers={
-                    "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
-                    "Upgrade-Insecure-Requests": "1",
-                },
-            )
-            page = ctx.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=35_000)
-            # Wait a bit for JS to hydrate content
-            page.wait_for_timeout(3000)
-            html = page.content()
+            html = _render_with_browser(browser, url)
             browser.close()
         return html
     except Exception as exc:  # noqa: BLE001
@@ -906,6 +1073,7 @@ def _maybe_playwright(
     html: str | None,
     plain_text: str,
     cover: str,
+    session: PlaywrightSession | None = None,
 ) -> tuple[str | None, str, str]:
     """JS-render when the static page is thin (SPA) so og:image can appear."""
     need_js = len(plain_text) < _JS_FALLBACK_THRESHOLD
@@ -914,7 +1082,9 @@ def _maybe_playwright(
     if not need_js or not HAS_PLAYWRIGHT:
         return html, plain_text, cover
     print("  → JS render deneniyor (playwright)…", file=sys.stderr)
-    rendered = _fetch_with_playwright(url)
+    rendered = (
+        session.render(url) if session is not None else _fetch_with_playwright(url)
+    )
     if not rendered:
         return html, plain_text, cover
     rendered_text = html_to_text(rendered)
@@ -936,13 +1106,14 @@ def fetch_html(
     *,
     require_text: bool = True,
     use_playwright: bool = True,
+    pw_session: PlaywrightSession | None = None,
 ) -> FetchedPage | None:
     html, final_url = _http_get_html(http, url)
     plain_text = html_to_text(html) if html else ""
     cover = extract_mall_cover(html, final_url) if html else ""
     if use_playwright:
         html, plain_text, cover = _maybe_playwright(
-            url, html, plain_text, cover
+            url, html, plain_text, cover, session=pw_session
         )
 
     if not html:
@@ -966,8 +1137,12 @@ def fetch_html(
     return FetchedPage(text=text, html=html, final_url=final_url, cover=cover)
 
 
-def fetch_page(http: httpx.Client, url: str) -> FetchedPage | None:
-    return fetch_html(http, url, require_text=True)
+def fetch_page(
+    http: httpx.Client,
+    url: str,
+    pw_session: PlaywrightSession | None = None,
+) -> FetchedPage | None:
+    return fetch_html(http, url, require_text=True, pw_session=pw_session)
 
 
 def _missing_column(res: httpx.Response) -> str:
@@ -1086,16 +1261,29 @@ class Supabase:
             dropped.append(col)
         raise RuntimeError(f"{label}: eksik kolonlar giderilemedi")
 
-    def upsert_events(self, rows: list[dict[str, str]]) -> int:
+    def upsert_events(self, rows: list[dict[str, Any]]) -> int:
         if not rows:
             return 0
-        return self._post_rows(
-            "events upsert",
-            "/rest/v1/events",
-            list(rows),
-            params={"on_conflict": "city,avm_name,event_name,event_date"},
-            prefer="resolution=merge-duplicates,return=minimal",
-        )
+        total = 0
+        for i in range(0, len(rows), 500):
+            chunk = list(rows[i : i + 500])
+            try:
+                total += self._post_rows(
+                    "events upsert",
+                    "/rest/v1/events",
+                    chunk,
+                    params={"on_conflict": "dedupe_key"},
+                    prefer="resolution=merge-duplicates,return=minimal",
+                )
+            except RuntimeError:
+                total += self._post_rows(
+                    "events upsert",
+                    "/rest/v1/events",
+                    chunk,
+                    params={"on_conflict": "city,avm_name,event_name,event_date"},
+                    prefer="resolution=merge-duplicates,return=minimal",
+                )
+        return total
 
     def deleted_ids(self) -> set[str]:
         res = self._req(
@@ -1116,36 +1304,86 @@ class Supabase:
 
     def scraped_etkinlikler(self) -> dict[str, dict[str, Any]]:
         selects = (
+            "id,external_id,user_edited,is_active,sort_index,description,event_date,last_seen_at,date_status,needs_review,end_date,start_date,title",
             "id,external_id,user_edited,is_active,sort_index,description,event_date",
             "id,external_id,user_edited,is_active,sort_index,description",
             "id,external_id,user_edited,is_active,sort_index",
         )
-        res = None
-        for select in selects:
+        select = selects[0]
+        for cand in selects:
+            probe = self._req(
+                "GET",
+                "/rest/v1/etkinlikler",
+                params={
+                    "select": cand,
+                    "source": "eq.avm_scrape",
+                    "limit": "1",
+                },
+            )
+            if probe.status_code < 400:
+                select = cand
+                break
+            if not _missing_column(probe):
+                raise RuntimeError(
+                    f"etkinlikler GET HTTP {probe.status_code}: "
+                    f"{_redact_error(probe.text[:400])}"
+                )
+        out: dict[str, dict[str, Any]] = {}
+        page = 1000
+        offset = 0
+        while True:
             res = self._req(
                 "GET",
                 "/rest/v1/etkinlikler",
                 params={
                     "select": select,
                     "source": "eq.avm_scrape",
-                    "limit": "20000",
+                    "limit": str(page),
+                    "offset": str(offset),
+                    "order": "id.asc",
                 },
             )
-            if res.status_code < 400:
+            if res.status_code >= 400:
+                raise RuntimeError(
+                    f"etkinlikler GET HTTP {res.status_code}: "
+                    f"{_redact_error(res.text[:400])}"
+                )
+            rows = res.json()
+            if not isinstance(rows, list):
                 break
-            if not _missing_column(res):
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                rid = row.get("id")
+                eid = str(row.get("external_id") or "")
+                key = eid or (f"id:{rid}" if rid is not None else "")
+                if key:
+                    out[key] = row
+            if len(rows) < page:
                 break
-        if res is None or res.status_code >= 400:
-            raise RuntimeError(
-                f"etkinlikler GET HTTP {res.status_code if res else '?'}: "
-                f"{_redact_error((res.text if res else '')[:400])}"
-            )
-        out: dict[str, dict[str, Any]] = {}
-        for row in res.json():
-            eid = str(row.get("external_id") or "")
-            if eid:
-                out[eid] = row
+            offset += page
+            if offset > 50000:
+                break
         return out
+
+    def patch_etkinlikler_inactive(self, ids: list[int]) -> None:
+        if not ids:
+            return
+        for i in range(0, len(ids), 80):
+            chunk = ids[i : i + 80]
+            csv = ",".join(str(x) for x in chunk)
+            res = self._req(
+                "PATCH",
+                "/rest/v1/etkinlikler",
+                params={"id": f"in.({csv})"},
+                json_body={"is_active": False},
+                extra_headers={"Prefer": "return=minimal"},
+            )
+            if res.status_code >= 400:
+                raise RuntimeError(
+                    f"etkinlikler archive HTTP {res.status_code}: "
+                    f"{_redact_error(res.text[:400])}"
+                )
 
     def max_sort_index(self) -> int:
         res = self._req(
@@ -1219,34 +1457,100 @@ def etkinlik_description(event: dict[str, str]) -> str:
 
 
 def filter_live_events(
-    events: list[dict[str, str]], today=None
-) -> list[dict[str, str]]:
-    """Yazmadan hemen önce: geçmiş tek günlük kayıt yeni eklenmez."""
+    events: list[dict[str, Any]], today=None
+) -> list[dict[str, Any]]:
+    """Yazmadan hemen önce: geçmiş ve tarihsiz kayıt yeni eklenmez."""
     live_on = today or today_istanbul()
     return [e for e in events if event_is_live(e.get("event_date") or "", live_on)]
 
 
+def dedupe_event_rows(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: dict[str, dict[str, Any]] = {}
+    for event in events:
+        key = str(event.get("dedupe_key") or "") or "|".join(
+            (
+                str(event.get("city") or ""),
+                str(event.get("avm_name") or ""),
+                str(event.get("event_name") or ""),
+                str(event.get("event_date") or ""),
+            )
+        )
+        seen[key] = event
+    return list(seen.values())
+
+
 def archive_past_etkinlikler(db: Supabase, today=None) -> int:
-    """Geçmiş AVM scrape satırlarını is_active=false yap; silme."""
+    """Geçmiş ve tarihsiz AVM scrape satırlarını is_active=false yap; silme.
+
+    Kullanıcı kayıtlarına dokunulmaz (sorgu source=avm_scrape).
+    Silmek yerine pasifleme: RLS zaten is_active=false'u gizler; geri alınabilir.
+    """
     live_on = today or today_istanbul()
     existing = db.scraped_etkinlikler()
-    archived = 0
+    ids: list[int] = []
+    unknown = 0
     for row in existing.values():
         if row.get("user_edited") is True:
             continue
         if row.get("is_active") is False:
             continue
-        text = date_text_from_row(row)
-        if not event_has_ended(text, live_on):
+        ended = row_has_ended(row, live_on)
+        unknown_row = row_is_unknown(row, live_on) or row.get("date_status") == "unknown"
+        if not ended and not unknown_row:
             continue
-        db.patch_etkinlik(int(row["id"]), {"is_active": False})
-        archived += 1
-    return archived
+        if unknown_row and not ended:
+            unknown += 1
+        try:
+            ids.append(int(row["id"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    db.patch_etkinlikler_inactive(ids)
+    print(
+        f"arşiv aday={len(ids)} (tarihsiz={unknown}) / scrape kayıt={len(existing)}",
+        flush=True,
+    )
+    return len(ids)
+
+
+def archive_stale_etkinlikler(
+    db: Supabase, seen_external_ids: set[str], *, days: int = 7
+) -> int:
+    """7+ gündür görülmeyen scraper kayıtlarını pasifle. Kullanıcıya uygulanmaz."""
+    existing = db.scraped_etkinlikler()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    ids: list[int] = []
+    for row in existing.values():
+        if row.get("user_edited") is True:
+            continue
+        if row.get("is_active") is False:
+            continue
+        eid = str(row.get("external_id") or "")
+        if eid and eid in seen_external_ids:
+            continue
+        raw = str(row.get("last_seen_at") or "").strip()
+        if not raw:
+            continue
+        try:
+            ts = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        if ts > cutoff:
+            continue
+        try:
+            ids.append(int(row["id"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    db.patch_etkinlikler_inactive(ids)
+    if ids:
+        print(f"stale arşiv={len(ids)} (>{days} gün)", flush=True)
+    return len(ids)
 
 
 def sync_etkinlikler(
     db: Supabase,
-    events: list[dict[str, str]],
+    events: list[dict[str, Any]],
     covers: dict[tuple[str, str], str],
     today=None,
 ) -> tuple[int, int, int]:
@@ -1278,6 +1582,18 @@ def sync_etkinlikler(
             "city": event["city"],
             "avm_name": event["avm_name"],
             "event_date": event["event_date"],
+            "source_type": event.get("source_type") or "avm",
+            "start_date": event.get("start_date"),
+            "end_date": event.get("end_date"),
+            "source_url": event.get("source_url") or "",
+            "accessibility_tags": event.get("accessibility_tags") or [],
+            "date_status": event.get("date_status") or "",
+            "date_source": event.get("date_source") or "html",
+            "year_inferred": bool(event.get("year_inferred")),
+            "needs_review": bool(event.get("needs_review")),
+            "last_seen_at": event.get("last_seen_at"),
+            "scraped_at": event.get("scraped_at"),
+            "dedupe_key": event.get("dedupe_key") or eid,
         }
         row = existing.get(eid)
         if row:
@@ -1435,6 +1751,13 @@ def main() -> int:
 
     today_date = today_istanbul()
     today_label = today_tr_label(today_date)
+    started = time.perf_counter()
+    started_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    print(
+        f"AVM scrape başladı {started_iso} today={today_label} "
+        f"kaynak={len(sources)}",
+        flush=True,
+    )
 
     all_events: list[dict[str, str]] = []
     covers: dict[tuple[str, str], str] = {}
@@ -1444,8 +1767,10 @@ def main() -> int:
     stats_ok: list[str] = []
     stats_empty: list[str] = []
     stats_fail: list[str] = []
+    n_events = 0
+    inserted = updated = skipped = archived = 0
 
-    with httpx.Client(http2=False, follow_redirects=True) as http:
+    with httpx.Client(http2=False, follow_redirects=True) as http, PlaywrightSession() as pw:
         gemini = GeminiClient(gemini_key, http)
         db = None
         if not args.dry_run:
@@ -1456,7 +1781,7 @@ def main() -> int:
             city, avm, url = src["city"], src["avm_name"], src["events_url"]
             label = f"{city}/{avm}"
             print(f"[{i}/{len(sources)}] {label}")
-            fetched = fetch_page(http, url)
+            fetched = fetch_page(http, url, pw_session=pw)
             polite_sleep()
             if not fetched:
                 stats_fail.append(label)
@@ -1465,6 +1790,9 @@ def main() -> int:
             if mall_cover:
                 covers[(city, avm)] = mall_cover
             candidates = extract_image_candidates(fetched.html, fetched.final_url)
+            structured = events_from_jsonld(
+                fetched.html, city, avm, today=today_date
+            )
             try:
                 events = gemini.extract_events(
                     city,
@@ -1477,6 +1805,12 @@ def main() -> int:
                 print(f"  parse atlandı: {_redact_error(str(exc))}", file=sys.stderr)
                 stats_fail.append(label)
                 continue
+            by_name: dict[str, dict[str, Any]] = {}
+            for event in events:
+                by_name[normalize_ws(event["event_name"]).lower()] = event
+            for event in structured:
+                by_name[normalize_ws(event["event_name"]).lower()] = event
+            events = list(by_name.values())
             kept = 0
             for event in events:
                 key = (
@@ -1519,31 +1853,65 @@ def main() -> int:
                 flush=True,
             )
 
-        all_events = filter_live_events(all_events, today_date)
+        unknown_n = sum(
+            1
+            for e in all_events
+            if (e.get("date_status") == "unknown")
+            or not event_is_live(e.get("event_date") or "", today_date)
+        )
+        all_events = dedupe_event_rows(filter_live_events(all_events, today_date))
+        write_failed = False
 
         if args.dry_run:
             print(json.dumps(all_events, ensure_ascii=False, indent=2))
             print(f"Toplam {len(all_events)} (dry-run, yazılmadı)")
-            return 0
+        else:
+            assert db is not None
+            try:
+                n_events = db.upsert_events(all_events)
+                inserted, updated, skipped = sync_etkinlikler(
+                    db, all_events, covers, today=today_date
+                )
+                archived = archive_past_etkinlikler(db, today=today_date)
+                seen_ids = {
+                    external_id(
+                        e["city"], e["avm_name"], e["event_name"], e["event_date"]
+                    )
+                    for e in all_events
+                }
+                archived += archive_stale_etkinlikler(db, seen_ids)
+            except Exception as exc:  # noqa: BLE001 — true fatal: DB write
+                write_failed = True
+                print(
+                    f"Supabase yazma başarısız: {_redact_error(str(exc))}",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    f"events upsert={n_events}; "
+                    f"etkinlikler insert={inserted} update={updated} skip={skipped} "
+                    f"archive={archived}"
+                )
 
-        assert db is not None
-        try:
-            n_events = db.upsert_events(all_events)
-            inserted, updated, skipped = sync_etkinlikler(
-                db, all_events, covers, today=today_date
-            )
-            archived = archive_past_etkinlikler(db, today=today_date)
-        except Exception as exc:  # noqa: BLE001 — true fatal: DB write
-            print(
-                f"Supabase yazma başarısız: {_redact_error(str(exc))}",
-                file=sys.stderr,
-            )
-            return 1
-        print(
-            f"events upsert={n_events}; "
-            f"etkinlikler insert={inserted} update={updated} skip={skipped} "
-            f"archive={archived}"
+        elapsed = time.perf_counter() - started
+        cities = len({s["city"] for s in sources})
+        write_run_summary(
+            [
+                "## AVM scrape kota",
+                f"- başladı: `{started_iso}`",
+                f"- bitti: `{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}`",
+                f"- süre: **{format_duration(elapsed)}**",
+                f"- kaynak: {total} AVM / {cities} il",
+                f"- sayfa ok: {len(stats_ok) + len(stats_empty)}; boş: {len(stats_empty)}; hata: {len(stats_fail)}",
+                f"- bulunan etkinlik: {len(all_events)} (tarihsiz elenen: {unknown_n})",
+                f"- gemini çağrısı: {gemini.calls}",
+                f"- playwright render: {pw.renders}",
+                f"- events upsert={n_events}; etkinlikler insert={inserted} "
+                f"update={updated} skip={skipped} archive={archived}",
+            ]
         )
+        if write_failed:
+            return 1
     # Partial source failures are warnings only. Exit 0 when the scrape
     # loop finished and (if not dry-run) Supabase write succeeded —
     # including 0 events.

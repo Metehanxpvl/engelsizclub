@@ -310,6 +310,21 @@
     "events_url": "https://www.zorlucenter.com/tr/etkinlikler"
   },
   {
+    "city": "İstanbul",
+    "avm_name": "Palladium Ataşehir",
+    "events_url": "https://www.palladiumats.com.tr/"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Capacity",
+    "events_url": "https://www.capacity.com.tr/"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Tepe Nautilus",
+    "events_url": "https://www.tepenautilus.com/"
+  },
+  {
     "city": "İzmir",
     "avm_name": "Forum Bornova",
     "events_url": "https://forumbornova.com.tr/etkinlik-firsat"
@@ -333,6 +348,11 @@
     "city": "İzmir",
     "avm_name": "Point Bornova",
     "events_url": "https://www.pointbornova.com/"
+  },
+  {
+    "city": "İzmir",
+    "avm_name": "Agora İzmir",
+    "events_url": "https://www.agoraizmir.com/"
   },
   {
     "city": "Kahramanmaraş",

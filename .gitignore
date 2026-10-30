@@ -50,12 +50,19 @@ app.*.map.json
 firebase-debug.log
 firebase-debug.*.log
 
+# Scraper source health (Actions cache; commit etme)
+scripts/events/.health.json
+
 # Local / generated junk
 .figma_latest/
 .figma_sync/
 Untitled
 android/build/
 **/android/build/
+
+# Science collector Imagen output (PNG + papers.json)
+collectors/science/output/*
+!collectors/science/output/.gitkeep
 
 # Node / Vite leftovers (Flutter projesi)
 node_modules/
@@ -65,6 +72,9 @@ dist/
 # Secrets (asla commit etme)
 .env
 .env.*
+_aab_defines.txt
+.tmp-sut/
+supabase/.temp/
 functions/.env
 supabase/.env
 **/google-services.json
