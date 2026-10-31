@@ -34,7 +34,6 @@ import 'services/app_catalog_service.dart';
 import 'services/push_notification_service.dart';
 import 'utils/async_timeout.dart';
 import 'widgets/force_update_gate.dart';
-import 'widgets/web_desktop_frame.dart';
 
 export 'meto_theme.dart';
 
@@ -629,13 +628,11 @@ class _MetoCareAppState extends State<MetoCareApp> {
             ),
           ),
           builder: (context, child) {
-            return WebDesktopFrame(
-              child: Directionality(
-                textDirection:
-                    lang.isRtl ? TextDirection.rtl : TextDirection.ltr,
-                child: ForceUpdateGate(
-                  child: child ?? const SizedBox.shrink(),
-                ),
+            return Directionality(
+              textDirection:
+                  lang.isRtl ? TextDirection.rtl : TextDirection.ltr,
+              child: ForceUpdateGate(
+                child: child ?? const SizedBox.shrink(),
               ),
             );
           },

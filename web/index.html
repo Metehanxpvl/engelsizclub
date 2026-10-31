@@ -34,7 +34,7 @@
       width: 100%;
       margin: 0;
       padding: 0;
-      background: #1A6B4A;
+      background: #D7E4DC;
       overflow: hidden;
       overscroll-behavior: none;
       touch-action: manipulation;
@@ -45,6 +45,7 @@
     #loading {
       position: fixed;
       inset: 0;
+      background: #1A6B4A;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -117,24 +118,34 @@
         var h = (vv && vv.height) ? vv.height : window.innerHeight;
         var w = (vv && vv.width) ? vv.width : window.innerWidth;
         if (!h || !w) return;
+        // Bilgisayarda tuvali telefona sığdır. İçeride MediaQuery ile
+        // daraltmak CanvasKit'te ortayı gri bırakıyor.
+        var maxApp = 480;
+        var appW = w > maxApp ? maxApp : w;
+        var left = Math.round((w - appW) / 2);
         document.documentElement.style.height = h + 'px';
         document.body.style.height = h + 'px';
         document.documentElement.style.width = w + 'px';
         document.body.style.width = w + 'px';
+        document.body.style.position = 'relative';
         var pane = document.querySelector('flutter-view') ||
           document.querySelector('flt-glass-pane');
         if (pane) {
+          pane.style.position = 'absolute';
+          pane.style.top = '0';
+          pane.style.left = left + 'px';
           pane.style.height = h + 'px';
-          pane.style.width = w + 'px';
+          pane.style.width = appW + 'px';
           pane.style.minHeight = h + 'px';
-          pane.style.minWidth = w + 'px';
+          pane.style.minWidth = appW + 'px';
+          pane.style.maxWidth = appW + 'px';
         }
         var canvases = flutterCanvases();
         for (var i = 0; i < canvases.length; i++) {
           var c = canvases[i];
           var rect = c.getBoundingClientRect();
           if (rect.width < 8 || rect.height < 8) {
-            c.style.width = w + 'px';
+            c.style.width = appW + 'px';
             c.style.height = h + 'px';
           }
         }
