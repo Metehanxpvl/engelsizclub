@@ -89,6 +89,7 @@
   </style>
 </head>
 <body>
+  <div id="flutter-host"></div>
   <div id="loading">
     <img class="logo" src="icons/Icon-192.png" alt="Engelsiz Club">
     <div class="title">Engelsiz Club</div>
@@ -128,12 +129,20 @@
         document.documentElement.style.width = w + 'px';
         document.body.style.width = w + 'px';
         document.body.style.position = 'relative';
+        var host = document.getElementById('flutter-host');
+        if (host) {
+          host.style.position = 'absolute';
+          host.style.top = '0';
+          host.style.left = left + 'px';
+          host.style.width = appW + 'px';
+          host.style.height = h + 'px';
+        }
         var pane = document.querySelector('flutter-view') ||
           document.querySelector('flt-glass-pane');
         if (pane) {
           pane.style.position = 'absolute';
           pane.style.top = '0';
-          pane.style.left = left + 'px';
+          pane.style.left = '0';
           pane.style.height = h + 'px';
           pane.style.width = appW + 'px';
           pane.style.minHeight = h + 'px';
