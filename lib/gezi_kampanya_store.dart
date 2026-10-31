@@ -277,6 +277,165 @@ bool isEtkinlikPending(KampanyaItem k) =>
 bool isEtkinlikRejected(KampanyaItem k) =>
     k.status.trim().toLowerCase() == kEtkinlikStatusRejected;
 
+/// Aksiyonun yazdığı etkinliklerde aynı görsel bir kez kalsın.
+///
+/// AVM kapak fotoğrafı veya boş görsel (ortak illüstrasyon) birçok karta
+/// yapışınca liste aynı resimden çoğalıyor. Üye etkinliği olduğu gibi kalır.
+List<KampanyaItem> dedupeActionEtkinlikSameImage(
+  List<KampanyaItem> items, {
+  String Function(KampanyaItem item)? displayedImage,
+}) {
+  final seen = <String>{};
+  var keptGeneric = false;
+  final out = <KampanyaItem>[];
+  for (final item in items) {
+    if (item.source.trim() != kEtkinlikSourceScrape) {
+      out.add(item);
+      continue;
+    }
+    final url = (displayedImage?.call(item) ?? item.imageUrl).trim();
+    if (url.isEmpty) {
+      if (keptGeneric) continue;
+      keptGeneric = true;
+      out.add(item);
+      continue;
+    }
+    if (!seen.add(url)) continue;
+    out.add(item);
+  }
+  return out;
+}
+
+int? _trMonthNumber(String raw) {
+  switch (foldTurkish(raw)) {
+    case 'ocak':
+      return 1;
+    case 'subat':
+      return 2;
+    case 'mart':
+      return 3;
+    case 'nisan':
+      return 4;
+    case 'mayis':
+      return 5;
+    case 'haziran':
+      return 6;
+    case 'temmuz':
+      return 7;
+    case 'agustos':
+      return 8;
+    case 'eylul':
+      return 9;
+    case 'ekim':
+      return 10;
+    case 'kasim':
+      return 11;
+    case 'aralik':
+      return 12;
+    default:
+      return null;
+  }
+}
+
+DateTime? _dateOrNull(int year, int month, int day) {
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  final d = DateTime(year, month, day);
+  if (d.month != month || d.day != day) return null;
+  return DateTime(d.year, d.month, d.day);
+}
+
+/// Metindeki en geç bitiş. Tarih yoksa null (Devam ediyor canlı sayılmaz).
+DateTime? etkinlikEndDate(String text, DateTime today) {
+  final folded = foldTurkish(text);
+  DateTime? latest;
+  void consider(DateTime? end) {
+    if (end == null) return;
+    if (latest == null || end.isAfter(latest!)) latest = end;
+  }
+
+  final iso = RegExp(r'\b(20\d{2})-(\d{2})-(\d{2})\b').allMatches(text);
+  for (final m in iso) {
+    consider(_dateOrNull(
+      int.parse(m.group(1)!),
+      int.parse(m.group(2)!),
+      int.parse(m.group(3)!),
+    ));
+  }
+
+  final dotted = RegExp(r'\b(\d{1,2})[./](\d{1,2})[./](20\d{2})\b').allMatches(text);
+  for (final m in dotted) {
+    consider(_dateOrNull(
+      int.parse(m.group(3)!),
+      int.parse(m.group(2)!),
+      int.parse(m.group(1)!),
+    ));
+  }
+
+  final named = RegExp(
+    r'\b(\d{1,2})\s+'
+    r'(ocak|subat|mart|nisan|mayis|haziran|temmuz|agustos|eylul|ekim|kasim|aralik)'
+    r'(?:\s+(20\d{2}))?',
+  ).allMatches(folded);
+  for (final m in named) {
+    final month = _trMonthNumber(m.group(2)!);
+    if (month == null) continue;
+    final year = m.group(3) != null ? int.parse(m.group(3)!) : today.year;
+    consider(_dateOrNull(year, month, int.parse(m.group(1)!)));
+  }
+  return latest;
+}
+
+/// Aksiyon kaydı: bitişi bugün veya sonrası olan gerçek tarih gerekir.
+bool scrapedEtkinlikIsCurrent(KampanyaItem item, DateTime today) {
+  if (item.source.trim() != kEtkinlikSourceScrape) return true;
+  final blob = '${item.eventDate}\n${item.title}\n${item.description}';
+  final end = etkinlikEndDate(blob, today);
+  if (end == null) return false;
+  final todayDay = DateTime(today.year, today.month, today.day);
+  return !end.isBefore(todayDay);
+}
+
+String _etkinlikTitleKey(KampanyaItem item) {
+  final title = foldTurkish(item.title).replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+  final avm = foldTurkish(item.avmName);
+  final city = foldTurkish(item.city);
+  return '$city|$avm|$title';
+}
+
+/// Aynı AVM’de aynı veya iç içe başlık tek kart.
+List<KampanyaItem> dedupeActionEtkinlikSameTitle(List<KampanyaItem> items) {
+  final kept = <KampanyaItem>[];
+  final keys = <String>[];
+  for (final item in items) {
+    if (item.source.trim() != kEtkinlikSourceScrape) {
+      kept.add(item);
+      continue;
+    }
+    final key = _etkinlikTitleKey(item);
+    final title = key.split('|').last;
+    var duplicate = false;
+    for (final prev in keys) {
+      if (prev == key) {
+        duplicate = true;
+        break;
+      }
+      final prevTitle = prev.split('|').last;
+      final samePlace = prev.startsWith(key.substring(0, key.lastIndexOf('|')));
+      if (samePlace &&
+          title.length >= 12 &&
+          prevTitle.length >= 12 &&
+          (title.contains(prevTitle) || prevTitle.contains(title))) {
+        duplicate = true;
+        break;
+      }
+    }
+    if (duplicate) continue;
+    keys.add(key);
+    kept.add(item);
+  }
+  return kept;
+}
+
 String formatEtkinlikWhen(DateTime dt, {int? hour, int? minute}) {
   final when = '${dt.day} ${_trMonthNames[dt.month - 1]} ${dt.year}';
   if (hour == null) return when;

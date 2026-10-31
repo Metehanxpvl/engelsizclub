@@ -161,7 +161,18 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
       if (o != 0) return o;
       return b.createdAt.compareTo(a.createdAt);
     });
-    return list;
+    if (!_isEtkinlik) return list;
+    final today = DateTime.now();
+    final current =
+        list.where((k) => scrapedEtkinlikIsCurrent(k, today)).toList();
+    return dedupeActionEtkinlikSameImage(
+      dedupeActionEtkinlikSameTitle(current),
+      displayedImage: (k) {
+        final own = k.imageUrl.trim();
+        if (own.isNotEmpty) return own;
+        return _avmCovers.urlFor(city: k.city, avmName: k.avmName);
+      },
+    );
   }
 
   List<KampanyaItem> get _moderationItems {

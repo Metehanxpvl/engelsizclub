@@ -26,6 +26,7 @@ from avm_scraper import (  # noqa: E402
     _normalize_supabase_url,
     _redact_error,
     archive_past_etkinlikler,
+    archive_same_image_etkinlikler,
     external_id,
     sync_etkinlikler,
     write_run_summary,
@@ -137,6 +138,7 @@ def main() -> int:
             db, rows_for_db, covers, today=today
         )
         archived = archive_past_etkinlikler(db, today=today)
+        archived += archive_same_image_etkinlikler(db)
         print(
             f"ek kaynak events upsert={n}; "
             f"insert={inserted} update={updated} skip={skipped} archive={archived}",

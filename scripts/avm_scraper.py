@@ -578,7 +578,8 @@ def extract_mall_cover(html: str, base_url: str) -> str:
 def pick_event_image(
     event_name: str, candidates: list[ImageCandidate], mall_cover: str
 ) -> str:
-    """Prefer a photo whose nearby text mentions this event; else mall cover."""
+    """Etkinliğin kendi fotoğrafı. AVM kapağı bütün kartlara yapışmasın."""
+    del mall_cover  # ortak kapak her etkinliği aynı resim yapıyordu
     name = normalize_ws(event_name).lower()
     if name and len(name) >= 5 and candidates:
         needle = name[:48]
@@ -592,7 +593,7 @@ def pick_event_image(
                     best = cand
         if best and best.url:
             return best.url
-    return mall_cover
+    return ""
 
 
 def chunk_text(text: str) -> list[str]:
@@ -1304,7 +1305,7 @@ class Supabase:
 
     def scraped_etkinlikler(self) -> dict[str, dict[str, Any]]:
         selects = (
-            "id,external_id,user_edited,is_active,sort_index,description,event_date,last_seen_at,date_status,needs_review,end_date,start_date,title",
+            "id,external_id,user_edited,is_active,sort_index,description,event_date,last_seen_at,date_status,needs_review,end_date,start_date,title,image_url,city,avm_name",
             "id,external_id,user_edited,is_active,sort_index,description,event_date",
             "id,external_id,user_edited,is_active,sort_index,description",
             "id,external_id,user_edited,is_active,sort_index",
@@ -1548,6 +1549,40 @@ def archive_stale_etkinlikler(
     return len(ids)
 
 
+def archive_same_image_etkinlikler(db: Supabase) -> int:
+    """Aynı görseli taşıyan aksiyon kayıtlarından birini bırak, gerisini pasifle.
+
+    Görseli olmayanlar aynı AVM kapağına düştüğü için AVM başına bir kayıt kalır.
+    """
+    existing = db.scraped_etkinlikler()
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for row in existing.values():
+        if row.get("user_edited") is True or row.get("is_active") is False:
+            continue
+        image = str(row.get("image_url") or "").strip()
+        if image:
+            key = f"img:{image}"
+        else:
+            city = str(row.get("city") or "").strip().lower()
+            avm = str(row.get("avm_name") or "").strip().lower()
+            key = f"mall:{city}|{avm}"
+        groups.setdefault(key, []).append(row)
+    ids: list[int] = []
+    for rows in groups.values():
+        if len(rows) < 2:
+            continue
+        rows.sort(key=lambda r: int(r.get("id") or 0))
+        for extra in rows[1:]:
+            try:
+                ids.append(int(extra["id"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+    db.patch_etkinlikler_inactive(ids)
+    if ids:
+        print(f"aynı görsel arşiv={len(ids)}", flush=True)
+    return len(ids)
+
+
 def sync_etkinlikler(
     db: Supabase,
     events: list[dict[str, Any]],
@@ -1574,8 +1609,10 @@ def sync_etkinlikler(
         if eid in deleted:
             skipped += 1
             continue
-        mall_cover = covers.get((event["city"], event["avm_name"])) or ""
-        cover = (event.get("image_url") or "").strip() or mall_cover
+        mall_cover = (covers.get((event["city"], event["avm_name"])) or "").strip()
+        cover = (event.get("image_url") or "").strip()
+        if mall_cover and cover == mall_cover:
+            cover = ""
         payload_core = {
             "title": event["event_name"],
             "description": etkinlik_description(event),
@@ -1602,8 +1639,11 @@ def sync_etkinlikler(
                 continue
             # is_active'e dokunma (kullanıcı gizlediyse scraper açmaz).
             patch = dict(payload_core)
+            stored = (row.get("image_url") or "").strip()
             if cover:
                 patch["image_url"] = cover
+            elif mall_cover and stored == mall_cover:
+                patch["image_url"] = ""
             db.patch_etkinlik(int(row["id"]), patch)
             updated += 1
             continue
@@ -1873,6 +1913,7 @@ def main() -> int:
                     db, all_events, covers, today=today_date
                 )
                 archived = archive_past_etkinlikler(db, today=today_date)
+                archived += archive_same_image_etkinlikler(db)
                 seen_ids = {
                     external_id(
                         e["city"], e["avm_name"], e["event_name"], e["event_date"]
