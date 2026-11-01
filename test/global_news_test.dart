@@ -41,6 +41,9 @@ void main() {
   test('reject aliases hide from users', () {
     expect(normalizeGlobalNewsStatus('gizle'), 'rejected');
     expect(isPublishedGlobalNews('gizle'), isFalse);
+    expect(isUserVisibleGlobalNews('pending_review'), isTrue);
+    expect(isUserVisibleGlobalNews('published'), isTrue);
+    expect(isUserVisibleGlobalNews('gizle'), isFalse);
   });
 
   test('news maps onto Fırsatlar Haber chip without a new screen', () {

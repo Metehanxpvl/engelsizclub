@@ -9,6 +9,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../data/duyuru_data.dart';
 import '../duyuru_store.dart';
+import '../features/global_news/global_news_model.dart';
+import '../features/global_news/global_news_repository.dart';
 import '../section_editors.dart';
 import '../meto_theme.dart';
 import '../services/image_optimize_service.dart';
@@ -20,6 +22,38 @@ import '../l10n/l10n_text.dart';
 import '../l10n/locale_controller.dart';
 
 part 'duyurular_all_screen.dart';
+
+/// Katalog haberi story şeridine girsin. Negatif id, gerçek duyuru kaydı değildir.
+int newsStoryId(String newsId) {
+  var hash = 0;
+  for (final code in newsId.codeUnits) {
+    hash = (hash * 31 + code) & 0x3fffffff;
+  }
+  return -(hash + 1);
+}
+
+List<DuyuruItem> newsStoriesFromGlobalNews(
+  Iterable<GlobalNewsItem> news, {
+  int maxItems = 12,
+}) {
+  final sorted = news.where((e) => isUserVisibleGlobalNews(e.status)).toList()
+    ..sort((a, b) {
+      final da = a.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final db = b.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return db.compareTo(da);
+    });
+  return [
+    for (final n in sorted.take(maxItems))
+      DuyuruItem(
+        id: newsStoryId(n.id),
+        title: n.title,
+        body: n.summary,
+        imageUrl: n.imageUrl,
+        sourceUrl: n.sourceUrl,
+        createdAt: n.publishedAt ?? DateTime.now(),
+      ),
+  ];
+}
 
 /// Ana sayfa: disclaimer altı / hastalıklar üstü — story tarzı duyurular.
 class DuyurularSection extends StatefulWidget {
@@ -36,6 +70,7 @@ class DuyurularSection extends StatefulWidget {
 
 class _DuyurularSectionState extends State<DuyurularSection> {
   List<DuyuruItem> _items = const [];
+  List<DuyuruItem> _newsStories = const [];
   Set<int> _seen = {};
   bool _loading = true;
   bool _popupChecked = false;
@@ -54,13 +89,14 @@ class _DuyurularSectionState extends State<DuyurularSection> {
       seenIds: _seen,
       isEditor: _isAdmin,
     );
-    final version = visible
+    final strip = [..._newsStories, ...visible];
+    final version = strip
         .map(
           (d) =>
               '${d.id}|${d.imageUrl.hashCode}|${d.title.hashCode}|${_seen.contains(d.id)}',
         )
         .join(';');
-    _stripItems = visible;
+    _stripItems = strip;
     _stripVersion = version;
   }
 
@@ -84,6 +120,19 @@ class _DuyurularSectionState extends State<DuyurularSection> {
       });
     }
     _reload(silent: cached != null);
+    unawaited(_loadNewsStories());
+  }
+
+  Future<void> _loadNewsStories() async {
+    try {
+      final news = await GlobalNewsRepository().loadPublished();
+      if (!mounted) return;
+      final stories = newsStoriesFromGlobalNews(news);
+      setState(() {
+        _newsStories = stories;
+        _syncStripCache();
+      });
+    } catch (_) {}
   }
 
   Future<void> _reload({bool silent = false}) async {
@@ -450,9 +499,11 @@ class _DuyurularSectionState extends State<DuyurularSection> {
               onItemLongPress: _isAdmin
                   ? (i) {
                       if (i < 0 || i >= _visibleForStrip.length) return;
-                      _openAdminForm(edit: _visibleForStrip[i]);
+                      final item = _visibleForStrip[i];
+                      if (item.id <= 0) return;
+                      _openAdminForm(edit: item);
                     }
-                  : null,
+                  : null;
               itemBuilder: (context, i) {
                 final item = _visibleForStrip[i];
                 final seen = _seen.contains(item.id);

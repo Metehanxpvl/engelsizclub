@@ -32,6 +32,12 @@ bool isPublishedGlobalNews(String status) =>
 bool isPendingGlobalNews(String status) =>
     normalizeGlobalNewsStatus(status) == 'pending_review';
 
+/// Canlı liste: onay kuyruğundaki haber de görünür. Reddedilen gizlenir.
+bool isUserVisibleGlobalNews(String status) {
+  final s = normalizeGlobalNewsStatus(status);
+  return s == 'published' || s == 'pending_review';
+}
+
 class GlobalNewsItem {
   const GlobalNewsItem({
     required this.id,

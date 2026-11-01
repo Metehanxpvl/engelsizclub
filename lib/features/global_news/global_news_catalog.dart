@@ -37,11 +37,13 @@ class GlobalNewsCatalog {
   }
 
   List<String> _catalogUrls() {
+    // GitHub’daki katalog her taramada yenilenir. Sitede duran kopya
+    // ancak web yayınıyla değişir; onu son çare olarak dene.
     final out = [...kGlobalNewsUrls];
     try {
       if (Uri.base.hasScheme &&
           (Uri.base.scheme == 'http' || Uri.base.scheme == 'https')) {
-        out.insert(0, Uri.base.resolve('engelsiz-haberler.json').toString());
+        out.add(Uri.base.resolve('engelsiz-haberler.json').toString());
       }
     } catch (_) {}
     return out;

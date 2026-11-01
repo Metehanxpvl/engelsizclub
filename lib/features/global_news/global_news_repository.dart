@@ -33,7 +33,7 @@ class GlobalNewsRepository {
     final cat = category.trim().toLowerCase();
     final qn = query.trim().toLowerCase();
     return (await loadMerged()).where((e) {
-      if (!isPublishedGlobalNews(e.status)) return false;
+      if (!isUserVisibleGlobalNews(e.status)) return false;
       if (cat.isNotEmpty && cat != 'tumu' && e.category != cat) return false;
       if (qn.isEmpty) return true;
       return e.title.toLowerCase().contains(qn) ||
