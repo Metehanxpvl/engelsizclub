@@ -41,6 +41,7 @@ import 'data/more_menu_data.dart';
 import 'more_menu_store.dart';
 import 'pages/in_app_web_page.dart';
 import 'pages/boyama_page.dart';
+import 'features/daily_news/admin_daily_news_screen.dart';
 import 'features/scientific_research/admin_science_review_screen.dart';
 import 'features/useful_opportunities/opportunities_screen.dart';
 import 'features/city_posters/admin_city_posters_screen.dart';
@@ -4239,6 +4240,23 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     context,
                     adminEmail: widget.user.email,
                     reviewQueue: true,
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '📰',
+              label: 'Yeni Haberler',
+              sub: 'Gazete taraması · onay kuyruğu',
+              highlight: true,
+              onTap: () {
+                unawaited(
+                  AdminDailyNewsScreen.open(
+                    context,
+                    adminEmail: widget.user.email,
                   ),
                 );
               },
