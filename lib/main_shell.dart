@@ -197,6 +197,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   bool _showHakkinda = false;
   bool _showEngellenenler = false;
   bool _showIyilikLiderleri = false;
+  bool _showMarketLiderleri = false;
   bool _showAdminUsers = false;
   bool _showKesfetAdmin = false;
   bool _showSectionEditors = false;
@@ -659,6 +660,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       _showHakkinda = false;
       _showEngellenenler = false;
       _showIyilikLiderleri = false;
+      _showMarketLiderleri = false;
       _showAdminUsers = false;
       _showKesfetAdmin = false;
       _showSectionEditors = false;
@@ -736,6 +738,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                                   _showProfilPanel = true;
                                   _showSectionEditors = true;
                                   _showIyilikLiderleri = false;
+                                  _showMarketLiderleri = false;
                                   _showAdminUsers = false;
                                   _showKesfetAdmin = false;
                                 });
@@ -2804,6 +2807,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       _showHakkinda = false;
       _showEngellenenler = false;
       _showIyilikLiderleri = false;
+      _showMarketLiderleri = false;
       _showAdminUsers = false;
       _showKesfetAdmin = false;
       _showSectionEditors = false;
@@ -2847,6 +2851,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       _showHakkinda = false;
       _showEngellenenler = false;
       _showIyilikLiderleri = false;
+      _showMarketLiderleri = false;
       _showAdminUsers = false;
       _showDilSecimi = false;
       _showKesfetAdmin = true;
@@ -2876,6 +2881,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       _showHakkinda = false;
       _showEngellenenler = false;
       _showIyilikLiderleri = false;
+      _showMarketLiderleri = false;
       _showAdminUsers = false;
       _showKesfetAdmin = false;
       _showSectionEditors = false;
@@ -3154,13 +3160,26 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                       ),
                       Flexible(
                         child: (_showIyilikLiderleri ||
+                                _showMarketLiderleri ||
                                 _showAdminUsers ||
                                 _showKesfetAdmin ||
                                 _showSectionEditors)
                             ? Padding(
                                 padding: const EdgeInsets.fromLTRB(
                                     12, 0, 12, 16),
-                                child: _showIyilikLiderleri
+                                child: _showMarketLiderleri
+                                    ? AdminIyilikLiderleriPanel(
+                                        onBack: () => setState(() =>
+                                            _showMarketLiderleri = false),
+                                        kind: IyilikScoreKind.market,
+                                        title: 'İyilik Market Puanı Liderleri',
+                                        heading:
+                                            '🛒 İyilik Market Puanı Liderleri',
+                                        sqlFile: 'admin_top_market_puani.sql',
+                                        emptyLabel:
+                                            'Henüz iyilik market puanı olan kullanıcı yok.',
+                                      )
+                                    : _showIyilikLiderleri
                                     ? AdminIyilikLiderleriPanel(
                                         onBack: () => setState(() =>
                                             _showIyilikLiderleri = false),
@@ -4300,10 +4319,26 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             padding: const EdgeInsets.only(bottom: 8),
             child: _menuTile(
               emoji: '💚',
-              label: 'İyilik Marketi Puanı',
-              sub: 'En yüksek 10 kişinin puan tablosu',
+              label: 'İyilik Puanı Liderleri',
+              sub: 'En yüksek 10 kişinin iyilik puanı',
               highlight: true,
-              onTap: () => setState(() => _showIyilikLiderleri = true),
+              onTap: () => setState(() {
+                _showMarketLiderleri = false;
+                _showIyilikLiderleri = true;
+              }),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '🛒',
+              label: 'İyilik Market Puanı Liderleri',
+              sub: 'En yüksek 10 kişi · yalnızca admin',
+              highlight: true,
+              onTap: () => setState(() {
+                _showIyilikLiderleri = false;
+                _showMarketLiderleri = true;
+              }),
             ),
           ),
           Padding(
@@ -4722,6 +4757,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               _showHakkinda = false;
               _showEngellenenler = false;
               _showIyilikLiderleri = false;
+              _showMarketLiderleri = false;
               _showAdminUsers = false;
               _showKesfetAdmin = false;
               _showSectionEditors = false;

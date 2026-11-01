@@ -32,4 +32,34 @@ void main() {
     expect(top.any((e) => e.kredi == 0), isFalse);
     expect(top[0].kredi, greaterThan(top[1].kredi));
   });
+
+  test('market points rank separately from iyilik points', () {
+    final rows = [
+      {
+        'owner_email': 'a@example.com',
+        'display_name': 'A',
+        'kredi': 500,
+        'market_puan': 3,
+      },
+      {
+        'owner_email': 'b@example.com',
+        'display_name': 'B',
+        'kredi': 1,
+        'market_puan': 40,
+      },
+      {
+        'owner_email': 'c@example.com',
+        'display_name': 'C',
+        'kredi': 9,
+        'market_puan': 0,
+      },
+    ];
+
+    final top = rankIyilikLeaders(rows, scoreKey: 'market_puan');
+    expect(top, hasLength(2));
+    expect(top.first.displayName, 'B');
+    expect(top.first.kredi, 40);
+    expect(top.last.displayName, 'A');
+    expect(top.any((e) => e.displayName == 'C'), isFalse);
+  });
 }
