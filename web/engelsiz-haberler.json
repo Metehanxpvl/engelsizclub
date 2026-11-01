@@ -1,6 +1,6 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-10-31T13:04:29Z",
+  "fetchedAt": "2026-11-01T13:45:28Z",
   "ok": true,
   "count": 180,
   "items": [
@@ -1419,6 +1419,20 @@
       "lang": "tr"
     },
     {
+      "id": "53e44260939782c7e2b6a9b7",
+      "title": "Engellilik Çoğulculuğu: İnsan Olmanın Birçok Yolunu Anlamak",
+      "title_original": "Disability Pluralism: Understanding Many Ways of Being Human",
+      "summary": "Sosyal model, BM Engelli Hakları Sözleşmesi (CRPD), Sağır kültürü ve nöroçeşitliliğin engelliliği insan çeşitliliğinin değerli bir parçası olarak nasıl ele aldığı açıklandı.",
+      "summary_original": "Pluralism in disability explained: how the social model, the UN CRPD, Deaf culture and neurodiversity frame disability as a valued part of human diversity",
+      "category": "erisilebilirlik",
+      "source_name": "Disabled World",
+      "source_url": "https://www.disabled-world.com/disability/publications/journals/pluralism.php",
+      "image_url": "",
+      "published_at": "Sat, 31 Oct 2026 20:05:00 GMT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
       "id": "ee7b2c47a58c78b18452d37c",
       "title": "John Nash: Şizofreni, Deha ve Gerçekliğin Teyidi",
       "title_original": "John Nash: Schizophrenia, Genius and Verifying Reality",
@@ -1653,6 +1667,34 @@
       "source_url": "https://www.disabilityscoop.com/2026/10/05/cdc-plans-to-drop-disability-questions-from-federal-health-survey/32208/",
       "image_url": "",
       "published_at": "Mon, 05 Oct 2026 02:01:11 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "bede2808db315f6a587c3383",
+      "title": "Paper2Audio: Belgeler ve Kitaplar için Yapay Zeka Destekli Metin Okuma Uygulaması",
+      "title_original": "Paper2Audio: AI Text-to-Speech App for Documents and Books",
+      "summary": "Paper2Audio; disleksi, DEHB veya az gören kişilerin PDF'leri, araştırma makalelerini, ders kitaplarını ve e-kitapları doğal ses formatına dönüştürmesini sağlayan yapay zeka tabanlı bir metin okuma uygulamasıdır.",
+      "summary_original": "Paper2Audio is an AI text-to-speech app that turns PDFs, research papers, textbooks and ebooks into natural audio for people with dyslexia, ADHD or low vision",
+      "category": "erisilebilirlik",
+      "source_name": "Disabled World",
+      "source_url": "https://www.disabled-world.com/assistivedevices/apps/paper2audio.php",
+      "image_url": "",
+      "published_at": "Fri, 30 Oct 2026 20:09:00 GMT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "5f681839aceecd0c2b1b9d0e",
+      "title": "Kim Peek: Savant Hafızası, Engellilik ve Becerilerin Ölçülmesi",
+      "title_original": "Kim Peek: Savant Memory, Disability and Measuring Ability",
+      "summary": "\"Yağmur Adam\" filmine ilham kaynağı olan savant Kim Peek'in durumu; olağanüstü hafızanın, günlük yaşamdaki bağımlılığın ve zekânın birbirinden ayrı insani yetenekler olarak değerlendirilmesi gerektiğini gösteriyor. Bu vaka, insan zihnini ve bilişsel yeteneklerini ölçmede geleneksel zekâ testlerinin ötesine geçen yaklaşımların gerekliliğini ortaya koyuyor.",
+      "summary_original": "Kim Peek, the savant who inspired Rain Man, shows why exceptional memory, daily dependence and intelligence need to be assessed as separate human abilities",
+      "category": "klinik",
+      "source_name": "Disabled World",
+      "source_url": "https://www.disabled-world.com/disability/awareness/famous/kim-peek.php",
+      "image_url": "",
+      "published_at": "Fri, 30 Oct 2026 11:40:00 GMT",
       "status": "pending_review",
       "lang": "tr"
     },
@@ -2003,6 +2045,20 @@
       "source_url": "https://www.disabilityscoop.com/2026/10/02/wrigley-field-becomes-mlbs-first-certified-autism-center/32207/",
       "image_url": "",
       "published_at": "Fri, 02 Oct 2026 02:01:22 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "1f38b007a43f54d0599ca1a3",
+      "title": "Kombine Dayanıklılık Antrenmanının KOAH Hastalarında Günlük Yaşam Aktiviteleri ve Yürüme Üzerindeki Etkisi",
+      "title_original": "Effect of Combined Endurance Training on ADL and Walking in COPD Patients",
+      "summary": "Kronik Obstrüktif Akciğer Hastalığı (KOAH); dispne ve yatşınlık gibi semptomlara bağlı egzersiz intoleransı ve belirgin yetersizlikle seyreden bir hastalıktır. Egzersiz intoleransı günlük yaşam aktivitelerini olumsuz etkiler. Temel bileşeni egzersiz olan pulmoner rehabilitasyon; egzersiz toleransını, dispneyi, yorgunluğu ve yaşam kalitesini iyileştirmede kritik bir tedavidir. Çalışmalar, alt ekstremite antrenmanına üst ekstremite egzersizlerinin eklenmesinin ek faydalar sağladığını göstermektedir.",
+      "summary_original": "Chronic Obstructive Pulmonary Disease (COPD) is a chronic disease with related exercise intolerance and marked disability due to symptoms such as dyspnea and fatigue. Effort intolerance and exercise-induced symptoms cause marked impairment in completing activities of daily living (ADL). Pulmonary rehabilitation (PR), which has exercise as a major component, is considered a key treatment in the management of COPD since PR is effective in improving exercise tolerance, exercise-induced dyspnea and fatigue, and health-related quality of life. Rehabilitation is also effective in improving the time required to perform ADLs, reducing symptoms and disability. Studies show that rehabilitation protocols with upper limb exercises added to lower limb training are able to give additional benefits in te",
+      "category": "tedavi",
+      "source_name": "ClinicalTrials.gov",
+      "source_url": "https://clinicaltrials.gov/study/NCT05708443",
+      "image_url": "",
+      "published_at": "2026-11-01T13:45:25Z",
       "status": "pending_review",
       "lang": "tr"
     },
@@ -2465,62 +2521,6 @@
       "source_url": "https://clinicaltrials.gov/study/NCT07562100",
       "image_url": "",
       "published_at": "2026-10-24T11:28:57Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "94d3c57b277b274c9d30857c",
-      "title": "Kronik GVHD Tedavisinde İguratimodun Güvenliliği ve Etkinliği",
-      "title_original": "Safety and Efficacy of Iguratimod in the Treatment of Chronic GVHD",
-      "summary": "Bu çalışma, romatoid artrit ilacı olan İguratimodun kronik GVHD tedavisindeki etkinliğini ve güvenliliğini değerlendirmek amacıyla planlanan randomize, körlemesiz ve tek merkezli bir faz 1/2 klinik araştırmadır. İguratimod, kabul edilebilir yan etkileri ve uygun maliyetiyle bilinmektedir.",
-      "summary_original": "This is a randomized, single-center phase 1/2 clinical trial without blinding. Iguratimod, as a rheumatoid arthritis medication, is used to treat autoimmune diseases such as Sjögren's syndrome. It has acceptable side effects, good clinical availability, and is cost-effective. The investigators plan to recruit participants for a clinical trial to evaluate the efficacy and safety of Iguratimod in the treatment of chronic GVHD.",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT06244628",
-      "image_url": "",
-      "published_at": "2026-10-24T11:28:46Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "1be8cddaefe3e8263a6f6d3e",
-      "title": "Lateral Epikondilalji Tedavisinde Şok Dalgalarının Kullanımı",
-      "title_original": "Treatment of Lateral Epicondylalgia With Shock Waves",
-      "summary": "Lateral epikondilalji; ağrı, el bileği ekstansör kaslarında güç kaybı ve sakatlıkla karakterizedir. Literatürde odaklı ve radyal şok dalga tedavileri bu kas-iskelet sistemi bozukluğunun yönetiminde etkili kabul edilmektedir. Bu klinik çalışmanın amacı, iki şok dalgası uygulamasının güvenliliğini ve etkililiğini karşılaştırmaktır. Hastalar ağrı, kavrama gücü ve sakatlık derecesi açısından değerlendirilecek olup altı aylık takip yapılacaktır.",
-      "summary_original": "Lateral epicondylalgia (LET) is characterized by pain, decreased muscle strength of the wrist extensor muscles, and disability. Among the treatments proposed in the literature, both focal shockwave therapy and radial shockwave therapy have been considered effective in the management of this musculoskeletal disorder. The objective of this study is to compare the safety and effectiveness of these two shockwave applications on the signs and symptoms of subjects with lateral epicondylalgia. In this clinical trial, subjects will be evaluated for elbow pain using a Visual Analog Scale (VAS), grip strength using a handheld dynamometer, and degree of disability using the Patient-Rated Tennis Elbow Evaluation Questionnaire (PRTEE). A six-month follow-up will be performed. Patients will be randomly ",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT06587412",
-      "image_url": "",
-      "published_at": "2026-10-24T11:28:40Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "e67c4ac033d90d7d15c4c992",
-      "title": "Haploidentik Kök Hücre Nakli Sonrası Akut Graft-Versus-Host Hastalığının Önlenmesinde BPC2001",
-      "title_original": "BPC2001 for the Prevention of Acute Graft-Versus-Host Disease Following Haploidentical Stem Cell Transplantation",
-      "summary": "Faz IIb açık etiketli çalışma, haploidentik kök hücre nakli geçiren hastalarda akut graft-versus-host hastalığının önlenmesi için standart tedaviye ek olarak verilen tekrarlanan BPC2001 dozu güvenliğini ve etkinliğini değerlendirmektedir.",
-      "summary_original": "A Phase IIb open label study evaluates the safety and efficacy of repeat doses of BPC2001 in combination with standard of care treatment for the prevention of acute graft-vs-host-disease (aGvHD) in subjects following Haploidentical Stem Cell Transplantation (Haplo-SCT).",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT07246031",
-      "image_url": "",
-      "published_at": "2026-10-24T11:28:34Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "c945583a9181679d0e2925e7",
-      "title": "Ciddi Tıbbi Durumu Olan Yetişkin Hastalarda Kırılganlığa Yol Açan Faktörler Üzerine Bir Kohort Çalışması: COSMOS-I Araştırması",
-      "title_original": "A COhort Study on Factors Leading to Vulnerability in Adult Patients With Serious Medical cOnditionS: the COSMOS-I Trial",
-      "summary": "Tampere, Kuopio ve Oulu üniversite hastanelerinden 1500 yaşlı hastayı içeren bu prospektif çok merkezli çalışma, genelleştirilmiş kırılganlık nedenlerinin klinik önemini ve tespitini araştırmaktadır. Araştırma, ciddi hastalıkları olan yaşlılarda kırılganlık yaygınlığını belirlemeyi, bunun sağkalım, yaşam kalitesi ve palyatif tedaviye geçiş süresine etkilerini incelemeyi ve tarama araçlarının performansını değerlendirmeyi amaçlamaktadır.",
-      "summary_original": "The objective of this prospective multicentre study that recruits altogether 1500 older patients from the university hospitals of Tampere, Kuopio, and Oulu is to explore the clinical significance and detection of causes of generalized vulnerability. The objectives are: O1 - Establish the prevalence of causes of generalized vulnerability among patients diagnosed with severe yet non-malignant diseases and local/locally advanced and advanced cancers, O2 - Study how causes of generalized vulnerability affect the time between the diagnosis and the adoption of a fully palliative treatment line, overall survival, and patient-reported quality of life in older adults severe diseases, and O3 - Evaluate how screening tools commonly used in patients without cancer perform in screening for causes of vu",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT07740239",
-      "image_url": "",
-      "published_at": "2026-10-22T12:18:49Z",
       "status": "pending_review",
       "lang": "tr"
     }
