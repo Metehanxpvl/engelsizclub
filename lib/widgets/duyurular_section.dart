@@ -503,7 +503,7 @@ class _DuyurularSectionState extends State<DuyurularSection> {
                       if (item.id <= 0) return;
                       _openAdminForm(edit: item);
                     }
-                  : null;
+                  : null,
               itemBuilder: (context, i) {
                 final item = _visibleForStrip[i];
                 final seen = _seen.contains(item.id);
