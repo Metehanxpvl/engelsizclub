@@ -24,4 +24,25 @@ void main() {
     expect(item.status, 'pending');
     expect(item.publishedAt, isNotNull);
   });
+
+  test('edit keeps the article and replaces title, summary, and image', () {
+    final item = DailyNewsCandidate.fromJson({
+      'id': 'n2',
+      'article_url': 'https://example.com/haber',
+      'title': 'Eski başlık',
+      'summary': 'Eski özet',
+      'image_url': '',
+      'status': 'pending',
+    });
+    final edited = item.copyWith(
+      title: 'Yeni başlık',
+      summary: 'Görselli özet',
+      imageUrl: 'https://cdn.example/haber.jpg',
+    );
+    expect(edited.id, item.id);
+    expect(edited.articleUrl, item.articleUrl);
+    expect(edited.title, 'Yeni başlık');
+    expect(edited.summary, 'Görselli özet');
+    expect(edited.imageUrl, 'https://cdn.example/haber.jpg');
+  });
 }

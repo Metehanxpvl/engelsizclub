@@ -39,6 +39,30 @@ class DailyNewsCandidate {
         _ => 'Bilgilendirici',
       };
 
+  DailyNewsCandidate copyWith({
+    String? title,
+    String? summary,
+    String? imageUrl,
+  }) {
+    return DailyNewsCandidate(
+      id: id,
+      sourceName: sourceName,
+      sourceUrl: sourceUrl,
+      articleUrl: articleUrl,
+      title: title ?? this.title,
+      summary: summary ?? this.summary,
+      category: category,
+      relevanceScore: relevanceScore,
+      importanceLevel: importanceLevel,
+      aiReason: aiReason,
+      status: status,
+      publishedAt: publishedAt,
+      imageUrl: imageUrl ?? this.imageUrl,
+      categories: categories,
+      affectedUsers: affectedUsers,
+    );
+  }
+
   factory DailyNewsCandidate.fromJson(Map<String, dynamic> json) {
     DateTime? published;
     final raw = json['published_at'];

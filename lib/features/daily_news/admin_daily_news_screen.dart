@@ -1,10 +1,15 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../admin_config.dart';
 import '../../l10n/l10n_text.dart';
 import '../../meto_theme.dart';
+import '../../services/image_optimize_service.dart';
+import '../../services/r2_storage_service.dart';
 import 'daily_news_model.dart';
 import 'daily_news_repository.dart';
 
@@ -96,6 +101,49 @@ class _AdminDailyNewsScreenState extends State<AdminDailyNewsScreen> {
     }
   }
 
+  Future<void> _edit(DailyNewsCandidate item) async {
+    final result = await showDialog<_NewsEditResult>(
+      context: context,
+      builder: (_) => _NewsEditDialog(item: item),
+    );
+    if (result == null || !mounted) return;
+    setState(() => _busyId = item.id);
+    try {
+      await _repo.updateDraft(
+        id: item.id,
+        title: result.title,
+        summary: result.summary,
+        imageUrl: result.imageUrl,
+      );
+      if (!mounted) return;
+      setState(() {
+        _items = [
+          for (final e in _items)
+            if (e.id == item.id)
+              e.copyWith(
+                title: result.title,
+                summary: result.summary,
+                imageUrl: result.imageUrl,
+              )
+            else
+              e,
+        ];
+        _busyId = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: L10nText('Haber kaydedildi.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busyId = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Kaydedilemedi: $e'.replaceFirst('Bad state: ', '')),
+        ),
+      );
+    }
+  }
+
   Future<void> _reject(DailyNewsCandidate item) async {
     setState(() => _busyId = item.id);
     try {
@@ -175,6 +223,7 @@ class _AdminDailyNewsScreenState extends State<AdminDailyNewsScreen> {
                             return _NewsCandidateCard(
                               item: item,
                               busy: _busyId == item.id,
+                              onEdit: () => _edit(item),
                               onApprove: () => _approve(item),
                               onReject: () => _reject(item),
                             );
@@ -184,16 +233,240 @@ class _AdminDailyNewsScreenState extends State<AdminDailyNewsScreen> {
   }
 }
 
+class _NewsEditResult {
+  const _NewsEditResult({
+    required this.title,
+    required this.summary,
+    required this.imageUrl,
+  });
+
+  final String title;
+  final String summary;
+  final String imageUrl;
+}
+
+class _NewsEditDialog extends StatefulWidget {
+  const _NewsEditDialog({required this.item});
+
+  final DailyNewsCandidate item;
+
+  @override
+  State<_NewsEditDialog> createState() => _NewsEditDialogState();
+}
+
+class _NewsEditDialogState extends State<_NewsEditDialog> {
+  late final TextEditingController _title;
+  late final TextEditingController _summary;
+  late final TextEditingController _imageUrl;
+  Uint8List? _pickedBytes;
+  var _uploading = false;
+  var _clearedImage = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _title = TextEditingController(text: widget.item.title);
+    _summary = TextEditingController(text: widget.item.summary);
+    _imageUrl = TextEditingController(text: widget.item.imageUrl);
+  }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _summary.dispose();
+    _imageUrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final file = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      imageQuality: 82,
+    );
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _pickedBytes = bytes;
+      _clearedImage = false;
+      _imageUrl.clear();
+    });
+  }
+
+  Future<String> _resolveImage() async {
+    if (_pickedBytes != null && _pickedBytes!.isNotEmpty) {
+      setState(() => _uploading = true);
+      try {
+        final optimized =
+            await ImageOptimizeService.forCatalogCard(_pickedBytes!);
+        return R2StorageService.uploadBytes(
+          bytes: optimized.bytes,
+          fileName: 'haber_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          contentType: optimized.contentType,
+        );
+      } finally {
+        if (mounted) setState(() => _uploading = false);
+      }
+    }
+    if (_clearedImage) return '';
+    final typed = _imageUrl.text.trim();
+    if (typed.isNotEmpty) return typed;
+    return widget.item.imageUrl.trim();
+  }
+
+  Future<void> _save() async {
+    if (_uploading) return;
+    final title = _title.text.trim();
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Başlık boş olamaz.')),
+      );
+      return;
+    }
+    String image;
+    try {
+      image = await _resolveImage();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Görsel yüklenemedi: $e')),
+      );
+      return;
+    }
+    if (!mounted) return;
+    Navigator.pop(
+      context,
+      _NewsEditResult(
+        title: title,
+        summary: _summary.text.trim(),
+        imageUrl: image.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final previewUrl = _imageUrl.text.trim();
+    return AlertDialog(
+      title: Text(
+        'Haberi düzenle',
+        style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _title,
+              decoration: const InputDecoration(labelText: 'Başlık'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _summary,
+              minLines: 4,
+              maxLines: 8,
+              decoration: const InputDecoration(labelText: 'İçerik'),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Görsel',
+              style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            if (_pickedBytes != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.memory(
+                  _pickedBytes!,
+                  height: 140,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              )
+            else if (!_clearedImage && previewUrl.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  previewUrl,
+                  height: 140,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                ),
+              ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _uploading ? null : _pickImage,
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                  label: Text(
+                    _pickedBytes == null && previewUrl.isEmpty
+                        ? 'Görsel ekle'
+                        : 'Görseli değiştir',
+                  ),
+                ),
+                if (_pickedBytes != null ||
+                    (!_clearedImage &&
+                        (previewUrl.isNotEmpty ||
+                            widget.item.imageUrl.isNotEmpty)))
+                  TextButton(
+                    onPressed: _uploading
+                        ? null
+                        : () => setState(() {
+                              _pickedBytes = null;
+                              _clearedImage = true;
+                              _imageUrl.clear();
+                            }),
+                    child: const Text('Görseli kaldır'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _imageUrl,
+              decoration: const InputDecoration(
+                labelText: 'veya görsel bağlantısı',
+              ),
+              onChanged: (_) => setState(() {
+                _pickedBytes = null;
+                _clearedImage = _imageUrl.text.trim().isEmpty;
+              }),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _uploading ? null : () => Navigator.pop(context),
+          child: const Text('Vazgeç'),
+        ),
+        FilledButton(
+          onPressed: _uploading ? null : _save,
+          style: FilledButton.styleFrom(backgroundColor: MetoColors.primary),
+          child: Text(_uploading ? 'Yükleniyor…' : 'Kaydet'),
+        ),
+      ],
+    );
+  }
+}
+
 class _NewsCandidateCard extends StatelessWidget {
   const _NewsCandidateCard({
     required this.item,
     required this.busy,
+    required this.onEdit,
     required this.onApprove,
     required this.onReject,
   });
 
   final DailyNewsCandidate item;
   final bool busy;
+  final VoidCallback onEdit;
   final VoidCallback onApprove;
   final VoidCallback onReject;
 
@@ -233,6 +506,19 @@ class _NewsCandidateCard extends StatelessWidget {
               color: MetoColors.mutedFg,
             ),
           ),
+          if (item.imageUrl.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(
+                item.imageUrl.trim(),
+                height: 140,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            ),
+          ],
           if (item.summary.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
@@ -268,6 +554,10 @@ class _NewsCandidateCard extends StatelessWidget {
                         },
                   child: const L10nText('Haberi aç'),
                 ),
+              OutlinedButton(
+                onPressed: busy ? null : onEdit,
+                child: const L10nText('Düzenle'),
+              ),
               FilledButton(
                 onPressed: busy ? null : onApprove,
                 style: FilledButton.styleFrom(backgroundColor: MetoColors.primary),

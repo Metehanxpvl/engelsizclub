@@ -40,6 +40,26 @@ class DailyNewsRepository {
         .toList();
   }
 
+  Future<void> updateDraft({
+    required String id,
+    required String title,
+    required String summary,
+    required String imageUrl,
+  }) async {
+    _requireAdmin();
+    final nextTitle = title.trim();
+    if (nextTitle.isEmpty) {
+      throw StateError('Başlık boş olamaz.');
+    }
+    await withNetworkTimeout(
+      _db.from(_table).update({
+        'title': nextTitle,
+        'summary': summary.trim(),
+        'image_url': imageUrl.trim(),
+      }).eq('id', id).eq('status', 'pending'),
+    );
+  }
+
   Future<void> reject(String id) async {
     _requireAdmin();
     await withNetworkTimeout(
