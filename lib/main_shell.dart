@@ -4282,8 +4282,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             padding: const EdgeInsets.only(bottom: 8),
             child: _menuTile(
               emoji: '💚',
-              label: 'İyilik Puanı Liderleri',
-              sub: 'En yüksek 10 · ekran görüntüsü için',
+              label: 'İyilik Marketi Puanı',
+              sub: 'En yüksek 10 kişinin puan tablosu',
               highlight: true,
               onTap: () => setState(() => _showIyilikLiderleri = true),
             ),

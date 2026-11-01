@@ -29,27 +29,63 @@ class IyilikLiderEntry {
   }
 }
 
+List<IyilikLiderEntry> rankIyilikLeaders(
+  Iterable<Map> rows, {
+  int limit = 10,
+  String excludeEmail = 'sakir.caykara@gmail.com',
+}) {
+  final skip = excludeEmail.trim().toLowerCase();
+  final parsed = <IyilikLiderEntry>[];
+  for (final raw in rows) {
+    final email = (raw['owner_email']?.toString() ?? '').trim();
+    if (email.isEmpty || email.toLowerCase() == skip) continue;
+    final kredi = (raw['kredi'] as num?)?.toInt() ?? 0;
+    if (kredi <= 0) continue;
+    final name = (raw['display_name']?.toString() ?? '').trim();
+    parsed.add(
+      IyilikLiderEntry(
+        rank: 0,
+        ownerEmail: email,
+        displayName: name.isEmpty ? email : name,
+        kredi: kredi,
+      ),
+    );
+  }
+  parsed.sort((a, b) => b.kredi.compareTo(a.kredi));
+  final cap = limit < 1 ? 1 : limit;
+  return [
+    for (var i = 0; i < parsed.length && i < cap; i++)
+      IyilikLiderEntry(
+        rank: i + 1,
+        ownerEmail: parsed[i].ownerEmail,
+        displayName: parsed[i].displayName,
+        kredi: parsed[i].kredi,
+      ),
+  ];
+}
+
 Future<List<IyilikLiderEntry>> fetchAdminTopIyilikPuani({int limit = 10}) async {
   if (!isAppAdmin(Supabase.instance.client.auth.currentUser?.email)) {
     throw StateError('Yalnızca admin bu listeyi görebilir.');
   }
-  final rows = await Supabase.instance.client.rpc(
-    'admin_top_iyilik_puani',
-    params: {'p_limit': limit},
+  try {
+    final rows = await Supabase.instance.client.rpc(
+      'admin_top_iyilik_puani',
+      params: {'p_limit': limit},
+    );
+    if (rows is List && rows.isNotEmpty) {
+      return rankIyilikLeaders(
+        rows.whereType<Map>(),
+        limit: limit,
+      );
+    }
+  } catch (_) {}
+  final fallback = await Supabase.instance.client.rpc(
+    'admin_list_users',
+    params: {'p_q': '', 'p_filter': 'all', 'p_limit': 500},
   );
-  if (rows is! List) return const [];
-  return [
-    for (final raw in rows)
-      if (raw is Map)
-        IyilikLiderEntry(
-          rank: (raw['rank'] as num?)?.toInt() ?? 0,
-          ownerEmail: raw['owner_email']?.toString() ?? '',
-          displayName: (raw['display_name']?.toString() ?? '').trim().isEmpty
-              ? (raw['owner_email']?.toString() ?? 'Kullanıcı')
-              : raw['display_name'].toString().trim(),
-          kredi: (raw['kredi'] as num?)?.toInt() ?? 0,
-        ),
-  ];
+  if (fallback is! List) return const [];
+  return rankIyilikLeaders(fallback.whereType<Map>(), limit: limit);
 }
 
 /// Ekran görüntüsü için temiz liderlik panosu (admin).
@@ -110,7 +146,7 @@ class _AdminIyilikLiderleriPanelState extends State<AdminIyilikLiderleriPanel> {
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
-                  'İyilik Puanı Sıralaması',
+                  'İyilik Marketi Puanı',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
@@ -159,7 +195,7 @@ class _AdminIyilikLiderleriPanelState extends State<AdminIyilikLiderleriPanel> {
               ),
               const SizedBox(height: 4),
               const Text(
-                '💚 İyilik Puanı Liderleri',
+                '💚 İyilik Marketi Puanı',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white,
@@ -169,7 +205,7 @@ class _AdminIyilikLiderleriPanelState extends State<AdminIyilikLiderleriPanel> {
               ),
               const SizedBox(height: 2),
               Text(
-                'En yüksek ${widget.limit} · Teşekkürler',
+                'En yüksek ${widget.limit} kişi',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.75),
@@ -278,7 +314,7 @@ class _AdminIyilikLiderleriPanelState extends State<AdminIyilikLiderleriPanel> {
                                       ),
                                     ),
                                     Text(
-                                      e.maskedEmail,
+                                      e.ownerEmail,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
