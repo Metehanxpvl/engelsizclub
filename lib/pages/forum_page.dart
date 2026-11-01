@@ -12,6 +12,8 @@ import '../content_moderation.dart';
 import '../forum_follow_store.dart';
 import '../forum_post_follow_store.dart';
 import '../forum_store.dart';
+import '../iyilik_market_store.dart';
+import '../kredi_store.dart';
 import '../content_view_store.dart';
 import '../meto_theme.dart';
 import '../utils/async_timeout.dart';
@@ -58,6 +60,7 @@ class ForumPage extends StatefulWidget {
     this.openPostId,
     this.openCommentId,
     this.openPostToken = 0,
+    this.onMarketPuanChanged,
   });
 
   final String userName;
@@ -71,6 +74,7 @@ class ForumPage extends StatefulWidget {
   final int? openPostId;
   final int? openCommentId;
   final int openPostToken;
+  final ValueChanged<int>? onMarketPuanChanged;
 
   @override
   State<ForumPage> createState() => ForumPageState();
@@ -1162,14 +1166,26 @@ class ForumPageState extends State<ForumPage> {
         _filterTag = null;
         _publishing = false;
       });
+      var awardedMarket = false;
+      if (!isEdit && isAileUserType(widget.userType)) {
+        final market = await awardIyilikMarketPuan(
+          email: widget.userEmail,
+          userType: widget.userType,
+        );
+        if (market != null) {
+          awardedMarket = true;
+          widget.onMarketPuanChanged?.call(market);
+        }
+      }
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            isEdit
-                ? 'Gönderi güncellendi ✅'
-                : isExpert
-                    ? 'Köşe yazınız paylaşıldı — herkes görebilir ✅'
-                    : 'Gönderiniz paylaşıldı — herkes görebilir ✅',
+            forumShareSnack(
+              isEdit: isEdit,
+              isExpert: isExpert,
+              awardedMarket: awardedMarket,
+            ),
           ),
         ),
       );

@@ -27,6 +27,7 @@ import 'data/location_models.dart';
 import 'ilan_store.dart';
 import 'content_view_store.dart';
 import 'kesfet/kesfet_page.dart';
+import 'iyilik_market_store.dart';
 import 'kredi_store.dart';
 import 'kullanici_profil_store.dart';
 import 'l10n/app_strings.dart';
@@ -221,6 +222,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   BildirimAyarlari _bildirimler = const BildirimAyarlari();
   String? _profilFoto;
   late int _userKredi;
+  int _iyilikMarketPuan = 0;
   bool _krediHosBonusGosterildi = false;
   int _ilanlarUnread = 0;
   int _newIlanlarCount = 0;
@@ -2496,8 +2498,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       userType: widget.user.userType,
     );
     if (mounted) {
+      final market = await loadIyilikMarketPuan(email: widget.user.email);
+      if (!mounted) return;
       setState(() {
         _userKredi = snap.balance;
+        _iyilikMarketPuan = market;
         _krediHosBonusGosterildi = _isProf
             ? (prefs.getBool(_welcomeDismissKey) ?? false)
             : true;
@@ -2729,6 +2734,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           },
           onOpenKrediYukle: _openKrediYukle,
           onIlanlarChanged: _persistIlanlar,
+          onMarketPuanChanged: (n) => setState(() => _iyilikMarketPuan = n),
           openIlanKind: _openIlanKind,
           openIlanId: _openIlanId,
           openIlanToken: _openIlanToken,
@@ -2766,6 +2772,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           openPostId: _openForumPostId,
           openCommentId: _openForumCommentId,
           openPostToken: _openForumToken,
+          onMarketPuanChanged: (n) => setState(() => _iyilikMarketPuan = n),
         ),
       ],
     );
@@ -4566,6 +4573,53 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               ],
             ),
           ),
+          if (_isAileRole) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F766E),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'İyilik Market Puanı',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$_iyilikMarketPuan',
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          'Yer bildirimi, ilan ve forum paylaşımında +1',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white.withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Text('🛒', style: TextStyle(fontSize: 36)),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: _openKrediYukle,

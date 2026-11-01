@@ -39,23 +39,23 @@ void main() {
         'owner_email': 'a@example.com',
         'display_name': 'A',
         'kredi': 500,
-        'market_puan': 3,
+        'iyilik_market_puan': 3,
       },
       {
         'owner_email': 'b@example.com',
         'display_name': 'B',
         'kredi': 1,
-        'market_puan': 40,
+        'iyilik_market_puan': 40,
       },
       {
         'owner_email': 'c@example.com',
         'display_name': 'C',
         'kredi': 9,
-        'market_puan': 0,
+        'iyilik_market_puan': 0,
       },
     ];
 
-    final top = rankIyilikLeaders(rows, scoreKey: 'market_puan');
+    final top = rankIyilikLeaders(rows, scoreKey: 'iyilik_market_puan');
     expect(top, hasLength(2));
     expect(top.first.displayName, 'B');
     expect(top.first.kredi, 40);

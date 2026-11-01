@@ -83,7 +83,7 @@ Future<List<IyilikLiderEntry>> fetchAdminTopIyilikPuani({
     return rankIyilikLeaders(
       rows.whereType<Map>(),
       limit: limit,
-      scoreKey: 'market_puan',
+      scoreKey: 'iyilik_market_puan',
     );
   }
   try {

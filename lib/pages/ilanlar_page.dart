@@ -14,6 +14,7 @@ import '../data/location_models.dart';
 import '../ilan_store.dart';
 import '../content_moderation.dart';
 import '../content_view_store.dart';
+import '../iyilik_market_store.dart';
 import '../kredi_store.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/locale_controller.dart';
@@ -62,6 +63,7 @@ class IlanlarPage extends StatefulWidget {
     this.onUnreadChange,
     this.onOpenKrediYukle,
     this.onIlanlarChanged,
+    this.onMarketPuanChanged,
     this.openIlanKind,
     this.openIlanId,
     this.openIlanToken = 0,
@@ -83,6 +85,7 @@ class IlanlarPage extends StatefulWidget {
   final ValueChanged<int>? onUnreadChange;
   final VoidCallback? onOpenKrediYukle;
   final VoidCallback? onIlanlarChanged;
+  final ValueChanged<int>? onMarketPuanChanged;
 
   /// Profil / favorilerden açılacak ilan (kind: uzman|bakici|ikinciel).
   final String? openIlanKind;
@@ -1709,10 +1712,22 @@ class IlanlarPageState extends State<IlanlarPage> {
           final messenger = ScaffoldMessenger.of(context);
           await _refreshFeed();
           if (!mounted) return;
+          var awardedMarket = false;
+          if (!editing && isAileUserType(widget.userType)) {
+            final market = await awardIyilikMarketPuan(
+              email: widget.userEmail,
+              userType: widget.userType,
+            );
+            if (market != null) {
+              awardedMarket = true;
+              widget.onMarketPuanChanged?.call(market);
+            }
+          }
+          if (!mounted) return;
           messenger.showSnackBar(
             SnackBar(
               content: Text(
-                editing ? 'İlan güncellendi ✅' : 'İlanınız yayınlandı ✅',
+                ilanShareSnack(isEdit: editing, awardedMarket: awardedMarket),
               ),
             ),
           );
