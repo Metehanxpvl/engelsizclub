@@ -1,6 +1,6 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-11-04T15:02:15Z",
+  "fetchedAt": "2026-11-05T15:05:28Z",
   "ok": true,
   "count": 180,
   "items": [
@@ -1251,6 +1251,20 @@
       "lang": "tr"
     },
     {
+      "id": "9b3875f1f59c541bc352ea64",
+      "title": "Kongre Kontrolünün Değişmesiyle Savunucuların Engelli Programları İçin 'Yeniden Umudu' Var",
+      "title_original": "As Control Of Congress Flips, Advocates Have ‘Renewed Hope’ For Disability Programs",
+      "summary": "Demokratların Kongrenin her iki kanadını da kontrol etmesiyle birlikte, Trump yönetiminin Medicaid ve özel eğitim gibi alanlardaki değişikliklerini potansiyel olarak değiştirmek için yeni araçlara sahip olacaklar.",
+      "summary_original": "With Democrats set to control both houses of Congress, they will have new tools to potentially alter Trump administration changes to Medicaid, special education and more. The post As Control Of Congress Flips, Advocates Have &#8216;Renewed Hope&#8217; For Disability Programs appeared first on Disability Scoop .",
+      "category": "haklar",
+      "source_name": "Disability Scoop",
+      "source_url": "https://www.disabilityscoop.com/2026/11/05/as-control-of-congress-flips-advocates-have-renewed-hope-for-disability-programs/32255/",
+      "image_url": "",
+      "published_at": "Thu, 05 Nov 2026 02:01:58 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
       "id": "f5f53cf2e422a9b35d78004d",
       "title": "Usta yayıncı Dame Esther Rantzen 86 yaşında hayatını kaybetti",
       "title_original": "Veteran broadcaster Dame Esther Rantzen dies aged 86",
@@ -2161,6 +2175,20 @@
       "lang": "tr"
     },
     {
+      "id": "891fd25feda72e9fbee333fd",
+      "title": "Perkütan Çivileme ve Ortez ile Erken Mobilizasyonun Karşılaştırılması",
+      "title_original": "Percutaneous Pinning vs Orthosis and Early Mobilization",
+      "summary": "Bu çalışma, parmak taban falanks kırıklarının tedavisinde atelleme ve erken hareketin, cerrahi çivilemeye kıyasla hareket açıklığı açısından daha iyi bir yöntem olup olmadığını araştırmaktadır. Bu amaçla iki yöntemi karşılaştıran randomize klinik bir araştırma yürütülmektedir.",
+      "summary_original": "This study aims at investigating if splinting and early mobilization is a better method, regarding range of motion, for treating fractures of the base phalanx of the fingers compared to surgery with pinning. This will be achieved through a randomised clinical trial comparing the two methods.",
+      "category": "klinik",
+      "source_name": "ClinicalTrials.gov",
+      "source_url": "https://clinicaltrials.gov/study/NCT04561661",
+      "image_url": "",
+      "published_at": "2026-11-05T15:01:01Z",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
       "id": "7f2502b4ff5b96791998f727",
       "title": "Ağ Bağlantılı Nöroprotez Cihazının Kavrama-Bırakma Değerlendirmesi",
       "title_original": "Grasp-Release Assessment of a Networked Neuroprosthesis Device",
@@ -2493,34 +2521,6 @@
       "source_url": "https://clinicaltrials.gov/study/NCT07894107",
       "image_url": "",
       "published_at": "2026-11-02T16:37:42Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "0a237e01e14b966f28059b0e",
-      "title": "Allojenik Kök Hücre Nakli Sonrası Akciğer Hastalıklarının Erken Tespiti",
-      "title_original": "Early Detection of Infectious and Noninfectious Lung Diseases Following Allogeneic Hematopoietic Stem Cell Transplantation",
-      "summary": "Allojenik hematopoietik kök hücre nakli geçiren kişilerde immün hücrelerin sağlıklı akciğer hücrelerine saldırması nedeniyle akciğer iltihaplanması ve yara dokusu riski artmaktadır. Bu doğal seyrinde araştırma çalışması, nakil sonrası gelişen akciğer iltihaplarının en iyi hangi testlerle erken tespit edilebileceğini incelemek amacıyla 5 ila 70 yaş arasındaki katılımcıları değerlendirmektedir.",
-      "summary_original": "Background: Stem cell transplants (called hematopoietic stem cell transplantation, or HSCT) are used to treat various diseases. But when the cells for this procedure are donated by someone other than the person who receives the HSCT ( allogeneic HSCT ), the recipient has an increased risk of lung inflammation and scarring. This happens when their immune cells attack healthy lung cells. In this natural history study, researchers will look for the best ways to detect developing lung inflammations earlier after an HSCT. Objective: To see if certain tests can detect early signs of lung inflammation in people after HSCT. Eligibility: People aged 5 to 70 years who will have HSCT as part of another NIH study. Design: Participants will undergo these tests prior to their HSCT. These tests will then",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT06093867",
-      "image_url": "",
-      "published_at": "2026-11-02T16:37:40Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "fdf114eccd178be04bb5b5e3",
-      "title": "Yüksek Çözünürlüklü EMR, Görüntü Histolojisi ve Hemodinamiye Dayalı İntrakraniyal Çoklu Aneurizma İnstabilitesinin Risk Değerlendirmesi ve Mekanizma Analizi",
-      "title_original": "Risk Assessment and Mechanism Analysis of Intracranial Multiple Aneurysm Instability Based on High-resolution Magnetic Resonance, Imaging Histology and Hemodynamics",
-      "summary": "Bu proje, çok merkezli veritabanına dayalı prospektif bir kohort oluşturmayı ve anevrizma instabilitesini incelemek için yüksek çözünürlüklü MR, hemodinamik, ambulatuvar kan basıncı ve görüntü histolojisi gibi çok boyutlu yöntemleri birleştirmeyi amaçlamaktadır.",
-      "summary_original": "This project proposes to establish a prospective cohort of MIA based on a preexisting multicenter MIA database and to combine multidimensional methods such as high-resolution magnetic resonance, hemodynamics, ambulatory blood pressure, and imaging histology to study aneurysm instability.",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT06539767",
-      "image_url": "",
-      "published_at": "2026-11-02T16:37:37Z",
       "status": "pending_review",
       "lang": "tr"
     }
