@@ -1,6 +1,6 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-11-06T14:36:06Z",
+  "fetchedAt": "2026-11-07T13:27:19Z",
   "ok": true,
   "count": 180,
   "items": [
@@ -2371,6 +2371,20 @@
       "lang": "tr"
     },
     {
+      "id": "d9f4efd793c68fa75462aae8",
+      "title": "Beyin Stimülasyon Cihazı Kadın Sağlığı Sorunlarını Tedavi Etmeyi Amaçlıyor",
+      "title_original": "Brain Stimulation Device Aims to Treat Women’s Health Conditions",
+      "summary": "Kadınların çoğu adet dönemiyle ilgili ağrı veya ruh hali değişiklikleri bildirmektedir; kadınların yaklaşık beşte biri için şiddetli semptomlar günlük yaşamı olumsuz etkilemektedir.",
+      "summary_original": "Most women report menstruation-related pain or mood changes, and for around one in five women, strong symptoms disrupt daily life. …",
+      "category": "tedavi",
+      "source_name": "IEEE Spectrum",
+      "source_url": "https://spectrum.ieee.org/samphire-neuroscience-tdcs-pmdd-treatment",
+      "image_url": "",
+      "published_at": "2026-11-05 17:00:03+00:00",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
       "id": "7f2502b4ff5b96791998f727",
       "title": "Ağ Bağlantılı Nöroprotez Cihazının Kavrama-Bırakma Değerlendirmesi",
       "title_original": "Grasp-Release Assessment of a Networked Neuroprosthesis Device",
@@ -2507,20 +2521,6 @@
       "source_url": "https://clinicaltrials.gov/study/NCT05531786",
       "image_url": "",
       "published_at": "2026-11-04T14:58:52Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "9b759131dbe5ac946383da79",
-      "title": "Multipl Skleroz Hastalarında Üst Ekstremite Rehabilitasyonu için Kan Akışı Kısıtlama Eğitimi",
-      "title_original": "Blood Flow Restriction for Upper Limb Rehabilitation in People With Multiple Sclerosis. A Randomized Controlled Trial (BFRT-EM)",
-      "summary": "Bu randomize kontrollü çalışma, multipl skleroz (MS) hastalarında düşük yoğunluklu antrenmanın kan akışı kısıtlama sistemiyle (BFRT) kombinasyonunun kol ve el kas gücü, yorulabilirlik, el becerisi, işlevsellik ve yaşam kalitesi üzerindeki etkilerini incelemektedir. Nörolojik patolojilerde BFRT araştırmaları oldukça sınırlıdır ve bu çalışmanın amacı MS hastalarındaki potansiyel faydalarını ortaya koymaktır.",
-      "summary_original": "Although the Blood Flow Restriction Training (BFRT) system has attracted the attention of health professionals, research on this tool in people with neurological pathology, particularly multiple sclerosis (MS), is very limited. Furthermore, to our knowledge, studies on the effect of the BFRT system on forearm-hand muscle strength and fatigability, coordination and dexterity, functionality and quality of life in people with MS are nonexistent. The main objective of our study are: -To know the effects of low intensity training in combination with the BFRT system on upper limb strength and forearm and hand fatigability, dexterity, functionality and quality of life in people with MS. Secondary Objectives * To know if a low-intensity muscle strengthening program in combination with the BFRT sys",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT06795230",
-      "image_url": "",
-      "published_at": "2026-11-03T14:48:10Z",
       "status": "pending_review",
       "lang": "tr"
     }
