@@ -59,6 +59,8 @@
 	<array>
 		<string>https</string>
 		<string>http</string>
+		<string>itms-apps</string>
+		<string>itms</string>
 		<string>youtube</string>
 		<string>youtube-unlisted</string>
 	</array>

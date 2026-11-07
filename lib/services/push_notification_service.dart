@@ -86,9 +86,6 @@ class PushNotificationService {
       debugPrint('FCM local init: $e');
     }
 
-    // iOS izin diyaloğu ilk kareyi bekletmesin / asılı kalmasın.
-    unawaited(_requestPermission());
-
     try {
       await _messaging
           .setForegroundNotificationPresentationOptions(
@@ -101,7 +98,8 @@ class PushNotificationService {
       debugPrint('FCM presentation options: $e');
     }
 
-    unawaited(_refreshToken());
+    // iOS izin diyaloğu ilk kareyi bekletmesin; APNs token izin sonrası alınır.
+    unawaited(_requestPermissionThenToken());
     try {
       _messaging.onTokenRefresh.listen((token) {
         fcmToken = token;
@@ -222,6 +220,11 @@ class PushNotificationService {
     );
   }
 
+  Future<void> _requestPermissionThenToken() async {
+    await _requestPermission();
+    await _refreshToken();
+  }
+
   Future<void> _requestPermission() async {
     try {
       final settings = await _messaging
@@ -229,7 +232,10 @@ class PushNotificationService {
             alert: true,
             badge: true,
             sound: true,
-            provisional: true,
+            announcement: false,
+            carPlay: false,
+            criticalAlert: false,
+            provisional: false,
           )
           .timeout(const Duration(seconds: 8));
       debugPrint('FCM izin durumu: ${settings.authorizationStatus}');
@@ -251,6 +257,18 @@ class PushNotificationService {
 
   Future<void> _refreshToken() async {
     try {
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        String? apns;
+        for (var i = 0; i < 10; i++) {
+          apns = await _messaging.getAPNSToken();
+          if (apns != null && apns.isNotEmpty) break;
+          await Future<void>.delayed(Duration(milliseconds: 350 * (i + 1)));
+        }
+        if (apns == null || apns.isEmpty) {
+          debugPrint('FCM APNs token yok — kapalıyken bildirim için gerekli');
+          return;
+        }
+      }
       fcmToken = await _messaging.getToken().timeout(const Duration(seconds: 8));
       debugPrint('FCM token: $fcmToken');
       await registerTokenWithServer(fcmToken);

@@ -1,8 +1,9 @@
 name: engelsizclub
 description: MetoCare — özel gereksinimli kahramanlarımız için rehber
 publish_to: "none"
-# Play: versionName+versionCode — her AAB yüklemesinde code artır (ör. 1.0.1+2)
-version: 1.1.1+112
+# Play/App Store: versionName+versionCode. Play son bilinen Android kod 201021 (1.1.21).
+# 113/114 kullanılmış; her mağaza yüklemesinde code bir öncekinden büyük olmalı.
+version: 1.1.25+201201
 environment:
   sdk: ^3.5.0
 

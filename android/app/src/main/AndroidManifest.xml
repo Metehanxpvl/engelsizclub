@@ -109,6 +109,11 @@
         </intent>
         <!-- Google OAuth tarayıcı / Custom Tabs -->
         <package android:name="com.google.android.youtube" />
+        <package android:name="com.android.vending" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="market" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />
