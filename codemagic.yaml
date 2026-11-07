@@ -3,6 +3,11 @@
 # Start build -> workflow: ios-testflight (name: iOS TestFlight)
 # ASC integration name in Codemagic UI must match below exactly (currently: engelsizclub)
 #
+# Apple App ID must have Push Notifications enabled, and the App Store profile
+# (Codemagic reference: engelsiz_club; name is versioned, e.g. v2/v3/v4 — do
+# not hard-code it) must include aps-environment. Do not strip
+# ios/Runner/Runner.entitlements.
+#
 # Android: google-services.json is in the repository (no firebase_credentials group).
 # iOS: Dart Firebase options are in firebase_options.dart.
 
@@ -46,6 +51,7 @@ workflows:
         APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: "--use-old-altool --apple-id 6799422264"
       # Use only the profile uploaded in Codemagic (reference: engelsiz_club).
       # distribution_type auto-fetch also pulls stale EngelsizClub_AppStore. from Apple.
+      # Profile must include Push (aps-environment); App ID Push must stay enabled.
       ios_signing:
         provisioning_profiles:
           - engelsiz_club
@@ -71,7 +77,8 @@ workflows:
             for f in "$PROFILE_DIR"/*.mobileprovision; do
               [ -f "$f" ] || continue
               NAME=$(security cms -D -i "$f" 2>/dev/null | plutil -extract Name raw - 2>/dev/null || echo "<unknown>")
-              echo "  ${NAME}"
+              APS=$(security cms -D -i "$f" 2>/dev/null | grep -A1 aps-environment | tail -n 1 | tr -d '[:space:]<>/' || true)
+              echo "  ${NAME}  aps-environment=${APS:-missing}"
               case "$NAME" in
                 EngelsizClub_AppStore|EngelsizClub_AppStore.)
                   echo "  -> removing stale profile"
@@ -82,31 +89,30 @@ workflows:
           fi
           xcode-project use-profiles
           echo "==== Release signing settings after use-profiles ===="
-          xcodebuild -workspace ios/Runner.xcworkspace \
+          SETTINGS="$(xcodebuild -workspace ios/Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
-            -showBuildSettings 2>/dev/null \
-            | grep -E 'CODE_SIGN_STYLE|CODE_SIGN_IDENTITY|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|PRODUCT_BUNDLE_IDENTIFIER' \
-            || true
-          TEAM="$(xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings 2>/dev/null | awk -F' = ' '/DEVELOPMENT_TEAM/ {print $2; exit}')"
-          PROF="$(xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings 2>/dev/null | awk -F' = ' '/PROVISIONING_PROFILE_SPECIFIER/ {print $2; exit}')"
+            -showBuildSettings 2>/dev/null || true)"
+          echo "$SETTINGS" | grep -E 'CODE_SIGN_STYLE|CODE_SIGN_IDENTITY|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|PRODUCT_BUNDLE_IDENTIFIER' || true
+          TEAM="$(echo "$SETTINGS" | awk -F' = ' '/^[[:space:]]*DEVELOPMENT_TEAM / {print $2; exit}')"
+          PROF="$(echo "$SETTINGS" | awk -F' = ' '/PROVISIONING_PROFILE_SPECIFIER/ { if ($2 != "") { print $2; exit } }')"
           echo "DEVELOPMENT_TEAM=${TEAM:-<empty>}"
           echo "PROVISIONING_PROFILE_SPECIFIER=${PROF:-<empty>}"
           case "$PROF" in
             EngelsizClub_AppStore|EngelsizClub_AppStore.)
               echo "ERROR: Eski provisioning profile hâlâ seçili: '${PROF}'"
               echo "Codemagic → Settings → Code signing identities → engelsiz_club profilini sil,"
-              echo "Fetch profiles → EngelsizClub_AppStore_v2 → reference: engelsiz_club"
-              echo "Apple Developer → Profiles → EngelsizClub_AppStore.* sil"
+              echo "Fetch profiles → current App Store profile → reference: engelsiz_club"
+              echo "Apple Developer → Profiles → EngelsizClub_AppStore / EngelsizClub_AppStore. sil"
               exit 1
               ;;
-            EngelsizClub_AppStore_v2)
-              echo "OK: doğru profil"
+            "")
+              echo "ERROR: use-profiles did not apply DEVELOPMENT_TEAM / PROVISIONING_PROFILE_SPECIFIER."
+              echo "Apple App ID Push Notifications açık olmalı; engelsiz_club profili aps-environment içermeli."
+              exit 1
               ;;
             *)
-              echo "ERROR: Beklenmeyen profil: '${PROF:-<empty>}'"
-              echo "EngelsizClub_AppStore_v2 olmalı (Sign In with Apple)."
-              exit 1
+              echo "OK: using Codemagic-selected profile '${PROF}'"
               ;;
           esac
           if [ -z "${TEAM}" ] || [ -z "${PROF}" ]; then
@@ -187,20 +193,38 @@ workflows:
           set -e
           PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
           if [ -d "$PROFILE_DIR" ]; then
+            echo "==== Provisioning profiles on build machine (before cleanup) ===="
             for f in "$PROFILE_DIR"/*.mobileprovision; do
               [ -f "$f" ] || continue
-              NAME=$(security cms -D -i "$f" 2>/dev/null | plutil -extract Name raw - 2>/dev/null || echo "")
+              NAME=$(security cms -D -i "$f" 2>/dev/null | plutil -extract Name raw - 2>/dev/null || echo "<unknown>")
+              APS=$(security cms -D -i "$f" 2>/dev/null | grep -A1 aps-environment | tail -n 1 | tr -d '[:space:]<>/' || true)
+              echo "  ${NAME}  aps-environment=${APS:-missing}"
               case "$NAME" in
-                EngelsizClub_AppStore|EngelsizClub_AppStore.) rm -f "$f" ;;
+                EngelsizClub_AppStore|EngelsizClub_AppStore.)
+                  echo "  -> removing stale profile"
+                  rm -f "$f"
+                  ;;
               esac
             done
           fi
           xcode-project use-profiles
-          PROF="$(xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings 2>/dev/null | awk -F' = ' '/PROVISIONING_PROFILE_SPECIFIER/ {print $2; exit}')"
-          if [ "$PROF" != "EngelsizClub_AppStore_v2" ]; then
-            echo "ERROR: Yanlış provisioning profile: '${PROF:-<empty>}' — EngelsizClub_AppStore_v2 bekleniyor."
-            exit 1
-          fi
+          SETTINGS="$(xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings 2>/dev/null || true)"
+          PROF="$(echo "$SETTINGS" | awk -F' = ' '/PROVISIONING_PROFILE_SPECIFIER/ { if ($2 != "") { print $2; exit } }')"
+          echo "PROVISIONING_PROFILE_SPECIFIER=${PROF:-<empty>}"
+          case "$PROF" in
+            EngelsizClub_AppStore|EngelsizClub_AppStore.)
+              echo "ERROR: Eski provisioning profile hâlâ seçili: '${PROF}'"
+              exit 1
+              ;;
+            "")
+              echo "ERROR: use-profiles did not apply PROVISIONING_PROFILE_SPECIFIER."
+              echo "Apple App ID Push Notifications açık olmalı; engelsiz_club profili aps-environment içermeli."
+              exit 1
+              ;;
+            *)
+              echo "OK: using Codemagic-selected profile '${PROF}'"
+              ;;
+          esac
       - name: Flutter build IPA
         script: |
           #!/usr/bin/env sh
