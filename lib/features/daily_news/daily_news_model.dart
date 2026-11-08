@@ -1,3 +1,12 @@
+String dailyNewsDateTimeLabel(DateTime dt) {
+  final d = dt.toLocal();
+  final dd = d.day.toString().padLeft(2, '0');
+  final mm = d.month.toString().padLeft(2, '0');
+  final hh = d.hour.toString().padLeft(2, '0');
+  final min = d.minute.toString().padLeft(2, '0');
+  return '$dd.$mm.${d.year} $hh:$min';
+}
+
 class DailyNewsCandidate {
   const DailyNewsCandidate({
     required this.id,
@@ -12,6 +21,7 @@ class DailyNewsCandidate {
     required this.aiReason,
     required this.status,
     this.publishedAt,
+    this.createdAt,
     this.imageUrl = '',
     this.categories = const [],
     this.affectedUsers = const [],
@@ -30,8 +40,13 @@ class DailyNewsCandidate {
   final String aiReason;
   final String status;
   final DateTime? publishedAt;
+  final DateTime? createdAt;
   final String imageUrl;
   final List<String> affectedUsers;
+
+  /// GitHub Action’ın haberi kuyruğa yazdığı an (yerel saat).
+  String get collectedAtLabel =>
+      createdAt == null ? '' : dailyNewsDateTimeLabel(createdAt!);
 
   String get importanceLabelTr => switch (importanceLevel) {
         'very_high' => 'Çok önemli',
@@ -57,6 +72,7 @@ class DailyNewsCandidate {
       aiReason: aiReason,
       status: status,
       publishedAt: publishedAt,
+      createdAt: createdAt,
       imageUrl: imageUrl ?? this.imageUrl,
       categories: categories,
       affectedUsers: affectedUsers,
@@ -64,10 +80,10 @@ class DailyNewsCandidate {
   }
 
   factory DailyNewsCandidate.fromJson(Map<String, dynamic> json) {
-    DateTime? published;
-    final raw = json['published_at'];
-    if (raw is String && raw.trim().isNotEmpty) {
-      published = DateTime.tryParse(raw);
+    DateTime? parseTs(Object? raw) {
+      final s = raw?.toString().trim() ?? '';
+      if (s.isEmpty) return null;
+      return DateTime.tryParse(s)?.toLocal();
     }
     return DailyNewsCandidate(
       id: '${json['id'] ?? ''}',
@@ -85,7 +101,8 @@ class DailyNewsCandidate {
       importanceLevel: '${json['importance_level'] ?? 'informational'}',
       aiReason: '${json['ai_reason'] ?? ''}'.trim(),
       status: '${json['status'] ?? 'pending'}',
-      publishedAt: published,
+      publishedAt: parseTs(json['published_at']),
+      createdAt: parseTs(json['created_at']),
       imageUrl: '${json['image_url'] ?? ''}',
       affectedUsers: [
         for (final e in (json['affected_users'] as List? ?? const []))

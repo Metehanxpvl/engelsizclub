@@ -492,6 +492,17 @@ class _NewsCandidateCard extends StatelessWidget {
             item.title,
             style: GoogleFonts.nunito(fontWeight: FontWeight.w800, fontSize: 16),
           ),
+          if (item.collectedAtLabel.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Geldi: ${item.collectedAtLabel}',
+              style: GoogleFonts.nunito(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: MetoColors.mutedFg,
+              ),
+            ),
+          ],
           const SizedBox(height: 6),
           Text(
             [

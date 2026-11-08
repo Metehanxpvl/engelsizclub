@@ -28,7 +28,9 @@ class MoreMenuItem {
     'taramalar',
     'puzzle',
     'boyama',
+    'metobot',
     'folder',
+    'besin_karnesi',
   };
 
   final int id;
@@ -178,7 +180,6 @@ const kDestekSorguHtmlUrl = '$kEngelsizClubOrigin/destek-sorgu.html';
 const kEvdeEgitimHtmlUrl = '$kEngelsizClubOrigin/evde-egitim.html';
 
 /// Destek Sorgu / Evde Eğitim: gerçek `.html` dosyası (Flutter route değil).
-/// Matches live Supabase `link` values (absolute https, /path, or .html).
 String? hostedHtmlWizardUrl(String raw) {
   var s = raw.trim().toLowerCase().replaceAll('\\', '/');
   if (s.isEmpty) return null;
@@ -315,7 +316,7 @@ bool wouldCreateMoreMenuCycle(
 
 const defaultHaritaMenuItem = MoreMenuItem(
   id: -9,
-  title: 'Harita',
+  title: 'Engelsiz Haritalar',
   subtitle: 'Destek merkezleri ve yakındaki hizmet noktaları',
   linkType: 'route',
   link: 'harita',
@@ -325,9 +326,205 @@ const defaultHaritaMenuItem = MoreMenuItem(
   isBuiltin: true,
 );
 
+const defaultHaklarMenuItem = MoreMenuItem(
+  id: -2,
+  title: 'Hak Sorgulama',
+  subtitle: 'Devlet hakları ve rehber',
+  linkType: 'route',
+  link: 'haklar',
+  icon: 'balance',
+  sortOrder: 20,
+  isActive: true,
+  isBuiltin: true,
+);
+
+const defaultDestekSorguMenuItem = MoreMenuItem(
+  id: -16,
+  title: 'Destek Sorgulama',
+  subtitle: 'SUT taban fiyatı, SGK katkısı ve yenileme takvimi',
+  linkType: 'url',
+  link: kDestekSorguHtmlUrl,
+  icon: 'calculate',
+  sortOrder: 22,
+  isActive: true,
+  isBuiltin: false,
+);
+
+const defaultEvdeEgitimMenuItem = MoreMenuItem(
+  id: -17,
+  title: 'Evde eğitim sorgu',
+  subtitle: 'Şartları adım adım görün — ad ve T.C. sorulmaz',
+  linkType: 'url',
+  link: kEvdeEgitimHtmlUrl,
+  icon: 'family',
+  sortOrder: 23,
+  isActive: true,
+  isBuiltin: false,
+);
+
+const defaultKartlarMenuItem = MoreMenuItem(
+  id: -3,
+  title: 'İletişim Kartları',
+  subtitle: 'Görsel destek kartları',
+  linkType: 'route',
+  link: 'kartlar',
+  icon: 'grid',
+  sortOrder: 30,
+  isActive: true,
+  isBuiltin: true,
+);
+
+const defaultAileKocuMenuItem = MoreMenuItem(
+  id: -1,
+  title: 'Aile Koçum',
+  subtitle: 'Ders, ilaç ve not takibi (çevrimdışı)',
+  linkType: 'route',
+  link: 'aile_kocu',
+  icon: 'family',
+  sortOrder: 10,
+  isActive: true,
+  isBuiltin: true,
+);
+
+const defaultMetoBotMenuItem = MoreMenuItem(
+  id: -18,
+  title: 'MetoBot',
+  subtitle: 'Yardımcı asistan',
+  linkType: 'route',
+  link: 'metobot',
+  icon: 'smart_toy',
+  sortOrder: 80,
+  isActive: true,
+  isBuiltin: true,
+);
+
+const defaultBesinKarnesiMenuItem = MoreMenuItem(
+  id: -22,
+  title: 'Günlük Vitamin & Mineral Karnesi',
+  subtitle: 'Günlük besin alımını analiz et',
+  linkType: 'route',
+  link: 'besin_karnesi',
+  icon: 'nutrition',
+  sortOrder: 90,
+  isActive: true,
+  isBuiltin: true,
+);
+
+bool isBesinKarnesiMenuItem(MoreMenuItem e) {
+  final k = (e.routeKey ?? e.link.trim().toLowerCase());
+  return k == 'besin_karnesi' || k == 'nutrition';
+}
+
+/// Tüm üyelerde görünür; misafir menüsünde yer kaplamaz.
+/// Engelsiz Haritalar’ın hemen üstünde durur.
+List<MoreMenuItem> withBesinKarnesiMenuItem(
+  List<MoreMenuItem> items, {
+  required bool forMember,
+}) {
+  final without = items.where((e) => !isBesinKarnesiMenuItem(e)).toList();
+  if (!forMember) return without;
+  final i = without.indexWhere(isHaritaMenuItem);
+  if (i < 0) return [defaultBesinKarnesiMenuItem, ...without];
+  return [
+    ...without.sublist(0, i),
+    defaultBesinKarnesiMenuItem,
+    ...without.sublist(i),
+  ];
+}
+
+/// Kullanıcı Daha Fazlası sırası (ekran görüntüsü).
+enum UserMoreMenuSlot {
+  harita,
+  taramalar,
+  haklar,
+  destekSorgu,
+  evdeEgitim,
+  kartlar,
+  aileKocu,
+  metobot,
+}
+
 bool isHaritaMenuItem(MoreMenuItem e) {
   final k = (e.routeKey ?? e.link.trim().toLowerCase());
   return k == 'harita' || k == 'merkezler';
+}
+
+bool isMetoBotMenuItem(MoreMenuItem e) {
+  final k = (e.routeKey ?? e.link.trim().toLowerCase());
+  if (k == 'metobot') return true;
+  return e.title.trim().toLowerCase() == 'metobot';
+}
+
+UserMoreMenuSlot? userMoreMenuSlot(MoreMenuItem e) {
+  if (isHaritaMenuItem(e)) return UserMoreMenuSlot.harita;
+  if (isTaramalarGroupItem(e)) return UserMoreMenuSlot.taramalar;
+  if (e.routeKey == 'haklar') return UserMoreMenuSlot.haklar;
+  final wizard = hostedHtmlWizardUrl(e.link);
+  if (wizard == kDestekSorguHtmlUrl) return UserMoreMenuSlot.destekSorgu;
+  if (wizard == kEvdeEgitimHtmlUrl) return UserMoreMenuSlot.evdeEgitim;
+  if (e.routeKey == 'kartlar') return UserMoreMenuSlot.kartlar;
+  if (e.routeKey == 'aile_kocu') return UserMoreMenuSlot.aileKocu;
+  if (isMetoBotMenuItem(e)) return UserMoreMenuSlot.metobot;
+  return null;
+}
+
+String moreMenuDisplayTitle(MoreMenuItem e) {
+  switch (userMoreMenuSlot(e)) {
+    case UserMoreMenuSlot.harita:
+      return 'Engelsiz Haritalar';
+    case UserMoreMenuSlot.taramalar:
+      return 'Taramalar & Egzersizler & Oyun';
+    case UserMoreMenuSlot.haklar:
+      return 'Hak Sorgulama';
+    case UserMoreMenuSlot.destekSorgu:
+      return 'Destek Sorgulama';
+    case UserMoreMenuSlot.evdeEgitim:
+      return 'Evde eğitim sorgu';
+    case UserMoreMenuSlot.kartlar:
+      return 'İletişim Kartları';
+    case UserMoreMenuSlot.aileKocu:
+      return 'Aile Koçum';
+    case UserMoreMenuSlot.metobot:
+      return 'MetoBot';
+    case null:
+      return e.title;
+  }
+}
+
+MoreMenuItem defaultItemForUserMoreMenuSlot(UserMoreMenuSlot slot) {
+  switch (slot) {
+    case UserMoreMenuSlot.harita:
+      return defaultHaritaMenuItem;
+    case UserMoreMenuSlot.taramalar:
+      return defaultTaramalarGroupItem;
+    case UserMoreMenuSlot.haklar:
+      return defaultHaklarMenuItem;
+    case UserMoreMenuSlot.destekSorgu:
+      return defaultDestekSorguMenuItem;
+    case UserMoreMenuSlot.evdeEgitim:
+      return defaultEvdeEgitimMenuItem;
+    case UserMoreMenuSlot.kartlar:
+      return defaultKartlarMenuItem;
+    case UserMoreMenuSlot.aileKocu:
+      return defaultAileKocuMenuItem;
+    case UserMoreMenuSlot.metobot:
+      return defaultMetoBotMenuItem;
+  }
+}
+
+/// Kullanıcı listesini ekran görüntüsü sırasına kilitler; fazladan kökleri gizler.
+List<MoreMenuItem> withCanonicalUserMoreMenu(List<MoreMenuItem> roots) {
+  MoreMenuItem? pick(UserMoreMenuSlot slot) {
+    for (final e in roots) {
+      if (userMoreMenuSlot(e) == slot) return e;
+    }
+    return null;
+  }
+
+  return [
+    for (final slot in UserMoreMenuSlot.values)
+      pick(slot) ?? defaultItemForUserMoreMenuSlot(slot),
+  ];
 }
 
 /// Harita artık alt menüde değil; Daha Fazlası’nda üstte dursun.
@@ -522,13 +719,16 @@ List<MoreMenuItem> withTaramalarGroup(
 /// Sütun yoksa eski Taramalar gruplamasına düşer (çift satır olmasın).
 List<MoreMenuItem> prepareUserMoreMenu(List<MoreMenuItem> items) {
   final cleaned = withoutMovedLibraryItems(items);
+  final List<MoreMenuItem> roots;
   if (hasMoreMenuNesting(cleaned)) {
-    return moreMenuRoots(cleaned);
+    roots = moreMenuRoots(cleaned);
+  } else {
+    roots = withTaramalarGroup(
+      withProminentHarita(cleaned, pinTop: true),
+      pinTop: true,
+    );
   }
-  return withTaramalarGroup(
-    withProminentHarita(cleaned, pinTop: true),
-    pinTop: true,
-  );
+  return withCanonicalUserMoreMenu(roots);
 }
 
 /// Admin: tüm satırlar (ağaç UI’da indent). parent_id sırası korunur.
@@ -549,61 +749,12 @@ List<MoreMenuItem> defaultMoreMenuItems() => [
       defaultHaritaMenuItem,
       defaultTaramalarGroupItem,
       defaultBoyamaMenuItem,
-      MoreMenuItem(
-        id: -1,
-        title: 'Aile Koçum',
-        subtitle: 'Ders, ilaç ve not takibi (çevrimdışı)',
-        linkType: 'route',
-        link: 'aile_kocu',
-        icon: 'family',
-        sortOrder: 10,
-        isActive: true,
-        isBuiltin: true,
-      ),
-      MoreMenuItem(
-        id: -2,
-        title: 'Haklar',
-        subtitle: 'Devlet hakları ve rehber',
-        linkType: 'route',
-        link: 'haklar',
-        icon: 'balance',
-        sortOrder: 20,
-        isActive: true,
-        isBuiltin: true,
-      ),
-      MoreMenuItem(
-        id: -16,
-        title: 'Destek Sorgulama',
-        subtitle: 'SUT taban fiyatı, SGK katkısı ve yenileme takvimi',
-        linkType: 'url',
-        link: kDestekSorguHtmlUrl,
-        icon: 'calculate',
-        sortOrder: 22,
-        isActive: true,
-        isBuiltin: false,
-      ),
-      MoreMenuItem(
-        id: -17,
-        title: 'Evde eğitim sorgu',
-        subtitle: 'Şartları adım adım görün — ad ve T.C. sorulmaz',
-        linkType: 'url',
-        link: kEvdeEgitimHtmlUrl,
-        icon: 'family',
-        sortOrder: 23,
-        isActive: true,
-        isBuiltin: false,
-      ),
-      MoreMenuItem(
-        id: -3,
-        title: 'Kartlar',
-        subtitle: 'Görsel destek kartları',
-        linkType: 'route',
-        link: 'kartlar',
-        icon: 'grid',
-        sortOrder: 30,
-        isActive: true,
-        isBuiltin: true,
-      ),
+      defaultAileKocuMenuItem,
+      defaultHaklarMenuItem,
+      defaultDestekSorguMenuItem,
+      defaultEvdeEgitimMenuItem,
+      defaultKartlarMenuItem,
+      defaultMetoBotMenuItem,
       MoreMenuItem(
         id: -6,
         title: 'Gelişim Etkinlikleri',

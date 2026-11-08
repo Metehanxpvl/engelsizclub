@@ -1,0 +1,11 @@
+{
+  "mailer_otp_length": 6,
+  "mailer_subjects_confirmation": "Engelsiz Club do\u011frulama kodunuz: {{ .Token }}",
+  "mailer_templates_confirmation_content": "<h2>E-posta do\u011frulama kodunuz</h2>\n<p>Engelsiz Club \u00fcyeli\u011finizi tamamlamak i\u00e7in bu <strong>6 haneli kodu</strong> uygulamaya girin:</p>\n<p style=\"font-size:32px;font-weight:700;letter-spacing:6px;margin:24px 0\">{{ .Token }}</p>\n<p>Kod 1 saat ge\u00e7erlidir. Gelen kutusu ve Spam klas\u00f6r\u00fcne bak\u0131n.</p>\n<p>\u0130sterseniz bu ba\u011flant\u0131ya da t\u0131klayabilirsiniz:</p>\n<p><a href=\"{{ .ConfirmationURL }}\">E-postam\u0131 do\u011frula</a></p>",
+  "mailer_subjects_recovery": "Engelsiz Club parola s\u0131f\u0131rlama kodunuz: {{ .Token }}",
+  "mailer_templates_recovery_content": "<h2>Parola s\u0131f\u0131rlama kodunuz</h2>\n<p>Parolan\u0131z\u0131 s\u0131f\u0131rlamak i\u00e7in bu <strong>6 haneli kodu</strong> uygulamaya girin:</p>\n<p style=\"font-size:32px;font-weight:700;letter-spacing:6px;margin:24px 0\">{{ .Token }}</p>\n<p>Kod 1 saat ge\u00e7erlidir. Bu iste\u011fi siz yapmad\u0131ysan\u0131z bu e-postay\u0131 yok say\u0131n.</p>\n<p>\u0130sterseniz bu ba\u011flant\u0131ya da t\u0131klayabilirsiniz:</p>\n<p><a href=\"{{ .ConfirmationURL }}\">Parolam\u0131 s\u0131f\u0131rla</a></p>",
+  "mailer_subjects_magic_link": "Engelsiz Club giri\u015f kodunuz: {{ .Token }}",
+  "mailer_templates_magic_link_content": "<h2>Giri\u015f / do\u011frulama kodunuz</h2>\n<p>Bu <strong>6 haneli kodu</strong> uygulamaya girin:</p>\n<p style=\"font-size:32px;font-weight:700;letter-spacing:6px;margin:24px 0\">{{ .Token }}</p>\n<p>Kod 1 saat ge\u00e7erlidir. Gelen kutusu ve Spam klas\u00f6r\u00fcne bak\u0131n.</p>\n<p>\u0130sterseniz bu ba\u011flant\u0131ya da t\u0131klayabilirsiniz:</p>\n<p><a href=\"{{ .ConfirmationURL }}\">Giri\u015f yap</a></p>",
+  "mailer_subjects_reauthentication": "Engelsiz Club do\u011frulama kodunuz: {{ .Token }}",
+  "mailer_templates_reauthentication_content": "<h2>Do\u011frulama kodunuz</h2>\n<p>Bu <strong>6 haneli kodu</strong> uygulamaya girin:</p>\n<p style=\"font-size:32px;font-weight:700;letter-spacing:6px;margin:24px 0\">{{ .Token }}</p>"
+}

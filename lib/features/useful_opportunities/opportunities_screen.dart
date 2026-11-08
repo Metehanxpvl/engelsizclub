@@ -118,7 +118,7 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dateFmt = DateFormat('dd.MM.yyyy');
+    final dateFmt = DateFormat('dd.MM.yyyy HH:mm');
     return Scaffold(
       backgroundColor: MetoColors.background,
       appBar: AppBar(
@@ -322,6 +322,28 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                                               ),
                                             ),
                                           ],
+                                          if (item.collectedAtLabel.isNotEmpty) ...[
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              'Geldi: ${item.collectedAtLabel}',
+                                              style: GoogleFonts.nunito(
+                                                color: MetoColors.mutedFg,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ],
+                                          if (item.publishedAtLabel.isNotEmpty &&
+                                              item.publishedAtLabel !=
+                                                  item.collectedAtLabel) ...[
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Yayın: ${item.publishedAtLabel}',
+                                              style: GoogleFonts.nunito(
+                                                color: MetoColors.mutedFg,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ],
                                           if (item.deadlineAt != null) ...[
                                             const SizedBox(height: 8),
                                             Text(
@@ -390,6 +412,16 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
               if (item.sourceName.isNotEmpty)
                 Text(
                   'Kaynak: ${item.sourceName}',
+                  style: GoogleFonts.nunito(color: MetoColors.mutedFg),
+                ),
+              if (item.collectedAtLabel.isNotEmpty)
+                Text(
+                  'Geldi: ${item.collectedAtLabel}',
+                  style: GoogleFonts.nunito(color: MetoColors.mutedFg),
+                ),
+              if (item.publishedAtLabel.isNotEmpty)
+                Text(
+                  'Yayın: ${item.publishedAtLabel}',
                   style: GoogleFonts.nunito(color: MetoColors.mutedFg),
                 ),
               if (item.deadlineAt != null)

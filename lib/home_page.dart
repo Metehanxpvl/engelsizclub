@@ -21,6 +21,7 @@ import 'widgets/dernekler_home_section.dart';
 import 'widgets/duyurular_section.dart';
 import 'widgets/gezi_kampanya_home_section.dart';
 import 'widgets/hastaliklar_section.dart';
+import 'widgets/uzman_kosesi_home_section.dart';
 import 'widgets/home_social_footer.dart';
 import 'widgets/store_download_prompt.dart';
 import 'pages/premature_gelisim_rehberi_page.dart';
@@ -402,6 +403,12 @@ class _HomePageState extends State<HomePage> {
           ),
 
           GeziKampanyaHomeSection(
+            userEmail: widget.userEmail,
+            isGuest: widget.isGuest,
+            onRequireLogin: widget.onRequireLogin,
+          ),
+
+          UzmanKosesHomeSection(
             userEmail: widget.userEmail,
             isGuest: widget.isGuest,
             onRequireLogin: widget.onRequireLogin,

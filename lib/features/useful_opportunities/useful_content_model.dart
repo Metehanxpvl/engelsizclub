@@ -172,6 +172,15 @@ String usefulContentDuyuruBody(
   );
 }
 
+String usefulContentDateTimeLabel(DateTime dt) {
+  final d = dt.toLocal();
+  final dd = d.day.toString().padLeft(2, '0');
+  final mm = d.month.toString().padLeft(2, '0');
+  final hh = d.hour.toString().padLeft(2, '0');
+  final min = d.minute.toString().padLeft(2, '0');
+  return '$dd.$mm.${d.year} $hh:$min';
+}
+
 class UsefulContentItem {
   const UsefulContentItem({
     required this.id,
@@ -246,6 +255,16 @@ class UsefulContentItem {
 
   String get categoryLabel =>
       kUsefulContentCategories[category] ?? kUsefulContentCategories['diger']!;
+
+  /// GitHub Action’ın yazdığı / kaynak yayınladığı an (yerel saat).
+  String get collectedAtLabel =>
+      createdAt == null ? '' : usefulContentDateTimeLabel(createdAt!);
+
+  String get publishedAtLabel =>
+      publishedAt == null ? '' : usefulContentDateTimeLabel(publishedAt!);
+
+  String get deadlineAtLabel =>
+      deadlineAt == null ? '' : usefulContentDateTimeLabel(deadlineAt!);
 
   factory UsefulContentItem.fromJson(Map<String, dynamic> json) {
     DateTime? parseTs(Object? raw) {

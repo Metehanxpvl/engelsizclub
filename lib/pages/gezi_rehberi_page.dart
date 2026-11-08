@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../data/turkish_cities_data.dart';
 import '../gezi_kampanya_store.dart';
+import '../section_broadcast_notify.dart';
 import '../section_editors.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n_text.dart';
@@ -39,6 +40,7 @@ class _GeziRehberiPageState extends State<GeziRehberiPage> {
   List<GeziItem> _all = const [];
   bool _loading = true;
   String? _city;
+  int? _notifyBusyId;
 
   bool get _isAdmin => canEditSection(widget.userEmail, SectionKey.gezi);
 
@@ -177,6 +179,54 @@ class _GeziRehberiPageState extends State<GeziRehberiPage> {
     final city = item.cityName.trim();
     if (city.isEmpty) return numbered;
     return '$city · $numbered';
+  }
+
+  Future<void> _notifyItem(GeziItem item) async {
+    if (!_isAdmin || _notifyBusyId != null) return;
+    const type = 'gezi';
+    final title = sectionBroadcastTitle(
+      type: type,
+      title: item.title.trim().isEmpty ? item.cityName : item.title,
+    );
+    final body = sectionBroadcastBody(
+      type: type,
+      description: item.description,
+      location: item.cityName,
+    );
+    final ok = await confirmKullanicilaraBildir(
+      context,
+      title: title,
+      body: body,
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _notifyBusyId = item.id);
+    try {
+      final n = await notifySectionItemToMembers(
+        type: type,
+        title: title,
+        body: body,
+        imageUrl: item.imageUrl,
+        itemId: item.id,
+        sohbetKey: sectionBroadcastRef(type, '${item.id}'),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            n > 0
+                ? 'Bildirim gönderildi ($n kullanıcı).'
+                : 'Push bildirimi gönderildi.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Bildirim gönderilemedi: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _notifyBusyId = null);
+    }
   }
 
   Future<void> _openAdd({String? city}) async {
@@ -447,6 +497,9 @@ class _GeziRehberiPageState extends State<GeziRehberiPage> {
                                   title: _cardTitle(item),
                                   description: item.description,
                                   isAdmin: _isAdmin,
+                                  onNotify:
+                                      _isAdmin ? () => _notifyItem(item) : null,
+                                  notifyBusy: _notifyBusyId == item.id,
                                   onDelete:
                                       _isAdmin ? () => _delete(item) : null,
                                   onEdit:

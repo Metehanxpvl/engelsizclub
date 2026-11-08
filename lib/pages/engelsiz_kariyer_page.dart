@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../engelsiz_kariyer_store.dart';
 import '../l10n/app_strings.dart';
+import '../section_broadcast_notify.dart';
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
 import '../section_editors.dart';
@@ -37,6 +38,7 @@ class _EngelsizKariyerPageState extends State<EngelsizKariyerPage> {
   List<KariyerJob> _items = const [];
   bool _loading = true;
   String _sektor = kKariyerSektorAll;
+  String? _notifyBusyId;
 
   bool get _isAdmin => canEditSection(widget.userEmail, SectionKey.kariyer);
 
@@ -81,6 +83,109 @@ class _EngelsizKariyerPageState extends State<EngelsizKariyerPage> {
               .toLowerCase();
       return hay.contains(q);
     }).toList();
+  }
+
+  String _sektorBusyKey(String sektor) => 'sektor:$sektor';
+
+  List<KariyerJob> _jobsForSektor(String sektor) {
+    return _items
+        .where((j) => !j.hidden && kariyerMatchesSektor(j, sektor))
+        .toList(growable: false);
+  }
+
+  Future<void> _notifySektor(String sektor) async {
+    if (!_isAdmin || _notifyBusyId != null) return;
+    final jobs = _jobsForSektor(sektor);
+    if (jobs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: L10nText(
+            sektor == kKariyerSektorKamu
+                ? 'Bildirilecek kamu ilanı yok.'
+                : 'Bildirilecek özel sektör ilanı yok.',
+          ),
+        ),
+      );
+      return;
+    }
+    final title = kariyerBulkNotifyTitle(sektor);
+    final body = kariyerBulkNotifyBody(sektor: sektor, count: jobs.length);
+    final ok = await confirmKullanicilaraBildir(
+      context,
+      title: title,
+      body: body,
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _notifyBusyId = _sektorBusyKey(sektor));
+    try {
+      final n = await notifySectionItemToMembers(
+        type: 'kariyer',
+        title: title,
+        body: body,
+        sohbetKey: sectionBroadcastRef('kariyer', sektor),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            n > 0
+                ? 'Bildirim gönderildi ($n kullanıcı).'
+                : 'Push bildirimi gönderildi.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Bildirim gönderilemedi: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _notifyBusyId = null);
+    }
+  }
+
+  Future<void> _notifyJob(KariyerJob job) async {
+    if (!_isAdmin || _notifyBusyId != null) return;
+    const type = 'kariyer';
+    final title = sectionBroadcastTitle(type: type, title: job.title);
+    final body = sectionBroadcastBody(
+      type: type,
+      location: job.city,
+    );
+    final ok = await confirmKullanicilaraBildir(
+      context,
+      title: title,
+      body: body,
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _notifyBusyId = job.id);
+    try {
+      final parsedId = int.tryParse(job.id);
+      final n = await notifySectionItemToMembers(
+        type: type,
+        title: title,
+        body: body,
+        itemId: parsedId != null && parsedId > 0 ? parsedId : null,
+        sohbetKey: sectionBroadcastRef(type, job.id),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            n > 0
+                ? 'Bildirim gönderildi ($n kullanıcı).'
+                : 'Push bildirimi gönderildi.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Bildirim gönderilemedi: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _notifyBusyId = null);
+    }
   }
 
   Future<void> _openApply(KariyerJob job) async {
@@ -182,11 +287,17 @@ class _EngelsizKariyerPageState extends State<EngelsizKariyerPage> {
                   label: 'Kamu',
                   active: _sektor == kKariyerSektorKamu,
                   onTap: () => setState(() => _sektor = kKariyerSektorKamu),
+                  onNotify:
+                      _isAdmin ? () => _notifySektor(kKariyerSektorKamu) : null,
+                  notifyBusy: _notifyBusyId == _sektorBusyKey(kKariyerSektorKamu),
                 ),
                 _SektorChip(
                   label: 'Özel',
                   active: _sektor == kKariyerSektorOzel,
                   onTap: () => setState(() => _sektor = kKariyerSektorOzel),
+                  onNotify:
+                      _isAdmin ? () => _notifySektor(kKariyerSektorOzel) : null,
+                  notifyBusy: _notifyBusyId == _sektorBusyKey(kKariyerSektorOzel),
                 ),
                 _SektorChip(
                   label: 'Tümü',
@@ -274,6 +385,8 @@ class _EngelsizKariyerPageState extends State<EngelsizKariyerPage> {
                               onOpen: () => _openApply(job),
                               onEdit: () => _openEdit(item: job),
                               onDelete: () => _delete(job),
+                              onNotify: _isAdmin ? () => _notifyJob(job) : null,
+                              notifyBusy: _notifyBusyId == job.id,
                             );
                           },
                         ),
@@ -290,15 +403,19 @@ class _SektorChip extends StatelessWidget {
     required this.label,
     required this.active,
     required this.onTap,
+    this.onNotify,
+    this.notifyBusy = false,
   });
 
   final String label;
   final bool active;
   final VoidCallback onTap;
+  final VoidCallback? onNotify;
+  final bool notifyBusy;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    final chip = Material(
       color: active ? MetoColors.primary : MetoColors.muted,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
@@ -317,6 +434,37 @@ class _SektorChip extends StatelessWidget {
         ),
       ),
     );
+    if (onNotify == null) return chip;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        chip,
+        const SizedBox(width: 4),
+        Material(
+          color: MetoColors.primary,
+          shape: const CircleBorder(),
+          child: IconButton(
+            tooltip: S.auto('Kullanıcılara bildir'),
+            onPressed: notifyBusy ? null : onNotify,
+            visualDensity: VisualDensity.compact,
+            icon: notifyBusy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(
+                    Icons.campaign_outlined,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -327,6 +475,8 @@ class _JobCard extends StatelessWidget {
     required this.onOpen,
     required this.onEdit,
     required this.onDelete,
+    this.onNotify,
+    this.notifyBusy = false,
   });
 
   final KariyerJob job;
@@ -334,6 +484,8 @@ class _JobCard extends StatelessWidget {
   final VoidCallback onOpen;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback? onNotify;
+  final bool notifyBusy;
 
   @override
   Widget build(BuildContext context) {
@@ -393,6 +545,33 @@ class _JobCard extends StatelessWidget {
                 ),
               ),
               if (isAdmin) ...[
+                if (onNotify != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Material(
+                      color: MetoColors.primary,
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        tooltip: S.auto('Kullanıcılara bildir'),
+                        onPressed: notifyBusy ? null : onNotify,
+                        visualDensity: VisualDensity.compact,
+                        icon: notifyBusy
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.campaign_outlined,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                      ),
+                    ),
+                  ),
                 IconButton(
                   tooltip: S.auto('Düzenle'),
                   onPressed: onEdit,

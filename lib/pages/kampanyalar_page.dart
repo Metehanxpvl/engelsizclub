@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../admin_catalog_extras.dart';
+import '../catalog_category_store.dart';
 import '../data/turkish_cities_data.dart';
 import '../gezi_kampanya_store.dart';
+import '../section_broadcast_notify.dart';
 import '../section_editors.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n_text.dart';
@@ -13,6 +16,8 @@ import '../widgets/etkinlik_pending_sheet.dart';
 import '../widgets/gezi_kampanya_admin_sheet.dart';
 import '../widgets/gezi_kampanya_feed_card.dart';
 import '../widgets/guest_gate.dart';
+import '../widgets/kampanya_category_tile.dart';
+import '../widgets/kampanya_detail_sheet.dart';
 
 enum _KampanyaFilter { all, nationwide, city }
 
@@ -68,8 +73,11 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
   AvmCoverIndex _avmCovers = AvmCoverIndex.empty;
   bool _loading = true;
   _KampanyaFilter _filter = _KampanyaFilter.all;
+  String _category = kKampanyaCategoryTumu;
   String? _city;
   int? _joinBusyId;
+  int? _codeBusyId;
+  int? _notifyBusyId;
 
   bool get _isAdmin => canEditSection(
         widget.userEmail,
@@ -109,6 +117,46 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
     });
     if (_isEtkinlik) {
       _loadAvmCovers();
+    } else {
+      AdminCatalogExtras.instance.ensureLoaded().then((_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  Map<String, String> get _kampanyaCategoryOptions =>
+      resolvedKampanyaCategories(
+        fromItems: _items.map((e) => e.category),
+      );
+
+  Future<void> _addKampanyaCategory() async {
+    final name = await promptAdminNewOption(
+      context: context,
+      title: 'Yeni kampanya kategorisi',
+      hint: 'Örn. Teknoloji',
+    );
+    if (name == null || !mounted) return;
+    try {
+      final result = await addKampanyaCategory(
+        adminEmail: widget.userEmail,
+        label: name,
+      );
+      if (!mounted) return;
+      setState(() => _category = result.key);
+      showCatalogUpsertSnackBar(
+        context,
+        (
+          row: <String, dynamic>{'id': result.key, 'label': result.label},
+          synced: result.synced,
+          warning: result.warning,
+        ),
+        successText: '"${result.label}" kategorilere eklendi',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
     }
   }
 
@@ -222,7 +270,13 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
   }
 
   List<KampanyaItem> get _visible {
-    final list = _activeBase;
+    var list = _activeBase;
+    if (!_isEtkinlik) {
+      final cat = normalizeKampanyaCategory(_category);
+      if (cat.isNotEmpty) {
+        list = list.where((k) => k.category == cat).toList();
+      }
+    }
     switch (_filter) {
       case _KampanyaFilter.all:
         return list;
@@ -726,6 +780,55 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
               ],
             ),
           ),
+          if (!_isEtkinlik)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
+              child: SizedBox(
+                height: 112,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _kampanyaCategoryOptions.length +
+                      1 +
+                      (_isAdmin ? 1 : 0),
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, i) {
+                    if (i == 0) {
+                      return KampanyaCategoryTile(
+                        categoryKey: kKampanyaCategoryTumu,
+                        label: 'Tümü',
+                        selected:
+                            normalizeKampanyaCategory(_category).isEmpty,
+                        onTap: () => setState(
+                          () => _category = kKampanyaCategoryTumu,
+                        ),
+                      );
+                    }
+                    final entries = _kampanyaCategoryOptions.entries.toList();
+                    final catIndex = i - 1;
+                    if (catIndex < entries.length) {
+                      final e = entries[catIndex];
+                      return KampanyaCategoryTile(
+                        categoryKey: e.key,
+                        label: e.value,
+                        selected: _category == e.key,
+                        onTap: () => setState(() {
+                          _category = _category == e.key
+                              ? kKampanyaCategoryTumu
+                              : e.key;
+                        }),
+                      );
+                    }
+                    return KampanyaCategoryTile(
+                      categoryKey: '_add',
+                      label: 'Kategori',
+                      icon: Icons.add,
+                      onTap: _addKampanyaCategory,
+                    );
+                  },
+                ),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
             child: TextField(
@@ -822,6 +925,86 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
     );
   }
 
+  Future<void> _notifyItem(KampanyaItem item) async {
+    if (!_isAdmin || _notifyBusyId != null) return;
+    final type = _isEtkinlik ? 'etkinlik' : 'kampanya';
+    final title = sectionBroadcastTitle(
+      type: type,
+      title: item.title.trim().isEmpty ? item.city : item.title,
+    );
+    final body = sectionBroadcastBody(
+      type: type,
+      description: item.description,
+      location: item.locationLabel,
+    );
+    final ok = await confirmKullanicilaraBildir(
+      context,
+      title: title,
+      body: body,
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _notifyBusyId = item.id);
+    try {
+      final n = await notifySectionItemToMembers(
+        type: type,
+        title: title,
+        body: body,
+        imageUrl: item.imageUrl,
+        itemId: item.id,
+        sohbetKey: sectionBroadcastRef(type, '${item.id}'),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            n > 0
+                ? 'Bildirim gönderildi ($n kullanıcı).'
+                : 'Push bildirimi gönderildi.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Bildirim gönderilemedi: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _notifyBusyId = null);
+    }
+  }
+
+  Future<void> _issueCampaignCode(KampanyaItem item) async {
+    if (!item.hasMemberCampaignCode) return;
+    if (!await _requireMember(
+      'Kampanya kodu için giriş yapmanız veya üye olmanız gerekiyor.',
+    )) {
+      return;
+    }
+    if (!mounted || _codeBusyId == item.id) return;
+    if (item.myMemberCode.trim().isNotEmpty) return;
+    setState(() => _codeBusyId = item.id);
+    try {
+      final code = await issueKampanyaMemberCode(item.id);
+      if (!mounted) return;
+      setState(() {
+        _items = [
+          for (final k in _items)
+            if (k.id == item.id) k.copyWith(myMemberCode: code) else k,
+        ];
+        _codeBusyId = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Kampanya kodunuz: $code')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _codeBusyId = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    }
+  }
+
   Widget _etkinlikCard(
     KampanyaItem item, {
     required int index,
@@ -842,6 +1025,17 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
           ? _avmCovers.urlFor(city: item.city, avmName: item.avmName)
           : '',
       coverVariantSeed: item.id,
+      onNotify: _isAdmin ? () => _notifyItem(item) : null,
+      notifyBusy: _notifyBusyId == item.id,
+      showCampaignCode: !_isEtkinlik && item.hasMemberCampaignCode,
+      memberCodeIssued: item.myMemberCode.trim().isNotEmpty
+          ? item.myMemberCode
+          : (_isAdmin ? item.campaignCode : ''),
+      codeBusy: _codeBusyId == item.id,
+      onCreateCampaignCode: () => _issueCampaignCode(item),
+      onOpen: _isEtkinlik
+          ? null
+          : () => showKampanyaDetailSheet(context, item: item),
       isAdmin: _isAdmin,
       onDelete: _isAdmin ? () => _delete(item) : null,
       onEdit: _isAdmin ? () => _openEdit(item) : null,

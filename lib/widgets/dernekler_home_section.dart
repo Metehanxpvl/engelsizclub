@@ -21,11 +21,13 @@ class DerneklerHomeSection extends StatefulWidget {
     required this.userEmail,
     this.isGuest = false,
     this.onRequireLogin,
+    this.previewSectionActive,
   });
 
   final String userEmail;
   final bool isGuest;
   final VoidCallback? onRequireLogin;
+  final bool? previewSectionActive;
 
   @override
   State<DerneklerHomeSection> createState() => _DerneklerHomeSectionState();
@@ -34,12 +36,14 @@ class DerneklerHomeSection extends StatefulWidget {
 class _DerneklerHomeSectionState extends State<DerneklerHomeSection> {
   List<DernekItem> _items = List<DernekItem>.from(kDefaultDernekler);
   bool _loading = true;
+  bool _sectionActive = true;
 
   bool get _isAdmin => isAppAdmin(widget.userEmail);
 
   @override
   void initState() {
     super.initState();
+    _sectionActive = widget.previewSectionActive ?? cachedDerneklerSectionActive;
     final cached = cachedDernekler;
     if (cached != null) {
       _items = visibleDernekler(cached, admin: _isAdmin);
@@ -50,12 +54,18 @@ class _DerneklerHomeSectionState extends State<DerneklerHomeSection> {
 
   Future<void> _load({bool force = false}) async {
     try {
-      final list = await loadDernekler(
-        forceRefresh: force,
-        viewerEmail: widget.userEmail,
-      );
+      final results = await Future.wait([
+        loadDernekler(
+          forceRefresh: force,
+          viewerEmail: widget.userEmail,
+        ),
+        loadDerneklerSectionActive(forceRefresh: force),
+      ]);
       if (!mounted) return;
+      final list = results[0] as List<DernekItem>;
+      final sectionOn = widget.previewSectionActive ?? (results[1] as bool);
       setState(() {
+        _sectionActive = sectionOn;
         _items = list.isEmpty
             ? visibleDernekler(kDefaultDernekler, admin: _isAdmin)
             : list;
@@ -65,6 +75,9 @@ class _DerneklerHomeSectionState extends State<DerneklerHomeSection> {
       debugPrint('Dernekler load: $e\n$st');
       if (!mounted) return;
       setState(() {
+        if (widget.previewSectionActive != null) {
+          _sectionActive = widget.previewSectionActive!;
+        }
         if (_items.isEmpty) {
           _items = visibleDernekler(kDefaultDernekler, admin: _isAdmin);
         }
@@ -109,6 +122,24 @@ class _DerneklerHomeSectionState extends State<DerneklerHomeSection> {
     );
   }
 
+  Future<void> _toggleSection() async {
+    if (!_isAdmin) return;
+    final next = !_sectionActive;
+    try {
+      await setDerneklerSectionActive(
+        isActive: next,
+        adminEmail: widget.userEmail,
+      );
+      if (!mounted) return;
+      setState(() => _sectionActive = next);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Bölüm güncellenemedi: $e')),
+      );
+    }
+  }
+
   Future<void> _edit({DernekItem? item}) async {
     if (!_isAdmin) return;
     final saved = await showModalBottomSheet<bool>(
@@ -127,6 +158,12 @@ class _DerneklerHomeSectionState extends State<DerneklerHomeSection> {
 
   @override
   Widget build(BuildContext context) {
+    if (!derneklerSectionVisible(
+      admin: _isAdmin,
+      sectionActive: _sectionActive,
+    )) {
+      return const SizedBox.shrink();
+    }
     try {
       return _buildBody(context);
     } catch (e, st) {
@@ -136,9 +173,14 @@ class _DerneklerHomeSectionState extends State<DerneklerHomeSection> {
   }
 
   Widget _buildBody(BuildContext context) {
+    if (!derneklerSectionVisible(admin: _isAdmin, sectionActive: _sectionActive)) {
+      return const SizedBox.shrink();
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 20),
-      child: Column(
+      child: Opacity(
+        opacity: _isAdmin && !_sectionActive ? 0.55 : 1,
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
@@ -147,11 +189,31 @@ class _DerneklerHomeSectionState extends State<DerneklerHomeSection> {
               children: [
                 Expanded(
                   child: L10nText(
-                    'Dernekler',
+                    _isAdmin && !_sectionActive
+                        ? 'Dernekler (Pasif)'
+                        : 'Dernekler',
                     style: _headingStyle(),
                   ),
                 ),
-                if (_isAdmin)
+                if (_isAdmin) ...[
+                  IconButton(
+                    tooltip: S.auto(
+                      _sectionActive
+                          ? 'Bölümü gizle'
+                          : 'Bölümü göster',
+                    ),
+                    onPressed: _toggleSection,
+                    style: IconButton.styleFrom(
+                      backgroundColor: MetoColors.primary.withValues(alpha: 0.1),
+                      foregroundColor: MetoColors.primary,
+                    ),
+                    icon: Icon(
+                      _sectionActive
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                      size: 22,
+                    ),
+                  ),
                   IconButton(
                     tooltip: S.auto('Yeni dernek kutucuğu'),
                     onPressed: () => _edit(),
@@ -161,6 +223,7 @@ class _DerneklerHomeSectionState extends State<DerneklerHomeSection> {
                     ),
                     icon: const Icon(Icons.add_circle_outline, size: 22),
                   ),
+                ],
               ],
             ),
           ),
@@ -178,6 +241,7 @@ class _DerneklerHomeSectionState extends State<DerneklerHomeSection> {
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -413,7 +477,7 @@ class _DernekBox extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (isAdmin)
+              if (isAdmin) ...[
                 Positioned(
                   top: 6,
                   right: 6,
@@ -438,6 +502,7 @@ class _DernekBox extends StatelessWidget {
                     ),
                   ),
                 ),
+              ],
               Positioned.fill(
                 child: IgnorePointer(
                   child: DecoratedBox(
@@ -535,6 +600,7 @@ class _DernekEditSheetState extends State<_DernekEditSheet> {
         websiteUrl: _websiteUrl.text,
         adminEmail: widget.adminEmail,
         sortOrder: widget.edit?.sortOrder,
+        isActive: widget.edit?.isActive ?? true,
       );
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -678,7 +744,7 @@ class _DernekEditSheetState extends State<_DernekEditSheet> {
                 style: GoogleFonts.nunito(),
                 decoration: _dec('Tıklanınca açılacak link (https://…)'),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               FilledButton(
                 onPressed: busy ? null : _save,
                 style: FilledButton.styleFrom(

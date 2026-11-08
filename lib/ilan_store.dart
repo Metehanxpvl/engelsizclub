@@ -64,8 +64,8 @@ String formatIlanCloudError(Object error) {
   if (lower.contains('42501') ||
       lower.contains('row-level security') ||
       lower.contains('policy')) {
-    return 'İlan kaydedilemedi: yetki hatası. Hesap rolünüzün Aile olduğundan emin olun '
-        '(Menü → Hesap rolü → Aile). Uzman/bakıcı rolü ilan paylaşamaz.';
+    return 'İlan kaydedilemedi: yetki hatası. Hesap rolünüzün Destek Arayan olduğundan emin olun '
+        '(Menü → Hesap rolü → Destek Arayan). Destek Veren rolü ilan paylaşamaz.';
   }
   if (lower.contains('does not exist') &&
       (lower.contains('ilanlar') || lower.contains('relation'))) {
@@ -76,7 +76,7 @@ String formatIlanCloudError(Object error) {
     return 'Supabase ilanlar şeması güncel değil. '
         'supabase/locations.sql dosyasını SQL Editor\'da çalıştırın.';
   }
-  if (lower.contains('aile rol')) {
+  if (lower.contains('aile rol') || lower.contains('destek arayan')) {
     return msg.replaceFirst('Bad state: ', '').replaceFirst('StateError: ', '');
   }
   return 'İlan buluta kaydedilemedi: $msg';
@@ -90,7 +90,9 @@ bool shouldFallbackIlanLocally(Object error) {
       lower.contains('policy')) {
     return false;
   }
-  if (lower.contains('aile rol') || lower.contains('giriş yapmalı')) {
+  if (lower.contains('aile rol') ||
+      lower.contains('destek arayan') ||
+      lower.contains('giriş yapmalı')) {
     return false;
   }
   return true;
@@ -603,6 +605,13 @@ bool ilanExistsInRuntime(int id) =>
     runtimeUzmanIlanlar.any((i) => i.id == id) ||
     runtimeBakiciIlanlar.any((i) => i.id == id) ||
     runtimeIkincielIlanlar.any((i) => i.id == id);
+
+String? kindOfRuntimeIlan(int id) {
+  if (runtimeUzmanIlanlar.any((i) => i.id == id)) return 'uzman';
+  if (runtimeBakiciIlanlar.any((i) => i.id == id)) return 'bakici';
+  if (runtimeIkincielIlanlar.any((i) => i.id == id)) return 'ikinciel';
+  return null;
+}
 
 Future<List<Map<String, dynamic>>> _queryIlanlarPage({
   required String select,
@@ -1187,8 +1196,8 @@ Future<void> publishIlanToCloud({
     listingCategory: category,
   )) {
     throw StateError(
-      'İlan yalnızca Aile rolündeki hesaplarla paylaşılabilir. '
-      'Uzman ve bakıcı hesapları Menü → Hesap rolü bölümünden Aile rolüne geçmelidir.',
+      'İlan yalnızca Destek Arayan rolündeki hesaplarla paylaşılabilir. '
+      'Destek Veren hesapları Menü → Hesap rolü bölümünden Destek Arayan rolüne geçmelidir.',
     );
   }
   final resolvedEmail = ownerEmail.trim().isNotEmpty
@@ -1247,33 +1256,44 @@ Future<void> publishIlanToCloud({
     'owner_id': user.id,
   };
 
-  try {
     try {
-      await Supabase.instance.client.from('ilanlar').insert(payload);
-    } catch (e) {
-      // Kolonlar henüz yoksa (SQL çalıştırılmadı) klasik alanlarla dene
-      final msg = e.toString().toLowerCase();
-      if (msg.contains('country_code') || msg.contains('location_data')) {
-        final legacy = Map<String, dynamic>.from(payload)
-          ..remove('country_code')
-          ..remove('location_data');
-        await Supabase.instance.client.from('ilanlar').insert(legacy);
-      } else {
-        rethrow;
+      Map<String, dynamic>? inserted;
+      try {
+        inserted = await Supabase.instance.client
+            .from('ilanlar')
+            .insert(payload)
+            .select('id')
+            .maybeSingle();
+      } catch (e) {
+        // Kolonlar henüz yoksa (SQL çalıştırılmadı) klasik alanlarla dene
+        final msg = e.toString().toLowerCase();
+        if (msg.contains('country_code') || msg.contains('location_data')) {
+          final legacy = Map<String, dynamic>.from(payload)
+            ..remove('country_code')
+            ..remove('location_data');
+          inserted = await Supabase.instance.client
+              .from('ilanlar')
+              .insert(legacy)
+              .select('id')
+              .maybeSingle();
+        } else {
+          rethrow;
+        }
       }
-    }
-    try {
-      await loadAllIlanlar(preferEmail: resolvedEmail);
-    } catch (_) {
-      // Ön bellek / ağ yenilemesi başarısız olsa da ilan buluta yazıldı.
-    }
-    unawaited(
-      BroadcastPushService.instance.yeniIlan(
-        title: title,
-        kind: kind,
-      ),
-    );
-    return;
+      try {
+        await loadAllIlanlar(preferEmail: resolvedEmail);
+      } catch (_) {
+        // Ön bellek / ağ yenilemesi başarısız olsa da ilan buluta yazıldı.
+      }
+      final newId = (inserted?['id'] as num?)?.toInt();
+      unawaited(
+        BroadcastPushService.instance.yeniIlan(
+          title: title,
+          kind: kind,
+          ilanId: newId != null && newId > 0 ? '$newId' : null,
+        ),
+      );
+      return;
   } catch (e) {
     if (!shouldFallbackIlanLocally(e)) {
       throw StateError(formatIlanCloudError(e));
@@ -1385,6 +1405,7 @@ Future<void> updateIlanInCloud({
   String uzmanlik = 'Uzman',
   String condition = 'İyi',
   String category = kIlanCatUzmanAriyorum,
+  String brand = '—',
   List<IlanPhoto> photos = const [],
 }) async {
   title = _safeIlanText(title);
@@ -1426,6 +1447,7 @@ Future<void> updateIlanInCloud({
     if (kind == 'ikinciel') ...{
       'condition': condition,
       'category': category,
+      'brand': brand,
     },
     // Legacy kayıtlarda boş owner_id varsa sahipliği bağla
     'owner_id': user.id,

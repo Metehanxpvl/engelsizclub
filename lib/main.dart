@@ -76,15 +76,16 @@ AuthUser authUserFromSupabase(User user, {String? fallbackUserType}) {
 String _roleLabel(String? role) {
   switch (role) {
     case 'uzman':
-      return 'Uzman';
     case 'bakici':
-      return 'Bakıcı';
+      return 'Destek Veren';
     case 'aile':
-      return 'Aile';
+      return 'Destek Arayan';
     default:
       return role ?? '';
   }
 }
+
+bool _isDestekVeren(String? role) => role == 'uzman' || role == 'bakici';
 
 /// Son Google girişinde kullanıcıya gösterilecek bilgi (rol uyuşmazlığı vb.).
 String? googleAuthNotice;
@@ -120,10 +121,12 @@ Future<User?> _finalizePendingGoogleRoleImpl(User user) async {
   // Rol uyuşmazlığı: çıkış yapma — kayıtlı rolle gir, bilgilendir
   if (existingType != null && existingType != pending) {
     await clearPendingGoogleRole();
-    googleAuthNotice =
-        'Bu Google hesabı ${_roleLabel(existingType)} olarak kayıtlı. '
-        'O rolle giriş yapıldı '
-        '(seçtiğiniz: ${_roleLabel(pending)}).';
+    if (_roleLabel(existingType) != _roleLabel(pending)) {
+      googleAuthNotice =
+          'Bu Google hesabı ${_roleLabel(existingType)} olarak kayıtlı. '
+          'O rolle giriş yapıldı '
+          '(seçtiğiniz: ${_roleLabel(pending)}).';
+    }
     return user;
   }
 
@@ -322,6 +325,15 @@ class _MetoCareAppState extends State<MetoCareApp> {
         // yarışına girme — zaten oturum açıksa kullanıcıyı düşürme.
         if (data.event == AuthChangeEvent.tokenRefreshed && _user != null) {
           return;
+        }
+        if (data.event == AuthChangeEvent.signedIn &&
+            mounted &&
+            (_user == null || _user!.isGuest)) {
+          setState(() {
+            _user = authUserFromSupabase(session.user);
+            _booting = false;
+            _bootTimedOut = false;
+          });
         }
         try {
           final pendingRole = await readPendingGoogleRole();
@@ -564,6 +576,9 @@ class _MetoCareAppState extends State<MetoCareApp> {
   }
 
   Future<void> _logout() async {
+    try {
+      await GoogleAuthService.signOut();
+    } catch (_) {}
     await Supabase.instance.client.auth.signOut();
     if (mounted) setState(() => _user = null);
   }
@@ -1198,7 +1213,9 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() {
       _girisLoading = true;
       _kayitLoading = true;
-      _step = 'loading';
+      if (GoogleAuthService.hidesAuthFormDuringPicker(isWeb: kIsWeb)) {
+        _step = 'loading';
+      }
     });
     try {
       await savePendingGoogleRole(role);
@@ -1518,7 +1535,7 @@ class _AuthScreenState extends State<AuthScreen> {
         _snack(
           hediyeKredi > 0
               ? 'Hoş geldin ${authUser.name}! $hediyeKredi hediye puan hesabına tanımlandı.'
-              : 'Hoş geldin ${authUser.name}! Aile rolünde $kMemberStartKredi hediye puan hesabına tanımlandı; ilan paylaşabilir, 2. el ilanlarda ücretsiz iletişim kurabilirsiniz.',
+              : 'Hoş geldin ${authUser.name}! Destek Arayan rolünde $kMemberStartKredi hediye puan hesabına tanımlandı; ilan paylaşabilir, 2. el ilanlarda ücretsiz iletişim kurabilirsiniz.',
         );
         if (mounted) setState(() => _step = 'signin');
         return;
@@ -2236,7 +2253,7 @@ class _SignInStep extends StatelessWidget {
           key: roleTourKey,
           title: 'Hesap türünü seç',
           description:
-              'Girişten önce Aile, Uzman veya Bakıcı seçmelisin. '
+              'Girişten önce Destek Arayan veya Destek Veren seçmelisin. '
               'Rol seçmeden Google veya e-posta ile giriş yapılamaz.',
           targetBorderRadius: BorderRadius.circular(14),
           tooltipActions: [
@@ -2249,27 +2266,21 @@ class _SignInStep extends StatelessWidget {
           child: Row(
             children: [
               _HesapTipCard(
-                emoji: '👨‍👩‍👧',
-                label: 'Aile',
+                emoji: '🙋',
+                label: 'Destek Arayan',
                 desc: 'Destek ara',
                 selected: girisHesapTip == 'aile',
                 onTap: () => onGirisHesapTip('aile'),
               ),
               const SizedBox(width: 8),
               _HesapTipCard(
-                emoji: '🏥',
-                label: 'Uzman',
-                desc: 'Hizmet ver',
-                selected: girisHesapTip == 'uzman',
-                onTap: () => onGirisHesapTip('uzman'),
-              ),
-              const SizedBox(width: 8),
-              _HesapTipCard(
-                emoji: '🤲',
-                label: 'Bakıcı',
-                desc: 'Bakım ver',
-                selected: girisHesapTip == 'bakici',
-                onTap: () => onGirisHesapTip('bakici'),
+                emoji: '🤝',
+                label: 'Destek Veren',
+                desc: 'Destek ver',
+                selected: _isDestekVeren(girisHesapTip),
+                onTap: () => onGirisHesapTip(
+                  girisHesapTip == 'bakici' ? 'bakici' : 'uzman',
+                ),
               ),
             ],
           ),
@@ -2282,7 +2293,7 @@ class _SignInStep extends StatelessWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: L10nText(
-                      'Apple ile devam etmek için önce Aile, Uzman veya Bakıcı seçin.',
+                      'Apple ile devam etmek için önce Destek Arayan veya Destek Veren seçin.',
                     ),
                   ),
                 );
@@ -2343,7 +2354,7 @@ class _SignInStep extends StatelessWidget {
         if (girisHesapTip == null) ...[
           const SizedBox(height: 10),
           const L10nText(
-            'Sosyal giriş için önce Aile, Uzman veya Bakıcı seçin.',
+            'Sosyal giriş için önce Destek Arayan veya Destek Veren seçin.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
           ),
@@ -2482,8 +2493,8 @@ class _SignInStep extends StatelessWidget {
         Row(
           children: [
             _HesapTipCard(
-              emoji: '👨‍👩‍👧',
-              label: 'Aile',
+              emoji: '🙋',
+              label: 'Destek Arayan',
               desc: 'Destek ara',
               selected: kayitTip == 'aile',
               onTap: () => onKayitTip('aile'),
@@ -2491,20 +2502,13 @@ class _SignInStep extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             _HesapTipCard(
-              emoji: '🏥',
-              label: 'Uzman',
-              desc: 'Hizmet ver',
-              selected: kayitTip == 'uzman',
-              onTap: () => onKayitTip('uzman'),
-              padded: true,
-            ),
-            const SizedBox(width: 8),
-            _HesapTipCard(
-              emoji: '🤲',
-              label: 'Bakıcı',
-              desc: 'Bakım ver',
-              selected: kayitTip == 'bakici',
-              onTap: () => onKayitTip('bakici'),
+              emoji: '🤝',
+              label: 'Destek Veren',
+              desc: 'Destek ver',
+              selected: _isDestekVeren(kayitTip),
+              onTap: () => onKayitTip(
+                kayitTip == 'bakici' ? 'bakici' : 'uzman',
+              ),
               padded: true,
             ),
           ],
@@ -2512,7 +2516,7 @@ class _SignInStep extends StatelessWidget {
         const SizedBox(height: 16),
         if (kayitTip == null) ...[
           const L10nText(
-            'Üye olmak için önce Aile, Uzman veya Bakıcı seçin.',
+            'Üye olmak için önce Destek Arayan veya Destek Veren seçin.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
           ),
@@ -3274,8 +3278,10 @@ class _HesapTipCard extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: FontWeight.w800,
                   color: selected ? MetoColors.primary : MetoColors.mutedFg,
                 ),

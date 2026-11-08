@@ -60,6 +60,8 @@ class ForumPage extends StatefulWidget {
     this.openPostId,
     this.openCommentId,
     this.openPostToken = 0,
+    this.openCategory,
+    this.openCategoryToken = 0,
     this.onMarketPuanChanged,
   });
 
@@ -74,6 +76,9 @@ class ForumPage extends StatefulWidget {
   final int? openPostId;
   final int? openCommentId;
   final int openPostToken;
+  /// Ana sayfa kartından kategori (ör. Köşe Yazısı).
+  final String? openCategory;
+  final int openCategoryToken;
   final ValueChanged<int>? onMarketPuanChanged;
 
   @override
@@ -286,6 +291,7 @@ class ForumPageState extends State<ForumPage> {
       // Aileler köşe yazısında "Aile" olarak paylaşır
       _uzmanMeslek = 'Aile';
     }
+    _applyOpenCategoryFromShell(notify: false);
     _loadPosts().then((_) {
       if (mounted) unawaited(_tryOpenPostFromShell());
     });
@@ -510,6 +516,19 @@ class ForumPageState extends State<ForumPage> {
     if (widget.openPostToken != oldWidget.openPostToken) {
       unawaited(_tryOpenPostFromShell());
     }
+    if (widget.openCategoryToken != oldWidget.openCategoryToken) {
+      _applyOpenCategoryFromShell();
+    }
+  }
+
+  void _applyOpenCategoryFromShell({bool notify = true}) {
+    final cat = widget.openCategory?.trim() ?? '';
+    if (cat.isEmpty) return;
+    if (!_feedCategories.contains(cat)) return;
+    _selectedPost = null;
+    _newPost = false;
+    _activeCategory = cat;
+    if (notify && mounted) setState(() {});
   }
 
   Future<void> _tryOpenPostFromShell() async {

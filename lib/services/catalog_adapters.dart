@@ -9,6 +9,18 @@ import '../data/ilanlar_data.dart';
 import '../data/rights_data.dart';
 import '../services/app_catalog_service.dart';
 
+int? catalogInt(dynamic v) {
+  if (v == null) return null;
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  if (v is String) {
+    final t = v.trim();
+    if (t.isEmpty) return null;
+    return int.tryParse(t);
+  }
+  return null;
+}
+
 /// Forum chip / dropdown sırası (kullanıcı tercihi).
 const _forumDiseaseOrder = <String>[
   'Serebral Palsi',
@@ -405,6 +417,21 @@ class CatalogAdapters {
         if (s.toString().trim().isNotEmpty) s.toString().trim(),
     ];
   }
+
+  static IlanHubCardStyle ilanHubStyle(String hubId, String fallbackTitle) {
+    final ids = ilanHubLookupIds(hubId).toSet();
+    final rows = AppCatalogService.instance.categoriesOf(kIlanHubScope);
+    for (final r in rows) {
+      if (!ids.contains(r['id']?.toString() ?? '')) continue;
+      final label = (r['label']?.toString() ?? '').trim();
+      final icon = (r['icon']?.toString() ?? '').trim();
+      return IlanHubCardStyle(
+        title: label.isNotEmpty ? label : fallbackTitle,
+        imageUrl: isIlanHubImageUrl(icon) ? icon : '',
+      );
+    }
+    return IlanHubCardStyle(title: fallbackTitle);
+  }
 }
 
 const rightsCategoriesFallback = rightsCategories;
@@ -419,4 +446,100 @@ class IlanFormKategoriOpt {
   final String value;
   final String kind;
   final bool builtin;
+}
+
+const kIlanHubScope = 'ilan_hub';
+const kIlanHubUzman = 'ilan-hub-uzman';
+const kIlanHubBakici = 'ilan-hub-bakici';
+const kIlanHubIkinciel = 'ilan-hub-ikinciel';
+const kIlanHubIs = 'ilan-hub-is';
+const kIlanHubElEmegi = 'ilan-hub-elemegi';
+const kIlanHubOrganik = 'ilan-hub-organik';
+const kIlanHubOtomobil = 'ilan-hub-otomobil';
+const kIlanHubMedikal = 'ilan-hub-medikal';
+
+List<String> ilanHubLookupIds(String hubId) {
+  final extraMedikal = ilanHubExtraId(kIkincielAltMedikal);
+  if (hubId == kIlanHubMedikal || hubId == extraMedikal) {
+    return [kIlanHubMedikal, extraMedikal];
+  }
+  return [hubId];
+}
+
+int ilanHubSortOrder(String hubId, {int fallback = 0}) {
+  final ids = ilanHubLookupIds(hubId).toSet();
+  for (final r in AppCatalogService.instance.categoriesOf(kIlanHubScope)) {
+    if (ids.contains(r['id']?.toString() ?? '')) {
+      return catalogInt(r['sort_order']) ?? fallback;
+    }
+  }
+  return fallback;
+}
+
+bool ilanHubMetaIsHidden(dynamic meta) {
+  return meta is Map && meta['hidden'] == true;
+}
+
+bool isIlanHubHidden(String hubId) {
+  final ids = ilanHubLookupIds(hubId);
+  for (final id in ids) {
+    if (AdminCatalogExtras.instance.isRemoved(kIlanHubScope, id)) return true;
+  }
+  for (final r in AppCatalogService.instance.categoriesOf(kIlanHubScope)) {
+    if (!ids.contains(r['id']?.toString() ?? '')) continue;
+    if (ilanHubMetaIsHidden(r['meta'])) return true;
+  }
+  return false;
+}
+
+Map<String, dynamic> ilanHubWriteMeta(
+  String hubId,
+  Map<String, dynamic>? extra, {
+  bool? hidden,
+}) {
+  final out = <String, dynamic>{};
+  for (final r in AppCatalogService.instance.categoriesOf(kIlanHubScope)) {
+    if ((r['id']?.toString() ?? '') != hubId) continue;
+    if (r['meta'] is Map) {
+      out.addAll(Map<String, dynamic>.from(r['meta'] as Map));
+    }
+    break;
+  }
+  if (extra != null) out.addAll(extra);
+  if (hidden == true) {
+    out['hidden'] = true;
+  } else if (hidden == false) {
+    out.remove('hidden');
+  }
+  return out;
+}
+
+bool isIlanHubImageUrl(String? raw) {
+  final s = (raw ?? '').trim().toLowerCase();
+  return s.startsWith('https://') || s.startsWith('http://');
+}
+
+String ilanHubExtraId(String extraValue) {
+  const map = {
+    'ç': 'c',
+    'ğ': 'g',
+    'ı': 'i',
+    'ö': 'o',
+    'ş': 's',
+    'ü': 'u',
+  };
+  var s = extraValue.trim().toLowerCase();
+  map.forEach((k, v) => s = s.replaceAll(k, v));
+  s = s
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+      .replaceAll(RegExp(r'^-+|-+$'), '');
+  if (s.isEmpty) s = 'extra';
+  if (s.length > 40) s = s.substring(0, 40);
+  return 'ilan-hub-x-$s';
+}
+
+class IlanHubCardStyle {
+  const IlanHubCardStyle({required this.title, this.imageUrl = ''});
+  final String title;
+  final String imageUrl;
 }

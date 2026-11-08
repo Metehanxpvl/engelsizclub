@@ -38,6 +38,8 @@ import 'cvi/cvi2_entry.dart';
 import 'cvi/cvi_entry.dart';
 import 'aile_kocu/aile_kocu_entry.dart';
 import 'mchat/mchat_entry.dart';
+import 'metobot/metobot_page.dart';
+import 'pages/besin_karnesi_page.dart';
 import 'data/more_menu_data.dart';
 import 'more_menu_store.dart';
 import 'pages/in_app_web_page.dart';
@@ -49,11 +51,14 @@ import 'features/city_posters/admin_city_posters_screen.dart';
 import 'remote/app_screen_config.dart';
 import 'pages/gelisim_etkinlikleri_page.dart';
 import 'pages/barcode_scanner_screen.dart';
+import 'pages/engelsiz_kariyer_page.dart';
 import 'pages/etkinlikler_page.dart';
 import 'pages/gezi_rehberi_page.dart';
 import 'pages/kampanyalar_page.dart';
 import 'widgets/admin_more_menu_sheet.dart';
 import 'widgets/taramalar_group_sheet.dart';
+import 'pages/admin_uzman_cv_page.dart';
+import 'pages/uzman_kosesi_cv_detail_page.dart';
 import 'pages/forum_page.dart';
 import 'pages/haklar_page.dart';
 import 'pages/ilanlar_page.dart';
@@ -694,13 +699,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             child: FutureBuilder<List<MoreMenuItem>>(
               future: loadMoreMenu(forceRefresh: true),
               builder: (context, snap) {
-                final items = snap.data ??
-                    cachedMoreMenu ??
-                    prepareUserMoreMenu(
-                      defaultMoreMenuItems()
-                          .where((e) => e.isActive)
-                          .toList(),
-                    );
+                final items = withBesinKarnesiMenuItem(
+                  snap.data ??
+                      cachedMoreMenu ??
+                      prepareUserMoreMenu(
+                        defaultMoreMenuItems()
+                            .where((e) => e.isActive)
+                            .toList(),
+                      ),
+                  forMember: !_isGuest,
+                );
                 final allForGroups = cachedMoreMenuAll ??
                     defaultMoreMenuItems()
                         .where((e) => e.isActive)
@@ -785,7 +793,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                                 child: _moreMenuLeading(item),
                               ),
                               title: Text(
-                                item.title,
+                                moreMenuDisplayTitle(item),
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -880,8 +888,22 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       case 'games':
         icon = Icons.extension_outlined;
         color = Colors.green.shade700;
+      case 'smart_toy':
+      case 'robot':
+      case 'chatbot':
+        icon = Icons.smart_toy_outlined;
+        color = MetoColors.primary;
+      case 'nutrition':
+      case 'restaurant':
+      case 'apple':
+        icon = Icons.restaurant_outlined;
+        color = MetoColors.primary;
       default:
-        icon = Icons.link;
+        icon = item.link == 'metobot'
+            ? Icons.smart_toy_outlined
+            : item.link == 'besin_karnesi'
+                ? Icons.restaurant_outlined
+                : Icons.link;
         color = MetoColors.primary;
     }
     return Icon(icon, color: color);
@@ -918,7 +940,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       ),
       builder: (nestedCtx) {
         return MoreMenuGroupSheet(
-          title: parent.title,
+          title: moreMenuDisplayTitle(parent),
           items: children,
           onSelect: (child) {
             final nestedKids = childrenForMoreMenuGroup(child, all);
@@ -1022,6 +1044,28 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     }
 
     switch (route ?? link) {
+      case 'metobot':
+        await openMetoBot(
+          context,
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(
+            'MetoBot için giriş yapmanız veya üye olmanız gerekiyor.',
+          ),
+        );
+        return;
+      case 'besin_karnesi':
+      case 'nutrition':
+        if (_isGuest) {
+          _requireLogin(
+            'Vitamin karnesi için giriş yapmanız veya üye olmanız gerekiyor.',
+          );
+          return;
+        }
+        await BesinKarnesiPage.open(
+          context,
+          userEmail: widget.user.email,
+        );
+        return;
       case 'aile_kocu':
         await openAileKocu(
           context,
@@ -1914,6 +1958,54 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       return;
     }
 
+    if (type == 'uzman_onay') {
+      unawaited(
+        AdminUzmanCvPage.open(
+          context,
+          adminEmail: widget.user.email,
+        ),
+      );
+      return;
+    }
+
+    if (type == 'uzman_kosesi') {
+      final ownerId = (data['owner_id'] ?? '').trim();
+      final ownerEmail = (data['owner_email'] ?? '').trim();
+      unawaited(
+        UzmanKosesCvDetailPage.open(
+          context,
+          ownerId: ownerId.isEmpty ? null : ownerId,
+          ownerEmail: ownerEmail.isEmpty ? null : ownerEmail,
+        ),
+      );
+      return;
+    }
+
+    if (type == 'kampanya') {
+      unawaited(
+        KampanyalarPage.open(context, userEmail: widget.user.email),
+      );
+      return;
+    }
+    if (type == 'etkinlik') {
+      unawaited(
+        EtkinliklerPage.open(context, userEmail: widget.user.email),
+      );
+      return;
+    }
+    if (type == 'gezi') {
+      unawaited(
+        GeziRehberiPage.open(context, userEmail: widget.user.email),
+      );
+      return;
+    }
+    if (type == 'kariyer') {
+      unawaited(
+        EngelsizKariyerPage.open(context, userEmail: widget.user.email),
+      );
+      return;
+    }
+
     if (type.startsWith('forum')) {
       if (id != null && id > 0) {
         setState(() {
@@ -2013,6 +2105,48 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         userEmail: widget.user.email,
         openPending: true,
       );
+      return;
+    }
+
+    if (b.isUzmanOnay) {
+      if (!mounted) return;
+      await AdminUzmanCvPage.open(
+        context,
+        adminEmail: widget.user.email,
+      );
+      return;
+    }
+
+    if (b.type == 'uzman_kosesi') {
+      if (!mounted) return;
+      final key = (b.sohbetKey ?? '').trim();
+      final byEmail = key.contains('@');
+      await UzmanKosesCvDetailPage.open(
+        context,
+        ownerId: byEmail || key.isEmpty ? null : key,
+        ownerEmail: byEmail ? key : null,
+      );
+      return;
+    }
+
+    if (b.type == 'kampanya') {
+      if (!mounted) return;
+      await KampanyalarPage.open(context, userEmail: widget.user.email);
+      return;
+    }
+    if (b.type == 'etkinlik') {
+      if (!mounted) return;
+      await EtkinliklerPage.open(context, userEmail: widget.user.email);
+      return;
+    }
+    if (b.type == 'gezi') {
+      if (!mounted) return;
+      await GeziRehberiPage.open(context, userEmail: widget.user.email);
+      return;
+    }
+    if (b.type == 'kariyer') {
+      if (!mounted) return;
+      await EngelsizKariyerPage.open(context, userEmail: widget.user.email);
       return;
     }
 
@@ -2401,8 +2535,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     setState(() {
       _kullaniciProfil = cloud.profil;
       _cocukProfil = cloud.cocuk;
-      _profilFoto = cloud.photoData;
-      cacheOwnUserPhoto(widget.user.email, cloud.photoData);
+      _profilFoto = sanitizeProfilFotoUrl(cloud.photoData);
+      cacheOwnUserPhoto(widget.user.email, _profilFoto);
       _favoriler = cloud.favorites;
       _bildirimler = cloud.notifications;
     });
@@ -2431,6 +2565,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   Uint8List? get _profilFotoBytes {
     final raw = _profilFoto;
     if (raw == null || raw.isEmpty) return null;
+    if (isProfilFotoUrl(raw)) return null;
     try {
       var data = raw;
       if (data.contains(',')) data = data.split(',').last;
@@ -2440,32 +2575,96 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     }
   }
 
+  ImageProvider? get _profilFotoProvider {
+    if (isProfilFotoUrl(_profilFoto)) {
+      return NetworkImage(_profilFoto!.trim());
+    }
+    final bytes = _profilFotoBytes;
+    if (bytes != null && bytes.isNotEmpty) return MemoryImage(bytes);
+    return null;
+  }
+
   Future<void> _pickProfilFoto() async {
-    final file = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 640,
-      maxHeight: 640,
-      imageQuality: 80,
+    if (_isGuest) {
+      _requireLogin('Profil fotoğrafı eklemek için giriş yapın.');
+      return;
+    }
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: MetoColors.card,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: L10nText(
+                  'Profil fotoğrafı (1 adet)',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.photo_library_outlined,
+                  color: MetoColors.primary,
+                ),
+                title: const L10nText('Galeriden seç'),
+                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.photo_camera_outlined,
+                  color: MetoColors.primary,
+                ),
+                title: const L10nText('Kamerayla çek'),
+                onTap: () => Navigator.pop(ctx, ImageSource.camera),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const L10nText('Vazgeç'),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
     );
-    if (file == null) return;
+    if (source == null || !mounted) return;
     try {
+      final file = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 1400,
+        maxHeight: 1400,
+        imageQuality: 85,
+      );
+      if (file == null) return;
       final raw = await file.readAsBytes();
       if (raw.isEmpty) throw StateError('Boş görsel seçildi.');
-      final optimized = await ImageOptimizeService.forAvatar(raw);
-      // DB şişmesin: R2’ye yükle, sadece URL sakla (cihazda da URL önbelleklenir).
+      // İlanlarla aynı sıkıştırma; DB’ye dosya değil R2 URL yazılır.
+      final optimized = await ImageOptimizeService.forListing(raw);
       final url = await R2StorageService.uploadBytes(
         bytes: optimized.bytes,
         fileName: optimized.fileName,
         contentType: optimized.contentType,
       );
+      final safe = sanitizeProfilFotoUrl(url);
+      if (safe == null) {
+        throw StateError('Fotoğraf adresi alınamadı. Tekrar deneyin.');
+      }
       await upsertUserCloudProfile(
         email: widget.user.email,
-        photoData: url,
+        photoData: safe,
       );
-      await saveProfilFoto(widget.user.email, url);
-      cacheOwnUserPhoto(widget.user.email, url);
+      await saveProfilFoto(widget.user.email, safe);
+      cacheOwnUserPhoto(widget.user.email, safe);
       if (!mounted) return;
-      setState(() => _profilFoto = url);
+      setState(() => _profilFoto = safe);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: L10nText('Profil fotoğrafı kaydedildi ✅')),
       );
@@ -2517,6 +2716,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     final next = role.trim().toLowerCase();
     if (next != 'aile' && next != 'uzman' && next != 'bakici') return;
     if (next == _role || _roleSwitching) return;
+    // Destek Veren: uzman ve bakıcı aynı görünür rol; birbirine çevirme.
+    if (next == 'uzman' && (_role == 'uzman' || _role == 'bakici')) return;
 
     setState(() => _roleSwitching = true);
     try {
@@ -2531,6 +2732,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       await Supabase.instance.client.auth.updateUser(
         UserAttributes(data: meta),
       );
+      try {
+        await Supabase.instance.client.auth.refreshSession();
+      } catch (_) {}
 
       final updated = widget.user.copyWith(userType: next);
       widget.onUserChanged?.call(updated);
@@ -2539,17 +2743,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       await _loadKredi();
 
       if (!mounted) return;
-      final label = switch (next) {
-        'uzman' => 'Uzman',
-        'bakici' => 'Bakıcı',
-        _ => 'Aile',
-      };
+      final label = next == 'aile' ? 'Destek Arayan' : 'Destek Veren';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             next == 'aile'
                 ? 'Rol: $label. İlan paylaşabilirsiniz; yalnızca 2. el ilanlarına ücretsiz iletişim kurabilirsiniz.'
-                : 'Rol: $label. İlan paylaşmak için Aile rolüne geçmeniz gerekir · uzman/bakıcı ilanlarına teklifte 1 puan düşer',
+                : 'Rol: $label. İlan paylaşmak için Destek Arayan rolüne geçmeniz gerekir · uzman/bakıcı ilanlarına teklifte 1 puan düşer',
           ),
         ),
       );
@@ -2565,10 +2765,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   Widget _buildRoleSwitcher() {
     const roles = <(String, String, String)>[
-      ('aile', '👨‍👩‍👧', 'Aile'),
-      ('uzman', '💼', 'Uzman'),
-      ('bakici', '🤝', 'Bakıcı'),
+      ('aile', '🙋', 'Destek Arayan'),
+      ('uzman', '🤝', 'Destek Veren'),
     ];
+    bool selectedFor(String roleKey) => roleKey == 'aile'
+        ? _role == 'aile'
+        : _role == 'uzman' || _role == 'bakici';
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -2590,8 +2792,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           const SizedBox(height: 4),
           Text(
             _role == 'aile'
-                ? 'İlan paylaşabilirsiniz. Yalnızca 2. el ilanlarına ücretsiz iletişim kurabilirsiniz; uzman/bakıcı ilanlarına teklif için Uzman veya Bakıcı rolüne geçin.'
-                : 'İlan paylaşmak için Aile rolüne geçin. Uzman ve bakıcı ilanlarına teklifte 1 puan düşer.',
+                ? 'İlan paylaşabilirsiniz. Yalnızca 2. el ilanlarına ücretsiz iletişim kurabilirsiniz; uzman/bakıcı ilanlarına teklif için Destek Veren rolüne geçin.'
+                : 'İlan paylaşmak için Destek Arayan rolüne geçin. Uzman ve bakıcı ilanlarına teklifte 1 puan düşer.',
             style: TextStyle(
               fontSize: 11,
               color: MetoColors.mutedFg.withValues(alpha: 0.95),
@@ -2605,7 +2807,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 if (r.$1 != roles.first.$1) const SizedBox(width: 8),
                 Expanded(
                   child: Material(
-                    color: _role == r.$1
+                    color: selectedFor(r.$1)
                         ? MetoColors.primary
                         : MetoColors.card,
                     borderRadius: BorderRadius.circular(12),
@@ -2627,7 +2829,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w800,
-                                color: _role == r.$1
+                                color: selectedFor(r.$1)
                                     ? Colors.white
                                     : MetoColors.foreground,
                               ),
@@ -3004,6 +3206,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     initials: _initials,
                     avatarColor: widget.user.avatarColor,
                     photoBytes: _profilFotoBytes,
+                    photoUrl: isProfilFotoUrl(_profilFoto) ? _profilFoto : null,
                     notificationBadge: _bellUnreadCount,
                     messageBadge: _sohbetUnreadCount,
                     messagesTourKey: _messagesTourKey,
@@ -4117,11 +4320,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   }
 
   Widget _buildProfilMenu() {
-    final tip = switch (_role) {
-      'uzman' => S.t('profile_role_expert'),
-      'bakici' => S.t('profile_role_care'),
-      _ => S.t('profile_role_family'),
-    };
+    final tip = (_role == 'uzman' || _role == 'bakici')
+        ? S.t('profile_role_expert')
+        : S.t('profile_role_family');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -4148,14 +4349,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                             offset: Offset(0, 2),
                           ),
                         ],
-                        image: _profilFotoBytes != null
+                        image: _profilFotoProvider != null
                             ? DecorationImage(
-                                image: MemoryImage(_profilFotoBytes!),
+                                image: _profilFotoProvider!,
                                 fit: BoxFit.cover,
                               )
                             : null,
                       ),
-                      child: _profilFotoBytes == null
+                      child: _profilFotoProvider == null
                           ? Text(
                               _initials,
                               style: const TextStyle(
@@ -4274,6 +4475,23 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: _menuTile(
+              emoji: '🩺',
+              label: 'Uzman Onayları',
+              sub: 'CV kuyruğu · şablon alanları',
+              highlight: true,
+              onTap: () {
+                unawaited(
+                  AdminUzmanCvPage.open(
+                    context,
+                    adminEmail: widget.user.email,
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
               emoji: '📰',
               label: 'Yeni Haberler',
               sub: 'Gazete taraması · onay kuyruğu',
@@ -4369,24 +4587,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             ),
           ),
         ],
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: _menuTile(
-            emoji: '🎁',
-            label: 'Fırsatlar ve Destekler',
-            sub: 'Burs, hak, destek ve haberler',
-            onTap: () {
-              unawaited(
-                OpportunitiesScreen.open(
-                  context,
-                  adminEmail: widget.user.email,
-                  isGuest: _isGuest,
-                  onRequireLogin: widget.onRequireLogin,
-                ),
-              );
-            },
-          ),
-        ),
         if (canEditSection(widget.user.email, SectionKey.gezi))
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -4551,7 +4751,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                       ),
                       if (_isAileRole)
                         L10nText(
-                          '1 iyilik puanı = ₺69,90 · paket fiyatları uzman/bakıcı puanı ile aynı',
+                          '1 iyilik puanı = ₺69,90 · paket fiyatları Destek Veren puanı ile aynı',
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.white.withValues(alpha: 0.6),
@@ -5870,6 +6070,7 @@ class _KullaniciProfilForm extends StatefulWidget {
 
 class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
   late final TextEditingController _adSoyad;
+  late final TextEditingController _telefon;
   late final TextEditingController _meslek;
   late final TextEditingController _egitim;
   late final TextEditingController _deneyim;
@@ -5884,17 +6085,15 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
   bool get _isBakici => widget.role == 'bakici';
   bool get _isAile => !_isUzman && !_isBakici;
 
-  String get _roleLabel => _isUzman
-      ? 'Uzman'
-      : _isBakici
-          ? 'Bakıcı'
-          : 'Aile';
+  String get _roleLabel =>
+      (_isUzman || _isBakici) ? 'Destek Veren' : 'Destek Arayan';
 
   @override
   void initState() {
     super.initState();
     final p = widget.initial;
     _adSoyad = TextEditingController(text: p.adSoyad);
+    _telefon = TextEditingController(text: p.telefon);
     _meslek = TextEditingController(text: p.meslek);
     _egitim = TextEditingController(text: p.egitim);
     _deneyim = TextEditingController(text: p.deneyimYili);
@@ -5912,6 +6111,7 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
   @override
   void dispose() {
     _adSoyad.dispose();
+    _telefon.dispose();
     _meslek.dispose();
     _egitim.dispose();
     _deneyim.dispose();
@@ -5952,6 +6152,26 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
         ),
       );
 
+  Widget _phoneField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _label('Cep telefonu (opsiyonel)'),
+          TextField(
+            controller: _telefon,
+            keyboardType: TextInputType.phone,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s\-()]')),
+            ],
+            decoration: _dec('Örn. 05xx xxx xx xx'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _field(
     String label,
     TextEditingController controller,
@@ -5987,6 +6207,7 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
     setState(() => _saving = true);
     widget.onSaved(KullaniciProfil(
       adSoyad: _adSoyad.text.trim(),
+      telefon: _telefon.text.trim(),
       countryCode: _loc.countryCode,
       sehir: _loc.legacyCity,
       ilce: _loc.legacyDistrict,
@@ -6059,6 +6280,7 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
             style: const TextStyle(fontSize: 14, color: MetoColors.mutedFg),
           ),
         ),
+        if (_isAile) _phoneField(),
         LocationCascadePicker(
           value: _loc,
           requireFullSelection: false,
@@ -6067,6 +6289,7 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
         ),
         const SizedBox(height: 14),
         if (_isUzman) ...[
+          _phoneField(),
           _field('Meslek / Uzmanlık Unvanı', _meslek,
               'Örn. Fizyoterapist, Dil Terapisti'),
           _field('Eğitim', _egitim, 'Okul, bölüm ve mezuniyet yılı'),
@@ -6079,6 +6302,7 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
           _field('Çalışma Şekli', _calismaSekli,
               'Evde, merkezde, online; uygun gün ve saatler'),
         ] else if (_isBakici) ...[
+          _phoneField(),
           _field('Mesleki Tanım', _meslek,
               'Örn. Özel gereksinimli çocuk bakıcısı'),
           _field('Eğitim', _egitim, 'Okul ve alınan eğitimler'),
@@ -6800,6 +7024,7 @@ class _BrandBar extends StatelessWidget {
     this.onBellTap,
     this.onMessagesTap,
     this.photoBytes,
+    this.photoUrl,
     this.notificationBadge = 0,
     this.messageBadge = 0,
     this.messagesTourKey,
@@ -6814,10 +7039,22 @@ class _BrandBar extends StatelessWidget {
   final VoidCallback? onBellTap;
   final VoidCallback? onMessagesTap;
   final Uint8List? photoBytes;
+  final String? photoUrl;
   final int notificationBadge;
   final int messageBadge;
   final GlobalKey? messagesTourKey;
   final bool messagesSelected;
+
+  ImageProvider? get _brandPhotoProvider {
+    final url = photoUrl?.trim() ?? '';
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return NetworkImage(url);
+    }
+    if (photoBytes != null && photoBytes!.isNotEmpty) {
+      return MemoryImage(photoBytes!);
+    }
+    return null;
+  }
 
   Widget _badgeIcon({
     required IconData icon,
@@ -6978,14 +7215,14 @@ class _BrandBar extends StatelessWidget {
                 color: avatarColor,
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white70, width: 2),
-                image: photoBytes != null
+                image: _brandPhotoProvider != null
                     ? DecorationImage(
-                        image: MemoryImage(photoBytes!),
+                        image: _brandPhotoProvider!,
                         fit: BoxFit.cover,
                       )
                     : null,
               ),
-              child: photoBytes == null
+              child: _brandPhotoProvider == null
                   ? Text(
                       initials,
                       style: const TextStyle(

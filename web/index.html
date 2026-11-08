@@ -152,11 +152,8 @@
         var canvases = flutterCanvases();
         for (var i = 0; i < canvases.length; i++) {
           var c = canvases[i];
-          var rect = c.getBoundingClientRect();
-          if (rect.width < 8 || rect.height < 8) {
-            c.style.width = appW + 'px';
-            c.style.height = h + 'px';
-          }
+          c.style.width = appW + 'px';
+          c.style.height = h + 'px';
         }
       }
       applyViewportHeight();
@@ -302,6 +299,60 @@
       if (el && el.parentNode) el.parentNode.removeChild(el);
     }
 
+    function __engelsizRestoreFlutter() {
+      __engelsizRemoveGoogleOverlay();
+      var leftovers = document.querySelectorAll(
+        '#credential_picker_container, .g_id_signin, iframe[src*="accounts.google"], iframe[src*="gsi/"]'
+      );
+      for (var i = 0; i < leftovers.length; i++) {
+        var n = leftovers[i];
+        try {
+          if (n && n.parentNode) n.parentNode.removeChild(n);
+        } catch (_) {}
+      }
+      var host = document.getElementById('flutter-host');
+      if (host) {
+        host.style.opacity = '1';
+        host.style.visibility = 'visible';
+        host.style.pointerEvents = '';
+      }
+      var pane = document.querySelector('flutter-view') ||
+        document.querySelector('flt-glass-pane');
+      if (pane) {
+        pane.style.opacity = '1';
+        pane.style.visibility = 'visible';
+        pane.style.display = '';
+        pane.style.pointerEvents = '';
+      }
+      function fit() {
+        try {
+          if (window.__engelsizFitViewport) window.__engelsizFitViewport();
+          window.dispatchEvent(new Event('resize'));
+        } catch (_) {}
+      }
+      fit();
+      if (window.requestAnimationFrame) {
+        requestAnimationFrame(function () {
+          fit();
+          setTimeout(fit, 50);
+          setTimeout(fit, 250);
+        });
+      } else {
+        setTimeout(fit, 50);
+        setTimeout(fit, 250);
+      }
+    }
+
+    window.__engelsizRestoreFlutter = __engelsizRestoreFlutter;
+    window.__engelsizReloadAfterGoogle = function () {
+      __engelsizRestoreFlutter();
+      try {
+        window.location.reload();
+      } catch (_) {
+        window.location.href = window.location.href;
+      }
+    };
+
     function __engelsizShowGoogleOverlay(onCancel) {
       __engelsizRemoveGoogleOverlay();
       var overlay = document.createElement('div');
@@ -351,6 +402,12 @@
       return { empty: true };
     };
 
+    window.__engelsizGoogleSignOut = function () {
+      try { google.accounts.id.cancel(); } catch (_) {}
+      try { google.accounts.id.disableAutoSelect(); } catch (_) {}
+      __engelsizRestoreFlutter();
+    };
+
     window.__engelsizGoogleSignIn = async function () {
       var stored = __engelsizReadStoredGoogleTokens();
       if (stored && stored.idToken) return stored;
@@ -363,14 +420,20 @@
 
       return new Promise(function (resolve) {
         var settled = false;
+        var timer = null;
         function finish(v) {
           if (settled) return;
           settled = true;
-          __engelsizRemoveGoogleOverlay();
+          if (timer) clearTimeout(timer);
+          try { google.accounts.id.cancel(); } catch (_) {}
+          __engelsizRestoreFlutter();
           resolve(v);
         }
 
+        // One Tap / FedCM çıkış sonrası gri tam ekran katmanı bırakıyor.
+        // Hesap seçiciyi her zaman kendi overlay butonumuzla aç.
         try { google.accounts.id.cancel(); } catch (_) {}
+        try { google.accounts.id.disableAutoSelect(); } catch (_) {}
 
         google.accounts.id.initialize({
           client_id: ENGELSIZ_GOOGLE_CLIENT_ID,
@@ -386,42 +449,16 @@
           context: 'signin',
           ux_mode: 'popup',
           itp_support: true,
-          use_fedcm_for_prompt: true
+          use_fedcm_for_prompt: false
         });
 
-        var promptVisible = false;
-        function showChooser() {
-          if (settled || promptVisible || document.getElementById('engelsiz-google-overlay')) return;
-          __engelsizShowGoogleOverlay(function () {
-            finish({ cancelled: true });
-          });
-        }
+        __engelsizShowGoogleOverlay(function () {
+          finish({ cancelled: true });
+        });
 
-        try {
-          google.accounts.id.prompt(function (notification) {
-            if (settled) return;
-            try {
-              if (notification.isDisplayMoment && notification.isDisplayMoment()) {
-                promptVisible = true;
-                return;
-              }
-              promptVisible = false;
-              if (notification.isNotDisplayed() ||
-                  notification.isSkippedMoment() ||
-                  notification.isDismissedMoment()) {
-                showChooser();
-              }
-            } catch (_) {
-              showChooser();
-            }
-          });
-        } catch (_) {
-          showChooser();
-        }
-
-        setTimeout(function () {
-          if (!promptVisible) showChooser();
-        }, 1200);
+        timer = setTimeout(function () {
+          finish({ error: 'Google giriş zaman aşımına uğradı. Tekrar deneyin.' });
+        }, 90000);
       });
     };
   </script>

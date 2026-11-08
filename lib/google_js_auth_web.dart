@@ -50,3 +50,29 @@ Future<Map<String, String?>?> firebaseGoogleRedirectResultJs() async {
   if (raw == null) return null;
   return _mapFromJs(raw);
 }
+
+/// Çıkışta GIS One Tap / overlay kalıntısını temizler.
+void firebaseGoogleSignOutJs() {
+  final bridge =
+      js_util.getProperty(js_util.globalThis, '__engelsizGoogleSignOut');
+  if (bridge == null) return;
+  js_util.callMethod(js_util.globalThis, '__engelsizGoogleSignOut', []);
+}
+
+void restoreFlutterAfterGoogleJs() {
+  final bridge =
+      js_util.getProperty(js_util.globalThis, '__engelsizRestoreFlutter');
+  if (bridge == null) return;
+  js_util.callMethod(js_util.globalThis, '__engelsizRestoreFlutter', []);
+}
+
+/// CanvasKit, Google iframe sonrası gri kalıyor; yenileme oturumu ayağa kaldırır.
+void reloadAfterGoogleSignInJs() {
+  final bridge =
+      js_util.getProperty(js_util.globalThis, '__engelsizReloadAfterGoogle');
+  if (bridge == null) {
+    restoreFlutterAfterGoogleJs();
+    return;
+  }
+  js_util.callMethod(js_util.globalThis, '__engelsizReloadAfterGoogle', []);
+}

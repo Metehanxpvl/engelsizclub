@@ -68,6 +68,7 @@ class AppBildirim {
   bool get isKredi => type == 'kredi' || type == 'kredi_odeme';
 
   bool get isEtkinlikOneri => type == 'etkinlik_oneri';
+  bool get isUzmanOnay => type == 'uzman_onay';
 
   factory AppBildirim.fromJson(Map<String, dynamic> json) => AppBildirim(
         id: (json['id'] as num?)?.toInt() ?? 0,
@@ -130,7 +131,7 @@ Future<bool> notifyIlanSahibiTeklif({
     throw StateError(
       kind == 'ikinciel'
           ? 'Bu ilana teklif veremezsiniz.'
-          : 'Teklif vermek için Uzman veya Bakıcı rolü gerekir (1 puan).',
+          : 'Teklif vermek için Destek Veren rolü gerekir (1 puan).',
     );
   }
 
