@@ -1,6 +1,6 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-11-07T13:27:19Z",
+  "fetchedAt": "2026-11-08T13:52:30Z",
   "ok": true,
   "count": 180,
   "items": [
@@ -1475,6 +1475,34 @@
       "lang": "tr"
     },
     {
+      "id": "dc0cbfeab6e807352ee96ebc",
+      "title": "Oksana Masters: Değişen Bedene Göre Performansı Yeniden Şekillendirmek",
+      "title_original": "Oksana Masters: Adapting Performance to a Changing Body",
+      "summary": "Paralimpik sporcu Oksana Masters; kürek, kuzey disiplini kayak, biatlon ve bisiklet branşlarında madalya kazanarak ampütasyon ve sakatlıkların vücudu dönüştürdüğü durumlarda elit spor performansının nasıl uyarlanabileceğini ortaya koydu.",
+      "summary_original": "Paralympian Oksana Masters medaled in rowing, Nordic skiing, biathlon and cycling, showing how elite performance adapts as amputation and injury reshape a body",
+      "category": "diger",
+      "source_name": "Disabled World",
+      "source_url": "https://www.disabled-world.com/disability/awareness/famous/oksana-masters.php",
+      "image_url": "",
+      "published_at": "Sun, 08 Nov 2026 10:26:00 GMT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "42782d98bfc7e913507418e9",
+      "title": "Annem ve babam birlikte ölmeyi seçti ve ben yalnız başıma yas tutmak zorunda kaldım",
+      "title_original": "My parents chose to die together and I was left to grieve alone",
+      "summary": "Els ve Jan, 50 yıllık mutlu bir evliliğin ardından yaşamlarına son vermek için tıbbi müdahale başvurusunda bulundu ve geride yalnızca çocuklarını bıraktı.",
+      "summary_original": "Els and Jan sought medical intervention to end their lives after 50 happy years of marriage, leaving behind their only child.",
+      "category": "diger",
+      "source_name": "BBC Disability",
+      "source_url": "https://www.bbc.co.uk/news/articles/c81dwllzv113o?at_medium=RSS&at_campaign=rss",
+      "image_url": "",
+      "published_at": "Sun, 08 Nov 2026 01:10:21 GMT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
       "id": "edd83f9e211f6c605620398d",
       "title": "95 Yaşındaki Görme Engelli Gazi, Ehliyetini Bıraktıktan Sonra Yeniden Araç Kullandı",
       "title_original": "'Fantastic' moment blind veteran, 95, drives again after giving up licence",
@@ -2493,34 +2521,6 @@
       "source_url": "https://clinicaltrials.gov/study/NCT06058624",
       "image_url": "",
       "published_at": "2026-11-04T14:59:30Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "ff005901567b3ae72052f737",
-      "title": "Pediatrik Epizodik Migren Hastalarında Oral Atogepant Çalışması",
-      "title_original": "A Study to Assess the Adverse Events and Change in Disease Activity of Oral Atogepant Tablets in Pediatric Participants (6-17 Years of Age) With Episodic Migraine",
-      "summary": "Bu Faz 3 çalışması, 6-17 yaş arası epizodik migrenli çocuk ve ergenlerde oral atogepant tabletlerinin yan etkilerini ve hastalık aktivitesindeki değişimi değerlendirmeyi amaçlamaktadır. Yetişkinler için onaylanmış tedaviler bulunurken, pediyatrik grupta onaylı seçenekler sınırlıdır. Çalışmada, atogepant'ın düşük ve yüksek dozlarının güvenliliği ve etkililiği araştırılmaktadır.",
-      "summary_original": "A migraine is a moderate to severe headache on one side of the head. A migraine attack is a headache that may be accompanied by throbbing, nausea, vomiting, sensitivity to light and sound, or other symptoms. A number of treatments are available for adults with migraine but there are limited approved treatments available for pediatric participants. The main goal of the study is to evaluate the safety and efficacy (how well treatment works) of a low-dose and high-dose of atogepant in pediatric participants between the ages of 6 and 17. Atogepant is a medicine currently approved to treat adults with migraine (0 to 14 migraine days per month) and is being studied in pediatric participants between the ages of 6 and 17 with a history of episodic migraine. This is a Phase 3, randomized, double-bl",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT05711394",
-      "image_url": "",
-      "published_at": "2026-11-04T14:59:13Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "9842c353938c5d617761e7ab",
-      "title": "Dirençli Kronik Graft-Versus-Host Hastalığında Pacritinib İçin Faz I/II Çalışması",
-      "title_original": "Phase I/II Study of Pacritinib, A JAK2/IRAK1/CSF1R Inhibitor, in Refractory Chronic Graft-Versus-Host Disease (cGVHD) After Allogeneic Hematopoietic Stem Cell Transplantation (HSCT)",
-      "summary": "Bu çalışma, kök hücre nakli sonrasında gelişen ve önceki tedavilere yanıt vermeyen orta veya şiddetli kronik graft-versus-host hastalığı (cGVHD) olan 18 yaş ve üzeri bireylerde JAK2/IRAK1/CSF1R inhibitörü olan pacritinib ilacını test etmektedir. Katılımcılar taramadan geçecek, kan ve idrar testleri ile kalp ve akciğer fonksiyon testleri yapılacak ve çalışma ilacını evde alacaklardır.",
-      "summary_original": "Background: Chronic graft-versus-host disease (cGVHD) is an immune system disorder that can occur in people who have had a stem cell transplant. cGVHD can affect multiple organs and increase risk of disability and death. New treatments are needed to treat cGVHD after stem cell transplant. Objective: To test a drug (pacritinib) in people with moderate or severe cGVHD that has not responded to previous treatment. Eligibility: People aged 18 years and older with moderate or severe cGVHD that has not responded to 2 or more lines of previous treatment. Design: Participants will be screened. They will have blood and urine tests. They will have tests of their heart and lung function. They may also have a CT scan. Some may have other specialized tests. Participants will take the study drug at home",
-      "category": "tedavi",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT05531786",
-      "image_url": "",
-      "published_at": "2026-11-04T14:58:52Z",
       "status": "pending_review",
       "lang": "tr"
     }
