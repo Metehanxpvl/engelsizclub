@@ -1,6 +1,6 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-11-10T15:12:24Z",
+  "fetchedAt": "2026-11-11T14:49:51Z",
   "ok": true,
   "count": 180,
   "items": [
@@ -197,6 +197,34 @@
       "source_url": "https://www.disabilityscoop.com/2026/10/14/ssi-social-security-benefits-set-to-rise/32222/",
       "image_url": "",
       "published_at": "Wed, 14 Oct 2026 14:15:47 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "83466e365189bb2bbdbb3e8e",
+      "title": "Görme engelli oyuncular sesler aracılığıyla sahneleri canlandırıyor",
+      "title_original": "Meet the visually-impaired actors creating pictures through sound",
+      "summary": "Bir sesli drama atölyesi, görme engelli ve az gören bireyleri yeni bir tiyatro oyunu ortaya koymak için bir araya getirdi.",
+      "summary_original": "An audio drama workshop has brought blind and partially-sighted people together to create a new play.",
+      "category": "erisilebilirlik",
+      "source_name": "BBC Disability",
+      "source_url": "https://www.bbc.co.uk/news/articles/cv2d66n74dp4o?at_medium=RSS&at_campaign=rss",
+      "image_url": "",
+      "published_at": "Wed, 11 Nov 2026 06:25:32 GMT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "66f88323a0d5b78ca66b1058",
+      "title": "Adalet Bakanlığı, Engelli Ayrımcılığı Nedeniyle Lyft'e Dava Açtı",
+      "title_original": "Justice Department Sues Lyft For Disability Discrimination",
+      "summary": "Federal yetkililer; Lyft'i ve sürücülerini, engelli yolculara düzenli olarak araç vermemekle suçluyor ve milyonlarca dolar tazminat talep ediyor.",
+      "summary_original": "Federal officials are accusing Lyft and its drivers of routinely denying rides to passengers with disabilities and they are seeking millions of dollars in damages. The post Justice Department Sues Lyft For Disability Discrimination appeared first on Disability Scoop .",
+      "category": "haklar",
+      "source_name": "Disability Scoop",
+      "source_url": "https://www.disabilityscoop.com/2026/11/11/justice-department-sues-lyft-for-disability-discrimination/32265/",
+      "image_url": "",
+      "published_at": "Wed, 11 Nov 2026 02:01:11 +0000",
       "status": "pending_review",
       "lang": "tr"
     },
@@ -687,6 +715,20 @@
       "source_url": "https://www.bbc.co.uk/news/articles/c6zxj8grer7ro?at_medium=RSS&at_campaign=rss",
       "image_url": "",
       "published_at": "Tue, 13 Oct 2026 07:00:39 GMT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "751323ea557e669c92104d5a",
+      "title": "Anne, otizmli oğlunun park yerini kaybetmesinden korkuyor",
+      "title_original": "Mum fears losing autistic son's parking space",
+      "summary": "Jack, kaçma eğiliminde olup geçmişte komşuların araçlarına zarar verdiği için güvenlik endişelerine yol açmaktadır.",
+      "summary_original": "Jack is prone to running away and has damaged neighbours' cars in the past, prompting safety fears.",
+      "category": "haklar",
+      "source_name": "BBC Disability",
+      "source_url": "https://www.bbc.co.uk/news/videos/cm3elevgl0epo?at_medium=RSS&at_campaign=rss",
+      "image_url": "",
+      "published_at": "Tue, 10 Nov 2026 07:38:54 GMT",
       "status": "pending_review",
       "lang": "tr"
     },
@@ -2301,6 +2343,20 @@
       "lang": "tr"
     },
     {
+      "id": "b2f2d4117b548452654a8c53",
+      "title": "Orak Hücreli Anemi Ağrısı ve Enflamasyonun Azaltılmasında Kannabinoidler",
+      "title_original": "Cannabinoids for the Reduction of Inflammation and Sickle Cell Related Pain",
+      "summary": "Orak hücreli anemi (SCD) hastalarında ağrı, enflamasyon ve diğer komplikasyonların tedavisinde palyatif bir ajan olarak dronabinolün etkilerini inceleyen randomize, çift kör bir çalışma.",
+      "summary_original": "A randomized, double blind, study of dronabinol as a palliative agent in the treatment of pain, inflammation, and other complications of sickle cell disease (SCD).",
+      "category": "tedavi",
+      "source_name": "ClinicalTrials.gov",
+      "source_url": "https://clinicaltrials.gov/study/NCT05519111",
+      "image_url": "",
+      "published_at": "2026-11-11T14:49:50Z",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
       "id": "355ce99fa93c1598acff3ec5",
       "title": "Alzheimer Hastalığına Bağlı Davranışsal Sorunlarda İnsan Mezenkimal Kök Hücreleri",
       "title_original": "Human Mesenchymal Stem Cells (hMSC) in Behavioral Problems Due to Alzheimer's Disease.",
@@ -2413,6 +2469,20 @@
       "lang": "tr"
     },
     {
+      "id": "76c236c40d3457e31c700a1b",
+      "title": "Çarpan etkisi: İçerik oluşturma araçları web erişilebilirliğini nasıl dönüştürebilir?",
+      "title_original": "The multiplier effect: How authoring tools can transform web accessibility",
+      "summary": "W3C WAI Direktörü Shawn Lawton Henry, içerik oluşturma araçlarının daha az çabayla çok miktarda içeriğin erişilebilir hale getirilmesine nasıl yardımcı olabileceğini ele alıyor.",
+      "summary_original": "In the W3C blog post The multiplier effect: How authoring tools can transform web accessibility , W3C WAI Director Shawn Lawton Henry covers how authoring tools can help make vast amounts of content more accessible with less effort.",
+      "category": "erisilebilirlik",
+      "source_name": "W3C WAI",
+      "source_url": "https://www.w3.org/WAI/news/2026-11-10/atag-blog/",
+      "image_url": "",
+      "published_at": "2026-11-10T00:00:00+00:00",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
       "id": "5b4400e13f2458050b171dcd",
       "title": "Atak Tipi Migren için Kayropraktik Bakım",
       "title_original": "Chiropractic Care for Episodic Migraine",
@@ -2451,76 +2521,6 @@
       "source_url": "https://clinicaltrials.gov/study/NCT05856838",
       "image_url": "",
       "published_at": "2026-11-09T17:07:47Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "427c076e4cf8f22843cf7b5e",
-      "title": "Miyeloablatif Alojenik Kök Hücre Nakli Sonrası Akut GVHD Önlenmesi İçin 2 Aşamalı ATG Denemesi",
-      "title_original": "Trial of 2 Step ATG for Acute GVHD Prevention Post Myeloablative Allogeneic Stem Cell Transplant",
-      "summary": "Bu çalışmanın amacı; takrolimus (Tac), metotreksat (MTX) ve yeni dozaj stratejisine sahip anti-timosit globulin (ATG) kombinasyonunun, akut veya kronik graft-versus-host hastalığının (GVHD) gelişimini önlemeye ve/veya şiddetini azaltmaya yardımcı olup olmadığını test etmektir.",
-      "summary_original": "The purpose of this study is to test whether the combination of the drugs called tacrolimus (Tac), methotrexate (MTX) and new dosing strategy of another drug called (rabbit Anti-thymocyte Globulin \\[ATG\\]) will help prevent the development and/or improve severity of acute and/or chronic GVHD.",
-      "category": "tedavi",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT06315309",
-      "image_url": "",
-      "published_at": "2026-11-09T17:07:44Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "e12a4a0a0b608c288792fac2",
-      "title": "Yapay Zeka ile Aort Yetmezliğinin Tespiti",
-      "title_original": "Artificial Intelligence in Aortic Regurgitation",
-      "summary": "Bu araştırma projesi, aort yetmezliğini otomatik olarak tespit etmek ve ölçmek için yapay zeka tabanlı bir araç geliştirmeyi ve doğrulamayı amaçlamaktadır. Derin öğrenme tekniklerini kullanan sistem, ekokardiyografi yorumlarındaki farklılıkları azaltarak doğru, standartlaştırılmış ve verimli teşhisler sağlamayı hedeflemektedir. Çok merkezli randomize kontrollü bir çalışmayla klinik etkinliği değerlendirilecektir.",
-      "summary_original": "This research project aims to develop and validate a tool that uses artificial intelligence (AI) to automatically detect and quantify aortic regurgitation (AR). The clinical efficacy of this tool will be established by comparing it to manual diagnostic methods in a multicenter randomized controlled trial. By leveraging deep learning (DL) techniques, the AI system will automate aortic regurgitation (AR) detection, measurement, and diagnosis, addressing challenges like variability in echocardiographic interpretations and the need for specialized expertise. It will integrate multiple echocardiographic parameters to provide accurate, standardized, and efficient AR diagnoses, reducing human error and improving consistency. This tool will enhance diagnostic precision and accessibility, improving",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT07486271",
-      "image_url": "",
-      "published_at": "2026-11-09T17:07:41Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "8f765384c8a2c1dd9e881ecf",
-      "title": "Zamanlı Yürüyüş Testi ile Cerrahi Öncesi Fonksiyonel Değerlendirme",
-      "title_original": "FUNCTIONAL ASSESSMENT FOR SURGERY BY A TIMED WALK",
-      "summary": "FAST Yürüyüşü çalışması, 6 dakikalık yürüme testinin (6MWT) ameliyat sonrası komplikasyon yaşama riski yüksek kişileri belirlemede yardımcı olup olamayacağını araştırmaktadır. Ameliyat öncesi uygulanan bu testin, gelecekte büyük cerrahi geçiren hastaların bakım kalitesini artırması umulmaktadır.",
-      "summary_original": "The FAST Walk study aims to determine whether a walking test called the 6-minute walk test (6MWT) can help identify people who are more likely to experience complications after surgery. This test will be completed before surgery. We hope that the results of this study will help improve care for patients having major surgery in the future.",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT06412367",
-      "image_url": "",
-      "published_at": "2026-11-09T17:07:37Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "6c67d2a56f5f0129cebf5f2d",
-      "title": "EXPAREL ve Bupivakainin Etkinliğinin Karşılaştırılması",
-      "title_original": "Efficacy of EXPAREL vs. Bupivacaine",
-      "summary": "Bu klinik çalışma, total ayak bileği protezi ameliyatı geçiren hastalarda ağrı yönetimi stratejilerini incelemektedir. Birincil amaç, tek doz EXPAREL ile yüzde 0,25 bupivakain enjeksiyonunun analjezik etkisini karşılaştırmaktır. İkincil amaçlar arasında toplam opioid tüketimi, ilk opioid kullanım süresi, güvenlik ve hasta memnuniyeti yer almaktadır.",
-      "summary_original": "The goal of this clinical study is to learn about pain management strategies in subjects undergoing total ankle replacement. arthroplasty surgery The primary objective is to compare the magnitude of the analgesic effect following a single dose injection of EXPAREL vs. 0.25% bupivacaine (HCl). Secondary objectives are to: Compare the total opioid consumption (in oral morphine equivalents) from 0 to 96 hours following a single dose injection of EXPAREL vs. 0.25% bupivacaine HCl * Compare the time to first opioid consumption following a single dose injection of EXPAREL vs. 0.25% bupivacaine HCl * Assess the safety of EXPAREL vs. 0.25% bupivacaine HCl * Evaluate subject satisfaction with pain management following a single-dose injection of EXPAREL vs. 0.25% bupivacaine hydrochloride (HCl) * Co",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT07212114",
-      "image_url": "",
-      "published_at": "2026-11-09T17:07:35Z",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "f3c2743643454f1434319ae5",
-      "title": "Omurilik Yaralanmalarında Epidural Elektriksel Stimülasyon",
-      "title_original": "Epidural Electrical Stimulation in Spinal Cord Injury (T11-L3)",
-      "summary": "Bu klinik araştırma, kronik omurilik yaralanması olan hastalarda epidural elektriksel stimülasyonun (EES) motor ve duyusal fonksiyonları iyileştirmedeki etkinliğini incelemektedir. Çalışma, cihazın implante edilmesinden sonraki farklı zaman noktalarında motor, duyusal işlev ve yaşam kalitesi ölçümlerini karşılaştırarak uzunlamasına etkileri değerlendirmektedir.",
-      "summary_original": "The primary objective of this clinical trial is to investigate the efficacy of Epidural Electrical Stimulation (EES) in restoring motor and sensory function in patients with chronic spinal cord injury (SCI) at levels T11-L3, classified as ASIA B-D. The study aims to address the following key questions: Does EES lead to significant improvement in motor and sensory function compared to baseline in this patient population? To assess the longitudinal effects of EES, researchers will compare participants' motor function, sensory function, and quality of life measures at multiple time points: prior to EES implantation, immediately after device activation, and at 1, 3, and 6 months post-implantation. Participants will be required to:Undergo surgical implantation of an EES device in the epidural s",
-      "category": "klinik",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT07207798",
-      "image_url": "",
-      "published_at": "2026-11-09T17:07:31Z",
       "status": "pending_review",
       "lang": "tr"
     }
