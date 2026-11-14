@@ -19,12 +19,12 @@
 #
 # Cron yalnız default branch’te çalışır.
 #   Actions → Scientific research collector → Run workflow → branch main
-# Cron 0 */6 * * * (UTC :00) — Kariyer 05:00 ve useful-content 07:30 ile çakışmaz.
+# Cron 06:00 UTC = 09:00 Türkiye.
 name: Scientific research collector
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 6 * * *'
   workflow_dispatch:
 
 permissions:

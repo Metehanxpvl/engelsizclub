@@ -26,6 +26,7 @@ from avm_scraper import (  # noqa: E402
     _normalize_supabase_url,
     _redact_error,
     archive_past_etkinlikler,
+    archive_same_image_etkinlikler,
     external_id,
     sync_etkinlikler,
     write_run_summary,
@@ -130,13 +131,21 @@ def main() -> int:
         db.require_etkinlikler_columns()
         covers: dict[tuple[str, str], str] = {}
         n = 0
-        for i in range(0, len(rows_for_db), 500):
-            chunk = rows_for_db[i : i + 500]
-            n += db.upsert_events(chunk)
+        try:
+            for i in range(0, len(rows_for_db), 500):
+                chunk = rows_for_db[i : i + 500]
+                n += db.upsert_events(chunk)
+        except Exception as exc:  # noqa: BLE001 — ham tablo opsiyonel
+            print(
+                "events tablosu yazılamadı; etkinlikler denenecek: "
+                f"{_redact_error(str(exc))}",
+                flush=True,
+            )
         inserted, updated, skipped = sync_etkinlikler(
             db, rows_for_db, covers, today=today
         )
         archived = archive_past_etkinlikler(db, today=today)
+        archived += archive_same_image_etkinlikler(db)
         print(
             f"ek kaynak events upsert={n}; "
             f"insert={inserted} update={updated} skip={skipped} archive={archived}",

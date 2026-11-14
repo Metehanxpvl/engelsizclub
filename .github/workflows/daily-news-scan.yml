@@ -7,13 +7,13 @@
 #   SUPABASE_SERVICE_ROLE_KEY
 #   GEMINI_API_KEY   (yoksa AI_API_KEY)
 #
-# Cron 02:00 UTC = 05:00 Europe/Istanbul.
+# Cron 06:00 UTC = 09:00 Europe/Istanbul.
 # Elle: Actions → Daily news scan → Run workflow (main).
 name: Daily news scan
 
 on:
   schedule:
-    - cron: '0 2 * * *'
+    - cron: '0 6 * * *'
   workflow_dispatch:
 
 permissions:

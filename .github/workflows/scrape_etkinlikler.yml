@@ -14,8 +14,8 @@ name: Etkinlikler scrape
 
 on:
   schedule:
-    # Daily 07:00 Türkiye = 04:00 UTC
-    - cron: '0 4 * * *'
+    # Daily 09:00 Türkiye = 06:00 UTC
+    - cron: '0 6 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -64,6 +64,11 @@ jobs:
           SUPABASE_URL="${SUPABASE_URL//qycrkqwqrysypvqipqn/qycrkqwqrysypvqaipqn}"
           SUPABASE_URL="${SUPABASE_URL//ypvqipqn.supabase.co/ypvqaipqn.supabase.co}"
           export SUPABASE_URL
+          set +e
           python scripts/avm_scraper.py
+          avm=$?
           python scripts/events/run.py
-          echo "Etkinlikler job end $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          extra=$?
+          echo "Etkinlikler job end $(date -u +%Y-%m-%dT%H:%M:%SZ) avm=$avm extra=$extra"
+          if [ "$avm" -ne 0 ]; then exit "$avm"; fi
+          exit "$extra"

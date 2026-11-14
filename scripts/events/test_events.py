@@ -8,6 +8,7 @@ SCRIPT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from avm_event_dates import event_is_live, make_dedupe_key
+from avm_scraper import events_upsert_row
 from events.jsonld import extract_jsonld_events
 from events.schema import EventDraft
 from events.sources.html_cards import harvest_html
@@ -72,6 +73,43 @@ class SchemaTest(unittest.TestCase):
         self.assertEqual(update_health(streaks, "ibb", True), 2)
         self.assertEqual(update_health(streaks, "ibb", True), 3)
         self.assertEqual(update_health(streaks, "ibb", False), 0)
+
+
+class EventsUpsertRowTest(unittest.TestCase):
+    def test_drops_fields_that_break_events_table(self):
+        row = events_upsert_row(
+            {
+                "city": "İstanbul",
+                "avm_name": "Forum",
+                "event_name": "Atölye",
+                "event_date": "2026-11-20",
+                "description": "Aile",
+                "source": "avm_scrape",
+                "external_id": "abc",
+                "source_id": "avm:İstanbul:Forum",
+                "dedupe_key": "abc",
+            }
+        )
+        self.assertEqual(row["city"], "İstanbul")
+        self.assertEqual(row["dedupe_key"], "abc")
+        self.assertNotIn("source", row)
+        self.assertNotIn("external_id", row)
+        self.assertNotIn("source_id", row)
+
+    def test_keeps_core_event_fields(self):
+        row = events_upsert_row(
+            {
+                "city": "Ankara",
+                "avm_name": "Armada",
+                "event_name": "Konser",
+                "event_date": "2026-12-01",
+                "description": "",
+            }
+        )
+        self.assertEqual(
+            set(row),
+            {"city", "avm_name", "event_name", "event_date", "description"},
+        )
 
 
 class RegistryImportTest(unittest.TestCase):
