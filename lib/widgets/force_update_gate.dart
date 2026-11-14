@@ -78,9 +78,11 @@ class _StoreUpdateSheet extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         ModalBarrier(
-          dismissible: true,
+          dismissible: !service.iosUpdateAvailable,
           color: const Color(0x990D2B1F),
-          onDismiss: service.dismissUpdatePrompt,
+          onDismiss: service.iosUpdateAvailable
+              ? null
+              : service.dismissUpdatePrompt,
         ),
         SafeArea(
           child: Align(
@@ -151,21 +153,23 @@ class _StoreUpdateSheet extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: TextButton(
-                          onPressed: service.dismissUpdatePrompt,
-                          child: L10nText(
-                            'Şimdi değil',
-                            style: GoogleFonts.nunito(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                              color: MetoColors.mutedFg,
+                      if (!service.iosUpdateAvailable) ...[
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton(
+                            onPressed: service.dismissUpdatePrompt,
+                            child: L10nText(
+                              'Şimdi değil',
+                              style: GoogleFonts.nunito(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                color: MetoColors.mutedFg,
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

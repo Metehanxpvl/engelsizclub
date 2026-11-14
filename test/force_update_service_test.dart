@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('store version code matches pubspec +build fallback', () {
-    expect(kAppBuildNumber, 201201);
+    expect(kAppBuildNumber, 201204);
     expect(ForceUpdateService.androidPackage, 'com.sakircaykara.engelsizclub');
     expect(ForceUpdateService.iosAppId, '6799422264');
   });
@@ -49,6 +49,10 @@ void main() {
     );
     expect(
       appStoreHasNewerVersion(localVersion: '1.0.103', storeVersion: '1.1.23'),
+      isTrue,
+    );
+    expect(
+      appStoreHasNewerVersion(localVersion: '1.1.26', storeVersion: '1.1.28'),
       isTrue,
     );
   });

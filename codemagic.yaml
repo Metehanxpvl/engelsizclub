@@ -41,6 +41,16 @@ workflows:
     name: iOS TestFlight
     max_build_duration: 90
     instance_type: mac_mini_m2
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'fix/ios-closed-push-*'
+          include: true
+          source: true
+        - pattern: 'release/ios-*'
+          include: true
+          source: true
     integrations:
       app_store_connect: engelsizclub
     environment:

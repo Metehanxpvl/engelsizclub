@@ -7,7 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// pubspec `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
-const kAppBuildNumber = 201201;
+const kAppBuildNumber = 201204;
 
 /// Otomatik güncelleme — ilk kareden sonra, asla boot kilidi yok.
 ///
@@ -108,14 +108,15 @@ class ForceUpdateService extends ChangeNotifier {
     }
   }
 
-  /// Arka plandan dönüş: hâlâ güncelleme varsa kartı göster, mağazayı tekrar açma.
+  /// Arka plandan dönüş: iOS’ta yayındaki yeni sürüm varsa App Store’u tekrar aç.
   Future<void> onResumed() async {
     if (kIsWeb) return;
     try {
       if (defaultTargetPlatform == TargetPlatform.android) {
         await _checkPlayInAppUpdate(openStoreNow: false);
       } else if (defaultTargetPlatform == TargetPlatform.iOS) {
-        await _checkAppStore(openStoreNow: false);
+        _iosStoreOpened = false;
+        await _checkAppStore(openStoreNow: true);
       }
     } catch (e) {
       debugPrint('ForceUpdate resume: $e');
@@ -224,19 +225,9 @@ class ForceUpdateService extends ChangeNotifier {
   Future<void> _checkAppStore({required bool openStoreNow}) async {
     String remote = '';
     try {
-      final uri = Uri.https('itunes.apple.com', '/lookup', {
-        'bundleId': iosBundleId,
-        'country': 'tr',
-      });
-      final res = await http.get(uri).timeout(const Duration(seconds: 6));
-      if (res.statusCode != 200) return;
-      final decoded = jsonDecode(res.body);
-      if (decoded is! Map) return;
-      final results = decoded['results'];
-      if (results is! List || results.isEmpty) return;
-      final first = results.first;
-      if (first is Map) {
-        remote = first['version']?.toString().trim() ?? '';
+      remote = await _lookupAppStoreVersion(country: 'tr');
+      if (remote.isEmpty) {
+        remote = await _lookupAppStoreVersion();
       }
     } catch (e) {
       debugPrint('ForceUpdate App Store lookup skipped: $e');
@@ -260,14 +251,31 @@ class ForceUpdateService extends ChangeNotifier {
     storeVersion = remote;
     storeUrl = defaultIosUrl;
     message =
-        'Yeni bir sürüm yayınlandı. App Store’dan güncelleyebilirsiniz.';
-    if (!iosUpdateAvailable && !_iosDismissed) {
+        'Yeni sürüm App Store’da yayında. Güncellemek için App Store’a yönlendiriliyorsunuz.';
+    if (!iosUpdateAvailable) {
       iosUpdateAvailable = true;
       notifyListeners();
     }
-    if (openStoreNow && !_iosStoreOpened && !_iosDismissed) {
+    if (openStoreNow && !_iosStoreOpened) {
       _iosStoreOpened = true;
       await openStore();
     }
+  }
+
+  Future<String> _lookupAppStoreVersion({String? country}) async {
+    final params = <String, String>{'bundleId': iosBundleId};
+    if (country != null && country.isNotEmpty) {
+      params['country'] = country;
+    }
+    final uri = Uri.https('itunes.apple.com', '/lookup', params);
+    final res = await http.get(uri).timeout(const Duration(seconds: 6));
+    if (res.statusCode != 200) return '';
+    final decoded = jsonDecode(res.body);
+    if (decoded is! Map) return '';
+    final results = decoded['results'];
+    if (results is! List || results.isEmpty) return '';
+    final first = results.first;
+    if (first is! Map) return '';
+    return first['version']?.toString().trim() ?? '';
   }
 }
