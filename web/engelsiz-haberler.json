@@ -1,6 +1,6 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-11-15T13:37:19Z",
+  "fetchedAt": "2026-11-16T15:06:29Z",
   "ok": true,
   "count": 180,
   "items": [
@@ -1965,6 +1965,34 @@
       "lang": "tr"
     },
     {
+      "id": "e4ede63f1e04a8aa8d80c42d",
+      "title": "Tourette sendromu konulu \"I Swear\" İskoçya Bafta Ödülleri'ne damga vurdu",
+      "title_original": "Tourette's film I Swear the big winner at the Scottish Baftas",
+      "summary": "Tourette sendromu savunucusu John Davidson'ın hayatını konu alan \"I Swear\" filmi, İskoçya Bafta Ödülleri'nde En İyi Film, En İyi Yönetmen ve En İyi Erkek Oyuncu ödüllerini kazandı.",
+      "summary_original": "The film about Tourette syndrome campaigner John Davidson won Best Film, Best Director and Best Actor.",
+      "category": "diger",
+      "source_name": "BBC Disability",
+      "source_url": "https://www.bbc.co.uk/news/videos/cvrlg3dp98rlo?at_medium=RSS&at_campaign=rss",
+      "image_url": "",
+      "published_at": "Mon, 16 Nov 2026 11:59:21 GMT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "e0e3401b2ad54960def50a18",
+      "title": "Federal Yetkililer Yeni Medicaid Kurallarının Uygulanmasını Erteledi",
+      "title_original": "Feds Delay Enforcement Of New Medicaid Rules",
+      "summary": "Eyaletler, engelli bireylerin sağlık sigortası kapsamını tehlikeye atabileceği konusunda savunucuların uyarıda bulunduğu yeni Medicaid uygunluk gerekliliklerine uyum sağlamak için ek süre elde etti.",
+      "summary_original": "States are getting extra time to come into compliance with new Medicaid eligibility requirements that advocates have warned could jeopardize coverage for people with disabilities. The post Feds Delay Enforcement Of New Medicaid Rules appeared first on Disability Scoop .",
+      "category": "haklar",
+      "source_name": "Disability Scoop",
+      "source_url": "https://www.disabilityscoop.com/2026/11/16/feds-delay-enforcement-of-new-medicaid-rules/32273/",
+      "image_url": "",
+      "published_at": "Mon, 16 Nov 2026 02:01:30 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
       "id": "cad6362828714bc48b9fe293",
       "title": "Nepal'de Erişilebilir Turizm: Güney Kore'den Dersler",
       "title_original": "Accessible Tourism in Nepal: Lessons from South Korea",
@@ -2493,34 +2521,6 @@
       "source_url": "https://www.disabilityscoop.com/2026/10/02/under-pressure-fema-to-restore-emergency-response-training-focused-on-disabilities/32206/",
       "image_url": "",
       "published_at": "Fri, 02 Oct 2026 02:02:22 +0000",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "1f082cbfb1c4a207c9530287",
-      "title": "Wrigley Field, MLB'nin İlk Sertifikalı Otizm Merkezi Oldu",
-      "title_original": "Wrigley Field Becomes MLB’s First Certified Autism Center",
-      "summary": "Chicago Cubs'ın sahası olan tarihi Wrigley Field stadyumu, Major League Baseball (MLB) liginde Sertifikalı Otizm Merkezi unvanını alan ilk beyzbol stadyumu oldu. Bu kapsamda personelin otizm farkındalığı ve konuk ağırlama konularında özel eğitimden geçeceği belirtildi.",
-      "summary_original": "Baseball's historic Wrigley Field, home of the Chicago Cubs, has become the first Major League Baseball stadium to be designated as a Certified Autism Center. The post Wrigley Field Becomes MLB&#8217;s First Certified Autism Center appeared first on Disability Scoop .",
-      "category": "erisilebilirlik",
-      "source_name": "Disability Scoop",
-      "source_url": "https://www.disabilityscoop.com/2026/10/02/wrigley-field-becomes-mlbs-first-certified-autism-center/32207/",
-      "image_url": "",
-      "published_at": "Fri, 02 Oct 2026 02:01:22 +0000",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "1521f89cc8d16b7acbb2a470",
-      "title": "Allojeneik Kök Hücre Nakli Geçiren Yüksek Riskli Çinli Yetişkinlerde CMV Yeniden Aktivasyonunu Önlemede Uzatılmış Letermovir Profilaksisinin Etkinliği",
-      "title_original": "Efficacy of Extended Letermovir Prophylaxis to Prevent CMV Reactivation in High-Risk Chinese Adults Undergoing Allogeneic HSCT",
-      "summary": "Allojeneik hematopoietic kök hücre nakli sonrasında hastalar bağışıklık sistemi baskılanmış durumda olup sitomegalovirüs (CMV) dahil komplikasyon riski taşır. Geleneksel antiviral ajanlar önemli yan etkiler ve direnç gelişimi ile ilişkilidir. Son çalışmalar, letermovirin CMV'ye karşı güçlü ve son derece spesifik antiviral aktivite sağladığını ve profilaksi amacıyla onaylandığını göstermiştir.",
-      "summary_original": "After allogeneic hematopoietic stem cell transplantation (allo-HSCT), recipients are immunocompromised and at increased risk of complications, including cytomegalovirus (CMV) infection. International clinical guidelines for the management of CMV infection post-allo-HSCT recommend three main strategies: minimizing infection risk, prevention, and preemptive therapy. However, traditional antiviral agents have not been approved for CMV prophylaxis in allo-HSCT recipients and are associated with significant adverse effects and the development of resistance, leaving the CMV prevention needs of this patient population unmet. Recent studies have demonstrated that letermovir prevents potent and highly specific antiviral activity against CMV, and it has been approved for CMV prophylaxis within the f",
-      "category": "tedavi",
-      "source_name": "ClinicalTrials.gov",
-      "source_url": "https://clinicaltrials.gov/study/NCT06812598",
-      "image_url": "",
-      "published_at": "2026-11-15T13:37:18Z",
       "status": "pending_review",
       "lang": "tr"
     }
