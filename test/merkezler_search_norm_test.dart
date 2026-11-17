@@ -36,4 +36,28 @@ void main() {
       expect(normTrForSearch('ÇANKAYA'), 'cankaya');
     });
   });
+
+  group('haystackMatchesQuery', () {
+    test('multi-word query matches split fields', () {
+      const hay = 'X Fizik Tedavi Merkezi Kadıköy İstanbul';
+      expect(haystackMatchesQuery(hay, 'kadıköy fizik tedavi'), isTrue);
+      expect(haystackMatchesQuery(hay, 'Kadikoy Fizik'), isTrue);
+    });
+
+    test('full-string contains would fail but tokens pass', () {
+      const name = 'Özel ABC Eğitim ve Rehabilitasyon Merkezi';
+      const address = 'Kadıköy, İstanbul';
+      final hay = '$name $address';
+      // Contiguous full query is NOT in a single field:
+      expect(normTrForSearch(name).contains('kadikoy fizik'), isFalse);
+      expect(haystackMatchesQuery(hay, 'özel eğitim kadıköy'), isTrue);
+    });
+
+    test('unrelated tokens fail', () {
+      expect(
+        haystackMatchesQuery('Fizik Tedavi Merkezi', 'otel banka'),
+        isFalse,
+      );
+    });
+  });
 }

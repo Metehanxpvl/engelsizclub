@@ -199,8 +199,9 @@ class CentersGooglePlacesService {
     }
 
     try {
-      final batch = await _searchText(
-        query: textQuery,
+      // Prefer the raw typed query first; city suffix can hide exact names.
+      var batch = await _searchText(
+        query: trimmed,
         lat: latitude,
         lng: longitude,
         radiusM: radiusM,
@@ -208,12 +209,29 @@ class CentersGooglePlacesService {
         startId: 910000,
         strictRelevance: false,
         relevanceKeyword: trimmed,
+        allowSkipCategories: false,
       );
 
+      if (batch.isEmpty && textQuery != trimmed) {
+        batch = await _searchText(
+          query: textQuery,
+          lat: latitude,
+          lng: longitude,
+          radiusM: radiusM,
+          city: city,
+          startId: 920000,
+          strictRelevance: false,
+          relevanceKeyword: trimmed,
+          allowSkipCategories: false,
+        );
+      }
+
       final byKey = <String, MetoCenter>{};
+      // Free-text: keep a wide net; UI listing applies softer distance when
+      // an active query is present.
+      final maxKm = radiusKm + 80;
       for (final c in batch) {
-        if (_haversineKm(latitude, longitude, c.lat, c.lng) >
-            radiusKm + 15) {
+        if (_haversineKm(latitude, longitude, c.lat, c.lng) > maxKm) {
           continue;
         }
         final key =
@@ -228,7 +246,10 @@ class CentersGooglePlacesService {
           return da.compareTo(db);
         });
 
-      _cache[cacheKey] = list;
+      // Never poison the cache with empty misses (API blips / filters).
+      if (list.isNotEmpty) {
+        _cache[cacheKey] = list;
+      }
       debugPrint(
         '[Places] query="$trimmed" $city → ${list.length} sonuç',
       );
@@ -249,6 +270,7 @@ class CentersGooglePlacesService {
     required int startId,
     bool strictRelevance = true,
     String? relevanceKeyword,
+    bool allowSkipCategories = true,
   }) async {
     final body = <String, dynamic>{
       'textQuery': query,
@@ -271,6 +293,7 @@ class CentersGooglePlacesService {
       startId: startId,
       keyword: relevanceKeyword ?? query,
       strictRelevance: strictRelevance,
+      allowSkipCategories: allowSkipCategories,
     );
   }
 
@@ -359,6 +382,7 @@ class CentersGooglePlacesService {
     required int startId,
     required String keyword,
     bool strictRelevance = true,
+    bool allowSkipCategories = true,
   }) {
     final out = <MetoCenter>[];
     var id = startId;
@@ -397,8 +421,12 @@ class CentersGooglePlacesService {
       final types = ((m['types'] as List?) ?? const [])
           .map((e) => e.toString())
           .toList();
-      final category = _categoryFor(name: name, types: types, keyword: keyword);
-      if (category == 'SKIP') continue;
+      var category = _categoryFor(name: name, types: types, keyword: keyword);
+      if (category == 'SKIP') {
+        if (allowSkipCategories) continue;
+        // Free-text: keep speech/neuro/other hits visible as Özel Eğitim.
+        category = 'Özel Eğitim';
+      }
 
       final rating = (m['rating'] as num?)?.toDouble() ?? 0;
       final reviews = (m['userRatingCount'] as num?)?.toInt() ?? 0;
@@ -442,18 +470,22 @@ class CentersGooglePlacesService {
     final n = _norm('$name $address');
     final k = _norm(keyword);
 
-    if ((n.contains('dil ve konusma') ||
-            n.contains('konusma terapi') ||
-            n.contains('dil terapi')) &&
-        !n.contains('rehabilitasyon') &&
-        !n.contains('ozel egitim') &&
-        !n.contains('fizik')) {
-      return false;
-    }
-    if ((n.contains('noroloji') || n.contains('neuro')) &&
-        !n.contains('rehabilitasyon') &&
-        !n.contains('fizik')) {
-      return false;
+    // Harvest-only exclusions. Free-text must keep dil/konuşma / nöroloji
+    // when the user typed them (or any place Google returned for the query).
+    if (strictRelevance) {
+      if ((n.contains('dil ve konusma') ||
+              n.contains('konusma terapi') ||
+              n.contains('dil terapi')) &&
+          !n.contains('rehabilitasyon') &&
+          !n.contains('ozel egitim') &&
+          !n.contains('fizik')) {
+        return false;
+      }
+      if ((n.contains('noroloji') || n.contains('neuro')) &&
+          !n.contains('rehabilitasyon') &&
+          !n.contains('fizik')) {
+        return false;
+      }
     }
 
     const negatives = [
@@ -470,9 +502,9 @@ class CentersGooglePlacesService {
     if (junkHit && !junkInQuery) return false;
 
     if (!strictRelevance) {
-      final tokens =
-          k.split(RegExp(r'\s+')).where((t) => t.length >= 3).toList();
+      final tokens = searchTokens(keyword, minLen: 2);
       if (tokens.isEmpty) return true;
+      // Keep if ANY significant token matches (Places already ranked).
       return tokens.any(n.contains);
     }
 
