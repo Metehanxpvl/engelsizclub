@@ -26,6 +26,19 @@ class CentersOsmService {
 
   static const _ua = 'EngelsizClub/1.0 (https://engelsizclub-e5842.web.app)';
 
+  /// Web XHR cannot set User-Agent (CORS preflight) — same pattern as
+  /// [OpenFoodFactsService]. Native keeps the OSM/Nominatim UA.
+  static Map<String, String> get _jsonHeaders => {
+        'Accept': 'application/json',
+        if (!kIsWeb) 'User-Agent': _ua,
+      };
+
+  static Map<String, String> get _nominatimHeaders => {
+        'Accept': 'application/json',
+        'Accept-Language': 'tr',
+        if (!kIsWeb) 'User-Agent': _ua,
+      };
+
   static String? lastError;
 
   /// Arama anahtar kelimeleri (Photon / Nominatim).
@@ -151,7 +164,7 @@ class CentersOsmService {
         'lang': 'en',
       });
       final res = await http
-          .get(uri, headers: const {'User-Agent': _ua, 'Accept': 'application/json'})
+          .get(uri, headers: _jsonHeaders)
           .timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
@@ -178,13 +191,9 @@ class CentersOsmService {
         'limit': '1',
         'countrycodes': 'tr',
       });
-      final res = await http.get(
-        uri,
-        headers: const {
-          'User-Agent': _ua,
-          'Accept-Language': 'tr',
-        },
-      ).timeout(const Duration(seconds: 12));
+      final res = await http
+          .get(uri, headers: _nominatimHeaders)
+          .timeout(const Duration(seconds: 12));
       if (res.statusCode == 200) {
         final list = jsonDecode(res.body);
         if (list is List && list.isNotEmpty) {
@@ -266,13 +275,7 @@ class CentersOsmService {
           'location_bias_scale': '0.6',
         });
         final res = await http
-            .get(
-              uri,
-              headers: const {
-                'User-Agent': _ua,
-                'Accept': 'application/json',
-              },
-            )
+            .get(uri, headers: _jsonHeaders)
             .timeout(const Duration(seconds: 12));
         if (res.statusCode != 200) continue;
 
@@ -383,14 +386,7 @@ class CentersOsmService {
       'email': 'sakir.caykara@gmail.com',
     });
     final res = await http
-        .get(
-          uri,
-          headers: const {
-            'User-Agent': _ua,
-            'Accept': 'application/json',
-            'Accept-Language': 'tr',
-          },
-        )
+        .get(uri, headers: _nominatimHeaders)
         .timeout(const Duration(seconds: 14));
     if (res.statusCode != 200) {
       throw StateError('Nominatim HTTP ${res.statusCode}');
@@ -579,7 +575,7 @@ class CentersOsmService {
         'location_bias_scale': '0.9',
       });
       final res = await http
-          .get(uri, headers: const {'User-Agent': _ua, 'Accept': 'application/json'})
+          .get(uri, headers: _jsonHeaders)
           .timeout(const Duration(seconds: 12));
       if (res.statusCode != 200) return const [];
 
@@ -685,10 +681,10 @@ out center tags 120;
         final res = await http
             .post(
               Uri.parse(mirror),
-              headers: const {
+              headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                'User-Agent': _ua,
                 'Accept': 'application/json',
+                if (!kIsWeb) 'User-Agent': _ua,
               },
               body: {'data': query},
             )
