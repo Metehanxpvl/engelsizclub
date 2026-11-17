@@ -100,7 +100,10 @@ class _HizliTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: MetoColors.border),
+            border: Border.all(
+              color: MetoColors.primary.withValues(alpha: 0.45),
+              width: 1.5,
+            ),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
