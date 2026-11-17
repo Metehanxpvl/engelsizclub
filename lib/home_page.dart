@@ -20,8 +20,8 @@ import 'widgets/catalog_media.dart';
 import 'widgets/dernekler_home_section.dart';
 import 'widgets/duyurular_section.dart';
 import 'widgets/gezi_kampanya_home_section.dart';
-import 'widgets/dernekler_home_section.dart';
 import 'widgets/hastaliklar_section.dart';
+import 'widgets/hizli_erisim_home_section.dart';
 import 'widgets/uzman_kosesi_home_section.dart';
 import 'widgets/home_social_footer.dart';
 import 'widgets/store_download_prompt.dart';
@@ -42,11 +42,19 @@ class HomePage extends StatefulWidget {
     this.userEmail = '',
     this.isGuest = false,
     this.onRequireLogin,
+    this.onOpenTarama,
+    this.onOpenDestek,
+    this.onOpenHaklar,
+    this.onOpenHarita,
   });
 
   final String userEmail;
   final bool isGuest;
   final VoidCallback? onRequireLogin;
+  final VoidCallback? onOpenTarama;
+  final VoidCallback? onOpenDestek;
+  final VoidCallback? onOpenHaklar;
+  final VoidCallback? onOpenHarita;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -394,6 +402,13 @@ class _HomePageState extends State<HomePage> {
               isGuest: widget.isGuest,
               onRequireLogin: widget.onRequireLogin,
             ),
+          ),
+
+          HizliErisimHomeSection(
+            onOpenTarama: widget.onOpenTarama,
+            onOpenDestek: widget.onOpenDestek,
+            onOpenHaklar: widget.onOpenHaklar,
+            onOpenHarita: widget.onOpenHarita,
           ),
 
           const DisclaimerBanner(),
