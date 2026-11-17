@@ -2918,6 +2918,18 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             userEmail: widget.user.email,
             isGuest: _isGuest,
             onRequireLogin: () => _requireLogin(),
+            onOpenTarama: () => _goToTab(MetoTab.tarama),
+            onOpenDestek: () {
+              unawaited(
+                InAppWebPage.open(
+                  context,
+                  title: 'Destek Sorgulama',
+                  url: kDestekSorguHtmlUrl,
+                ),
+              );
+            },
+            onOpenHaklar: () => _goToTab(MetoTab.haklar),
+            onOpenHarita: () => _goToTab(MetoTab.merkezler),
           ),
         ),
         IlanlarPage(
