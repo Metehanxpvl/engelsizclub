@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +11,7 @@ import '../data/centers_data.dart';
 import '../data/turkish_cities_data.dart';
 import '../meto_theme.dart';
 import '../utils/async_timeout.dart';
+import '../utils/tr_norm.dart';
 import '../services/centers_google_geocode_service.dart';
 import '../services/centers_google_places_service.dart';
 import '../services/google_places_config.dart';
@@ -49,18 +52,25 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
 
   List<MetoCenter> _liveCenters = const [];
   bool _centersLoading = false;
+  bool _searchLoading = false;
   String? _centersError;
   String? _dataNote;
   double? _focusLat;
   double? _focusLng;
+  Timer? _searchDebounce;
+  int _searchSeq = 0;
+  /// Place ids returned by the latest free-text Places search.
+  final Set<int> _searchHitIds = <int>{};
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshCenters());
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     _mapController?.dispose();
     super.dispose();
@@ -85,20 +95,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     return _mapCenter;
   }
 
-  static String _normTr(String s) {
-    return s
-        .toLowerCase()
-        .replaceAll('İ', 'i')
-        .replaceAll('I', 'i')
-        .replaceAll('ı', 'i')
-        .replaceAll('ö', 'o')
-        .replaceAll('ü', 'u')
-        .replaceAll('ş', 's')
-        .replaceAll('ğ', 'g')
-        .replaceAll('ç', 'c')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
+  static String _normTr(String s) => normTrForSearch(s);
 
   /// Seçilen ile ait mi? (yanlış şehirdeki sonuçları ele)
   bool _matchesSelectedCity(MetoCenter c, {double? focusLat, double? focusLng}) {
@@ -178,15 +175,22 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
   /// Seçilen il/ilçe için merkezleri döndürür.
   ({List<_CenterWithDist> items, String? note}) get _listing {
     final origin = _mapCenter;
-    final q = _searchController.text.trim().toLowerCase();
+    final rawQ = _searchController.text.trim();
+    final q = _normTr(rawQ);
+    final searching = q.isNotEmpty;
     final maxKm = _locStatus == _LocStatus.ok
         ? 45.0
         : (_selectedIlce == kAllIlceler ? 70.0 : 28.0);
+    // Free-text hits from Places must stay visible even if farther away.
+    final searchMaxKm = 180.0;
 
-    bool matchesSearch(MetoCenter c) =>
-        q.isEmpty ||
-        [c.name, c.category, c.address, c.ilce, ...c.services]
-            .any((f) => f.toLowerCase().contains(q));
+    bool matchesSearch(MetoCenter c) {
+      if (!searching) return true;
+      if (_searchHitIds.contains(c.id)) return true;
+      final hay = [c.name, c.category, c.address, c.ilce, ...c.services]
+          .join(' ');
+      return haystackMatchesQuery(hay, rawQ);
+    }
 
     List<_CenterWithDist> build(Iterable<MetoCenter> src) {
       final list = src
@@ -196,16 +200,22 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
               distKm: geoDistanceKm(origin.lat, origin.lng, c.lat, c.lng),
             ),
           )
-          .where((e) => e.distKm <= maxKm + 8)
+          .where((e) {
+            final hit = _searchHitIds.contains(e.center.id);
+            final limit = (searching && hit) ? searchMaxKm : (maxKm + 8);
+            return e.distKm <= limit;
+          })
           .toList();
       list.sort((a, b) => a.distKm.compareTo(b.distKm));
       return list;
     }
 
-    // Her zaman seçilen ile kilitle
+    // City / category softens for Places free-text hits.
     final pool = _sourceCenters
-        .where((c) => _matchesSelectedCity(c))
-        .where(_matchesCategory)
+        .where((c) =>
+            _searchHitIds.contains(c.id) || _matchesSelectedCity(c))
+        .where((c) =>
+            _searchHitIds.contains(c.id) || _matchesCategory(c))
         .where(matchesSearch);
 
     if (_selectedIlce != kAllIlceler) {
@@ -244,6 +254,115 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
   }
 
   List<_CenterWithDist> get _mapCenters => _listing.items;
+
+  void _onSearchTextChanged(String value) {
+    setState(() {});
+    _searchDebounce?.cancel();
+    final q = value.trim();
+    if (q.length < 2) {
+      if (_searchLoading || _searchHitIds.isNotEmpty) {
+        setState(() {
+          _searchLoading = false;
+          _searchHitIds.clear();
+        });
+      }
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      _runPlacesSearch(q);
+    });
+  }
+
+  Future<void> _runPlacesSearch(String query) async {
+    if (!GooglePlacesConfig.isConfigured) {
+      if (!mounted) return;
+      setState(() {
+        _searchLoading = false;
+        _centersError =
+            'Google Maps API anahtarı tanımlı değil — arama yapılamıyor.';
+      });
+      return;
+    }
+    final seq = ++_searchSeq;
+    if (!mounted) return;
+    setState(() => _searchLoading = true);
+
+    try {
+      final lat = _focusLat ?? _mapCenter.lat;
+      final lng = _focusLng ?? _mapCenter.lng;
+      final results = await withNetworkTimeout(
+        CentersGooglePlacesService.searchByQuery(
+          query: query,
+          latitude: lat,
+          longitude: lng,
+          city: _selectedCity,
+          radiusKm: _selectedIlce == kAllIlceler ? 50 : 35,
+        ),
+        timeout: const Duration(seconds: 30),
+        message: 'Merkez araması zaman aşımına uğradı.',
+      );
+      if (!mounted || seq != _searchSeq) return;
+
+      final merged = <String, MetoCenter>{};
+      for (final c in _liveCenters) {
+        final key =
+            '${_normTr(c.name)}|${c.lat.toStringAsFixed(4)}|${c.lng.toStringAsFixed(4)}';
+        merged[key] = c;
+      }
+      final hitIds = <int>{};
+      for (final c in results) {
+        // Soft city lock: keep free-text hits within ~120km of focus.
+        final near =
+            geoDistanceKm(lat, lng, c.lat, c.lng) <= 120;
+        final cityOk =
+            _matchesSelectedCity(c, focusLat: lat, focusLng: lng);
+        if (!near && !cityOk) continue;
+        final key =
+            '${_normTr(c.name)}|${c.lat.toStringAsFixed(4)}|${c.lng.toStringAsFixed(4)}';
+        merged.putIfAbsent(key, () => c);
+        hitIds.add(c.id);
+      }
+
+      setState(() {
+        _liveCenters = merged.values.toList()
+          ..sort((a, b) {
+            final da = geoDistanceKm(lat, lng, a.lat, a.lng);
+            final db = geoDistanceKm(lat, lng, b.lat, b.lng);
+            return da.compareTo(db);
+          });
+        _searchHitIds
+          ..clear()
+          ..addAll(hitIds);
+        _searchLoading = false;
+        if (results.isNotEmpty) {
+          _centersError = null;
+          _dataNote =
+              'Arama · "$query" · ${hitIds.length} sonuç · ${_liveCenters.length} merkez';
+        } else {
+          final err = CentersGooglePlacesService.lastError;
+          _dataNote = err == null
+              ? '"$query" için sonuç bulunamadı — şehir/ilçe veya yazımı deneyin.'
+              : null;
+          if (err != null) {
+            _centersError = err.contains('PERMISSION') ||
+                    err.contains('403') ||
+                    err.contains('referer')
+                ? 'Google Places API anahtarı engellendi (izin/referrer). Cloud Console kısıtlarını kontrol edin.'
+                : 'Arama başarısız: $err';
+          }
+        }
+      });
+    } catch (e) {
+      debugPrint('[Merkezler] serbest arama hata: $e');
+      if (!mounted || seq != _searchSeq) return;
+      setState(() {
+        _searchLoading = false;
+        _centersError = e is NetworkTimeoutException
+            ? e.message
+            : 'Merkez araması başarısız. Tekrar deneyin.';
+      });
+    }
+  }
 
   Future<void> _refreshCenters() async {
     setState(() {
@@ -304,7 +423,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                   ? 40
                   : (_selectedIlce == kAllIlceler ? 45 : 18),
             ),
-            timeout: const Duration(seconds: 15),
+            timeout: const Duration(seconds: 60),
             message: 'Merkez araması zaman aşımına uğradı.',
           );
           if (live.isNotEmpty) {
@@ -465,7 +584,10 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
 
   void _onCityChanged(String city) {
     final info = kTurkishCities[city]!;
+    _searchDebounce?.cancel();
+    _searchSeq++;
     setState(() {
+      _searchHitIds.clear();
       _selectedCity = city;
       _selectedIlce = kAllIlceler;
       _locStatus = _LocStatus.idle;
@@ -476,19 +598,24 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       _focusLng = info.lng;
       _centersError = null;
       _dataNote = null;
+      _searchLoading = false;
     });
     _moveMap(info.lat, info.lng, zoom: 11);
     _refreshCenters();
   }
 
   void _onIlceChanged(String ilce) {
+    _searchDebounce?.cancel();
+    _searchSeq++;
     setState(() {
+      _searchHitIds.clear();
       _selectedIlce = ilce;
       // İlçe seçimi GPS’i kapatır — arama bu ilçeye göre yapılır.
       _locStatus = _LocStatus.idle;
       _userLat = null;
       _userLng = null;
       _liveCenters = const [];
+      _searchLoading = false;
     });
     _refreshCenters();
   }
@@ -665,7 +792,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                       Expanded(
                         child: TextField(
                           controller: _searchController,
-                          onChanged: (_) => setState(() {}),
+                          onChanged: _onSearchTextChanged,
                           style: const TextStyle(
                             fontSize: 14,
                             color: MetoColors.foreground,
@@ -682,11 +809,28 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                           ),
                         ),
                       ),
+                      if (_searchLoading)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 4),
+                          child: SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: MetoColors.primary,
+                            ),
+                          ),
+                        ),
                       if (_searchController.text.isNotEmpty)
                         IconButton(
                           onPressed: () {
+                            _searchDebounce?.cancel();
+                            _searchSeq++;
                             _searchController.clear();
-                            setState(() {});
+                            setState(() {
+                              _searchLoading = false;
+                              _searchHitIds.clear();
+                            });
                           },
                           icon: const Icon(
                             Icons.close,

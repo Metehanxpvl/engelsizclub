@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../data/centers_data.dart';
+import '../utils/tr_norm.dart';
 import 'google_places_config.dart';
 
 /// Google Places API (New) — searchText / searchNearby.
@@ -42,6 +43,8 @@ class CentersGooglePlacesService {
     'physiotherapist',
   ];
 
+  static const _textConcurrency = 4;
+
   static final Map<String, List<MetoCenter>> _cache = {};
   static String? lastError;
 
@@ -71,30 +74,48 @@ class CentersGooglePlacesService {
     void ingest(List<MetoCenter> batch) {
       for (final c in batch) {
         final key =
-            '${c.name.toLowerCase()}|${c.lat.toStringAsFixed(5)}|${c.lng.toStringAsFixed(5)}';
+            '${_norm(c.name)}|${c.lat.toStringAsFixed(5)}|${c.lng.toStringAsFixed(5)}';
         if (byKey.containsKey(key)) continue;
         byKey[key] = c;
         nextId = math.max(nextId, c.id + 1);
       }
     }
 
-    for (final q in _textQueries) {
-      try {
-        final batch = await _searchText(
-          query: '$q $city Türkiye',
-          lat: latitude,
-          lng: longitude,
-          radiusM: radiusM,
-          city: city,
-          startId: nextId,
-        );
-        ingest(batch.where((c) {
-          return _haversineKm(latitude, longitude, c.lat, c.lng) <=
-              radiusKm + 10;
-        }).toList());
-      } catch (e, st) {
-        errors.add('$e');
-        debugPrint('[Places] searchText "$q" hata: $e\n$st');
+    // Harvest text queries in parallel chunks (concurrency ~4).
+    for (var i = 0; i < _textQueries.length; i += _textConcurrency) {
+      final end = math.min(i + _textConcurrency, _textQueries.length);
+      final chunk = _textQueries.sublist(i, end);
+      final futures = <Future<List<MetoCenter>>>[];
+      for (var j = 0; j < chunk.length; j++) {
+        final q = chunk[j];
+        final startId = nextId + (j + 1) * 100;
+        futures.add(() async {
+          try {
+            final batch = await _searchText(
+              query: '$q $city Türkiye',
+              lat: latitude,
+              lng: longitude,
+              radiusM: radiusM,
+              city: city,
+              startId: startId,
+            );
+            return batch
+                .where(
+                  (c) =>
+                      _haversineKm(latitude, longitude, c.lat, c.lng) <=
+                      radiusKm + 10,
+                )
+                .toList();
+          } catch (e, st) {
+            errors.add('$e');
+            debugPrint('[Places] searchText "$q" hata: $e\n$st');
+            return const <MetoCenter>[];
+          }
+        }());
+      }
+      final batches = await Future.wait(futures);
+      for (final batch in batches) {
+        ingest(batch);
       }
     }
 
@@ -144,6 +165,102 @@ class CentersGooglePlacesService {
     return list;
   }
 
+  /// Free-text Places search for a typed center / place name.
+  ///
+  /// Uses looser relevance than [searchNearby] harvest so named places
+  /// (e.g. "Özel … Merkezi") are kept even without rehab keyword hits.
+  static Future<List<MetoCenter>> searchByQuery({
+    required String query,
+    required double latitude,
+    required double longitude,
+    required String city,
+    double radiusKm = 40,
+  }) async {
+    lastError = null;
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return const [];
+    if (!GooglePlacesConfig.isConfigured) {
+      lastError = 'GOOGLE_MAPS_API_KEY tanımlı değil.';
+      debugPrint('[Places] $lastError');
+      return const [];
+    }
+
+    final radiusM = (radiusKm.clamp(1, 50) * 1000).toDouble();
+    final cacheKey =
+        'q|${_norm(trimmed)}|${_norm(city)}|${latitude.toStringAsFixed(2)},${longitude.toStringAsFixed(2)}|${radiusM.round()}';
+    final cached = _cache[cacheKey];
+    if (cached != null) return List<MetoCenter>.from(cached);
+
+    var textQuery = trimmed;
+    final qNorm = _norm(trimmed);
+    final cityNorm = _norm(city);
+    if (cityNorm.isNotEmpty && !qNorm.contains(cityNorm)) {
+      textQuery = '$trimmed $city Türkiye';
+    }
+
+    try {
+      // Prefer the raw typed query first; city suffix can hide exact names.
+      var batch = await _searchText(
+        query: trimmed,
+        lat: latitude,
+        lng: longitude,
+        radiusM: radiusM,
+        city: city,
+        startId: 910000,
+        strictRelevance: false,
+        relevanceKeyword: trimmed,
+        allowSkipCategories: false,
+      );
+
+      if (batch.isEmpty && textQuery != trimmed) {
+        batch = await _searchText(
+          query: textQuery,
+          lat: latitude,
+          lng: longitude,
+          radiusM: radiusM,
+          city: city,
+          startId: 920000,
+          strictRelevance: false,
+          relevanceKeyword: trimmed,
+          allowSkipCategories: false,
+        );
+      }
+
+      final byKey = <String, MetoCenter>{};
+      // Free-text: keep a wide net; UI listing applies softer distance when
+      // an active query is present.
+      final maxKm = radiusKm + 80;
+      for (final c in batch) {
+        if (_haversineKm(latitude, longitude, c.lat, c.lng) > maxKm) {
+          continue;
+        }
+        final key =
+            '${_norm(c.name)}|${c.lat.toStringAsFixed(5)}|${c.lng.toStringAsFixed(5)}';
+        byKey.putIfAbsent(key, () => c);
+      }
+
+      final list = byKey.values.toList()
+        ..sort((a, b) {
+          final da = _haversineKm(latitude, longitude, a.lat, a.lng);
+          final db = _haversineKm(latitude, longitude, b.lat, b.lng);
+          return da.compareTo(db);
+        });
+
+      // Never poison the cache with empty misses (API blips / filters).
+      if (list.isNotEmpty) {
+        _cache[cacheKey] = list;
+      }
+      debugPrint(
+        '[Places] query="$trimmed" $city → ${list.length} sonuç',
+      );
+      return list;
+    } catch (e, st) {
+      lastError = '$e';
+      debugPrint('[Places] searchByQuery hata: $e\n$st');
+      return const [];
+    }
+  }
+
   static Future<List<MetoCenter>> _searchText({
     required String query,
     required double lat,
@@ -151,6 +268,9 @@ class CentersGooglePlacesService {
     required double radiusM,
     required String city,
     required int startId,
+    bool strictRelevance = true,
+    String? relevanceKeyword,
+    bool allowSkipCategories = true,
   }) async {
     final body = <String, dynamic>{
       'textQuery': query,
@@ -171,7 +291,9 @@ class CentersGooglePlacesService {
       places,
       city: city,
       startId: startId,
-      keyword: query,
+      keyword: relevanceKeyword ?? query,
+      strictRelevance: strictRelevance,
+      allowSkipCategories: allowSkipCategories,
     );
   }
 
@@ -259,6 +381,8 @@ class CentersGooglePlacesService {
     required String city,
     required int startId,
     required String keyword,
+    bool strictRelevance = true,
+    bool allowSkipCategories = true,
   }) {
     final out = <MetoCenter>[];
     var id = startId;
@@ -272,7 +396,21 @@ class CentersGooglePlacesService {
           ? (display['text']?.toString() ?? '').trim()
           : (m['name']?.toString() ?? '').trim();
       if (name.isEmpty) continue;
-      if (!_isRelevantName(name, keyword)) continue;
+
+      final address = (m['formattedAddress'] ??
+              m['shortFormattedAddress'] ??
+              city)
+          .toString()
+          .trim();
+
+      if (!_isRelevantName(
+        name,
+        keyword,
+        address: address,
+        strictRelevance: strictRelevance,
+      )) {
+        continue;
+      }
 
       final loc = m['location'];
       if (loc is! Map) continue;
@@ -283,14 +421,13 @@ class CentersGooglePlacesService {
       final types = ((m['types'] as List?) ?? const [])
           .map((e) => e.toString())
           .toList();
-      final category = _categoryFor(name: name, types: types, keyword: keyword);
-      if (category == 'SKIP') continue;
+      var category = _categoryFor(name: name, types: types, keyword: keyword);
+      if (category == 'SKIP') {
+        if (allowSkipCategories) continue;
+        // Free-text: keep speech/neuro/other hits visible as Özel Eğitim.
+        category = 'Özel Eğitim';
+      }
 
-      final address = (m['formattedAddress'] ??
-              m['shortFormattedAddress'] ??
-              city)
-          .toString()
-          .trim();
       final rating = (m['rating'] as num?)?.toDouble() ?? 0;
       final reviews = (m['userRatingCount'] as num?)?.toInt() ?? 0;
       final phone = (m['nationalPhoneNumber']?.toString() ?? '').trim();
@@ -324,22 +461,51 @@ class CentersGooglePlacesService {
     return weekday.take(2).map((e) => e.toString()).join(' · ');
   }
 
-  static bool _isRelevantName(String name, String keyword) {
-    final n = _norm(name);
+  static bool _isRelevantName(
+    String name,
+    String keyword, {
+    String address = '',
+    bool strictRelevance = true,
+  }) {
+    final n = _norm('$name $address');
     final k = _norm(keyword);
 
-    if ((n.contains('dil ve konusma') ||
-            n.contains('konusma terapi') ||
-            n.contains('dil terapi')) &&
-        !n.contains('rehabilitasyon') &&
-        !n.contains('ozel egitim') &&
-        !n.contains('fizik')) {
-      return false;
+    // Harvest-only exclusions. Free-text must keep dil/konuşma / nöroloji
+    // when the user typed them (or any place Google returned for the query).
+    if (strictRelevance) {
+      if ((n.contains('dil ve konusma') ||
+              n.contains('konusma terapi') ||
+              n.contains('dil terapi')) &&
+          !n.contains('rehabilitasyon') &&
+          !n.contains('ozel egitim') &&
+          !n.contains('fizik')) {
+        return false;
+      }
+      if ((n.contains('noroloji') || n.contains('neuro')) &&
+          !n.contains('rehabilitasyon') &&
+          !n.contains('fizik')) {
+        return false;
+      }
     }
-    if ((n.contains('noroloji') || n.contains('neuro')) &&
-        !n.contains('rehabilitasyon') &&
-        !n.contains('fizik')) {
-      return false;
+
+    const negatives = [
+      'otel',
+      'hotel',
+      'restoran',
+      'market',
+      'banka',
+      'cami',
+      'avm',
+    ];
+    final junkHit = negatives.any(n.contains);
+    final junkInQuery = negatives.any(k.contains);
+    if (junkHit && !junkInQuery) return false;
+
+    if (!strictRelevance) {
+      final tokens = searchTokens(keyword, minLen: 2);
+      if (tokens.isEmpty) return true;
+      // Keep if ANY significant token matches (Places already ranked).
+      return tokens.any(n.contains);
     }
 
     const positives = [
@@ -379,17 +545,6 @@ class CentersGooglePlacesService {
             n.contains('rehabilitasyon');
       }
     }
-
-    const negatives = [
-      'otel',
-      'hotel',
-      'restoran',
-      'market',
-      'banka',
-      'cami',
-      'avm',
-    ];
-    if (negatives.any(n.contains)) return false;
 
     return k.contains('egitim') ||
         k.contains('rehabilitasyon') ||
@@ -468,20 +623,7 @@ class CentersGooglePlacesService {
     return '—';
   }
 
-  static String _norm(String s) {
-    return s
-        .toLowerCase()
-        .replaceAll('İ', 'i')
-        .replaceAll('I', 'i')
-        .replaceAll('ı', 'i')
-        .replaceAll('ö', 'o')
-        .replaceAll('ü', 'u')
-        .replaceAll('ş', 's')
-        .replaceAll('ğ', 'g')
-        .replaceAll('ç', 'c')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
+  static String _norm(String s) => normTrForSearch(s);
 
   static double _haversineKm(
     double lat1,
