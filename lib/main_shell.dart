@@ -2768,7 +2768,19 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
     Widget? overlay;
     if (_activeTab == MetoTab.merkezler) {
-      overlay = const _KeepAliveTab(child: MerkezlerPage());
+      overlay = _KeepAliveTab(
+        child: MerkezlerPage(
+          userEmail: widget.user.email,
+          userType: _role,
+          isGuest: _isGuest,
+          onRequireLogin: () => _requireLogin(
+            'Yer bildirmek için giriş yapmanız veya üye olmanız gerekiyor.',
+          ),
+          onKrediChanged: (n) {
+            if (mounted) setState(() => _userKredi = n);
+          },
+        ),
+      );
     } else if (_activeTab == MetoTab.haklar) {
       overlay = HaklarPage(adminEmail: widget.user.email);
     } else if (_activeTab == MetoTab.kartlar) {
