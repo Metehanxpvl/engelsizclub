@@ -1,0 +1,11 @@
+_frames/
+_clips/
+_audio/
+_qa/
+_silent.mp4
+__pycache__/
+*.pyc
+_frames_app/
+_clips_app/
+_audio_app/
+_silent_app.mp4
