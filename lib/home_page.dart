@@ -19,6 +19,7 @@ import 'services/catalog_adapters.dart';
 import 'widgets/catalog_media.dart';
 import 'widgets/duyurular_section.dart';
 import 'widgets/gezi_kampanya_home_section.dart';
+import 'widgets/dernekler_home_section.dart';
 import 'widgets/hastaliklar_section.dart';
 import 'widgets/home_social_footer.dart';
 import 'widgets/store_download_prompt.dart';
@@ -401,6 +402,12 @@ class _HomePageState extends State<HomePage> {
           ),
 
           GeziKampanyaHomeSection(
+            userEmail: widget.userEmail,
+            isGuest: widget.isGuest,
+            onRequireLogin: widget.onRequireLogin,
+          ),
+
+          DerneklerHomeSection(
             userEmail: widget.userEmail,
             isGuest: widget.isGuest,
             onRequireLogin: widget.onRequireLogin,
