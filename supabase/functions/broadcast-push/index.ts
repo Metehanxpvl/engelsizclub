@@ -33,11 +33,15 @@ function buildFcmPayload(opts: {
   data: Record<string, string>;
 }): Record<string, unknown> {
   const { to, title, body, safeImage, data } = opts;
+  const alertBody = body || title;
   const base: Record<string, unknown> = {
     priority: "high",
+    content_available: false,
     notification: {
       title,
-      body: body || title,
+      body: alertBody,
+      sound: "default",
+      badge: "1",
       ...(safeImage ? { image: safeImage } : {}),
     },
     android: {
@@ -49,10 +53,15 @@ function buildFcmPayload(opts: {
       },
     },
     apns: {
+      headers: {
+        "apns-priority": "10",
+        "apns-push-type": "alert",
+      },
       payload: {
         aps: {
+          alert: { title, body: alertBody },
           sound: "default",
-          "mutable-content": 1,
+          badge: 1,
         },
       },
       ...(safeImage ? { fcm_options: { image: safeImage } } : {}),

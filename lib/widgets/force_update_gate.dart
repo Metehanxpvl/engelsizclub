@@ -9,9 +9,9 @@ import '../meto_theme.dart';
 import '../remote/app_screen_config.dart';
 import '../services/force_update_service.dart';
 
-/// İlk kareyi asla geciktirmez / kilitlemez.
-/// Android: Play In-App Update (yalnız mağazada daha yeni varsa).
-/// iOS: güncelleme kartı yok (App Store 1.1 vs 1.0.x döngüsü). Web: no-op.
+/// İlk kareyi asla geciktirmez / kilitlemez (gri boot ekranı yok).
+/// Android: Play’de yeni sürüm varsa Google Play güncelleme sayfasına gider.
+/// iOS: App Store’da daha yeni sürüm varsa güncelleme sayfasına gider. Web: no-op.
 class ForceUpdateGate extends StatefulWidget {
   const ForceUpdateGate({super.key, required this.child});
 
@@ -57,21 +57,18 @@ class _ForceUpdateGateState extends State<ForceUpdateGate>
 
   @override
   Widget build(BuildContext context) {
-    final showIos = !kIsWeb &&
-        defaultTargetPlatform == TargetPlatform.iOS &&
-        _svc.iosUpdateAvailable;
     return Stack(
       fit: StackFit.expand,
       children: [
         widget.child,
-        if (showIos) _IosUpdateSheet(service: _svc),
+        if (_svc.showUpdateSheet) _StoreUpdateSheet(service: _svc),
       ],
     );
   }
 }
 
-class _IosUpdateSheet extends StatelessWidget {
-  const _IosUpdateSheet({required this.service});
+class _StoreUpdateSheet extends StatelessWidget {
+  const _StoreUpdateSheet({required this.service});
 
   final ForceUpdateService service;
 
@@ -81,9 +78,11 @@ class _IosUpdateSheet extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         ModalBarrier(
-          dismissible: true,
+          dismissible: !service.iosUpdateAvailable,
           color: const Color(0x990D2B1F),
-          onDismiss: service.dismissIosPrompt,
+          onDismiss: service.iosUpdateAvailable
+              ? null
+              : service.dismissUpdatePrompt,
         ),
         SafeArea(
           child: Align(
@@ -154,21 +153,23 @@ class _IosUpdateSheet extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: TextButton(
-                          onPressed: service.dismissIosPrompt,
-                          child: L10nText(
-                            'Şimdi değil',
-                            style: GoogleFonts.nunito(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                              color: MetoColors.mutedFg,
+                      if (!service.iosUpdateAvailable) ...[
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton(
+                            onPressed: service.dismissUpdatePrompt,
+                            child: L10nText(
+                              'Şimdi değil',
+                              style: GoogleFonts.nunito(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                color: MetoColors.mutedFg,
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

@@ -167,13 +167,56 @@ String normalizeUzmanListingCategory(dynamic raw) {
 bool isIlanIsAriyorum(String? category) =>
     normalizeUzmanListingCategory(category) == kIlanCatIsAriyorum;
 
+/// Aile (ve misafir) uzman / bakıcı / temizlikçi ilanlarında yalnız kendi
+/// ilanını görür. Uzman veya bakıcı rolüne geçince tüm ilanlar görünür.
+/// Admin e-postası bu kuralı değiştirmez; görünürlük seçili role göredir.
+bool aileSeesOnlyOwnSeekListings(String userType) {
+  final t = userType.trim().toLowerCase();
+  if (t == 'uzman' || t == 'bakici' || t == 'bakıcı') return false;
+  return true;
+}
+
+bool isSeekListingVisibleToViewer({
+  required bool ownerOnly,
+  required String ownerEmail,
+  required String viewerEmail,
+}) {
+  if (!ownerOnly) return true;
+  final me = viewerEmail.trim().toLowerCase();
+  if (me.isEmpty) return false;
+  return ownerEmail.trim().toLowerCase() == me;
+}
+
 /// 2. el ilan alt kategorisi (filtre + form).
 const kIkincielAltMedikal = 'Medikal Malzemeler';
 const kIkincielAltDiger = 'Diğer';
+const kIkincielAltElEmegi = 'El Emeği Ürünler';
+const kIkincielAltOrganik = 'Organik Ürünler';
+const kIkincielAltOtomobil = 'Otomobil';
 const kIkincielAltKategoriler = <String>[
   kIkincielAltMedikal,
   kIkincielAltDiger,
+  kIkincielAltElEmegi,
+  kIkincielAltOrganik,
+  kIkincielAltOtomobil,
 ];
+
+/// Hub’da ayrı kartı olan 2. el ürün kategorileri.
+bool isIkincielProductHubAlt(String category, {List<String>? extras}) {
+  final alt = ikincielAltKategoriOf(category, extras: extras);
+  return alt == kIkincielAltElEmegi ||
+      alt == kIkincielAltOrganik ||
+      alt == kIkincielAltOtomobil ||
+      alt == kIkincielAltMedikal;
+}
+
+bool isIkincielGeneralAlt(String category, {List<String>? extras}) {
+  return !isIkincielProductHubAlt(category, extras: extras);
+}
+
+bool isOtomobilIlan(String? category, {List<String>? extras}) =>
+    ikincielAltKategoriOf(category ?? '', extras: extras) ==
+    kIkincielAltOtomobil;
 
 String _normTrIkinciel(String s) => s
     .trim()
@@ -199,6 +242,13 @@ String ikincielAltKategoriOf(String category, {List<String>? extras}) {
   }
   if (c == 'diger' || c == 'other' || c == 'autres' || c == 'sonstiges') {
     return kIkincielAltDiger;
+  }
+  if (c.contains('otomobil') ||
+      c.contains('araba') ||
+      c.contains('vasita') ||
+      c.contains('otomotiv') ||
+      c == 'oto') {
+    return kIkincielAltOtomobil;
   }
   if (c.contains('medikal') ||
       c.contains('medical') ||
@@ -1366,10 +1416,22 @@ final _socialContactRe = RegExp(
 /// İlan başlık/açıklama: telefon, e-posta ve dış iletişim linklerini temizler.
 String scrubIlanListingText(String text) {
   if (text.trim().isEmpty) return text;
-  return text
+  final blocks = <String>[];
+  final protected = text.replaceAllMapped(
+    RegExp(r'\[\[EC_CAR\]\].*?\[\[/EC_CAR\]\]', dotAll: true),
+    (m) {
+      blocks.add(m.group(0)!);
+      return '[[EC_CAR_BLOCK_${blocks.length - 1}]]';
+    },
+  );
+  var out = protected
       .replaceAllMapped(_emailInTextRe, (_) => '***')
       .replaceAllMapped(_phoneInTextRe, (_) => '***')
       .replaceAllMapped(_socialContactRe, (_) => '***');
+  for (var i = 0; i < blocks.length; i++) {
+    out = out.replaceFirst('[[EC_CAR_BLOCK_$i]]', blocks[i]);
+  }
+  return out;
 }
 
 /// Mesaj / önizleme metnindeki e-posta ve telefonları gizler.

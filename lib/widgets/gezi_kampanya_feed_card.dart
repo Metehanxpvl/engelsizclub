@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../l10n/app_strings.dart';
@@ -7,7 +8,7 @@ import '../meto_theme.dart';
 import 'photo_gallery_lightbox.dart';
 
 /// Story benzeri kart: görsel + başlık + açıklama.
-/// Görsele veya karta dokununca eklenen görsel tam ekran açılır.
+/// [openPhotoOnTap] true ise görsele/karta dokununca görsel tam ekran açılır.
 class GeziKampanyaFeedCard extends StatelessWidget {
   const GeziKampanyaFeedCard({
     super.key,
@@ -33,6 +34,15 @@ class GeziKampanyaFeedCard extends StatelessWidget {
     this.joinBusy = false,
     this.onJoinTap,
     this.statusBadge = '',
+    this.openPhotoOnTap = true,
+    this.onCardTap,
+    this.onNotify,
+    this.notifyBusy = false,
+    this.showCampaignCode = false,
+    this.memberCodeIssued = '',
+    this.codeBusy = false,
+    this.onCreateCampaignCode,
+    this.onOpen,
   });
 
   final String imageUrl;
@@ -64,6 +74,19 @@ class GeziKampanyaFeedCard extends StatelessWidget {
   final VoidCallback? onJoinTap;
   /// Örn. Onay bekliyor / Reddedildi (admin veya öneren).
   final String statusBadge;
+  /// Kampanyalarda kapalı: kutuya basınca sadece resim açılmasın.
+  final bool openPhotoOnTap;
+  /// Kampanya kartına basınca detay kutusu (görsel + kod / açıklama).
+  final VoidCallback? onCardTap;
+  /// Admin: tüm üyelere duyuru bildirimi.
+  final VoidCallback? onNotify;
+  final bool notifyBusy;
+  final bool showCampaignCode;
+  final String memberCodeIssued;
+  final bool codeBusy;
+  final VoidCallback? onCreateCampaignCode;
+  /// Kampanyada kart tıklanınca detay (başlık + açıklama). Yoksa görsel açılır.
+  final VoidCallback? onOpen;
 
   bool get _hasCaption => description.trim().isNotEmpty;
   bool get _hasTitle => title.trim().isNotEmpty;
@@ -82,6 +105,18 @@ class GeziKampanyaFeedCard extends StatelessWidget {
     final src = _lightboxSrc;
     if (src.isEmpty) return;
     openFillPhotoOverlay(context, source: src);
+  }
+
+  void _onSurfaceTap(BuildContext context) {
+    if (onOpen != null) {
+      onOpen!();
+      return;
+    }
+    if (onCardTap != null) {
+      onCardTap!();
+      return;
+    }
+    if (openPhotoOnTap) _openLightbox(context);
   }
 
   Widget _adminChip({
@@ -203,11 +238,44 @@ class GeziKampanyaFeedCard extends StatelessWidget {
                   Positioned.fill(
                     child: Material(
                       color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () => _openLightbox(context),
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: onOpen != null ||
+                                onCardTap != null ||
+                                openPhotoOnTap
+                            ? () => _onSurfaceTap(context)
+                            : () {},
                       ),
                     ),
                   ),
+                  if (onNotify != null)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Material(
+                        color: MetoColors.primary,
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          tooltip: S.auto('Kullanıcılara bildir'),
+                          onPressed: notifyBusy ? null : onNotify,
+                          visualDensity: VisualDensity.compact,
+                          icon: notifyBusy
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.campaign_outlined,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                        ),
+                      ),
+                    ),
                   if (showEditDelete)
                     Positioned(
                       top: 8,
@@ -289,7 +357,11 @@ class GeziKampanyaFeedCard extends StatelessWidget {
               ),
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () => _openLightbox(context),
+                onTap: onOpen != null ||
+                        onCardTap != null ||
+                        openPhotoOnTap
+                    ? () => _onSurfaceTap(context)
+                    : null,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -354,15 +426,45 @@ class GeziKampanyaFeedCard extends StatelessWidget {
                           14,
                           (_hasTitle || _hasMeta) ? 6 : 12,
                           14,
-                          showJoin || statusBadge.trim().isNotEmpty ? 6 : 14,
+                          showJoin ||
+                                  statusBadge.trim().isNotEmpty ||
+                                  onOpen != null ||
+                                  showCampaignCode
+                              ? 6
+                              : 14,
                         ),
                         child: L10nText(
                           description.trim(),
+                          maxLines: onOpen != null ? 3 : null,
+                          overflow: onOpen != null
+                              ? TextOverflow.ellipsis
+                              : TextOverflow.clip,
                           style: GoogleFonts.nunito(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             height: 1.45,
                             color: MetoColors.foreground,
+                          ),
+                        ),
+                      ),
+                    if (onOpen != null && (_hasCaption || _hasTitle))
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          14,
+                          0,
+                          14,
+                          showJoin ||
+                                  statusBadge.trim().isNotEmpty ||
+                                  showCampaignCode
+                              ? 6
+                              : 14,
+                        ),
+                        child: L10nText(
+                          'Devamını oku',
+                          style: GoogleFonts.nunito(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: MetoColors.primary,
                           ),
                         ),
                       )
@@ -371,6 +473,15 @@ class GeziKampanyaFeedCard extends StatelessWidget {
                   ],
                 ),
               ),
+              if (showCampaignCode)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  child: _CampaignCodeBlock(
+                    issuedCode: memberCodeIssued,
+                    busy: codeBusy,
+                    onCreate: onCreateCampaignCode,
+                  ),
+                ),
               if (statusBadge.trim().isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
@@ -488,6 +599,86 @@ class GeziKampanyaFeedCard extends StatelessWidget {
 }
 
 /// Son çare: AVM sayfasında foto yoksa çocuk etkinliği illüstrasyonu.
+class _CampaignCodeBlock extends StatelessWidget {
+  const _CampaignCodeBlock({
+    required this.issuedCode,
+    required this.busy,
+    this.onCreate,
+  });
+
+  final String issuedCode;
+  final bool busy;
+  final VoidCallback? onCreate;
+
+  Future<void> _copy(BuildContext context, String code) async {
+    await Clipboard.setData(ClipboardData(text: code));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: L10nText('Kampanya kodu kopyalandı.')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final code = issuedCode.trim();
+    if (code.isNotEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          L10nText(
+            'Kampanya kodunuz',
+            style: GoogleFonts.nunito(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: MetoColors.mutedFg,
+            ),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => _copy(context, code),
+            icon: const Icon(Icons.copy_outlined, size: 18),
+            label: Text(
+              code,
+              style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: MetoColors.primary,
+              side: const BorderSide(color: MetoColors.border),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return FilledButton.icon(
+      onPressed: busy ? null : onCreate,
+      icon: busy
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : const Icon(Icons.qr_code_2_outlined, size: 18),
+      label: L10nText(
+        'Kampanya kodu oluştur',
+        style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+      ),
+      style: FilledButton.styleFrom(
+        backgroundColor: MetoColors.primary,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
+}
+
 class _BrandedCoverPlaceholder extends StatelessWidget {
   const _BrandedCoverPlaceholder({this.label = '', this.variant = 0});
 

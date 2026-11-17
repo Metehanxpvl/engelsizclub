@@ -172,9 +172,17 @@ async function rejectUnrelatedPending() {
     )) || [];
   let n = 0;
   for (const row of rows) {
-    const blob = `${row.title || ''} ${row.summary || ''} ${row.ai_notes || ''}`;
+    const notes = String(row.ai_notes || '');
+    // İçerik taraması ve kelimeyle alınan kayıtlar sonraki turda silinmesin.
+    if (
+      /potential_family_benefit|anahtar_kelime|AI özeti|enrich_failed|auto_approve/i.test(
+        notes,
+      )
+    ) {
+      continue;
+    }
+    const blob = `${row.title || ''} ${row.summary || ''} ${notes}`;
     if (shouldKeepCandidate(blob)) continue;
-    if (/potential_family_benefit/.test(String(row.ai_notes || ''))) continue;
     await sb(`useful_content?id=eq.${row.id}`, {
       method: 'PATCH',
       body: {

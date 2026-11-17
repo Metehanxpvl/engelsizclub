@@ -88,6 +88,25 @@ void main() {
     expect(KariyerJob.fromJson({'id': 'x', 'title': 't', 'employerType': 'Özel'}).sektor, kKariyerSektorOzel);
   });
 
+  test('bulk notify copy covers kamu and ozel collectively', () {
+    expect(
+      kariyerBulkNotifyTitle(kKariyerSektorKamu),
+      'Engelsiz Kariyer: Kamu ilanları',
+    );
+    expect(
+      kariyerBulkNotifyTitle(kKariyerSektorOzel),
+      'Engelsiz Kariyer: Özel sektör ilanları',
+    );
+    expect(
+      kariyerBulkNotifyBody(sektor: kKariyerSektorKamu, count: 1),
+      contains('kamu ilanı'),
+    );
+    expect(
+      kariyerBulkNotifyBody(sektor: kKariyerSektorOzel, count: 12),
+      contains('12 özel sektör ilanı'),
+    );
+  });
+
   test('homepage tile order constant: kariyer is leftmost key', () {
     const keys = ['kariyer', 'gezi', 'kampanya', 'etkinlik'];
     expect(keys.first, 'kariyer');

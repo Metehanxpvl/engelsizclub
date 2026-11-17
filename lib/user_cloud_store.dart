@@ -217,7 +217,8 @@ Future<void> _persistCloudProfile({
   };
 
   if (photoChanged) {
-    payload['photo_data'] = profile.photoData;
+    // Base64/data URL yazma — yalnız R2 http(s) adresi.
+    payload['photo_data'] = sanitizeProfilFotoUrl(profile.photoData);
   }
 
   try {
@@ -250,7 +251,7 @@ UserCloudProfile _fromRow(Map<String, dynamic> row) {
   final notifRaw = row['notifications'];
 
   return UserCloudProfile(
-    photoData: row['photo_data']?.toString(),
+    photoData: sanitizeProfilFotoUrl(row['photo_data']?.toString()),
     profil: profilRaw is Map
         ? KullaniciProfil.fromJson(Map<String, dynamic>.from(profilRaw))
         : const KullaniciProfil(),

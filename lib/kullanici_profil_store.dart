@@ -7,6 +7,7 @@ import 'data/location_models.dart';
 class KullaniciProfil {
   const KullaniciProfil({
     this.adSoyad = '',
+    this.telefon = '',
     this.countryCode = 'TR',
     this.sehir = '',
     this.ilce = '',
@@ -20,6 +21,7 @@ class KullaniciProfil {
   });
 
   final String adSoyad;
+  final String telefon;
   final String countryCode;
   final String sehir;
   final String ilce;
@@ -39,6 +41,7 @@ class KullaniciProfil {
 
   bool get isEmpty =>
       adSoyad.trim().isEmpty &&
+      telefon.trim().isEmpty &&
       sehir.trim().isEmpty &&
       ilce.trim().isEmpty &&
       meslek.trim().isEmpty &&
@@ -58,6 +61,7 @@ class KullaniciProfil {
 
   Map<String, dynamic> toJson() => {
         'adSoyad': adSoyad,
+        'telefon': telefon,
         'countryCode': countryCode,
         'location_data': location.toJson(),
         'sehir': sehir,
@@ -85,6 +89,9 @@ class KullaniciProfil {
         .toUpperCase();
     return KullaniciProfil(
       adSoyad: json['adSoyad']?.toString() ?? '',
+      telefon: (json['telefon'] ?? json['cepTelefonu'] ?? json['cep_telefonu'])
+              ?.toString() ??
+          '',
       countryCode: code.isEmpty ? 'TR' : code,
       sehir: (loc != null && loc.state.isNotEmpty)
           ? loc.state

@@ -50,9 +50,13 @@ const kDefaultDernekler = <DernekItem>[
   ),
 ];
 
+const kDerneklerSectionSettingsKey = 'home_dernekler';
+
 List<DernekItem>? _cache;
 DateTime? _cacheAt;
 bool _tableUnavailable = false;
+bool _sectionActive = true;
+DateTime? _sectionAt;
 const _ttl = Duration(minutes: 10);
 const _loadTimeout = Duration(seconds: 4);
 
@@ -67,6 +71,60 @@ bool _supabaseReady() {
 void invalidateDerneklerCache() {
   _cache = null;
   _cacheAt = null;
+  _sectionAt = null;
+}
+
+bool get cachedDerneklerSectionActive => _sectionActive;
+
+/// Üye yalnız aktif bölümü görür; admin pasifte de başlığı görüp açabilir.
+bool derneklerSectionVisible({
+  required bool admin,
+  bool? sectionActive,
+}) {
+  return (sectionActive ?? _sectionActive) || admin;
+}
+
+Future<bool> loadDerneklerSectionActive({bool forceRefresh = false}) async {
+  if (!forceRefresh &&
+      _sectionAt != null &&
+      DateTime.now().difference(_sectionAt!) < _ttl) {
+    return _sectionActive;
+  }
+  if (!_supabaseReady()) return _sectionActive;
+  try {
+    final row = await withNetworkTimeout(
+      Supabase.instance.client
+          .from('app_settings')
+          .select('value')
+          .eq('key', kDerneklerSectionSettingsKey)
+          .maybeSingle(),
+      timeout: _loadTimeout,
+    );
+    var active = true;
+    if (row != null) {
+      final value = row['value'];
+      if (value is Map && value['is_active'] == false) active = false;
+    }
+    _sectionActive = active;
+    _sectionAt = DateTime.now();
+    return _sectionActive;
+  } catch (_) {
+    return _sectionActive;
+  }
+}
+
+Future<void> setDerneklerSectionActive({
+  required bool isActive,
+  required String adminEmail,
+}) async {
+  await _requireAdmin(adminEmail);
+  await Supabase.instance.client.from('app_settings').upsert({
+    'key': kDerneklerSectionSettingsKey,
+    'value': {'is_active': isActive},
+    'description': 'Ana sayfa Dernekler bölümü (başlık dahil)',
+  });
+  _sectionActive = isActive;
+  _sectionAt = DateTime.now();
 }
 
 bool get hasFreshDerneklerCache {

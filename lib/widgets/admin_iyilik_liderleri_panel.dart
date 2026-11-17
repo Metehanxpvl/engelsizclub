@@ -29,27 +29,81 @@ class IyilikLiderEntry {
   }
 }
 
-Future<List<IyilikLiderEntry>> fetchAdminTopIyilikPuani({int limit = 10}) async {
+enum IyilikScoreKind { iyilik, market }
+
+List<IyilikLiderEntry> rankIyilikLeaders(
+  Iterable<Map> rows, {
+  int limit = 10,
+  String excludeEmail = 'sakir.caykara@gmail.com',
+  String scoreKey = 'kredi',
+}) {
+  final skip = excludeEmail.trim().toLowerCase();
+  final parsed = <IyilikLiderEntry>[];
+  for (final raw in rows) {
+    final email = (raw['owner_email']?.toString() ?? '').trim();
+    if (email.isEmpty || email.toLowerCase() == skip) continue;
+    final kredi = (raw[scoreKey] as num?)?.toInt() ?? 0;
+    if (kredi <= 0) continue;
+    final name = (raw['display_name']?.toString() ?? '').trim();
+    parsed.add(
+      IyilikLiderEntry(
+        rank: 0,
+        ownerEmail: email,
+        displayName: name.isEmpty ? email : name,
+        kredi: kredi,
+      ),
+    );
+  }
+  parsed.sort((a, b) => b.kredi.compareTo(a.kredi));
+  final cap = limit < 1 ? 1 : limit;
+  return [
+    for (var i = 0; i < parsed.length && i < cap; i++)
+      IyilikLiderEntry(
+        rank: i + 1,
+        ownerEmail: parsed[i].ownerEmail,
+        displayName: parsed[i].displayName,
+        kredi: parsed[i].kredi,
+      ),
+  ];
+}
+
+Future<List<IyilikLiderEntry>> fetchAdminTopIyilikPuani({
+  int limit = 10,
+  IyilikScoreKind kind = IyilikScoreKind.iyilik,
+}) async {
   if (!isAppAdmin(Supabase.instance.client.auth.currentUser?.email)) {
     throw StateError('Yalnızca admin bu listeyi görebilir.');
   }
-  final rows = await Supabase.instance.client.rpc(
-    'admin_top_iyilik_puani',
-    params: {'p_limit': limit},
+  if (kind == IyilikScoreKind.market) {
+    final rows = await Supabase.instance.client.rpc(
+      'admin_top_market_puani',
+      params: {'p_limit': limit},
+    );
+    if (rows is! List) return const [];
+    return rankIyilikLeaders(
+      rows.whereType<Map>(),
+      limit: limit,
+      scoreKey: 'iyilik_market_puan',
+    );
+  }
+  try {
+    final rows = await Supabase.instance.client.rpc(
+      'admin_top_iyilik_puani',
+      params: {'p_limit': limit},
+    );
+    if (rows is List && rows.isNotEmpty) {
+      return rankIyilikLeaders(
+        rows.whereType<Map>(),
+        limit: limit,
+      );
+    }
+  } catch (_) {}
+  final fallback = await Supabase.instance.client.rpc(
+    'admin_list_users',
+    params: {'p_q': '', 'p_filter': 'all', 'p_limit': 500},
   );
-  if (rows is! List) return const [];
-  return [
-    for (final raw in rows)
-      if (raw is Map)
-        IyilikLiderEntry(
-          rank: (raw['rank'] as num?)?.toInt() ?? 0,
-          ownerEmail: raw['owner_email']?.toString() ?? '',
-          displayName: (raw['display_name']?.toString() ?? '').trim().isEmpty
-              ? (raw['owner_email']?.toString() ?? 'Kullanıcı')
-              : raw['display_name'].toString().trim(),
-          kredi: (raw['kredi'] as num?)?.toInt() ?? 0,
-        ),
-  ];
+  if (fallback is! List) return const [];
+  return rankIyilikLeaders(fallback.whereType<Map>(), limit: limit);
 }
 
 /// Ekran görüntüsü için temiz liderlik panosu (admin).
@@ -58,10 +112,20 @@ class AdminIyilikLiderleriPanel extends StatefulWidget {
     super.key,
     required this.onBack,
     this.limit = 10,
+    this.kind = IyilikScoreKind.iyilik,
+    this.title = 'İyilik Puanı Liderleri',
+    this.heading = '💚 İyilik Puanı Liderleri',
+    this.sqlFile = 'admin_top_iyilik_puani.sql',
+    this.emptyLabel = 'Henüz puanlı kullanıcı yok.',
   });
 
   final VoidCallback onBack;
   final int limit;
+  final IyilikScoreKind kind;
+  final String title;
+  final String heading;
+  final String sqlFile;
+  final String emptyLabel;
 
   @override
   State<AdminIyilikLiderleriPanel> createState() =>
@@ -74,12 +138,18 @@ class _AdminIyilikLiderleriPanelState extends State<AdminIyilikLiderleriPanel> {
   @override
   void initState() {
     super.initState();
-    _future = fetchAdminTopIyilikPuani(limit: widget.limit);
+    _future = fetchAdminTopIyilikPuani(
+      limit: widget.limit,
+      kind: widget.kind,
+    );
   }
 
   Future<void> _reload() async {
     setState(() {
-      _future = fetchAdminTopIyilikPuani(limit: widget.limit);
+      _future = fetchAdminTopIyilikPuani(
+        limit: widget.limit,
+        kind: widget.kind,
+      );
     });
     await _future;
   }
@@ -108,9 +178,9 @@ class _AdminIyilikLiderleriPanelState extends State<AdminIyilikLiderleriPanel> {
                 icon: const Icon(Icons.arrow_back, size: 18),
               ),
               const SizedBox(width: 8),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'İyilik Puanı Sıralaması',
+                  widget.title,
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
@@ -158,8 +228,8 @@ class _AdminIyilikLiderleriPanelState extends State<AdminIyilikLiderleriPanel> {
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
-                '💚 İyilik Puanı Liderleri',
+              Text(
+                widget.heading,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white,
@@ -169,7 +239,7 @@ class _AdminIyilikLiderleriPanelState extends State<AdminIyilikLiderleriPanel> {
               ),
               const SizedBox(height: 2),
               Text(
-                'En yüksek ${widget.limit} · Teşekkürler',
+                'En yüksek ${widget.limit} kişi',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.75),
@@ -203,7 +273,7 @@ class _AdminIyilikLiderleriPanelState extends State<AdminIyilikLiderleriPanel> {
                       ),
                       child: Text(
                         sqlHint
-                            ? 'Liste için Supabase’de admin_top_iyilik_puani.sql dosyasını çalıştırın.'
+                            ? 'Liste için Supabase’de ${widget.sqlFile} dosyasını çalıştırın.'
                             : 'Liste yüklenemedi: $msg',
                         style: const TextStyle(
                           color: Colors.white,
@@ -218,7 +288,7 @@ class _AdminIyilikLiderleriPanelState extends State<AdminIyilikLiderleriPanel> {
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 24),
                       child: Text(
-                        'Henüz puanlı kullanıcı yok.',
+                        widget.emptyLabel,
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.85),
@@ -278,7 +348,7 @@ class _AdminIyilikLiderleriPanelState extends State<AdminIyilikLiderleriPanel> {
                                       ),
                                     ),
                                     Text(
-                                      e.maskedEmail,
+                                      e.ownerEmail,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(

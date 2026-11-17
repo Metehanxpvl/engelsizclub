@@ -14,8 +14,8 @@ class DailyNewsRepository {
   static const _table = 'news_candidates';
   static const _cols =
       'id, source_name, source_url, article_url, title, summary, '
-      'published_at, image_url, category, categories, relevance_score, '
-      'importance_level, ai_reason, affected_users, status';
+      'published_at, created_at, image_url, category, categories, '
+      'relevance_score, importance_level, ai_reason, affected_users, status';
 
   void _requireAdmin() {
     final email = _db.auth.currentUser?.email;
@@ -38,6 +38,26 @@ class DailyNewsRepository {
         .whereType<Map>()
         .map((e) => DailyNewsCandidate.fromJson(Map<String, dynamic>.from(e)))
         .toList();
+  }
+
+  Future<void> updateDraft({
+    required String id,
+    required String title,
+    required String summary,
+    required String imageUrl,
+  }) async {
+    _requireAdmin();
+    final nextTitle = title.trim();
+    if (nextTitle.isEmpty) {
+      throw StateError('Başlık boş olamaz.');
+    }
+    await withNetworkTimeout(
+      _db.from(_table).update({
+        'title': nextTitle,
+        'summary': summary.trim(),
+        'image_url': imageUrl.trim(),
+      }).eq('id', id).eq('status', 'pending'),
+    );
   }
 
   Future<void> reject(String id) async {

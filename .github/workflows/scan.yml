@@ -36,7 +36,7 @@ jobs:
   news:
     if: ${{ github.event_name == 'schedule' || inputs.mode == 'news' || inputs.mode == 'all' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     concurrency:
       group: content-scan-news
       cancel-in-progress: true
