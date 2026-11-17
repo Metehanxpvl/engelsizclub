@@ -1,14 +1,22 @@
 import "leaflet/dist/leaflet.css";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { MapPin, Search, Star, Clock, Phone, ChevronRight, ShoppingBag, X } from "lucide-react";
 import { centers, turkishCities, medicalVendors } from "../data/centers";
+import {
+  harvestCentersOsm,
+  localMatchesSearch,
+  searchCentersOsm,
+  type OsmCenter,
+} from "../lib/centersOsmSearch";
+import { normTr } from "../lib/trNorm";
 
 export type CenterItem = typeof centers[number];
+type ListedCenter = (CenterItem | OsmCenter) & { distKm: number };
 
 function OpenStreetMapView({ centers, selectedCenter, onSelectCenter, userLat, userLng, focusLat, focusLng }: {
-  centers: (CenterItem & { distKm?: number })[];
-  selectedCenter: CenterItem | null;
-  onSelectCenter: (c: CenterItem) => void;
+  centers: ListedCenter[];
+  selectedCenter: ListedCenter | null;
+  onSelectCenter: (c: ListedCenter) => void;
   userLat?: number | null;
   userLng?: number | null;
   focusLat: number;
@@ -118,13 +126,17 @@ function geoDistance(lat1: number, lng1: number, lat2: number, lng2: number) {
 
 export function MerkezlerTab() {
   const [filter, setFilter] = useState("Tümü");
-  const [selectedCenter, setSelectedCenter] = useState<typeof centers[0] | null>(null);
+  const [selectedCenter, setSelectedCenter] = useState<ListedCenter | null>(null);
   const [centerSearch, setCenterSearch] = useState("");
   const [selectedCity, setSelectedCity] = useState("İstanbul");
   const [selectedIlce, setSelectedIlce] = useState("Tümü İlçeler");
   const [userLat, setUserLat] = useState<number | null>(null);
   const [userLng, setUserLng] = useState<number | null>(null);
   const [locStatus, setLocStatus] = useState<"idle" | "loading" | "ok" | "denied">("idle");
+  const [liveCenters, setLiveCenters] = useState<OsmCenter[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchNote, setSearchNote] = useState<string | null>(null);
+  const searchSeq = useRef(0);
 
   const cityNames = Object.keys(turkishCities);
 
@@ -158,23 +170,123 @@ export function MerkezlerTab() {
     : { lat: cityInfo.lat, lng: cityInfo.lng };
 
   const categories = ["Tümü", "Fizik Tedavi", "Özel Eğitim", "Dil Terapisi", "Nöroloji"];
+  const q = centerSearch.trim();
+  const searching = q.length >= 2;
 
-  const withDistance = centers
-    .filter((c) => {
-      const matchesCity = c.city === selectedCity;
-      const matchesIlce = selectedIlce === "Tümü İlçeler" || c.ilce === selectedIlce;
-      const matchesCat = filter === "Tümü" || c.services.some((s) => s.toLowerCase().includes(filter.toLowerCase().slice(0, 5)));
-      const q = centerSearch.trim().toLowerCase();
-      const matchesSearch = !q || [c.name, c.category, c.address, ...c.services].some((f) => f.toLowerCase().includes(q));
+  // Local catalog + OSM live results. Token search (not full-string includes).
+  const withDistance = useMemo(() => {
+    const liveKeys = new Set(
+      liveCenters.map((c) => `${normTr(c.name)}|${c.lat.toFixed(4)}|${c.lng.toFixed(4)}`),
+    );
+    const pool: Array<CenterItem | OsmCenter> = [...centers, ...liveCenters];
+    const seen = new Set<string>();
+    const filtered = pool.filter((c) => {
+      const key = `${normTr(c.name)}|${c.lat.toFixed(4)}|${c.lng.toFixed(4)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+
+      const fromLive = liveKeys.has(key);
+      // Live OSM hits keep city soft; static catalog stays city-locked.
+      const matchesCity = fromLive || c.city === selectedCity;
+      const matchesIlce =
+        fromLive ||
+        searching ||
+        selectedIlce === "Tümü İlçeler" ||
+        normTr(c.ilce) === normTr(selectedIlce) ||
+        normTr(c.ilce).includes(normTr(selectedIlce)) ||
+        normTr(selectedIlce).includes(normTr(c.ilce));
+      const filterNorm = normTr(filter);
+      const matchesCat =
+        filter === "Tümü" ||
+        normTr(c.category).includes(filterNorm.slice(0, 5)) ||
+        c.services.some((s) => normTr(s).includes(filterNorm.slice(0, 5))) ||
+        (filterNorm.includes("fizik") &&
+          (normTr(c.category).includes("fizik") || normTr(c.name).includes("fizik"))) ||
+        (filterNorm.includes("ozel") &&
+          (normTr(c.category).includes("ozel") || normTr(c.name).includes("egitim"))) ||
+        (filterNorm.includes("dil") &&
+          (normTr(c.category).includes("dil") || normTr(c.name).includes("konusma"))) ||
+        (filterNorm.includes("noro") &&
+          (normTr(c.category).includes("noro") || normTr(c.name).includes("noro")));
+      const matchesSearch = localMatchesSearch(c, q);
       return matchesCity && matchesIlce && matchesCat && matchesSearch;
-    })
-    .map((c) => ({
-      ...c,
-      distKm: geoDistance(mapCenter.lat, mapCenter.lng, c.lat, c.lng),
-    }))
-    .sort((a, b) => a.distKm - b.distKm);
+    });
 
-  const mapCenters = withDistance.length > 0 ? withDistance : centers.filter((c) => c.city === selectedCity).map((c) => ({ ...c, distKm: geoDistance(mapCenter.lat, mapCenter.lng, c.lat, c.lng) }));
+    return filtered
+      .map((c) => ({
+        ...c,
+        distKm: geoDistance(mapCenter.lat, mapCenter.lng, c.lat, c.lng),
+      }))
+      .filter((c) => (searching ? c.distKm <= 180 : c.distKm <= 90 || c.city === selectedCity))
+      .sort((a, b) => a.distKm - b.distKm) as ListedCenter[];
+  }, [liveCenters, selectedCity, selectedIlce, filter, q, searching, mapCenter.lat, mapCenter.lng]);
+
+  const mapCenters =
+    withDistance.length > 0
+      ? withDistance
+      : centers
+          .filter((c) => c.city === selectedCity)
+          .map((c) => ({
+            ...c,
+            distKm: geoDistance(mapCenter.lat, mapCenter.lng, c.lat, c.lng),
+          }));
+
+  // Free-text → Photon; city browse harvest when catalog is thin.
+  useEffect(() => {
+    const seq = ++searchSeq.current;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setSearchLoading(true);
+      setSearchNote(searching ? `"${q}" aranıyor…` : null);
+      try {
+        let results: OsmCenter[] = [];
+        if (searching) {
+          results = await searchCentersOsm({
+            query: q,
+            lat: mapCenter.lat,
+            lng: mapCenter.lng,
+            city: selectedCity,
+          });
+        } else {
+          const localCount = centers.filter((c) => c.city === selectedCity).length;
+          if (localCount < 3) {
+            results = await harvestCentersOsm({
+              lat: mapCenter.lat,
+              lng: mapCenter.lng,
+              city: selectedCity,
+            });
+          } else {
+            results = [];
+          }
+        }
+        if (seq !== searchSeq.current) return;
+        setLiveCenters(results);
+        if (searching) {
+          setSearchNote(
+            results.length > 0
+              ? `OpenStreetMap · "${q}" · ${results.length} sonuç`
+              : `"${q}" için canlı sonuç sınırlı — yazımı veya şehri deneyin.`,
+          );
+        } else if (results.length > 0) {
+          setSearchNote(`OpenStreetMap · ${selectedCity} · ${results.length} merkez`);
+        } else {
+          setSearchNote(null);
+        }
+      } catch {
+        if (seq !== searchSeq.current) return;
+        if (searching) {
+          setSearchNote(`"${q}" araması başarısız — yerel katalog + tekrar deneyin.`);
+        }
+      } finally {
+        if (seq === searchSeq.current) setSearchLoading(false);
+      }
+    }, searching ? 280 : 120);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [q, searching, selectedCity, mapCenter.lat, mapCenter.lng]);
 
   if (selectedCenter) {
     const distKm = geoDistance(mapCenter.lat, mapCenter.lng, selectedCenter.lat, selectedCenter.lng);
@@ -311,13 +423,35 @@ export function MerkezlerTab() {
           <input
             value={centerSearch}
             onChange={(e) => setCenterSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.currentTarget.blur();
+              }
+            }}
             placeholder="Merkez adı veya hizmet ara..."
             className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
           />
+          {searchLoading && (
+            <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
+          )}
           {centerSearch && (
-            <button onClick={() => setCenterSearch("")} className="text-muted-foreground shrink-0"><X size={14} /></button>
+            <button
+              onClick={() => {
+                setCenterSearch("");
+                setLiveCenters([]);
+                setSearchNote(null);
+              }}
+              className="text-muted-foreground shrink-0"
+            >
+              <X size={14} />
+            </button>
           )}
         </div>
+        {searchNote && (
+          <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            {searchNote}
+          </p>
+        )}
       </div>
 
       {/* OpenStreetMap (Leaflet) */}
@@ -353,15 +487,31 @@ export function MerkezlerTab() {
         {withDistance.length === 0 && (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
-              <Search size={22} className="text-muted-foreground" />
+              {searchLoading ? (
+                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Search size={22} className="text-muted-foreground" />
+              )}
             </div>
-            <p className="text-sm font-bold text-foreground mb-1">Merkez bulunamadı</p>
-            <p className="text-xs text-muted-foreground">Bu bölgede kayıtlı merkez yok.</p>
+            <p className="text-sm font-bold text-foreground mb-1">
+              {searchLoading
+                ? "Aranıyor…"
+                : searching
+                  ? "Arama sonucu yok"
+                  : "Merkez bulunamadı"}
+            </p>
+            <p className="text-xs text-muted-foreground max-w-xs">
+              {searchLoading
+                ? "Yazılan metin için merkezler taranıyor."
+                : searching
+                  ? `"${q}" için eşleşme yok. Şehir/ilçe veya yazımı deneyin.`
+                  : "Bu bölgede henüz merkez yok — şehir değiştirin veya konumunuzu açın."}
+            </p>
           </div>
         )}
         {withDistance.map((center) => (
           <button
-            key={center.id}
+            key={`${center.id}-${center.lat}-${center.lng}`}
             onClick={() => setSelectedCenter(center)}
             className="w-full bg-card border border-border rounded-2xl p-4 shadow-sm text-left hover:shadow-md transition-shadow active:scale-[0.99]"
           >

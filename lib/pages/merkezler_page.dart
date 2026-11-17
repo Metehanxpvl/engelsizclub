@@ -297,8 +297,13 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     final lng = _focusLng ?? _cityInfo.lng;
     List<MetoCenter> base;
     if (_liveCenters.isNotEmpty) {
+      // Keep free-text Places/OSM hits even when city stamp/geo soft-fails.
       final filtered = _liveCenters
-          .where((c) => _matchesSelectedCity(c, focusLat: lat, focusLng: lng))
+          .where(
+            (c) =>
+                _searchHitIds.contains(c.id) ||
+                _matchesSelectedCity(c, focusLat: lat, focusLng: lng),
+          )
           .toList();
       base = filtered.isNotEmpty ? filtered : _catalogForSelectedCity();
     } else {
