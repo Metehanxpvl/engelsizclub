@@ -298,10 +298,13 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     List<MetoCenter> base;
     if (_liveCenters.isNotEmpty) {
       // Keep free-text Places/OSM hits even when city stamp/geo soft-fails.
+      final freeText =
+          _searchController.text.trim().length >= 2;
       final filtered = _liveCenters
           .where(
             (c) =>
                 _searchHitIds.contains(c.id) ||
+                freeText ||
                 _matchesSelectedCity(c, focusLat: lat, focusLng: lng),
           )
           .toList();
@@ -375,7 +378,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     final origin = _mapCenter;
     final rawQ = _searchController.text.trim();
     final q = _normTr(rawQ);
-    final searching = q.isNotEmpty;
+    final searching = rawQ.length >= 2;
     final maxKm = _locStatus == _LocStatus.ok
         ? 45.0
         : (_selectedIlce == kAllIlceler ? 70.0 : 28.0);
@@ -410,14 +413,18 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     }
 
     // City / category softens for free-text hits (Places or OSM) and member reports.
+    // While typing (e.g. "avm"), do not hide hits behind category chips — OSM/Places
+    // often stamp malls as Özel Eğitim, and overlay may remap ids off _searchHitIds.
     final pool = _sourceCenters
         .where((c) =>
             isHaritaUyeYeri(c.id) ||
             _searchHitIds.contains(c.id) ||
+            searching ||
             _matchesSelectedCity(c))
         .where((c) =>
             isHaritaUyeYeri(c.id) ||
             _searchHitIds.contains(c.id) ||
+            searching ||
             _matchesCategory(c))
         .where(matchesSearch);
 
