@@ -30,7 +30,7 @@ abstract final class S {
 const _tables = <AppLang, Map<String, String>>{
   AppLang.tr: {
     'nav_home': 'Ana',
-    'nav_map': 'Harita',
+    'nav_map': 'Engelsiz Haritalar',
     'nav_listings': 'İlanlar',
     'nav_scan': 'Tarama',
     'nav_forum': 'Forum',
@@ -54,7 +54,7 @@ const _tables = <AppLang, Map<String, String>>{
         'Harita artık alt çubukta değil — buradan açılır. Taramalar & Egzersizler & Oyun (Puzzle, CVI, otizm taraması) da burada.',
     'tour_messages':
         'Mesajlar üst çubukta duruyor. Anlaştığın uzman ve bakıcılarla iletişim buradan devam eder.',
-    'more_map': 'Harita',
+    'more_map': 'Engelsiz Haritalar',
     'more_map_sub': 'Destek merkezleri ve yakındaki hizmet noktaları',
     'more_rights': 'Hak Sorgulama Sihirbazı',
     'more_rights_sub': 'Haklarınızı adım adım sorgulayın',
@@ -157,7 +157,7 @@ const _tables = <AppLang, Map<String, String>>{
   },
   AppLang.en: {
     'nav_home': 'Home',
-    'nav_map': 'Map',
+    'nav_map': 'Accessible Maps',
     'nav_listings': 'Listings',
     'nav_scan': 'Scan',
     'nav_forum': 'Forum',
@@ -181,7 +181,7 @@ const _tables = <AppLang, Map<String, String>>{
         'Map is no longer on the bar — open it here. Screenings, exercises and games (Puzzle, CVI, autism screening) are here too.',
     'tour_messages':
         'Messages stay in the top bar. Chat with specialists and caregivers from here.',
-    'more_map': 'Map',
+    'more_map': 'Accessible Maps',
     'more_map_sub': 'Support centers and nearby services',
     'more_rights': 'Benefits Wizard',
     'more_rights_sub': 'Check your rights step by step',

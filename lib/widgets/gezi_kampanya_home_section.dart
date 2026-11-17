@@ -95,9 +95,7 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: L10nText(
-              kShowEngelsizKariyerTile
-                  ? 'Engelsiz Kariyer & Gezi Rehberi & Kampanyalar & Etkinlikler'
-                  : 'Gezi Rehberi & Kampanyalar & Etkinlikler',
+              'Hızlı erişim',
               style: GoogleFonts.nunito(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,

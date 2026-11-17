@@ -315,7 +315,7 @@ bool wouldCreateMoreMenuCycle(
 
 const defaultHaritaMenuItem = MoreMenuItem(
   id: -9,
-  title: 'Harita',
+  title: 'Engelsiz Haritalar',
   subtitle: 'Destek merkezleri ve yakındaki hizmet noktaları',
   linkType: 'route',
   link: 'harita',
