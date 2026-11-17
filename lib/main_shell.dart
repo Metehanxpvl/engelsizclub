@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -2929,7 +2930,21 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               );
             },
             onOpenHaklar: () => _goToTab(MetoTab.haklar),
-            onOpenHarita: () => _goToTab(MetoTab.merkezler),
+            // Temporary bridge until Play ships OSM place-search: open live
+            // Hosting (same pattern as Destek Sorgulama HTML). Web stays in-app.
+            onOpenHarita: () {
+              if (kIsWeb) {
+                _goToTab(MetoTab.merkezler);
+                return;
+              }
+              unawaited(
+                InAppWebPage.open(
+                  context,
+                  title: 'Engelsiz Haritalar',
+                  url: kEngelsizClubOrigin,
+                ),
+              );
+            },
           ),
         ),
         IlanlarPage(
