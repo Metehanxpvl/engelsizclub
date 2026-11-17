@@ -78,10 +78,15 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
   double? _focusLng;
   Timer? _searchDebounce;
   int _searchSeq = 0;
-  /// Place ids returned by the latest free-text Places search.
+  /// Place ids returned by the latest free-text Places/OSM search.
   final Set<int> _searchHitIds = <int>{};
+  /// Lat/lng keys so overlay id remap cannot hide free-text hits.
+  final Set<String> _searchHitKeys = <String>{};
   double? _pickedLat;
   double? _pickedLng;
+
+  static String _hitGeoKey(MetoCenter c) =>
+      '${c.lat.toStringAsFixed(4)}|${c.lng.toStringAsFixed(4)}';
 
   @override
   void initState() {
@@ -304,6 +309,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
           .where(
             (c) =>
                 _searchHitIds.contains(c.id) ||
+                _searchHitKeys.contains(_hitGeoKey(c)) ||
                 freeText ||
                 _matchesSelectedCity(c, focusLat: lat, focusLng: lng),
           )
@@ -388,6 +394,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     bool matchesSearch(MetoCenter c) {
       if (!searching) return true;
       if (_searchHitIds.contains(c.id)) return true;
+      if (_searchHitKeys.contains(_hitGeoKey(c))) return true;
       final hay = [c.name, c.category, c.address, c.ilce, ...c.services]
           .join(' ');
       return haystackMatchesQuery(hay, rawQ);
@@ -415,15 +422,19 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     // City / category softens for free-text hits (Places or OSM) and member reports.
     // While typing (e.g. "avm"), do not hide hits behind category chips — OSM/Places
     // often stamp malls as Özel Eğitim, and overlay may remap ids off _searchHitIds.
+    bool isSearchHit(MetoCenter c) =>
+        _searchHitIds.contains(c.id) ||
+        _searchHitKeys.contains(_hitGeoKey(c));
+
     final pool = _sourceCenters
         .where((c) =>
             isHaritaUyeYeri(c.id) ||
-            _searchHitIds.contains(c.id) ||
+            isSearchHit(c) ||
             searching ||
             _matchesSelectedCity(c))
         .where((c) =>
             isHaritaUyeYeri(c.id) ||
-            _searchHitIds.contains(c.id) ||
+            isSearchHit(c) ||
             searching ||
             _matchesCategory(c))
         .where(matchesSearch);
@@ -470,10 +481,13 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     _searchDebounce?.cancel();
     final q = value.trim();
     if (q.length < 2) {
-      if (_searchLoading || _searchHitIds.isNotEmpty) {
+      if (_searchLoading ||
+          _searchHitIds.isNotEmpty ||
+          _searchHitKeys.isNotEmpty) {
         setState(() {
           _searchLoading = false;
           _searchHitIds.clear();
+          _searchHitKeys.clear();
           // Keep browse note; clear search-only errors.
           if (_centersError != null &&
               (_centersError!.contains('Arama') ||
@@ -511,11 +525,31 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       final lng = _focusLng ?? _mapCenter.lng;
       final radiusKm = _selectedIlce == kAllIlceler ? 50.0 : 35.0;
 
-      var sourceLabel = 'Google Places';
+      // Same sources as PR #13 (Places + OSM free-text). Prefer OSM first for
+      // typed place-name → erişilebilirlik bildir (Places SearchText quota/cost).
+      var sourceLabel = 'OpenStreetMap';
       var results = <MetoCenter>[];
       String? placesErr;
 
-      if (GooglePlacesConfig.isConfigured) {
+      try {
+        results = await withNetworkTimeout(
+          CentersOsmService.searchByQuery(
+            query: query,
+            latitude: lat,
+            longitude: lng,
+            city: _selectedCity,
+            radiusKm: radiusKm,
+          ),
+          timeout: const Duration(seconds: 20),
+          message: 'Merkez araması zaman aşımına uğradı.',
+        );
+      } catch (e) {
+        debugPrint('[Merkezler] OSM serbest arama hata: $e');
+        placesErr = e is NetworkTimeoutException ? e.message : '$e';
+      }
+
+      if (results.isEmpty && GooglePlacesConfig.isConfigured) {
+        sourceLabel = 'Google Places';
         try {
           results = await withNetworkTimeout(
             CentersGooglePlacesService.searchByQuery(
@@ -528,36 +562,13 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
             timeout: const Duration(seconds: 18),
             message: 'Merkez araması zaman aşımına uğradı.',
           );
-          placesErr = CentersGooglePlacesService.lastError;
+          placesErr = CentersGooglePlacesService.lastError ?? placesErr;
         } catch (e) {
           placesErr = e is NetworkTimeoutException ? e.message : '$e';
           debugPrint('[Merkezler] Places serbest arama hata: $e');
         }
-      } else {
-        placesErr = 'GOOGLE_MAPS_API_KEY tanımlı değil.';
-      }
-
-      // Places key is often Android/iOS-restricted → HTTP 403. Fall back to OSM.
-      if (results.isEmpty) {
-        sourceLabel = 'OpenStreetMap';
-        try {
-          results = await withNetworkTimeout(
-            CentersOsmService.searchByQuery(
-              query: query,
-              latitude: lat,
-              longitude: lng,
-              city: _selectedCity,
-              radiusKm: radiusKm,
-            ),
-            timeout: const Duration(seconds: 20),
-            message: 'Merkez araması zaman aşımına uğradı.',
-          );
-        } catch (e) {
-          debugPrint('[Merkezler] OSM serbest arama hata: $e');
-          if (results.isEmpty && placesErr == null) {
-            placesErr = e is NetworkTimeoutException ? e.message : '$e';
-          }
-        }
+      } else if (results.isEmpty && !GooglePlacesConfig.isConfigured) {
+        placesErr ??= 'GOOGLE_MAPS_API_KEY tanımlı değil.';
       }
 
       if (!mounted || seq != _searchSeq) return;
@@ -569,6 +580,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
         merged[key] = c;
       }
       final hitIds = <int>{};
+      final hitKeys = <String>{};
       for (final c in results) {
         // Soft city lock: keep free-text hits within ~120km of focus.
         final near = geoDistanceKm(lat, lng, c.lat, c.lng) <= 120;
@@ -577,8 +589,9 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
         if (!near && !cityOk) continue;
         final key =
             '${_normTr(c.name)}|${c.lat.toStringAsFixed(4)}|${c.lng.toStringAsFixed(4)}';
-        merged.putIfAbsent(key, () => c);
-        hitIds.add(c.id);
+        final kept = merged.putIfAbsent(key, () => c);
+        hitIds.add(kept.id);
+        hitKeys.add(_hitGeoKey(kept));
       }
 
       setState(() {
@@ -591,6 +604,9 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
         _searchHitIds
           ..clear()
           ..addAll(hitIds);
+        _searchHitKeys
+          ..clear()
+          ..addAll(hitKeys);
         _searchLoading = false;
         if (hitIds.isNotEmpty) {
           _centersError = null;
@@ -602,6 +618,9 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
           final blocked = err != null &&
               (err.contains('PERMISSION') ||
                   err.contains('403') ||
+                  err.contains('429') ||
+                  err.contains('Quota') ||
+                  err.contains('RESOURCE_EXHAUSTED') ||
                   err.contains('referer') ||
                   err.contains('referrer'));
           _dataNote =
@@ -894,6 +913,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     _searchSeq++;
     setState(() {
       _searchHitIds.clear();
+      _searchHitKeys.clear();
       _selectedCity = city;
       _selectedIlce = kAllIlceler;
       _locStatus = _LocStatus.idle;
@@ -918,6 +938,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
     _searchSeq++;
     setState(() {
       _searchHitIds.clear();
+      _searchHitKeys.clear();
       _selectedIlce = ilce;
       // İlçe seçimi GPS’i kapatır — arama bu ilçeye göre yapılır.
       _locStatus = _LocStatus.idle;
@@ -1148,6 +1169,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                             setState(() {
                               _searchLoading = false;
                               _searchHitIds.clear();
+                              _searchHitKeys.clear();
                               _centersError = null;
                               _dataNote = null;
                             });
