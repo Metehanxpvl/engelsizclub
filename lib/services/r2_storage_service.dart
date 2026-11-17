@@ -52,6 +52,104 @@ class R2StorageService {
     return null;
   }
 
+  /// Presigned PUT (Worker) — harita fotoğrafı. Byte'lar API'den geçmez.
+  static Future<({String publicUrl, String key})?> uploadPresigned({
+    required Uint8List bytes,
+    required String contentType,
+    String purpose = 'map-photo',
+    String variant = 'full',
+  }) async {
+    if (bytes.isEmpty || bytes.lengthInBytes > maxBytes) return null;
+    final mime =
+        contentType.trim().isEmpty ? 'image/jpeg' : contentType.trim();
+
+    if (R2Config.hasWorker) {
+      final signed = await _signViaWorker(
+        contentType: mime,
+        purpose: purpose,
+        variant: variant,
+      );
+      if (signed != null) {
+        try {
+          final putRes = await http
+              .put(
+                Uri.parse(signed.uploadUrl),
+                headers: {
+                  'Content-Type': mime,
+                  'Content-Length': '${bytes.lengthInBytes}',
+                },
+                body: bytes,
+              )
+              .timeout(const Duration(seconds: 30));
+          if (putRes.statusCode >= 200 && putRes.statusCode < 300) {
+            return (publicUrl: signed.publicUrl, key: signed.key);
+          }
+          debugPrint('R2 presign PUT ${putRes.statusCode}');
+        } catch (e, st) {
+          debugPrint('R2 presign PUT başarısız: $e\n$st');
+        }
+      }
+    }
+
+    if (R2Config.hasClientSigV4) {
+      final key = _mapPhotoFallbackKey(variant, mime);
+      final url = await _uploadSigV4(
+        bytes: bytes,
+        objectKey: key,
+        contentType: mime,
+      );
+      if (url != null) return (publicUrl: url, key: key);
+    }
+    return null;
+  }
+
+  static Future<({String uploadUrl, String publicUrl, String key})?>
+      _signViaWorker({
+    required String contentType,
+    required String purpose,
+    required String variant,
+  }) async {
+    final base = R2Config.trimmedWorkerUrl;
+    if (!base.startsWith('http')) return null;
+    try {
+      final signRes = await http
+          .post(
+            Uri.parse('$base/sign'),
+            headers: const {'Content-Type': 'application/json'},
+            body:
+                '{"purpose":"${_jsonEscape(purpose)}","variant":"${_jsonEscape(variant)}","contentType":"${_jsonEscape(contentType)}"}',
+          )
+          .timeout(const Duration(seconds: 15));
+      if (signRes.statusCode < 200 || signRes.statusCode >= 300) {
+        debugPrint('R2 worker /sign ${signRes.statusCode}: ${signRes.body}');
+        return null;
+      }
+      final map = _looseJson(signRes.body);
+      final uploadUrl = map['uploadUrl']?.toString() ?? '';
+      final key = map['key']?.toString().trim() ?? '';
+      final publicUrl = map['publicUrl']?.toString().trim() ??
+          (key.isEmpty ? '' : R2Config.publicObjectUrl(key));
+      if (!uploadUrl.startsWith('http') || publicUrl.isEmpty) return null;
+      return (uploadUrl: uploadUrl, publicUrl: publicUrl, key: key);
+    } catch (e, st) {
+      debugPrint('R2 worker /sign başarısız: $e\n$st');
+      return null;
+    }
+  }
+
+  static String _mapPhotoFallbackKey(String variant, String contentType) {
+    final now = DateTime.now().toUtc();
+    final ext = contentType.contains('webp')
+        ? 'webp'
+        : contentType.contains('png')
+            ? 'png'
+            : 'jpg';
+    final suffix = variant == 'thumb' ? '_thumb' : '';
+    final id = '${now.microsecondsSinceEpoch}';
+    final month = now.month.toString().padLeft(2, '0');
+    return 'map-photos/${now.year}/$month/$id$suffix.$ext';
+  }
+
   /// Görseli R2'ye yükler; public HTTPS URL döner.
   /// İlan / duyuru / gezi — mevcut `r2-upload` Edge Function.
   static Future<String> uploadBytes({
