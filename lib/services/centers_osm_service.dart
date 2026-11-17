@@ -491,7 +491,6 @@ class CentersOsmService {
       'hotel',
       'restoran',
       'restaurant',
-      'market',
       'banka',
       'cami',
       'mosque',
@@ -500,6 +499,26 @@ class CentersOsmService {
     final qNorm = normTrForSearch(query);
     if (negatives.any(n.contains) && !negatives.any(qNorm.contains)) {
       return false;
+    }
+
+    final mallQuery = qNorm.contains('avm') ||
+        qNorm.contains('alisveris') ||
+        qNorm.contains('mall') ||
+        qNorm.contains('shopping');
+    if (mallQuery) {
+      final osmVal = normTrForSearch(
+        '${props['osm_value'] ?? ''} ${props['osm_key'] ?? ''} ${props['type'] ?? ''} ${props['shop'] ?? ''}',
+      );
+      if (n.contains('avm') ||
+          n.contains('mall') ||
+          n.contains('shopping') ||
+          n.contains('forum') ||
+          n.contains('outlet') ||
+          osmVal.contains('mall') ||
+          osmVal.contains('supermarket') ||
+          osmVal.contains('department')) {
+        return true;
+      }
     }
 
     final tokens = searchTokens(query, minLen: 2);

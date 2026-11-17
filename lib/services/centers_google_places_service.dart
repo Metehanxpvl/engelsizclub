@@ -403,12 +403,23 @@ class CentersGooglePlacesService {
           .toString()
           .trim();
 
-      if (!_isRelevantName(
-        name,
-        keyword,
-        address: address,
-        strictRelevance: strictRelevance,
-      )) {
+      final types = ((m['types'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .toList();
+      final typeHay = types.join(' ');
+      final mallType = typeHay.contains('shopping_mall') ||
+          typeHay.contains('department_store');
+      final keepByMallIntent = !strictRelevance &&
+          _isMallQuery(_norm(keyword)) &&
+          (mallType || _looksLikeMall(_norm('$name $address')));
+
+      if (!keepByMallIntent &&
+          !_isRelevantName(
+            name,
+            keyword,
+            address: address,
+            strictRelevance: strictRelevance,
+          )) {
         continue;
       }
 
@@ -418,9 +429,6 @@ class CentersGooglePlacesService {
       final plng = (loc['longitude'] as num?)?.toDouble();
       if (plat == null || plng == null) continue;
 
-      final types = ((m['types'] as List?) ?? const [])
-          .map((e) => e.toString())
-          .toList();
       var category = _categoryFor(name: name, types: types, keyword: keyword);
       if (category == 'SKIP') {
         if (allowSkipCategories) continue;
@@ -488,7 +496,9 @@ class CentersGooglePlacesService {
       }
     }
 
-    const negatives = [
+    // Harvest keeps excluding malls/hotels/etc. Free-text must NOT drop AVMs
+    // when the user typed "avm" / mall intent — otherwise Places hits vanish.
+    const harvestNegatives = [
       'otel',
       'hotel',
       'restoran',
@@ -497,11 +507,21 @@ class CentersGooglePlacesService {
       'cami',
       'avm',
     ];
+    const freeTextNegatives = [
+      'otel',
+      'hotel',
+      'restoran',
+      'banka',
+      'cami',
+    ];
+    final negatives = strictRelevance ? harvestNegatives : freeTextNegatives;
     final junkHit = negatives.any(n.contains);
-    final junkInQuery = negatives.any(k.contains);
+    final junkInQuery = negatives.any(k.contains) ||
+        (!strictRelevance && _isMallQuery(k));
     if (junkHit && !junkInQuery) return false;
 
     if (!strictRelevance) {
+      if (_isMallQuery(k) && _looksLikeMall(n)) return true;
       final tokens = searchTokens(keyword, minLen: 2);
       if (tokens.isEmpty) return true;
       // Keep if ANY significant token matches (Places already ranked).
@@ -624,6 +644,24 @@ class CentersGooglePlacesService {
   }
 
   static String _norm(String s) => normTrForSearch(s);
+
+  static bool _isMallQuery(String k) {
+    return k.contains('avm') ||
+        k.contains('alisveris') ||
+        k.contains('alis veris') ||
+        k.contains('mall') ||
+        k.contains('shopping');
+  }
+
+  static bool _looksLikeMall(String n) {
+    return n.contains('avm') ||
+        n.contains('alisveris') ||
+        n.contains('mall') ||
+        n.contains('shopping') ||
+        n.contains('forum') ||
+        n.contains('outlet') ||
+        n.contains('meydan');
+  }
 
   static double _haversineKm(
     double lat1,
