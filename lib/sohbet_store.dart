@@ -4,6 +4,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'admin_config.dart';
 import 'user_safety_store.dart';
 
+enum SohbetReceipt { sending, sent, delivered, read }
+
+SohbetReceipt sohbetReceiptOf(SohbetMesaj m) {
+  if (m.id <= 0) return SohbetReceipt.sending;
+  if (m.isRead) return SohbetReceipt.read;
+  if (m.isDelivered) return SohbetReceipt.delivered;
+  return SohbetReceipt.sent;
+}
+
 class SohbetMesaj {
   const SohbetMesaj({
     required this.id,
@@ -12,6 +21,7 @@ class SohbetMesaj {
     required this.receiverEmail,
     required this.body,
     required this.createdAt,
+    this.deliveredAt,
     this.readAt,
   });
 
@@ -21,9 +31,12 @@ class SohbetMesaj {
   final String receiverEmail;
   final String body;
   final DateTime createdAt;
+  final DateTime? deliveredAt;
   final DateTime? readAt;
 
   bool get isRead => readAt != null;
+  bool get isDelivered => deliveredAt != null || isRead;
+  SohbetReceipt get receipt => sohbetReceiptOf(this);
 
   factory SohbetMesaj.fromJson(Map<String, dynamic> json) => SohbetMesaj(
         id: (json['id'] as num?)?.toInt() ?? 0,
@@ -33,6 +46,7 @@ class SohbetMesaj {
         body: json['body']?.toString() ?? '',
         createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ??
             DateTime.now(),
+        deliveredAt: DateTime.tryParse(json['delivered_at']?.toString() ?? ''),
         readAt: DateTime.tryParse(json['read_at']?.toString() ?? ''),
       );
 
@@ -63,6 +77,38 @@ class SohbetOzet {
   final bool lastFromPeer;
 
   bool get hasUnread => unreadCount > 0;
+}
+
+String peerEmailFromSohbetKey(String sohbetKey, String myEmail) {
+  final me = myEmail.trim().toLowerCase();
+  final emails = sohbetKey
+      .split('|')
+      .map((p) => p.trim().toLowerCase())
+      .where((p) => p.contains('@'))
+      .toList();
+  if (emails.isEmpty) return '';
+  if (me.isEmpty) return emails.first;
+  for (final e in emails) {
+    if (e != me) return e;
+  }
+  return '';
+}
+
+Future<String> currentSohbetEmail() async {
+  final client = Supabase.instance.client;
+  final user = client.auth.currentUser;
+  if (user == null) return '';
+  var email = (user.email ?? '').trim().toLowerCase();
+  if (email.isNotEmpty) return email;
+  try {
+    final row = await client
+        .from('user_profiles')
+        .select('owner_email')
+        .eq('owner_id', user.id)
+        .maybeSingle();
+    email = (row?['owner_email'] as String? ?? '').trim().toLowerCase();
+  } catch (_) {}
+  return email;
 }
 
 String sohbetKeyFor(String emailA, String emailB) {

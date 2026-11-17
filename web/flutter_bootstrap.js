@@ -18,6 +18,7 @@ _flutter.loader.load({
         useLocalCanvasKit: true,
         renderer: 'canvaskit',
         canvasKitVariant: 'full',
+        hostElement: document.getElementById('flutter-host'),
       });
       await appRunner.runApp();
     } catch (err) {

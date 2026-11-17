@@ -465,10 +465,21 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
                 fontSize: 16,
               ),
             ),
+            if (item.collectedAtLabel.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Geldi: ${item.collectedAtLabel}',
+                style: GoogleFonts.nunito(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: MetoColors.mutedFg,
+                ),
+              ),
+            ],
             if (item.isRecentFifteenDays ||
                 item.isActiveOpportunityBadge ||
-                item.publishedAt != null ||
-                item.deadlineAt != null) ...[
+                item.publishedAtLabel.isNotEmpty ||
+                item.deadlineAtLabel.isNotEmpty) ...[
               const SizedBox(height: 8),
               Wrap(
                 spacing: 6,
@@ -478,14 +489,14 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
                     _dateChip('🟢 Son 15 Gün', const Color(0xFF15803D)),
                   if (item.isActiveOpportunityBadge)
                     _dateChip('🟡 Aktif Fırsat', const Color(0xFFB45309)),
-                  if (item.publishedAt != null)
+                  if (item.publishedAtLabel.isNotEmpty)
                     _dateChip(
-                      'Yayın ${_fmtDay(item.publishedAt!)}',
+                      'Yayın ${item.publishedAtLabel}',
                       MetoColors.mutedFg,
                     ),
-                  if (item.deadlineAt != null)
+                  if (item.deadlineAtLabel.isNotEmpty)
                     _dateChip(
-                      'Son tarih ${_fmtDay(item.deadlineAt!)}',
+                      'Son tarih ${item.deadlineAtLabel}',
                       MetoColors.mutedFg,
                     ),
                 ],
@@ -612,13 +623,6 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
         ),
       ),
     );
-  }
-
-  String _fmtDay(DateTime dt) {
-    final d = dt.toLocal();
-    final dd = d.day.toString().padLeft(2, '0');
-    final mm = d.month.toString().padLeft(2, '0');
-    return '$dd.$mm.${d.year}';
   }
 
   Widget _dateChip(String label, Color color) {

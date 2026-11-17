@@ -1,5 +1,17 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// DB’de yalnız kısa http(s) URL tutulsun — base64 şişirmesin.
+bool isProfilFotoUrl(String? raw) {
+  final s = (raw ?? '').trim().toLowerCase();
+  return s.startsWith('https://') || s.startsWith('http://');
+}
+
+String? sanitizeProfilFotoUrl(String? raw) {
+  final s = (raw ?? '').trim();
+  if (s.isEmpty || !isProfilFotoUrl(s)) return null;
+  return s;
+}
+
 String profilFotoPrefsKey(String email, {String fallback = 'anon'}) {
   final e = email.trim().toLowerCase();
   return 'user_profil_foto_${e.isEmpty ? fallback : e}';

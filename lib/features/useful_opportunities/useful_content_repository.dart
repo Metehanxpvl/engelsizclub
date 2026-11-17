@@ -49,7 +49,10 @@ class UsefulContentRepository {
   }) async {
     final cat = category.trim().toLowerCase();
     Future<List<dynamic>> run(String cols) {
-      var q = _db.from('useful_content').select(cols).eq('status', 'published');
+      var q = _db.from('useful_content').select(cols).inFilter(
+            'status',
+            const ['pending_review', 'published'],
+          );
       if (cat.isNotEmpty && cat != 'tumu') {
         q = q.eq('category', cat);
       }
@@ -65,7 +68,7 @@ class UsefulContentRepository {
       local = rows
           .whereType<Map>()
           .map((e) => UsefulContentItem.fromJson(Map<String, dynamic>.from(e)))
-          .where((e) => isUserVisibleUsefulContent(e.status))
+          .where((e) => _isPublicUsefulRow(e))
           .where((e) {
             if (qn.isEmpty) return true;
             return e.title.toLowerCase().contains(qn) ||
@@ -238,6 +241,12 @@ class UsefulContentRepository {
         'reviewed_by': _db.auth.currentUser?.id,
       }).eq('id', id).eq('status', 'pending_review'),
     );
+  }
+
+  bool _isPublicUsefulRow(UsefulContentItem item) {
+    final status = normalizeUsefulContentStatus(item.status);
+    if (status == 'published') return true;
+    return status == 'pending_review' && item.category == 'haber';
   }
 
   Future<List<UsefulContentItem>> _loadGlobalAsUseful({

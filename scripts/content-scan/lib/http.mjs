@@ -3,8 +3,14 @@ export async function fetchText(
   { timeoutMs = 12000, maxBytes = 500_000, userAgent, accept } = {},
 ) {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      ctrl.abort();
+      reject(new Error(`zaman aşımı ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+  const read = (async () => {
     const res = await fetch(url, {
       signal: ctrl.signal,
       redirect: 'follow',
@@ -32,8 +38,11 @@ export async function fetchText(
       return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString('utf8');
     }
     return await res.text();
+  })();
+  try {
+    return await Promise.race([timeout, read]);
   } finally {
-    clearTimeout(t);
+    clearTimeout(timer);
   }
 }
 

@@ -50,6 +50,38 @@ String kariyerSektorLabel(String sektor) {
   }
 }
 
+String kariyerBulkNotifyTitle(String sektor) {
+  switch (sektor) {
+    case kKariyerSektorKamu:
+      return 'Engelsiz Kariyer: Kamu ilanları';
+    case kKariyerSektorOzel:
+      return 'Engelsiz Kariyer: Özel sektör ilanları';
+    default:
+      return 'Engelsiz Kariyer: Yeni ilanlar';
+  }
+}
+
+String kariyerBulkNotifyBody({
+  required String sektor,
+  required int count,
+}) {
+  final n = count < 1 ? 1 : count;
+  switch (sektor) {
+    case kKariyerSektorKamu:
+      return n == 1
+          ? 'Engelsiz Kariyer’de yeni bir kamu ilanı yayınlandı. İncelemek için tıklayın.'
+          : 'Engelsiz Kariyer’de $n kamu ilanı yayınlandı. İncelemek için tıklayın.';
+    case kKariyerSektorOzel:
+      return n == 1
+          ? 'Engelsiz Kariyer’de yeni bir özel sektör ilanı yayınlandı. İncelemek için tıklayın.'
+          : 'Engelsiz Kariyer’de $n özel sektör ilanı yayınlandı. İncelemek için tıklayın.';
+    default:
+      return n == 1
+          ? 'Engelsiz Kariyer’de yeni bir ilan yayınlandı. İncelemek için tıklayın.'
+          : 'Engelsiz Kariyer’de $n ilan yayınlandı. İncelemek için tıklayın.';
+  }
+}
+
 /// `all` herkes; boş sektör (elle eklenen) her sekmede kalır.
 bool kariyerMatchesSektor(KariyerJob job, String filter) {
   if (filter.isEmpty || filter == kKariyerSektorAll) return true;

@@ -83,6 +83,13 @@ class GoogleAuthService {
     _listening = false;
   }
 
+  /// Web'de GIS hesap seçici açıkken tam ekran loading formu gizlemesin.
+  /// One Tap/FedCM gri katmanı + loading üst üste biniyordu.
+  static bool hidesAuthFormDuringPicker({required bool isWeb}) => !isWeb;
+
+  /// CanvasKit Google iframe sonrası gri kalıyor; yenileme oturumu gösterir.
+  static bool reloadsAfterSuccessfulWebSignIn({required bool isWeb}) => isWeb;
+
   /// Başarılıysa Supabase [AuthResponse] döner.
   static Future<AuthResponse?> signIn() async {
     if (kIsWeb) {
@@ -108,11 +115,17 @@ class GoogleAuthService {
       throw StateError('Google kimlik jetonu alınamadı.');
     }
     try {
-      return await Supabase.instance.client.auth.signInWithIdToken(
+      final res = await Supabase.instance.client.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
         accessToken: _nonEmptyToken(js['accessToken']),
       );
+      if (reloadsAfterSuccessfulWebSignIn(isWeb: kIsWeb) && res.user != null) {
+        try {
+          google_js.reloadAfterGoogleSignInJs();
+        } catch (_) {}
+      }
+      return res;
     } on AuthException catch (e) {
       final m = e.message.toLowerCase();
       if (m.contains('signup') && m.contains('disabled')) {
@@ -329,6 +342,12 @@ class GoogleAuthService {
   }
 
   static Future<void> signOut() async {
+    if (kIsWeb) {
+      try {
+        google_js.firebaseGoogleSignOutJs();
+      } catch (_) {}
+      return;
+    }
     try {
       if (Firebase.apps.isNotEmpty) {
         await _firebaseAuth.signOut();

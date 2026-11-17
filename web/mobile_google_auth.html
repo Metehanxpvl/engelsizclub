@@ -96,7 +96,7 @@
         context: 'signin',
         ux_mode: 'popup',
         itp_support: true,
-        use_fedcm_for_prompt: true
+        use_fedcm_for_prompt: false
       });
       google.accounts.id.renderButton(document.getElementById('gis'), {
         type: 'standard',
@@ -107,9 +107,6 @@
         locale: 'tr',
         width: 280
       });
-      try {
-        google.accounts.id.prompt();
-      } catch (_) {}
     }).catch(function (e) {
       setMsg((e && e.message) ? e.message : 'Google yüklenemedi. Sayfayı yenileyin.');
     });

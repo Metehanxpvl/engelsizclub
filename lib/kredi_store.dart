@@ -249,6 +249,44 @@ Future<bool> saveUserKredi({
   }
 }
 
+/// [amount] kredi harca; yeni bakiyeyi döner. Yetersizse null.
+Future<int?> spendKredi({required String email, required int amount}) async {
+  if (amount <= 0) {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(krediPrefsKeyFor(email)) ?? 0;
+  }
+  final prefs = await SharedPreferences.getInstance();
+  final key = krediPrefsKeyFor(email);
+  final current = prefs.getInt(key);
+  int bal = current ?? 0;
+
+  final client = Supabase.instance.client;
+  final user = client.auth.currentUser;
+  if (user != null) {
+    try {
+      final row = await client
+          .from('user_profiles')
+          .select('kredi')
+          .eq('owner_id', user.id)
+          .maybeSingle();
+      final cloud = (row?['kredi'] as num?)?.toInt();
+      if (cloud != null) bal = cloud;
+    } catch (_) {}
+  }
+
+  if (bal < amount) return null;
+  final next = bal - amount;
+  final ok = await saveUserKredi(
+    email: email,
+    balance: next,
+    welcomeGiftGiven: true,
+  );
+  if (!ok && user != null) {
+    await prefs.setInt(key, next);
+  }
+  return next;
+}
+
 /// 1 kredi harca; yeni bakiyeyi döner. Yetersizse null.
 Future<int?> spendOneKredi({required String email}) async {
   final prefs = await SharedPreferences.getInstance();
