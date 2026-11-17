@@ -15,6 +15,13 @@ class OptimizedImage {
   final String fileName;
 }
 
+class MapPhotoPair {
+  const MapPhotoPair({required this.photo, required this.thumb});
+
+  final OptimizedImage photo;
+  final OptimizedImage thumb;
+}
+
 class ImageOptimizeService {
   ImageOptimizeService._();
 
@@ -88,6 +95,39 @@ class ImageOptimizeService {
     );
   }
 
+  /// Engelsiz Harita — tam görsel ~250 KB + küçük önizleme.
+  /// Kayıp WebP tarayıcıda üretilir; Dart `encodeWebP` kayıpsız ve fotoğrafta
+  /// daha büyük olduğu için burada JPEG hedef boyutu kullanılır.
+  static Future<MapPhotoPair> forMapPlace(Uint8List raw) {
+    return Future(() {
+      if (raw.isEmpty) {
+        throw StateError('Boş görsel seçildi.');
+      }
+      final decoded = img.decodeImage(raw);
+      if (decoded == null) {
+        throw StateError('Görsel okunamadı. Başka bir fotoğraf deneyin.');
+      }
+      var image = img.bakeOrientation(decoded);
+      final photo = _encodeSized(
+        image,
+        maxSide: 1280,
+        maxBytes: 250 * 1024,
+        startQuality: 74,
+        minQuality: 52,
+        filePrefix: 'map',
+      );
+      final thumb = _encodeSized(
+        image,
+        maxSide: 360,
+        maxBytes: 48 * 1024,
+        startQuality: 68,
+        minQuality: 48,
+        filePrefix: 'map_thumb',
+      );
+      return MapPhotoPair(photo: photo, thumb: thumb);
+    });
+  }
+
   static OptimizedImage _optimize(
     Uint8List raw, {
     required int maxSide,
@@ -106,8 +146,26 @@ class ImageOptimizeService {
     }
 
     // EXIF yönünü düzelt (telefon fotoğrafları).
-    var image = img.bakeOrientation(decoded);
+    final image = img.bakeOrientation(decoded);
+    return _encodeSized(
+      image,
+      maxSide: maxSide,
+      maxBytes: maxBytes,
+      startQuality: startQuality,
+      minQuality: minQuality,
+      filePrefix: filePrefix,
+    );
+  }
 
+  static OptimizedImage _encodeSized(
+    img.Image source, {
+    required int maxSide,
+    required int maxBytes,
+    required int startQuality,
+    required int minQuality,
+    required String filePrefix,
+  }) {
+    var image = source;
     final longSide =
         image.width > image.height ? image.width : image.height;
     if (longSide > maxSide) {
@@ -127,7 +185,6 @@ class ImageOptimizeService {
       out = Uint8List.fromList(img.encodeJpg(image, quality: quality));
     }
 
-    // Hâlâ çok büyükse bir kademe daha küçült.
     if (out.lengthInBytes > maxBytes && maxSide > 720) {
       final softer = (maxSide * 0.82).round();
       image = img.copyResize(
