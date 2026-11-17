@@ -14,6 +14,7 @@ import '../utils/async_timeout.dart';
 import '../utils/tr_norm.dart';
 import '../services/centers_google_geocode_service.dart';
 import '../services/centers_google_places_service.dart';
+import '../services/centers_osm_service.dart';
 import '../services/google_places_config.dart';
 import '../widgets/web_google_map.dart';
 import '../l10n/app_strings.dart';
@@ -201,8 +202,8 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
             ),
           )
           .where((e) {
-            final hit = _searchHitIds.contains(e.center.id);
-            final limit = (searching && hit) ? searchMaxKm : (maxKm + 8);
+            // While searching, keep all text matches — not only Places hit ids.
+            final limit = searching ? searchMaxKm : (maxKm + 8);
             return e.distKm <= limit;
           })
           .toList();
@@ -210,7 +211,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       return list;
     }
 
-    // City / category softens for Places free-text hits.
+    // City / category softens for free-text hits (Places or OSM).
     final pool = _sourceCenters
         .where((c) =>
             _searchHitIds.contains(c.id) || _matchesSelectedCity(c))
@@ -264,43 +265,92 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
         setState(() {
           _searchLoading = false;
           _searchHitIds.clear();
+          // Keep browse note; clear search-only errors.
+          if (_centersError != null &&
+              (_centersError!.contains('Arama') ||
+                  _centersError!.contains('Places') ||
+                  _centersError!.contains('bulunamadı'))) {
+            _centersError = null;
+          }
         });
       }
       return;
     }
-    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
-      _runPlacesSearch(q);
+    _searchDebounce = Timer(const Duration(milliseconds: 280), () {
+      _runFreeTextSearch(q);
     });
   }
 
-  Future<void> _runPlacesSearch(String query) async {
-    if (!GooglePlacesConfig.isConfigured) {
-      if (!mounted) return;
-      setState(() {
-        _searchLoading = false;
-        _centersError =
-            'Google Maps API anahtarı tanımlı değil — arama yapılamıyor.';
-      });
-      return;
-    }
+  void _onSearchSubmitted(String value) {
+    _searchDebounce?.cancel();
+    final q = value.trim();
+    if (q.length < 2) return;
+    _runFreeTextSearch(q);
+  }
+
+  Future<void> _runFreeTextSearch(String query) async {
     final seq = ++_searchSeq;
     if (!mounted) return;
-    setState(() => _searchLoading = true);
+    setState(() {
+      _searchLoading = true;
+      _centersError = null;
+      _dataNote = '"$query" aranıyor…';
+    });
 
     try {
       final lat = _focusLat ?? _mapCenter.lat;
       final lng = _focusLng ?? _mapCenter.lng;
-      final results = await withNetworkTimeout(
-        CentersGooglePlacesService.searchByQuery(
-          query: query,
-          latitude: lat,
-          longitude: lng,
-          city: _selectedCity,
-          radiusKm: _selectedIlce == kAllIlceler ? 50 : 35,
-        ),
-        timeout: const Duration(seconds: 30),
-        message: 'Merkez araması zaman aşımına uğradı.',
-      );
+      final radiusKm = _selectedIlce == kAllIlceler ? 50.0 : 35.0;
+
+      var sourceLabel = 'Google Places';
+      var results = <MetoCenter>[];
+      String? placesErr;
+
+      if (GooglePlacesConfig.isConfigured) {
+        try {
+          results = await withNetworkTimeout(
+            CentersGooglePlacesService.searchByQuery(
+              query: query,
+              latitude: lat,
+              longitude: lng,
+              city: _selectedCity,
+              radiusKm: radiusKm,
+            ),
+            timeout: const Duration(seconds: 18),
+            message: 'Merkez araması zaman aşımına uğradı.',
+          );
+          placesErr = CentersGooglePlacesService.lastError;
+        } catch (e) {
+          placesErr = e is NetworkTimeoutException ? e.message : '$e';
+          debugPrint('[Merkezler] Places serbest arama hata: $e');
+        }
+      } else {
+        placesErr = 'GOOGLE_MAPS_API_KEY tanımlı değil.';
+      }
+
+      // Places key is often Android/iOS-restricted → HTTP 403. Fall back to OSM.
+      if (results.isEmpty) {
+        sourceLabel = 'OpenStreetMap';
+        try {
+          results = await withNetworkTimeout(
+            CentersOsmService.searchByQuery(
+              query: query,
+              latitude: lat,
+              longitude: lng,
+              city: _selectedCity,
+              radiusKm: radiusKm,
+            ),
+            timeout: const Duration(seconds: 20),
+            message: 'Merkez araması zaman aşımına uğradı.',
+          );
+        } catch (e) {
+          debugPrint('[Merkezler] OSM serbest arama hata: $e');
+          if (results.isEmpty && placesErr == null) {
+            placesErr = e is NetworkTimeoutException ? e.message : '$e';
+          }
+        }
+      }
+
       if (!mounted || seq != _searchSeq) return;
 
       final merged = <String, MetoCenter>{};
@@ -312,8 +362,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       final hitIds = <int>{};
       for (final c in results) {
         // Soft city lock: keep free-text hits within ~120km of focus.
-        final near =
-            geoDistanceKm(lat, lng, c.lat, c.lng) <= 120;
+        final near = geoDistanceKm(lat, lng, c.lat, c.lng) <= 120;
         final cityOk =
             _matchesSelectedCity(c, focusLat: lat, focusLng: lng);
         if (!near && !cityOk) continue;
@@ -334,22 +383,25 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
           ..clear()
           ..addAll(hitIds);
         _searchLoading = false;
-        if (results.isNotEmpty) {
+        if (hitIds.isNotEmpty) {
           _centersError = null;
           _dataNote =
-              'Arama · "$query" · ${hitIds.length} sonuç · ${_liveCenters.length} merkez';
+              'Arama · $sourceLabel · "$query" · ${hitIds.length} sonuç';
         } else {
-          final err = CentersGooglePlacesService.lastError;
-          _dataNote = err == null
-              ? '"$query" için sonuç bulunamadı — şehir/ilçe veya yazımı deneyin.'
-              : null;
-          if (err != null) {
-            _centersError = err.contains('PERMISSION') ||
-                    err.contains('403') ||
-                    err.contains('referer')
-                ? 'Google Places API anahtarı engellendi (izin/referrer). Cloud Console kısıtlarını kontrol edin.'
-                : 'Arama başarısız: $err';
-          }
+          final osmErr = CentersOsmService.lastError;
+          final err = placesErr ?? osmErr;
+          final blocked = err != null &&
+              (err.contains('PERMISSION') ||
+                  err.contains('403') ||
+                  err.contains('referer') ||
+                  err.contains('referrer'));
+          _dataNote =
+              '"$query" için sonuç bulunamadı — şehir/ilçe veya yazımı deneyin.';
+          _centersError = blocked
+              ? 'Google Places engelli; OSM yedek de boş döndü. Yazımı / şehri değiştirip tekrar deneyin.'
+              : (err != null
+                  ? 'Arama sonucu yok ($err). Yazımı veya şehri deneyin.'
+                  : 'Arama sonucu yok. Yazımı veya şehri deneyin.');
         }
       });
     } catch (e) {
@@ -357,6 +409,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
       if (!mounted || seq != _searchSeq) return;
       setState(() {
         _searchLoading = false;
+        _dataNote = null;
         _centersError = e is NetworkTimeoutException
             ? e.message
             : 'Merkez araması başarısız. Tekrar deneyin.';
@@ -438,6 +491,30 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
           placesError = e is NetworkTimeoutException
               ? e.message
               : '$e';
+        }
+      }
+
+      // Places often 403 on restricted keys — OSM/Photon harvest as backup.
+      if (live.isEmpty) {
+        try {
+          live = await withNetworkTimeout(
+            CentersOsmService.fetchNear(
+              lat: searchLat,
+              lng: searchLng,
+              city: _selectedCity,
+              radiusKm: useGps
+                  ? 40
+                  : (_selectedIlce == kAllIlceler ? 45 : 18),
+            ),
+            timeout: const Duration(seconds: 55),
+            message: 'Merkez araması zaman aşımına uğradı.',
+          );
+          if (live.isNotEmpty) {
+            sourceLabel = 'OpenStreetMap';
+            placesError = null;
+          }
+        } catch (e) {
+          debugPrint('[Merkezler] OSM harvest hata: $e');
         }
       }
 
@@ -793,6 +870,8 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                         child: TextField(
                           controller: _searchController,
                           onChanged: _onSearchTextChanged,
+                          onSubmitted: _onSearchSubmitted,
+                          textInputAction: TextInputAction.search,
                           style: const TextStyle(
                             fontSize: 14,
                             color: MetoColors.foreground,
@@ -830,6 +909,8 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                             setState(() {
                               _searchLoading = false;
                               _searchHitIds.clear();
+                              _centersError = null;
+                              _dataNote = null;
                             });
                           },
                           icon: const Icon(
@@ -970,7 +1051,14 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                             ),
                             const SizedBox(height: 12),
                             FilledButton.icon(
-                              onPressed: _refreshCenters,
+                              onPressed: () {
+                                final q = _searchController.text.trim();
+                                if (q.length >= 2) {
+                                  _runFreeTextSearch(q);
+                                } else {
+                                  _refreshCenters();
+                                }
+                              },
                               icon: const Icon(Icons.refresh),
                               label: const L10nText('Tekrar dene'),
                             ),
@@ -978,7 +1066,10 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                         ),
                       )
                     else if (listing.items.isEmpty)
-                      const _EmptySearch(),
+                      _EmptySearch(
+                        query: _searchController.text.trim(),
+                        searching: _searchLoading,
+                      ),
                     ...listing.items.map(
                       (item) => Padding(
                         padding: const EdgeInsets.only(bottom: 12),
@@ -1617,38 +1708,63 @@ class _FilterChip extends StatelessWidget {
 }
 
 class _EmptySearch extends StatelessWidget {
-  const _EmptySearch();
+  const _EmptySearch({this.query = '', this.searching = false});
+
+  final String query;
+  final bool searching;
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 48),
+    final active = query.trim().length >= 2;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48),
       child: Column(
         children: [
           SizedBox(
             width: 56,
             height: 56,
             child: DecoratedBox(
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: MetoColors.muted,
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.search, size: 22, color: MetoColors.mutedFg),
+              child: searching
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: MetoColors.primary,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.search,
+                      size: 22,
+                      color: MetoColors.mutedFg,
+                    ),
             ),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           L10nText(
-            'Merkez bulunamadı',
-            style: TextStyle(
+            searching
+                ? 'Aranıyor…'
+                : active
+                    ? 'Arama sonucu yok'
+                    : 'Merkez bulunamadı',
+            style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: MetoColors.foreground,
             ),
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           L10nText(
-            'Bu bölgede kayıtlı merkez yok.',
-            style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+            searching
+                ? 'Yazılan metin için merkezler taranıyor.'
+                : active
+                    ? '"$query" için eşleşme bulunamadı. Şehir/ilçe veya yazımı deneyin.'
+                    : 'Bu bölgede kayıtlı merkez yok.',
+            style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+            textAlign: TextAlign.center,
           ),
         ],
       ),

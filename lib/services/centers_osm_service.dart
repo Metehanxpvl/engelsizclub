@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../data/centers_data.dart';
+import '../utils/tr_norm.dart';
 import 'centers_nominatim_service.dart';
 
 /// Yakındaki özel eğitim / rehabilitasyon merkezlerini ücretsiz kaynaklardan çeker:
@@ -24,6 +26,8 @@ class CentersOsmService {
 
   static const _ua = 'EngelsizClub/1.0 (https://engelsizclub-e5842.web.app)';
 
+  static String? lastError;
+
   /// Arama anahtar kelimeleri (Photon / Nominatim).
   static const _searchQueries = <String>[
     'özel eğitim ve rehabilitasyon merkezi',
@@ -39,6 +43,92 @@ class CentersOsmService {
 
   static final Map<String, ({double lat, double lng})> _geoCache = {};
   static final Map<String, List<MetoCenter>> _centersCache = {};
+
+  /// Free-text POI search (Photon → Nominatim). No Google key required.
+  ///
+  /// Used when Places API (New) is blocked (403 / referrer / package
+  /// restrictions) so typed Merkezler search still returns results.
+  static Future<List<MetoCenter>> searchByQuery({
+    required String query,
+    required double latitude,
+    required double longitude,
+    required String city,
+    double radiusKm = 55,
+  }) async {
+    lastError = null;
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return const [];
+
+    final cacheKey =
+        'q|${normTrForSearch(trimmed)}|${normTrForSearch(city)}|'
+        '${latitude.toStringAsFixed(2)},${longitude.toStringAsFixed(2)}|'
+        '${radiusKm.round()}';
+    final cached = _centersCache[cacheKey];
+    if (cached != null) return List<MetoCenter>.from(cached);
+
+    final seen = <String>{};
+    final merged = <MetoCenter>[];
+
+    void ingest(List<MetoCenter> batch) {
+      for (final c in batch) {
+        final key =
+            '${_norm(c.name)}_${c.lat.toStringAsFixed(4)}_${c.lng.toStringAsFixed(4)}';
+        if (!seen.add(key)) continue;
+        merged.add(c);
+      }
+    }
+
+    try {
+      ingest(
+        await _photonFreeText(
+          query: trimmed,
+          lat: latitude,
+          lng: longitude,
+          city: city,
+          radiusKm: radiusKm,
+          startId: 810000,
+        ),
+      );
+    } catch (e) {
+      lastError = '$e';
+      if (kDebugMode) debugPrint('[OSM] photon free-text hata: $e');
+    }
+
+    if (merged.isEmpty) {
+      try {
+        ingest(
+          await _nominatimFreeText(
+            query: trimmed,
+            lat: latitude,
+            lng: longitude,
+            city: city,
+            radiusKm: radiusKm,
+            startId: 820000,
+          ),
+        );
+      } catch (e) {
+        lastError ??= '$e';
+        if (kDebugMode) debugPrint('[OSM] nominatim free-text hata: $e');
+      }
+    }
+
+    merged.sort((a, b) {
+      final da = geoDistanceKm(latitude, longitude, a.lat, a.lng);
+      final db = geoDistanceKm(latitude, longitude, b.lat, b.lng);
+      return da.compareTo(db);
+    });
+
+    if (merged.isNotEmpty) {
+      _centersCache[cacheKey] = merged;
+      lastError = null;
+    } else if (lastError == null) {
+      lastError = 'OSM aramada sonuç yok.';
+    }
+    if (kDebugMode) {
+      debugPrint('[OSM] query="$trimmed" $city → ${merged.length} sonuç');
+    }
+    return List<MetoCenter>.from(merged);
+  }
 
   /// İl veya ilçe merkezinin yaklaşık koordinatı.
   static Future<({double lat, double lng})?> geocodePlace({
@@ -145,6 +235,278 @@ class CentersOsmService {
 
     _centersCache[cacheKey] = merged;
     return List<MetoCenter>.from(merged);
+  }
+
+  static Future<List<MetoCenter>> _photonFreeText({
+    required String query,
+    required double lat,
+    required double lng,
+    required String city,
+    required double radiusKm,
+    required int startId,
+  }) async {
+    final variants = <String>{
+      query,
+      '$query $city',
+      '$query Türkiye',
+    }.toList(growable: false);
+
+    final out = <MetoCenter>[];
+    final seen = <String>{};
+    var id = startId;
+
+    for (final q in variants) {
+      try {
+        final uri = Uri.parse(_photonUrl).replace(queryParameters: {
+          'q': q,
+          'lat': lat.toString(),
+          'lon': lng.toString(),
+          'limit': '20',
+          'lang': 'en',
+          'location_bias_scale': '0.6',
+        });
+        final res = await http
+            .get(
+              uri,
+              headers: const {
+                'User-Agent': _ua,
+                'Accept': 'application/json',
+              },
+            )
+            .timeout(const Duration(seconds: 12));
+        if (res.statusCode != 200) continue;
+
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final features = (body['features'] as List?) ?? const [];
+        for (final raw in features) {
+          if (raw is! Map) continue;
+          final props =
+              (raw['properties'] as Map?)?.cast<String, dynamic>() ?? {};
+          final name =
+              (props['name'] ?? props['osm_value'] ?? '').toString().trim();
+          if (name.isEmpty) continue;
+          if (!_isFreeTextHit(name: name, query: query, props: props)) {
+            continue;
+          }
+
+          final country = (props['country'] ?? props['countrycode'] ?? '')
+              .toString()
+              .toLowerCase();
+          if (country.isNotEmpty &&
+              country != 'turkey' &&
+              country != 'türkiye' &&
+              country != 'tr') {
+            continue;
+          }
+
+          final coords = (raw['geometry'] as Map?)?['coordinates'] as List?;
+          if (coords == null || coords.length < 2) continue;
+          final plng = (coords[0] as num).toDouble();
+          final plat = (coords[1] as num).toDouble();
+          final dist = geoDistanceKm(lat, lng, plat, plng);
+          if (dist > radiusKm + 80) continue;
+
+          final dedupe =
+              '${_norm(name)}_${plat.toStringAsFixed(4)}_${plng.toStringAsFixed(4)}';
+          if (!seen.add(dedupe)) continue;
+
+          final ilce = (props['district'] ??
+                  props['suburb'] ??
+                  props['city'] ??
+                  props['county'] ??
+                  'Merkez')
+              .toString()
+              .trim();
+          final street = props['street']?.toString();
+          final no = props['housenumber']?.toString();
+          final addressParts = <String>[];
+          if (street != null && street.isNotEmpty) {
+            addressParts
+                .add(no != null && no.isNotEmpty ? '$street No:$no' : street);
+          }
+          addressParts.add('$ilce / $city');
+          final address = addressParts.join(', ');
+
+          var category = _categoryFromName(name);
+          if (category == 'SKIP') category = 'Özel Eğitim';
+
+          out.add(
+            MetoCenter(
+              id: id++,
+              city: city,
+              ilce: ilce.isEmpty ? 'Merkez' : ilce,
+              name: name,
+              category: category,
+              address: address,
+              phone: props['phone']?.toString() ?? '—',
+              hours: 'Saat bilgisi yok',
+              services: _servicesFrom(category),
+              rating: 0,
+              reviews: 0,
+              color: _colorFor(category),
+              lat: plat,
+              lng: plng,
+            ),
+          );
+        }
+        if (out.isNotEmpty) break;
+      } catch (e) {
+        if (kDebugMode) debugPrint('[OSM] photon variant "$q" hata: $e');
+      }
+    }
+    return out;
+  }
+
+  static Future<List<MetoCenter>> _nominatimFreeText({
+    required String query,
+    required double lat,
+    required double lng,
+    required String city,
+    required double radiusKm,
+    required int startId,
+  }) async {
+    final latDelta = (radiusKm + 40) / 111.0;
+    final cosLat = math.cos(lat * math.pi / 180).abs();
+    final lngDelta = (radiusKm + 40) / (111.0 * math.max(cosLat, 0.2));
+    final viewbox =
+        '${lng - lngDelta},${lat + latDelta},${lng + lngDelta},${lat - latDelta}';
+
+    final uri = Uri.parse(_nominatimUrl).replace(queryParameters: {
+      'q': query,
+      'format': 'jsonv2',
+      'addressdetails': '1',
+      'limit': '20',
+      'countrycodes': 'tr',
+      'bounded': '0',
+      'viewbox': viewbox,
+      'accept-language': 'tr',
+      'email': 'sakir.caykara@gmail.com',
+    });
+    final res = await http
+        .get(
+          uri,
+          headers: const {
+            'User-Agent': _ua,
+            'Accept': 'application/json',
+            'Accept-Language': 'tr',
+          },
+        )
+        .timeout(const Duration(seconds: 14));
+    if (res.statusCode != 200) {
+      throw StateError('Nominatim HTTP ${res.statusCode}');
+    }
+
+    final decoded = jsonDecode(res.body);
+    if (decoded is! List) return const [];
+
+    final out = <MetoCenter>[];
+    var id = startId;
+    for (final raw in decoded) {
+      if (raw is! Map) continue;
+      final m = Map<String, dynamic>.from(raw);
+      final name = (m['name'] ?? m['display_name'] ?? '').toString().trim();
+      if (name.isEmpty) continue;
+      final display = (m['display_name'] ?? name).toString();
+      if (!_isFreeTextHit(
+        name: name,
+        query: query,
+        props: {
+          'display_name': display,
+          'type': m['type']?.toString() ?? '',
+          'category': m['category']?.toString() ?? '',
+          'osm_value': m['type']?.toString() ?? '',
+          'osm_key': m['category']?.toString() ?? '',
+        },
+      )) {
+        continue;
+      }
+
+      final plat = double.tryParse(m['lat']?.toString() ?? '');
+      final plng = double.tryParse(m['lon']?.toString() ?? '');
+      if (plat == null || plng == null) continue;
+      if (geoDistanceKm(lat, lng, plat, plng) > radiusKm + 80) continue;
+
+      final addr = m['address'];
+      String ilce = 'Merkez';
+      if (addr is Map) {
+        ilce = (addr['suburb'] ??
+                addr['district'] ??
+                addr['town'] ??
+                addr['county'] ??
+                addr['city_district'] ??
+                'Merkez')
+            .toString()
+            .trim();
+      }
+
+      var category = _categoryFromName(name);
+      if (category == 'SKIP') category = 'Özel Eğitim';
+
+      out.add(
+        MetoCenter(
+          id: id++,
+          city: city,
+          ilce: ilce.isEmpty ? 'Merkez' : ilce,
+          name: name.contains(',') ? name.split(',').first.trim() : name,
+          category: category,
+          address: display,
+          phone: '—',
+          hours: 'Saat bilgisi yok',
+          services: _servicesFrom(category),
+          rating: 0,
+          reviews: 0,
+          color: _colorFor(category),
+          lat: plat,
+          lng: plng,
+        ),
+      );
+    }
+    return out;
+  }
+
+  /// Loose free-text gate: token overlap OR rehab/hospital-like OSM tags.
+  static bool _isFreeTextHit({
+    required String name,
+    required String query,
+    required Map<String, dynamic> props,
+  }) {
+    final hay = [
+      name,
+      props['display_name']?.toString() ?? '',
+      props['street']?.toString() ?? '',
+      props['city']?.toString() ?? '',
+      props['district']?.toString() ?? '',
+      props['locality']?.toString() ?? '',
+      props['osm_value']?.toString() ?? '',
+      props['osm_key']?.toString() ?? '',
+      props['type']?.toString() ?? '',
+      props['category']?.toString() ?? '',
+      props['amenity']?.toString() ?? '',
+      props['healthcare']?.toString() ?? '',
+    ].join(' ');
+
+    final n = normTrForSearch(hay);
+    const negatives = [
+      'otel',
+      'hotel',
+      'restoran',
+      'restaurant',
+      'market',
+      'banka',
+      'cami',
+      'mosque',
+      'benzin',
+    ];
+    final qNorm = normTrForSearch(query);
+    if (negatives.any(n.contains) && !negatives.any(qNorm.contains)) {
+      return false;
+    }
+
+    final tokens = searchTokens(query, minLen: 2);
+    if (tokens.isNotEmpty && tokens.any(n.contains)) return true;
+
+    // Keep healthcare-ish POIs even if token overlap is weak.
+    return _isRelevantCenter(name, props);
   }
 
   static Future<List<MetoCenter>> _fetchFromPhoton({
