@@ -1,13 +1,1388 @@
 {
   "source": "https://esube.iskur.gov.tr/istihdam/AcikIsIlanAra.aspx",
-  "fetchedAt": "2026-11-17T15:39:06.525Z",
+  "fetchedAt": "2026-11-18T15:15:19.524Z",
   "ok": true,
-  "totalHint": 3102,
+  "totalHint": 3070,
   "counts": {
     "kamu": 0,
-    "ozel": 3102
+    "ozel": 3070
   },
   "items": [
+    {
+      "id": "00009906315",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Gaziantep / Şehitkamil",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906315",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906230",
+      "title": "Montajcı (Kurgucu)",
+      "city": "Konya / Selçuklu",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906230",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906244",
+      "title": "Perakende Satış Elemanı (Gıda)",
+      "city": "Ankara / Evren",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906244",
+      "positions": "4",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906263",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Antalya / Manavgat",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906263",
+      "positions": "3",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906265",
+      "title": "Beden İşçisi (Temizlik)",
+      "city": "Gaziantep / Şehitkamil",
+      "date": "30.11.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906265",
+      "positions": "3",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906292",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Antalya / Manavgat",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906292",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906307",
+      "title": "Aşçı Yardımcısı",
+      "city": "İstanbul / Kağıthane",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906307",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906320",
+      "title": "Reyon Görevlisi",
+      "city": "Sakarya / Adapazarı",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906320",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906330",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Bursa / Gemlik",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906330",
+      "positions": "5",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906339",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Bursa / Gemlik",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906339",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906346",
+      "title": "Temizlik Görevlisi",
+      "city": "Denizli / Pamukkale",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906346",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906352",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Çanakkale / Ezine",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906352",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906361",
+      "title": "Reyon Görevlisi",
+      "city": "Ankara / Altındağ",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906361",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906380",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Kocaeli / Başiskele",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906380",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906383",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Bursa / Gemlik",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906383",
+      "positions": "3",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906389",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Kocaeli / Başiskele",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906389",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906395",
+      "title": "Servis Elemanı (Garson)",
+      "city": "Eskişehir / Tepebaşı",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906395",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906397",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Kocaeli / Başiskele",
+      "date": "16.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906397",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906404",
+      "title": "Turizm ve Otelcilik Elemanı",
+      "city": "Muğla / Marmaris",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906404",
+      "positions": "5",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906407",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Kocaeli / Başiskele",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906407",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906412",
+      "title": "Temizlik Görevlisi",
+      "city": "Artvin / Arhavi",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906412",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906415",
+      "title": "Temizlik Görevlisi",
+      "city": "Şırnak / İdil",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906415",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906417",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Kocaeli / Başiskele",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906417",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906418",
+      "title": "Turizm ve Otelcilik Elemanı",
+      "city": "Muğla / Marmaris",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906418",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906443",
+      "title": "Büro Memuru (Genel)",
+      "city": "Ankara / Çankaya",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906443",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906445",
+      "title": "Beden İşçisi (Genel)",
+      "city": "İstanbul / Şişli",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906445",
+      "positions": "5",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906448",
+      "title": "Temizlik Görevlisi",
+      "city": "Afyonkarahisar / Afyonkarahisar merkez",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906448",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906455",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Kocaeli / Başiskele",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906455",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906457",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Artvin / Arhavi",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906457",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906459",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Muğla / Dalaman",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906459",
+      "positions": "5",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906464",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Kocaeli / Başiskele",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906464",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906480",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Kocaeli / Başiskele",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906480",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906484",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Muğla / Ortaca",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906484",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906489",
+      "title": "Beden İşçisi (Genel)",
+      "city": "İstanbul / Ümraniye",
+      "date": "30.11.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906489",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906495",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Kocaeli / Başiskele",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906495",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906533",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Muğla / Dalaman",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906533",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906538",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Aksaray / Aksaray merkez",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906538",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906541",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Mersin / Yenişehir",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906541",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906563",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Bursa / Nilüfer",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906563",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906565",
+      "title": "Temizlik Görevlisi",
+      "city": "Sivas / Sivas merkez",
+      "date": "04.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906565",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906582",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Kırklareli / Kırklareli merkez",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906582",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906592",
+      "title": "Ambar/Depo Görevlisi",
+      "city": "İstanbul / Arnavutköy",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906592",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906596",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Antalya / Muratpaşa",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906596",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906597",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Kocaeli / Gebze",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906597",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906603",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Bursa / Nilüfer",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906603",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906613",
+      "title": "Paketleme İşçisi",
+      "city": "İstanbul / Tuzla",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906613",
+      "positions": "3",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906674",
+      "title": "İmalat İşçisi",
+      "city": "Kilis / Kilis merkez",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906674",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906743",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Muğla / Ortaca",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906743",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906763",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Bilecik / Bilecik merkez",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906763",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906774",
+      "title": "Halkla İlişkiler Görevlisi",
+      "city": "İstanbul / Gaziosmanpaşa",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906774",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906777",
+      "title": "Danışma Memuru",
+      "city": "İstanbul / Gaziosmanpaşa",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906777",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906791",
+      "title": "Temizlik Görevlisi",
+      "city": "İzmir / Gaziemir",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906791",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906794",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Bursa / Orhangazi",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906794",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906795",
+      "title": "Beden İşçisi (Genel)",
+      "city": "İzmir / Kemalpaşa",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906795",
+      "positions": "9",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906829",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Bursa / Gemlik",
+      "date": "20.11.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906829",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906847",
+      "title": "Çamaşırcı (Genel)(Çamaşırhane Görevlisi)",
+      "city": "İstanbul / Ümraniye",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906847",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906862",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Bursa / Gemlik",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906862",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906866",
+      "title": "Beden İşçisi (Genel)",
+      "city": "İzmir / Urla",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906866",
+      "positions": "4",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906869",
+      "title": "Beden İşçisi (Genel)",
+      "city": "İzmir / Torbalı",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906869",
+      "positions": "4",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906889",
+      "title": "Genel Alan Temizleme Görevlisi/Meydancı",
+      "city": "İzmir / Kemalpaşa",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906889",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906910",
+      "title": "Mutfak Görevlisi",
+      "city": "İzmir / Gaziemir",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906910",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906918",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Uşak / Uşak merkez",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906918",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906920",
+      "title": "Ambar/Depo Görevlisi",
+      "city": "Antalya / Muratpaşa",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906920",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906933",
+      "title": "Satış Elemanı / Danışmanı",
+      "city": "Antalya / Kepez",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906933",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906937",
+      "title": "Finans Uzmanı",
+      "city": "İzmir / Gaziemir",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906937",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906951",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Yalova / Altınova",
+      "date": "16.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906951",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906952",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Kocaeli / İzmit",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906952",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906959",
+      "title": "Teknik Servis Elemanı",
+      "city": "Antalya / Kemer / Antalya",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906959",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906969",
+      "title": "Beden İşçisi (Genel)",
+      "city": "İstanbul / Başakşehir",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906969",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906972",
+      "title": "Temizlik Görevlisi",
+      "city": "İstanbul / Ümraniye",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906972",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906978",
+      "title": "Büro Memuru (Genel)",
+      "city": "İstanbul / Başakşehir",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906978",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906986",
+      "title": "Konfeksiyon İşçisi",
+      "city": "Adana / Yüreğir",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906986",
+      "positions": "3",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906993",
+      "title": "Beden İşçisi (Temizlik)",
+      "city": "Kocaeli / Kartepe",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906993",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907000",
+      "title": "Büro Memuru (Genel)",
+      "city": "Kocaeli / Kartepe",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907000",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907003",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Muğla / Dalaman",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907003",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907081",
+      "title": "Perakende Satış Elemanı (Gıda)",
+      "city": "Antalya / Manavgat",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907081",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907088",
+      "title": "Satış Elemanı / Danışmanı",
+      "city": "Antalya / Gazipaşa",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907088",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907094",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Antalya / Serik",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907094",
+      "positions": "14",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907104",
+      "title": "İnsan Kaynakları Uzmanı/Personel Uzmanı",
+      "city": "İstanbul / Eyüp",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907104",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907134",
+      "title": "Büro Memuru (Genel)",
+      "city": "İstanbul / Üsküdar",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907134",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907140",
+      "title": "Büro Memuru (Genel)",
+      "city": "İstanbul / Üsküdar",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907140",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907142",
+      "title": "Büro Memuru (Genel)",
+      "city": "İstanbul / Ataşehir",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907142",
+      "positions": "4",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907160",
+      "title": "Elektrik Teknisyeni",
+      "city": "İstanbul / Üsküdar",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907160",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907163",
+      "title": "Temizlik Görevlisi",
+      "city": "Ankara / Çankaya",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907163",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907166",
+      "title": "Akaryakıt Satış Elemanı (Pompacı)",
+      "city": "İzmir / Buca",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907166",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907168",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Van / Edremit / Van",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907168",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907170",
+      "title": "Beden İşçisi (Genel)",
+      "city": "İstanbul / Ümraniye",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907170",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907176",
+      "title": "Büro Memuru (Genel)",
+      "city": "İstanbul / Ataşehir",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907176",
+      "positions": "4",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907181",
+      "title": "Fatura ve Hesap Tahsilatçısı",
+      "city": "İstanbul / Ataşehir",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907181",
+      "positions": "3",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907189",
+      "title": "Hasta Danışmanı",
+      "city": "Eskişehir / Tepebaşı",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907189",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907192",
+      "title": "Danışma Görevlisi-Otel",
+      "city": "İstanbul / Ataşehir",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907192",
+      "positions": "3",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907197",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Kocaeli / Çayırova",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907197",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907198",
+      "title": "Satış Destek Personeli",
+      "city": "İstanbul / Ümraniye",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907198",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907199",
+      "title": "Temizlik Görevlisi",
+      "city": "İstanbul / Üsküdar",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907199",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907207",
+      "title": "Büro İşçisi",
+      "city": "İstanbul / Ataşehir",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907207",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907214",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Bursa / Nilüfer",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907214",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907218",
+      "title": "Satış Elemanı / Danışmanı(Ürün Tanıtım Görevlisi)",
+      "city": "İstanbul / Ataşehir",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907218",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907250",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Muğla / Ortaca",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907250",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907369",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Yalova / Çiftlikköy",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907369",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907370",
+      "title": "Temizlik Görevlisi",
+      "city": "İstanbul / Arnavutköy",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907370",
+      "positions": "5",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907389",
+      "title": "Mutfak Görevlisi",
+      "city": "Sivas / Sivas merkez",
+      "date": "04.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907389",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907390",
+      "title": "Temizlik Görevlisi",
+      "city": "İstanbul / Sancaktepe",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907390",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907399",
+      "title": "İnşaat/İşyeri Bekçisi",
+      "city": "Antalya / Konyaaltı",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907399",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907513",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Bursa / Gemlik",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907513",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907515",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Tekirdağ / Çorlu",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907515",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907469",
+      "title": "Beden İşçisi (Genel)",
+      "city": "İstanbul / Tuzla",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907469",
+      "positions": "8",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907520",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Uşak / Uşak merkez",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907520",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907529",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Eskişehir / Odunpazarı",
+      "date": "30.11.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907529",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907540",
+      "title": "Büro Memuru (Genel)",
+      "city": "İstanbul / Beylikdüzü",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907540",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907548",
+      "title": "Temizlik Görevlisi",
+      "city": "İstanbul / Başakşehir",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907548",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907551",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Aksaray / Aksaray merkez",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907551",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907555",
+      "title": "Reyon Görevlisi",
+      "city": "Elazığ / Elazığ merkez",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907555",
+      "positions": "4",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907649",
+      "title": "Büro Memuru (Genel)",
+      "city": "İzmir / Torbalı",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907649",
+      "positions": "3",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907674",
+      "title": "Temizlik Görevlisi",
+      "city": "Isparta / Eğirdir",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907674",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907684",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Antalya / Manavgat",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907684",
+      "positions": "3",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907722",
+      "title": "Temizlik Görevlisi",
+      "city": "İstanbul / Beylikdüzü",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907722",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907732",
+      "title": "İş Güvenliği Uzmanı",
+      "city": "İstanbul / Ümraniye",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907732",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907746",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Bursa / Nilüfer",
+      "date": "15.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907746",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907752",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Tekirdağ / Ergene",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907752",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907768",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Bursa / Orhangazi",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907768",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907772",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Tekirdağ / Ergene",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907772",
+      "positions": "3",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907825",
+      "title": "Genel Alan Temizleme Görevlisi/Meydancı",
+      "city": "Eskişehir / Odunpazarı",
+      "date": "30.11.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907825",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907832",
+      "title": "İş Güvenliği Uzmanı",
+      "city": "Kocaeli / Gölcük",
+      "date": "17.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907832",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907837",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Bursa / Osmangazi",
+      "date": "15.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907837",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009907856",
+      "title": "Ambar/Depo Görevlisi",
+      "city": "Adana / Çukurova",
+      "date": "30.11.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009907856",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
     {
       "id": "00009904488",
       "title": "Beden İşçisi (Genel)",
@@ -86,11 +1461,11 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009904637",
+      "id": "00009904641",
       "title": "Beden İşçisi (Genel)",
-      "city": "İstanbul / Kartal",
+      "city": "Manisa / Yunusemre",
       "date": "16.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009904637",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009904641",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -191,6 +1566,17 @@
       "date": "16.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009904707",
       "positions": "10",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009904731",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Kahramanmaraş / Onikişubat",
+      "date": "30.11.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009904731",
+      "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -352,7 +1738,7 @@
     {
       "id": "00009904921",
       "title": "Beden İşçisi (Genel)",
-      "city": "Bursa / Yıldırım",
+      "city": "Bursa / Mudanya",
       "date": "16.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009904921",
       "positions": "1",
@@ -372,22 +1758,22 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009904944",
+      "id": "00009904935",
       "title": "Beden İşçisi (Genel)",
-      "city": "Eskişehir / Odunpazarı",
-      "date": "30.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009904944",
+      "city": "İstanbul / Kartal",
+      "date": "16.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009904935",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
     },
     {
-      "id": "00009904946",
+      "id": "00009904944",
       "title": "Beden İşçisi (Genel)",
-      "city": "Kocaeli / Dilovası",
-      "date": "16.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009904946",
+      "city": "Eskişehir / Odunpazarı",
+      "date": "30.11.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009904944",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -454,6 +1840,17 @@
       "city": "Antalya / Döşemealtı",
       "date": "16.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009905069",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009905088",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Elazığ / Elazığ merkez",
+      "date": "15.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009905088",
       "positions": "2",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -900,28 +2297,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009905587",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Eskişehir / Sivrihisar",
-      "date": "30.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009905587",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009905605",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Edirne / Keşan",
-      "date": "16.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009905605",
-      "positions": "9",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009905711",
       "title": "Beden İşçisi (Genel)",
       "city": "İstanbul / Ümraniye",
@@ -1032,6 +2407,17 @@
       "sektor": "ozel"
     },
     {
+      "id": "00009905812",
+      "title": "Beden İşçisi (Genel)",
+      "city": "İstanbul / Silivri",
+      "date": "16.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009905812",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
       "id": "00009905815",
       "title": "Bulaşıkçı (Stevard)",
       "city": "İstanbul / Üsküdar",
@@ -1043,11 +2429,22 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009905819",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İstanbul / Bağcılar",
+      "id": "00009905835",
+      "title": "Metal Mamuller Montaj İşçisi",
+      "city": "Konya / Selçuklu",
+      "date": "30.11.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009905835",
+      "positions": "6",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009905852",
+      "title": "Özel Güvenlik Görevlisi (Silahlı)",
+      "city": "Ankara / Kahraman kazan",
       "date": "16.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009905819",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009905852",
       "positions": "2",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -1065,22 +2462,11 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009905926",
-      "title": "Mutfak Görevlisi",
-      "city": "Kayseri / Melikgazi",
+      "id": "00009905899",
+      "title": "Şoför (Yolcu Taşıma)",
+      "city": "Ankara / Kahraman kazan",
       "date": "16.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009905926",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009905945",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Ankara / Sincan",
-      "date": "09.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009905945",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009905899",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -1115,6 +2501,17 @@
       "date": "16.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906122",
       "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906158",
+      "title": "Beden İşçisi (Temizlik)",
+      "city": "İstanbul / Esenyurt",
+      "date": "16.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906158",
+      "positions": "3",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -1175,11 +2572,22 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009906046",
-      "title": "Meyve Sebze Ayıklama İşçisi",
-      "city": "Mersin / Erdemli",
-      "date": "30.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906046",
+      "id": "00009906192",
+      "title": "Büro İşçisi",
+      "city": "Antalya / Döşemealtı",
+      "date": "16.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906192",
+      "positions": "8",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009906207",
+      "title": "Oto Yıkama Elemanı",
+      "city": "Ankara / Kahraman kazan",
+      "date": "16.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906207",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -1213,17 +2621,6 @@
       "city": "Muğla / Marmaris",
       "date": "16.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906083",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009906088",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Eskişehir / Odunpazarı",
-      "date": "20.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009906088",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -1747,17 +3144,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009903338",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Balıkesir / Erdek",
-      "date": "15.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009903338",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009903350",
       "title": "Büro İşçisi",
       "city": "İzmir / Gaziemir",
@@ -1956,6 +3342,17 @@
       "sektor": "ozel"
     },
     {
+      "id": "00009903635",
+      "title": "Hasta Hakları Sorumlusu",
+      "city": "İstanbul / Esenyurt",
+      "date": "08.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009903635",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
       "id": "00009903636",
       "title": "Ön Muhasebeci",
       "city": "İzmir / Çiğli",
@@ -2121,6 +3518,17 @@
       "sektor": "ozel"
     },
     {
+      "id": "00009903798",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Kahramanmaraş / Dulkadiroğlu",
+      "date": "16.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009903798",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
       "id": "00009903808",
       "title": "Beden İşçisi (Genel)",
       "city": "Bursa / Mustafakemalpaşa",
@@ -2242,17 +3650,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009904196",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İstanbul / Pendik",
-      "date": "15.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009904196",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009904201",
       "title": "Turizm ve Otelcilik Elemanı",
       "city": "Antalya / Aksu",
@@ -2313,6 +3710,17 @@
       "city": "Isparta / Eğirdir",
       "date": "15.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009904046",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009904090",
+      "title": "Genel Alan Temizleme Görevlisi/Meydancı",
+      "city": "Nevşehir / Ürgüp",
+      "date": "15.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009904090",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -2660,34 +4068,12 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009900328",
-      "title": "Aşçı Yardımcısı",
-      "city": "İstanbul / Kartal",
-      "date": "11.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009900328",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009900329",
       "title": "Genel Alan Temizleme Görevlisi/Meydancı",
       "city": "Kocaeli / Başiskele",
       "date": "12.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009900329",
       "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009900334",
-      "title": "Temizlik Görevlisi",
-      "city": "İstanbul / Kartal",
-      "date": "11.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009900334",
-      "positions": "2",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -3177,6 +4563,17 @@
       "sektor": "ozel"
     },
     {
+      "id": "00009900825",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Antalya / Döşemealtı",
+      "date": "12.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009900825",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
       "id": "00009900828",
       "title": "Kasiyer",
       "city": "Kayseri / Talas",
@@ -3656,17 +5053,6 @@
       "date": "12.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009901482",
       "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009901487",
-      "title": "Çağrı Merkezi Müşteri Temsilcisi",
-      "city": "Ankara / Altındağ",
-      "date": "12.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009901487",
-      "positions": "6",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -4299,6 +5685,17 @@
       "sektor": "ozel"
     },
     {
+      "id": "00009898335",
+      "title": "Beden İşçisi (Genel)",
+      "city": "Tekirdağ / Çerkezköy",
+      "date": "11.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009898335",
+      "positions": "1",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
       "id": "00009898374",
       "title": "Beden İşçisi (Genel)",
       "city": "Gaziantep / Şahinbey",
@@ -4326,17 +5723,6 @@
       "city": "İstanbul / Başakşehir",
       "date": "11.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009898387",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009898394",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Mersin / Silifke",
-      "date": "10.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009898394",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -4470,6 +5856,17 @@
       "date": "11.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009898575",
       "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009898581",
+      "title": "Kumaş Serim Makinesi Operatörü",
+      "city": "İstanbul / Esenyurt",
+      "date": "11.12.2026",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009898581",
+      "positions": "3",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -4849,17 +6246,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009899345",
-      "title": "Depo İşçisi (Elleçleme)",
-      "city": "Manisa / Alaşehir",
-      "date": "11.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009899345",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009899352",
       "title": "Temizlik Görevlisi",
       "city": "Afyonkarahisar / Sinanpaşa",
@@ -4942,17 +6328,6 @@
       "city": "Bursa / İnegöl",
       "date": "11.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009899473",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009899497",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İzmir / Kemalpaşa",
-      "date": "11.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009899497",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -5487,17 +6862,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009896155",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Yalova / Çiftlikköy",
-      "date": "10.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009896155",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009896160",
       "title": "Büro Memuru (Genel)",
       "city": "Kocaeli / Körfez",
@@ -5586,17 +6950,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009896281",
-      "title": "Mutfak Görevlisi",
-      "city": "İzmir / Konak",
-      "date": "10.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009896281",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009896291",
       "title": "Beden İşçisi (Genel)",
       "city": "Şanlıurfa / Karaköprü",
@@ -5614,28 +6967,6 @@
       "date": "10.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009896295",
       "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009896302",
-      "title": "Temizlik Görevlisi",
-      "city": "İzmir / Konak",
-      "date": "10.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009896302",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009896348",
-      "title": "Mutfak Görevlisi",
-      "city": "Konya / Karatay",
-      "date": "08.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009896348",
-      "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -6103,17 +7434,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009897242",
-      "title": "Bulaşıkçı (Stevard)",
-      "city": "Eskişehir / Tepebaşı",
-      "date": "30.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009897242",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009897261",
       "title": "Temizlik Görevlisi",
       "city": "İstanbul / Ataşehir",
@@ -6334,17 +7654,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009897418",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İstanbul / Bağcılar",
-      "date": "10.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009897418",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009897431",
       "title": "Beden İşçisi (Genel)",
       "city": "İstanbul / Bağcılar",
@@ -6361,17 +7670,6 @@
       "city": "Nevşehir / Nevşehir merkez",
       "date": "20.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009897438",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009897467",
-      "title": "Büro Memuru (Genel)",
-      "city": "İzmir / Bornova",
-      "date": "10.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009897467",
       "positions": "2",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -6405,28 +7703,6 @@
       "city": "İstanbul / Silivri",
       "date": "10.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009897485",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009897496",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İzmir / Bornova",
-      "date": "10.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009897496",
-      "positions": "5",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009897516",
-      "title": "Temizlik Görevlisi (Hastane)",
-      "city": "Erzurum / Palandöken",
-      "date": "29.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009897516",
       "positions": "2",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -7621,17 +8897,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009895100",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Balıkesir / Bandırma",
-      "date": "01.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009895100",
-      "positions": "4",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009895126",
       "title": "Beden İşçisi (Genel)",
       "city": "Şanlıurfa / Haliliye",
@@ -8358,17 +9623,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009892071",
-      "title": "Ortacı/Ayakçı (Tekstil)",
-      "city": "İzmir / Buca",
-      "date": "08.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009892071",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009892074",
       "title": "Büro Memuru (Genel)",
       "city": "İstanbul / Ümraniye",
@@ -8925,17 +10179,6 @@
       "date": "08.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009893060",
       "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009893068",
-      "title": "Kamyonet Şoförü",
-      "city": "Sivas / Sivas merkez",
-      "date": "30.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009893068",
-      "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -9975,17 +11218,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009890332",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İzmir / Bornova",
-      "date": "04.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009890332",
-      "positions": "4",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009890352",
       "title": "Beden İşçisi (Genel)",
       "city": "Ordu / Altınordu",
@@ -10047,17 +11279,6 @@
       "date": "31.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009890376",
       "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009890382",
-      "title": "Temizlik Görevlisi",
-      "city": "Manisa / Turgutlu",
-      "date": "05.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009890382",
-      "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -13495,17 +14716,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009887621",
-      "title": "Temizlik Görevlisi",
-      "city": "Eskişehir / İnönü",
-      "date": "03.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009887621",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009887624",
       "title": "Beden İşçisi (Temizlik)",
       "city": "Bursa / İnegöl",
@@ -13762,7 +14972,7 @@
       "id": "00009883649",
       "title": "Depo İşçisi (Elleçleme)",
       "city": "İstanbul / Tuzla",
-      "date": "02.12.2026",
+      "date": "15.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009883649",
       "positions": "30",
       "employerType": "Özel",
@@ -14441,17 +15651,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009884788",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İzmir / Urla",
-      "date": "02.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009884788",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009884789",
       "title": "Temizlik Görevlisi",
       "city": "Konya / Selçuklu",
@@ -14468,17 +15667,6 @@
       "city": "Balıkesir / Bandırma",
       "date": "02.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009884796",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009884805",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İzmir / Buca",
-      "date": "02.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009884805",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -14633,17 +15821,6 @@
       "city": "Bursa / Nilüfer",
       "date": "02.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009885017",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009885034",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İzmir / Karabağlar",
-      "date": "02.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009885034",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -16003,17 +17180,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009883058",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Konya / Selçuklu",
-      "date": "01.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009883058",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009883060",
       "title": "Beden İşçisi (Genel)",
       "city": "Muğla / Bodrum",
@@ -16916,17 +18082,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009880426",
-      "title": "Paketleme İşçisi",
-      "city": "Malatya / Yeşilyurt / Malatya",
-      "date": "26.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009880426",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009880436",
       "title": "Büro Memuru (Genel)",
       "city": "İstanbul / Arnavutköy",
@@ -16965,17 +18120,6 @@
       "city": "Ankara / Yenimahalle",
       "date": "28.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009880481",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009880517",
-      "title": "Genel Alan Temizleme Görevlisi/Meydancı",
-      "city": "Düzce / Cumayeri",
-      "date": "28.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009880517",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -18591,9 +19735,9 @@
       "id": "00009877279",
       "title": "Beden İşçisi (Genel)",
       "city": "Antalya / Manavgat",
-      "date": "24.11.2026",
+      "date": "21.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009877279",
-      "positions": "3",
+      "positions": "2",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -19460,7 +20604,7 @@
       "id": "00009874754",
       "title": "Bulaşıkçı (Stevard)",
       "city": "İzmir / Buca",
-      "date": "24.11.2026",
+      "date": "17.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009874754",
       "positions": "1",
       "employerType": "Özel",
@@ -20527,7 +21671,7 @@
       "id": "00009872327",
       "title": "Büro Memuru (Genel)",
       "city": "İstanbul / Ataşehir",
-      "date": "20.11.2026",
+      "date": "21.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009872327",
       "positions": "1",
       "employerType": "Özel",
@@ -20549,7 +21693,7 @@
       "id": "00009872337",
       "title": "Büro Memuru (Genel)",
       "city": "İstanbul / Kadıköy",
-      "date": "20.11.2026",
+      "date": "21.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009872337",
       "positions": "2",
       "employerType": "Özel",
@@ -20560,7 +21704,7 @@
       "id": "00009872358",
       "title": "Temizlik Görevlisi",
       "city": "İstanbul / Eyüp",
-      "date": "20.11.2026",
+      "date": "21.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009872358",
       "positions": "1",
       "employerType": "Özel",
@@ -21407,7 +22551,7 @@
       "id": "00009873678",
       "title": "Beden İşçisi (Genel)",
       "city": "Tekirdağ / Çorlu",
-      "date": "21.11.2026",
+      "date": "21.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009873678",
       "positions": "8",
       "employerType": "Özel",
@@ -21495,7 +22639,7 @@
       "id": "00009873765",
       "title": "Beden İşçisi (Genel)",
       "city": "Kocaeli / Başiskele",
-      "date": "21.11.2026",
+      "date": "17.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009873765",
       "positions": "1",
       "employerType": "Özel",
@@ -21602,44 +22746,11 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009873937",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İzmir / Bornova",
-      "date": "21.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009873937",
-      "positions": "5",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009873946",
-      "title": "Büro Memuru (Genel)",
-      "city": "İzmir / Bornova",
-      "date": "21.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009873946",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009874009",
       "title": "Paketleme İşçisi",
       "city": "İstanbul / Başakşehir",
       "date": "17.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009874009",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009870252",
-      "title": "Market Elemanı",
-      "city": "Rize / Ardeşen",
-      "date": "19.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009870252",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -22009,17 +23120,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009870680",
-      "title": "Meydancı - İmalat",
-      "city": "Konya / Selçuklu",
-      "date": "20.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009870680",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009870682",
       "title": "Beden İşçisi (Genel)",
       "city": "Manisa / Yunusemre",
@@ -22152,17 +23252,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009870839",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Kocaeli / Çayırova",
-      "date": "20.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009870839",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009870871",
       "title": "Plastik Enjeksiyon Üretim Elemanı",
       "city": "İstanbul / Bağcılar",
@@ -22235,17 +23324,6 @@
       "date": "19.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009871042",
       "positions": "8",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009871054",
-      "title": "Paketleme İşçisi",
-      "city": "Kocaeli / Dilovası",
-      "date": "20.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009871054",
-      "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -22630,17 +23708,6 @@
       "city": "Denizli / Honaz",
       "date": "20.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009871392",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009871403",
-      "title": "Büro Memuru (Genel)",
-      "city": "Kütahya / Kütahya merkez",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009871403",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -23043,17 +24110,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009868355",
-      "title": "Ön Muhasebeci",
-      "city": "Sivas / Yıldızeli",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009868355",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009868368",
       "title": "Beden İşçisi (Genel)",
       "city": "Kahramanmaraş / Dulkadiroğlu",
@@ -23071,17 +24127,6 @@
       "date": "18.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009868469",
       "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009868490",
-      "title": "Temizlik Görevlisi",
-      "city": "Ankara / Keçiören",
-      "date": "19.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009868490",
-      "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -23147,17 +24192,6 @@
       "city": "İstanbul / Sancaktepe",
       "date": "18.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009868510",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009868520",
-      "title": "Temizlik Görevlisi",
-      "city": "Sivas / Yıldızeli",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009868520",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -23351,17 +24385,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009868874",
-      "title": "Meydancı - İmalat",
-      "city": "Balıkesir / Gönen / Balıkesir",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009868874",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009868918",
       "title": "Büro Memuru (Genel)",
       "city": "Kocaeli / Gebze",
@@ -23450,17 +24473,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009869059",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Kırklareli / Lüleburgaz",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009869059",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009869066",
       "title": "Beden İşçisi (Genel)",
       "city": "Muğla / Milas",
@@ -23489,17 +24501,6 @@
       "date": "19.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009869091",
       "positions": "4",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009869119",
-      "title": "Ortacı/Ayakçı (Tekstil)",
-      "city": "Tekirdağ / Çerkezköy",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009869119",
-      "positions": "2",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -24242,17 +25243,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009870029",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Tekirdağ / Ergene",
-      "date": "19.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009870029",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009870072",
       "title": "Beden İşçisi (Genel)",
       "city": "Balıkesir / Gönen / Balıkesir",
@@ -24275,17 +25265,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009866351",
-      "title": "Temizlik Görevlisi",
-      "city": "İstanbul / Ataşehir",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009866351",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009866368",
       "title": "Muhasebe Elemanı",
       "city": "İstanbul / Şişli",
@@ -24303,28 +25282,6 @@
       "date": "19.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009866377",
       "positions": "6",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009866378",
-      "title": "Büro Memuru (Genel)(Büro Memuru (Personel))",
-      "city": "İstanbul / Maltepe",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009866378",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009866406",
-      "title": "Genel Alan Temizleme Görevlisi/Meydancı",
-      "city": "Antalya / Kemer / Antalya",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009866406",
-      "positions": "3",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -24638,17 +25595,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009866652",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İstanbul / Esenyurt",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009866652",
-      "positions": "3",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009866687",
       "title": "Genel Alan Temizleme Görevlisi/Meydancı",
       "city": "Ankara / Etimesgut",
@@ -24693,17 +25639,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009866774",
-      "title": "Temizlik Görevlisi",
-      "city": "Ankara / Sincan",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009866774",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009866807",
       "title": "Çağrı Merkezi Müşteri Temsilcisi",
       "city": "İstanbul / Kadıköy",
@@ -24732,17 +25667,6 @@
       "date": "19.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009866860",
       "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009866872",
-      "title": "Genel Alan Temizleme Görevlisi/Meydancı",
-      "city": "Antalya / Aksu",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009866872",
-      "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -25067,34 +25991,12 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009867085",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Bolu / Bolu merkez",
-      "date": "18.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009867085",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009867093",
       "title": "Beden İşçisi (Genel)",
       "city": "Muğla / Kavaklıdere",
       "date": "18.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009867093",
       "positions": "4",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009867112",
-      "title": "Beden İşçisi (Temizlik)",
-      "city": "İstanbul / Beyoğlu",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009867112",
-      "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -25221,17 +26123,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009867265",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Çankırı / Çankırı merkez",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009867265",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009867269",
       "title": "Market Elemanı",
       "city": "Antalya / Kepez",
@@ -25309,17 +26200,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009867342",
-      "title": "Danışma Memuru",
-      "city": "İstanbul / Bakırköy",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009867342",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009867379",
       "title": "Beden İşçisi (Genel)",
       "city": "Muğla / Bodrum",
@@ -25345,7 +26225,7 @@
       "id": "00009867401",
       "title": "Danışma Memuru",
       "city": "İstanbul / Ataşehir",
-      "date": "18.11.2026",
+      "date": "18.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009867401",
       "positions": "2",
       "employerType": "Özel",
@@ -25356,7 +26236,7 @@
       "id": "00009867403",
       "title": "Beden İşçisi (Genel)",
       "city": "İstanbul / Ataşehir",
-      "date": "18.11.2026",
+      "date": "18.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009867403",
       "positions": "2",
       "employerType": "Özel",
@@ -25513,17 +26393,6 @@
       "date": "18.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009867567",
       "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009867585",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Malatya / Battalgazi",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009867585",
-      "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -25881,50 +26750,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009868019",
-      "title": "Paketleme İşçisi",
-      "city": "İstanbul / Pendik",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009868019",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009863863",
-      "title": "Market Elemanı",
-      "city": "Muğla / Menteşe",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009863863",
-      "positions": "19",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009863866",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İstanbul / Avcılar",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009863866",
-      "positions": "4",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009863868",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Kocaeli / Başiskele",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009863868",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009863879",
       "title": "Elektrik Malzemesi Montaj İşçisi",
       "city": "İstanbul / Ümraniye",
@@ -25936,132 +26761,11 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009863889",
-      "title": "Temizlik Görevlisi",
-      "city": "Kocaeli / Körfez",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009863889",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009863890",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İzmir / Çiğli",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009863890",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009863891",
-      "title": "Paketleme İşçisi",
-      "city": "İstanbul / Avcılar",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009863891",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009863895",
-      "title": "Kalite Kontrol İşçisi (Cam)",
-      "city": "İstanbul / Avcılar",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009863895",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009863901",
-      "title": "Turizm ve Otelcilik Elemanı",
-      "city": "Antalya / Muratpaşa",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009863901",
-      "positions": "4",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009863904",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İstanbul / Avcılar",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009863904",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009863954",
-      "title": "Satış Elemanı / Danışmanı",
-      "city": "Manisa / Salihli",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009863954",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009863972",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Antalya / Manavgat",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009863972",
-      "positions": "3",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009864000",
       "title": "Beden İşçisi (Genel)",
       "city": "Uşak / Uşak merkez",
       "date": "28.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864000",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864012",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İzmir / Bornova",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864012",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864019",
-      "title": "Büro İşçisi",
-      "city": "İstanbul / Tuzla",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864019",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864029",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İzmir / Tire",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864029",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -26090,17 +26794,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009864084",
-      "title": "Büro Memuru (Genel)",
-      "city": "İstanbul / Ümraniye",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864084",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009864151",
       "title": "Beden İşçisi (Genel)",
       "city": "İstanbul / Bakırköy",
@@ -26112,44 +26805,11 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009864165",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Aksaray / Aksaray merkez",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864165",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009864170",
       "title": "Beden İşçisi (Genel)",
       "city": "İstanbul / Arnavutköy",
       "date": "16.01.2027",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864170",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864183",
-      "title": "Büro İşçisi",
-      "city": "Adana / Seyhan",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864183",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864185",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Tekirdağ / Süleymanpaşa",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864185",
       "positions": "2",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -26167,67 +26827,12 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009864217",
-      "title": "Beden İşçisi (Temizlik)",
-      "city": "Bursa / İnegöl",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864217",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864256",
-      "title": "BT Çözümleri Uzmanı",
-      "city": "İstanbul / Beyoğlu",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864256",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864268",
-      "title": "Muhasebe Uzmanı",
-      "city": "İstanbul / Beyoğlu",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864268",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009864290",
       "title": "Beden İşçisi (Genel)",
       "city": "İstanbul / Şişli",
       "date": "15.01.2027",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864290",
       "positions": "5",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864312",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Manisa / Şehzadeler",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864312",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864369",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Kocaeli / Başiskele",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864369",
-      "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -26244,45 +26849,12 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009864422",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Sakarya / Söğütlü",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864422",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864465",
-      "title": "Büro Memuru (Genel)",
-      "city": "İstanbul / Beşiktaş",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864465",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009864495",
       "title": "Temizlik Görevlisi",
       "city": "İstanbul / Sancaktepe",
       "date": "15.01.2027",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864495",
       "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864504",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Denizli / Merkezefendi",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864504",
-      "positions": "2",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -26321,78 +26893,12 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009864645",
-      "title": "Fide Yetiştiricisi",
-      "city": "Antalya / Kumluca",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864645",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009864646",
       "title": "Temizlik Görevlisi",
       "city": "Antalya / Serik",
       "date": "16.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864646",
       "positions": "10",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864650",
-      "title": "Muhasebeci",
-      "city": "İstanbul / Beykoz",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864650",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864653",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Kocaeli / Kartepe",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864653",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864677",
-      "title": "Büro Memuru (Genel)",
-      "city": "Ankara / Yenimahalle",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864677",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864707",
-      "title": "Ambar/Depo Görevlisi",
-      "city": "Antalya / Muratpaşa",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864707",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864743",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Antalya / Manavgat",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864743",
-      "positions": "5",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -26420,33 +26926,11 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009864773",
-      "title": "Temizlik Görevlisi",
-      "city": "İstanbul / Tuzla",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864773",
-      "positions": "5",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009864774",
       "title": "Beden İşçisi (Genel)",
       "city": "İstanbul / Çekmeköy",
       "date": "14.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864774",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864803",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Van / Muradiye",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864803",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -26464,55 +26948,11 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009864824",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Muğla / Bodrum",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864824",
-      "positions": "4",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864827",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Muğla / Bodrum",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864827",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009864832",
       "title": "Kurumsal İletişim Uzmanı",
       "city": "İstanbul / Üsküdar",
       "date": "16.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864832",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864835",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Muğla / Milas",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864835",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009864836",
-      "title": "Çaycı",
-      "city": "İstanbul / Tuzla",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864836",
       "positions": "2",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -26541,17 +26981,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009864954",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İstanbul / Beylikdüzü",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864954",
-      "positions": "3",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009864978",
       "title": "Beden İşçisi (Temizlik)",
       "city": "İstanbul / Kadıköy",
@@ -26574,155 +27003,12 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009864982",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Sivas / Sivas merkez",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009864982",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865053",
-      "title": "Satış Elemanı / Danışmanı",
-      "city": "Ankara / Yenimahalle",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865053",
-      "positions": "3",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865056",
-      "title": "İnsan Kaynakları Yönetimi Meslek Elemanı",
-      "city": "İstanbul / Ümraniye",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865056",
-      "positions": "3",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865065",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Antalya / Döşemealtı",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865065",
-      "positions": "3",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865108",
-      "title": "Çağrı Merkezi Müşteri Temsilcisi",
-      "city": "Antalya / Kepez",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865108",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865143",
-      "title": "Büro Memuru (Genel)",
-      "city": "İstanbul / Küçükçekmece",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865143",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865144",
-      "title": "Temizlik Görevlisi",
-      "city": "Manisa / Yunusemre",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865144",
-      "positions": "6",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865200",
-      "title": "Büro Memuru (Genel)",
-      "city": "İstanbul / Şişli",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865200",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865206",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Gaziantep / Şehitkamil",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865206",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865209",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Muğla / Bodrum",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865209",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865249",
-      "title": "Temizlik Görevlisi",
-      "city": "Ankara / Çankaya",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865249",
-      "positions": "5",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865253",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Muğla / Bodrum",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865253",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009865255",
       "title": "Temizlik Görevlisi",
       "city": "İstanbul / Eyüp",
       "date": "16.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865255",
       "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865272",
-      "title": "Temizlik Görevlisi",
-      "city": "İstanbul / Ümraniye",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865272",
-      "positions": "3",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -26739,176 +27025,11 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009865286",
-      "title": "İş Güvenliği Uzmanı",
-      "city": "Kocaeli / Gölcük",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865286",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865287",
-      "title": "Büro Memuru (Genel)",
-      "city": "Ankara / Yenimahalle",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865287",
-      "positions": "5",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865334",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Kocaeli / Dilovası",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865334",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865344",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İzmir / Torbalı",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865344",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865371",
-      "title": "Mutfak Görevlisi",
-      "city": "Ankara / Yenimahalle",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865371",
-      "positions": "3",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865375",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Kocaeli / Dilovası",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865375",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865384",
-      "title": "Kaynakçı",
-      "city": "Ankara / Kahraman kazan",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865384",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865388",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Bursa / Nilüfer",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865388",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865406",
-      "title": "Temizlik Görevlisi",
-      "city": "Ankara / Yenimahalle",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865406",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865461",
-      "title": "Mutfak Görevlisi",
-      "city": "Ankara / Yenimahalle",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865461",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865462",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Amasya / Amasya merkez",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865462",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865465",
-      "title": "Bulaşıkçı (Stevard)",
-      "city": "Ankara / Yenimahalle",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865465",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865468",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Kahramanmaraş / Dulkadiroğlu",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865468",
-      "positions": "3",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009865482",
       "title": "Beden İşçisi (Genel)",
       "city": "Tekirdağ / Saray / Tekirdağ",
       "date": "28.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865482",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865512",
-      "title": "Temizlik Görevlisi",
-      "city": "Amasya / Amasya merkez",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865512",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865527",
-      "title": "Servis Komisi",
-      "city": "Ankara / Yenimahalle",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865527",
       "positions": "2",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -26937,122 +27058,12 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009865566",
-      "title": "Ambar/Depo Görevlisi",
-      "city": "Kocaeli / Dilovası",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865566",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865572",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Bolu / Seben",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865572",
-      "positions": "3",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865574",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Manisa / Akhisar",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865574",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865585",
-      "title": "Satış Elemanı / Danışmanı",
-      "city": "Ankara / Yenimahalle",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865585",
-      "positions": "3",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009865589",
       "title": "Büro Memuru (Genel)",
       "city": "İstanbul / Ataşehir",
       "date": "31.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865589",
       "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865604",
-      "title": "Temizlik Görevlisi",
-      "city": "Hatay / İskenderun",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865604",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865609",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Sakarya / Hendek",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865609",
-      "positions": "7",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865619",
-      "title": "Şoför (Yolcu Taşıma)",
-      "city": "İstanbul / Esenyurt",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865619",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865632",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Kahramanmaraş / Türkoğlu",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865632",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865722",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Bursa / Nilüfer",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865722",
-      "positions": "4",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865726",
-      "title": "Uzman",
-      "city": "İstanbul / Ümraniye",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865726",
-      "positions": "7",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -27069,34 +27080,12 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009865742",
-      "title": "Uzman Yardımcısı",
-      "city": "İstanbul / Ümraniye",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865742",
-      "positions": "7",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009865748",
       "title": "Büro Memuru (Genel)",
       "city": "Ankara / Akyurt",
       "date": "16.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865748",
       "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865872",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Çorum / Sungurlu",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865872",
-      "positions": "20",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -27113,83 +27102,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009865972",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Bursa / Osmangazi",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865972",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865985",
-      "title": "Yemek Dağıtım Elemanı (Kepçeci)",
-      "city": "Kocaeli / Gebze",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865985",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865986",
-      "title": "Temizlik Görevlisi",
-      "city": "Kocaeli / Gebze",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865986",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865988",
-      "title": "Bulaşıkçı (Stevard)",
-      "city": "Kocaeli / Gebze",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865988",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865989",
-      "title": "Servis Elemanı (Garson)",
-      "city": "Kocaeli / Gebze",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865989",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865993",
-      "title": "Aşçı",
-      "city": "Kocaeli / Gebze",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865993",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009865996",
-      "title": "Turizm ve Otelcilik Elemanı",
-      "city": "Muğla / Marmaris",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009865996",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009865999",
       "title": "Beden İşçisi (Genel)",
       "city": "İstanbul / Arnavutköy",
@@ -27201,100 +27113,12 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009866014",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Sakarya / Erenler",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009866014",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009866017",
       "title": "Depo Sevkiyat Sorumlusu",
       "city": "İstanbul / Bakırköy",
       "date": "18.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009866017",
       "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009866032",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Kocaeli / İzmit",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009866032",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009866036",
-      "title": "Yazılım Geliştirme Uzmanı",
-      "city": "İstanbul / Şişli",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009866036",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009866051",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İstanbul / Büyükçekmece",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009866051",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009866112",
-      "title": "Turizm ve Otelcilik Elemanı",
-      "city": "Muğla / Marmaris",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009866112",
-      "positions": "4",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009866127",
-      "title": "Turizm ve Otelcilik Elemanı",
-      "city": "Muğla / Marmaris",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009866127",
-      "positions": "3",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009866133",
-      "title": "Turizm ve Otelcilik Elemanı",
-      "city": "Muğla / Marmaris",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009866133",
-      "positions": "5",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009866136",
-      "title": "Turizm ve Otelcilik Elemanı",
-      "city": "Muğla / Marmaris",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009866136",
-      "positions": "11",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -27471,17 +27295,6 @@
       "date": "27.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009862776",
       "positions": "4",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009862810",
-      "title": "Büro Memuru (Genel)",
-      "city": "İstanbul / Ümraniye",
-      "date": "30.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009862810",
-      "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -28106,7 +27919,7 @@
       "id": "00009859172",
       "title": "Şoför (Yolcu Taşıma)",
       "city": "İstanbul / Kadıköy",
-      "date": "20.11.2026",
+      "date": "18.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009859172",
       "positions": "1",
       "employerType": "Özel",
@@ -28241,6 +28054,17 @@
       "date": "10.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009855654",
       "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
+      "id": "00009855672",
+      "title": "Konfeksiyon İşçisi",
+      "city": "İstanbul / Sancaktepe",
+      "date": "08.01.2027",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009855672",
+      "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -28865,7 +28689,7 @@
       "id": "00009848791",
       "title": "Çağrı Merkezi Müşteri Temsilcisi",
       "city": "Diyarbakır / Bağlar",
-      "date": "22.11.2026",
+      "date": "15.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009848791",
       "positions": "10",
       "employerType": "Özel",
@@ -29379,6 +29203,17 @@
       "sektor": "ozel"
     },
     {
+      "id": "00009848248",
+      "title": "Temizlik Görevlisi",
+      "city": "İstanbul / Sancaktepe",
+      "date": "02.01.2027",
+      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009848248",
+      "positions": "2",
+      "employerType": "Özel",
+      "workType": "Tam Zamanlı",
+      "sektor": "ozel"
+    },
+    {
       "id": "00009844232",
       "title": "Beden İşçisi (Genel)",
       "city": "Tekirdağ / Çerkezköy",
@@ -29822,7 +29657,7 @@
       "id": "00009838331",
       "title": "Beden İşçisi (Genel)",
       "city": "Yalova / Altınova",
-      "date": "22.11.2026",
+      "date": "30.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009838331",
       "positions": "2",
       "employerType": "Özel",
@@ -29833,7 +29668,7 @@
       "id": "00009838343",
       "title": "Beden İşçisi (Genel)",
       "city": "Yalova / Yalova merkez",
-      "date": "22.11.2026",
+      "date": "30.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009838343",
       "positions": "2",
       "employerType": "Özel",
@@ -29973,17 +29808,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009835523",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Kütahya / Tavşanlı",
-      "date": "30.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009835523",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009835619",
       "title": "Yemek Dağıtım Elemanı (Kepçeci)",
       "city": "İstanbul / Pendik",
@@ -30078,17 +29902,6 @@
       "date": "20.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009836742",
       "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009836950",
-      "title": "Büro İşçisi",
-      "city": "İstanbul / Kadıköy",
-      "date": "30.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009836950",
-      "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -30380,17 +30193,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009830888",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İzmir / Kemalpaşa",
-      "date": "19.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009830888",
-      "positions": "4",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009831126",
       "title": "Ambar/Depo Görevlisi",
       "city": "İstanbul / Ataşehir",
@@ -30518,17 +30320,6 @@
       "date": "25.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009832148",
       "positions": "3",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009832043",
-      "title": "Büro Memuru (Genel)",
-      "city": "İzmir / Torbalı",
-      "date": "26.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009832043",
-      "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -31032,7 +30823,7 @@
       "id": "00009826573",
       "title": "Beden İşçisi (Genel)",
       "city": "Yalova / Altınova",
-      "date": "22.11.2026",
+      "date": "30.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009826573",
       "positions": "2",
       "employerType": "Özel",
@@ -31043,7 +30834,7 @@
       "id": "00009826602",
       "title": "İkram Hizmetleri (Yiyecek İçecek İşletmeciliği) Meslek Elemanı",
       "city": "İstanbul / Güngören",
-      "date": "22.11.2026",
+      "date": "22.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009826602",
       "positions": "1",
       "employerType": "Özel",
@@ -31054,7 +30845,7 @@
       "id": "00009826728",
       "title": "Temizlik Görevlisi",
       "city": "İstanbul / Güngören",
-      "date": "22.11.2026",
+      "date": "22.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009826728",
       "positions": "1",
       "employerType": "Özel",
@@ -31177,17 +30968,6 @@
       "city": "Tekirdağ / Çerkezköy",
       "date": "22.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009827758",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009828060",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Kütahya / Tavşanlı",
-      "date": "23.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009828060",
       "positions": "2",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -31494,7 +31274,7 @@
       "id": "00009822627",
       "title": "Temizlik Görevlisi",
       "city": "İstanbul / Kadıköy",
-      "date": "20.11.2026",
+      "date": "18.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009822627",
       "positions": "1",
       "employerType": "Özel",
@@ -31626,7 +31406,7 @@
       "id": "00009820511",
       "title": "Büro İşçisi",
       "city": "İstanbul / Ataşehir",
-      "date": "19.11.2026",
+      "date": "18.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009820511",
       "positions": "1",
       "employerType": "Özel",
@@ -31738,17 +31518,6 @@
       "city": "İstanbul / Üsküdar",
       "date": "16.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009817120",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009818043",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İstanbul / Sancaktepe",
-      "date": "15.12.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009818043",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
@@ -32530,7 +32299,7 @@
       "city": "Ankara / Yenimahalle",
       "date": "06.12.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009798277",
-      "positions": "1",
+      "positions": "2",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -32990,7 +32759,7 @@
       "id": "00009790544",
       "title": "Beden İşçisi (Genel)",
       "city": "Yalova / Altınova",
-      "date": "22.11.2026",
+      "date": "30.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009790544",
       "positions": "1",
       "employerType": "Özel",
@@ -33100,7 +32869,7 @@
       "id": "00009787614",
       "title": "Beden İşçisi (Genel)",
       "city": "Yalova / Çiftlikköy",
-      "date": "22.11.2026",
+      "date": "30.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009787614",
       "positions": "1",
       "employerType": "Özel",
@@ -33669,17 +33438,6 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009777618",
-      "title": "Beden İşçisi (Genel)",
-      "city": "Antalya / Muratpaşa",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009777618",
-      "positions": "4",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009777716",
       "title": "Beden İşçisi (Genel)",
       "city": "İstanbul / Arnavutköy",
@@ -33697,17 +33455,6 @@
       "date": "23.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009777835",
       "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009777864",
-      "title": "Reyon Görevlisi",
-      "city": "Adana / Çukurova",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009777864",
-      "positions": "3",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -33790,67 +33537,12 @@
       "sektor": "ozel"
     },
     {
-      "id": "00009774719",
-      "title": "Büro Memuru (Genel)",
-      "city": "İstanbul / Küçükçekmece",
-      "date": "22.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009774719",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009774728",
-      "title": "Ambar/Depo Görevlisi",
-      "city": "İstanbul / Bağcılar",
-      "date": "23.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009774728",
-      "positions": "2",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
       "id": "00009774748",
       "title": "Temizlik Görevlisi",
       "city": "İstanbul / Bahçelievler",
       "date": "22.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009774748",
       "positions": "4",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009774764",
-      "title": "Akaryakıt Satış Elemanı (Pompacı)",
-      "city": "İstanbul / Bakırköy",
-      "date": "22.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009774764",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009774786",
-      "title": "Çağrı Merkezi Müşteri Temsilcisi",
-      "city": "İstanbul / Bakırköy",
-      "date": "22.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009774786",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009774792",
-      "title": "Hasta Danışmanı",
-      "city": "İstanbul / Bakırköy",
-      "date": "22.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009774792",
-      "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
       "sektor": "ozel"
@@ -33960,50 +33652,6 @@
       "city": "İstanbul / Kadıköy",
       "date": "22.11.2026",
       "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009771573",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009767269",
-      "title": "Büro Memuru (Genel)",
-      "city": "İstanbul / Şişli",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009767269",
-      "positions": "10",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009767289",
-      "title": "Büro Memuru (Genel)",
-      "city": "İstanbul / Sarıyer",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009767289",
-      "positions": "5",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009767599",
-      "title": "Beden İşçisi (Genel)",
-      "city": "İstanbul / Bağcılar",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009767599",
-      "positions": "1",
-      "employerType": "Özel",
-      "workType": "Tam Zamanlı",
-      "sektor": "ozel"
-    },
-    {
-      "id": "00009767863",
-      "title": "Reyon Görevlisi",
-      "city": "İstanbul / Küçükçekmece",
-      "date": "17.11.2026",
-      "applyUrl": "https://esube.iskur.gov.tr/Istihdam/AcikIsIlanDetay.aspx?uiID=00009767863",
       "positions": "1",
       "employerType": "Özel",
       "workType": "Tam Zamanlı",
