@@ -100,7 +100,47 @@ class R2StorageService {
       );
       if (url != null) return (publicUrl: url, key: key);
     }
-    return null;
+
+    // Son yedek: Worker / istemci anahtarı derlemeye verilmemişse
+    // (ör. dart-define'sız web build) Supabase `r2-upload` Edge Function.
+    return _uploadViaEdgeFunction(
+      bytes: bytes,
+      contentType: mime,
+      variant: variant,
+    );
+  }
+
+  static Future<({String publicUrl, String key})?> _uploadViaEdgeFunction({
+    required Uint8List bytes,
+    required String contentType,
+    required String variant,
+  }) async {
+    final client = Supabase.instance.client;
+    if (client.auth.currentSession == null) return null;
+    final ext = contentType.contains('png')
+        ? 'png'
+        : contentType.contains('webp')
+            ? 'webp'
+            : 'jpg';
+    try {
+      final res = await client.functions.invoke(
+        'r2-upload',
+        body: {
+          'fileName': 'map_$variant.$ext',
+          'contentType': contentType,
+          'dataBase64': base64Encode(bytes),
+        },
+      );
+      final data = res.data;
+      if (data is! Map) return null;
+      final publicUrl = data['publicUrl']?.toString().trim() ?? '';
+      final key = data['key']?.toString().trim() ?? '';
+      if (!publicUrl.startsWith('https://') || key.isEmpty) return null;
+      return (publicUrl: publicUrl, key: key);
+    } catch (e, st) {
+      debugPrint('R2 edge function yedek yükleme başarısız: $e\n$st');
+      return null;
+    }
   }
 
   static Future<({String uploadUrl, String publicUrl, String key})?>
