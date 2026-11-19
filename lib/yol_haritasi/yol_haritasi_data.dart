@@ -91,6 +91,50 @@ const _raporDali = YolDal(
 
 const List<YolTani> yolTanilari = [
   YolTani(
+    id: 'otizm',
+    ad: 'Otizm',
+    kaynak: 'NICE CG128 / CG170',
+    sorular: [
+      YolSoru(
+        id: 'yemek',
+        metin: 'Yemek seçme veya kabızlık sorunu var mı?',
+        hayirIseGerekYok: ['d5'],
+      ),
+      YolSoru(
+        id: 'nobet',
+        metin: 'Nöbet veya beceri kaybı oldu mu?',
+        hayirIseGerekYok: ['d4'],
+      ),
+      _okulSorusu,
+    ],
+    dallar: [
+      YolDal(
+        baslik: 'Doktorlar',
+        icon: Icons.medical_services_outlined,
+        maddeler: [
+          YolMadde('d1', 'Çocuk ve Ergen Psikiyatrisi', 'Tanı, takip ve ÇÖZGER süreci'),
+          YolMadde('d2', 'KBB / Odyoloji', 'İşitme kaybını dışlamak için'),
+          YolMadde('d3', 'Tıbbi Genetik', 'Genetik değerlendirme ve danışmanlık'),
+          YolMadde('d4', 'Çocuk Nörolojisi', 'Nöbet veya beceri kaybı varsa'),
+          YolMadde('d5', 'Beslenme / Gastroenteroloji', 'Seçici yeme, kabızlık'),
+          YolMadde('d6', 'Çocuk Diş Hekimi', 'Düzenli diş kontrolü'),
+        ],
+      ),
+      YolDal(
+        baslik: 'Terapiler',
+        icon: Icons.accessibility_new_outlined,
+        maddeler: [
+          YolMadde('t1', 'Bireysel özel eğitim', 'İletişim, sosyal ve günlük beceriler'),
+          YolMadde('t2', 'Dil ve konuşma terapisi', 'Konuşma ve alternatif iletişim'),
+          YolMadde('t3', 'Ergoterapi', 'Duyusal ihtiyaçlar, günlük yaşam'),
+          YolMadde('t4', 'Aile eğitimi', 'Evde uygulama için'),
+        ],
+      ),
+      _okulDali,
+      _raporDali,
+    ],
+  ),
+  YolTani(
     id: 'sp',
     ad: 'Serebral Palsi',
     kaynak: 'NICE NG62',
@@ -147,50 +191,6 @@ const List<YolTani> yolTanilari = [
     ],
   ),
   YolTani(
-    id: 'otizm',
-    ad: 'Otizm',
-    kaynak: 'NICE CG128 / CG170',
-    sorular: [
-      YolSoru(
-        id: 'yemek',
-        metin: 'Yemek seçme veya kabızlık sorunu var mı?',
-        hayirIseGerekYok: ['d5'],
-      ),
-      YolSoru(
-        id: 'nobet',
-        metin: 'Nöbet veya beceri kaybı oldu mu?',
-        hayirIseGerekYok: ['d4'],
-      ),
-      _okulSorusu,
-    ],
-    dallar: [
-      YolDal(
-        baslik: 'Doktorlar',
-        icon: Icons.medical_services_outlined,
-        maddeler: [
-          YolMadde('d1', 'Çocuk ve Ergen Psikiyatrisi', 'Tanı, takip ve ÇÖZGER süreci'),
-          YolMadde('d2', 'KBB / Odyoloji', 'İşitme kaybını dışlamak için'),
-          YolMadde('d3', 'Tıbbi Genetik', 'Genetik değerlendirme ve danışmanlık'),
-          YolMadde('d4', 'Çocuk Nörolojisi', 'Nöbet veya beceri kaybı varsa'),
-          YolMadde('d5', 'Beslenme / Gastroenteroloji', 'Seçici yeme, kabızlık'),
-          YolMadde('d6', 'Çocuk Diş Hekimi', 'Düzenli diş kontrolü'),
-        ],
-      ),
-      YolDal(
-        baslik: 'Terapiler',
-        icon: Icons.accessibility_new_outlined,
-        maddeler: [
-          YolMadde('t1', 'Bireysel özel eğitim', 'İletişim, sosyal ve günlük beceriler'),
-          YolMadde('t2', 'Dil ve konuşma terapisi', 'Konuşma ve alternatif iletişim'),
-          YolMadde('t3', 'Ergoterapi', 'Duyusal ihtiyaçlar, günlük yaşam'),
-          YolMadde('t4', 'Aile eğitimi', 'Evde uygulama için'),
-        ],
-      ),
-      _okulDali,
-      _raporDali,
-    ],
-  ),
-  YolTani(
     id: 'down',
     ad: 'Down Sendromu',
     kaynak: 'AAP 2022 Down Sendromu Sağlık İzlem Rehberi',
@@ -224,8 +224,406 @@ const List<YolTani> yolTanilari = [
     ],
   ),
   YolTani(
+    id: 'dehb',
+    ad: 'DEHB',
+    kaynak: 'NICE NG87, AAP 2019',
+    sorular: [_okulSorusu],
+    dallar: [
+      YolDal(
+        baslik: 'Doktorlar',
+        icon: Icons.medical_services_outlined,
+        maddeler: [
+          YolMadde('d1', 'Çocuk ve Ergen Psikiyatrisi', 'Tanı ve tedavi planı'),
+          YolMadde('d2', 'Pediatri', 'Genel sağlık, uyku, büyüme takibi'),
+          YolMadde('d3', 'KBB / Odyoloji ve Göz', 'İşitme ve görme sorununu dışlamak için'),
+        ],
+      ),
+      YolDal(
+        baslik: 'Terapiler',
+        icon: Icons.accessibility_new_outlined,
+        maddeler: [
+          YolMadde('t1', 'Ebeveyn eğitimi', 'Davranış yönetimi için aile programı'),
+          YolMadde('t2', 'Okul iş birliği', 'Öğretmenle ortak plan, sınıf içi düzenlemeler'),
+          YolMadde('t3', 'Psikolojik destek', 'Bilişsel davranışçı terapi, sosyal beceri'),
+        ],
+      ),
+      _okulDali,
+      _raporDali,
+    ],
+  ),
+  YolTani(
+    id: 'gelisim',
+    ad: 'Gelişim Geriliği / Zihinsel Yetersizlik',
+    kaynak: 'AAP klinik raporları',
+    sorular: [
+      YolSoru(
+        id: 'motor',
+        metin: 'Oturma veya yürümede gecikme var mı?',
+        hayirIseGerekYok: ['t2'],
+      ),
+      YolSoru(
+        id: 'konusma',
+        metin: 'Konuşmada gecikme var mı?',
+        hayirIseGerekYok: ['t4'],
+      ),
+      _okulSorusu,
+    ],
+    dallar: [
+      YolDal(
+        baslik: 'Doktorlar',
+        icon: Icons.medical_services_outlined,
+        maddeler: [
+          YolMadde('d1', 'Gelişimsel Pediatri / Çocuk Gelişim', 'Gelişim değerlendirmesi'),
+          YolMadde('d2', 'Çocuk Nörolojisi', 'Nörolojik muayene'),
+          YolMadde('d3', 'Tıbbi Genetik', 'Altta yatan neden için'),
+          YolMadde('d4', 'KBB / Odyoloji', 'İşitme testi'),
+          YolMadde('d5', 'Göz', 'Görme kontrolü'),
+          YolMadde('d6', 'Çocuk Metabolizma', 'Doktorunuz gerek görürse'),
+        ],
+      ),
+      YolDal(
+        baslik: 'Terapiler',
+        icon: Icons.accessibility_new_outlined,
+        maddeler: [
+          YolMadde('t1', 'Özel eğitim / erken müdahale', 'Bilişsel ve günlük beceriler'),
+          YolMadde('t2', 'Fizyoterapi', 'Motor gelişim'),
+          YolMadde('t3', 'Ergoterapi', 'İnce motor, günlük yaşam'),
+          YolMadde('t4', 'Dil ve konuşma terapisi', 'İletişim'),
+        ],
+      ),
+      _okulDali,
+      _raporDali,
+    ],
+  ),
+  YolTani(
+    id: 'konusma',
+    ad: 'İletişim Bozukluğu / Konuşma Gecikmesi',
+    kaynak: 'Genel klinik yaklaşım',
+    sorular: [_okulSorusu],
+    dallar: [
+      YolDal(
+        baslik: 'Doktorlar',
+        icon: Icons.medical_services_outlined,
+        maddeler: [
+          YolMadde('d1', 'KBB / Odyoloji', 'İlk adım: işitme testi'),
+          YolMadde('d2', 'Pediatri / Çocuk Gelişim', 'Genel gelişim değerlendirmesi'),
+          YolMadde('d3', 'Çocuk ve Ergen Psikiyatrisi', 'Doktorunuz gerek görürse'),
+          YolMadde('d4', 'Çocuk Nörolojisi', 'Doktorunuz gerek görürse'),
+        ],
+      ),
+      YolDal(
+        baslik: 'Terapiler',
+        icon: Icons.accessibility_new_outlined,
+        maddeler: [
+          YolMadde('t1', 'Dil ve konuşma terapisi', 'Değerlendirme ve terapi'),
+          YolMadde('t2', 'Aile eğitimi', 'Evde dil gelişimini destekleme'),
+          YolMadde('t3', 'Özel eğitim', 'Gerekirse'),
+        ],
+      ),
+      _okulDali,
+      _raporDali,
+    ],
+  ),
+  YolTani(
+    id: 'duyu',
+    ad: 'Duyu Bütünleme Sorunları',
+    kaynak: 'Genel klinik yaklaşım; tek başına tanı olarak tartışmalıdır',
+    sorular: [_okulSorusu],
+    dallar: [
+      YolDal(
+        baslik: 'Doktorlar',
+        icon: Icons.medical_services_outlined,
+        maddeler: [
+          YolMadde(
+            'd1',
+            'Gelişimsel Pediatri / Çocuk Psikiyatrisi',
+            'Eşlik eden durumların (otizm, DEHB) değerlendirilmesi',
+          ),
+          YolMadde('d2', 'KBB / Odyoloji ve Göz', 'İşitme ve görme kontrolü'),
+        ],
+      ),
+      YolDal(
+        baslik: 'Terapiler',
+        icon: Icons.accessibility_new_outlined,
+        maddeler: [
+          YolMadde('t1', 'Ergoterapi', 'Duyusal değerlendirme ve günlük yaşam'),
+          YolMadde('t2', 'Aile eğitimi', 'Evde duyusal düzenlemeler'),
+        ],
+      ),
+      _okulDali,
+      _raporDali,
+    ],
+  ),
+  YolTani(
+    id: 'sma',
+    ad: 'SMA (Spinal Müsküler Atrofi)',
+    kaynak: 'SMA Bakım Standartları Uzlaşı Raporu (2018)',
+    sorular: [
+      YolSoru(
+        id: 'yurume',
+        metin: 'Destek almadan yürüyebiliyor mu?',
+        evetIseGerekYok: ['e2', 'e3'],
+      ),
+      YolSoru(
+        id: 'yutma',
+        metin: 'Yutma veya beslenme sorunu var mı?',
+        hayirIseGerekYok: ['d4'],
+      ),
+      _okulSorusu,
+    ],
+    dallar: [
+      YolDal(
+        baslik: 'Doktorlar',
+        icon: Icons.medical_services_outlined,
+        maddeler: [
+          YolMadde('d1', 'Çocuk Nörolojisi', 'Tanı ve ilaç tedavisi takibi'),
+          YolMadde('d2', 'Tıbbi Genetik', 'Genetik doğrulama, aile danışmanlığı'),
+          YolMadde('d3', 'Çocuk Göğüs Hastalıkları', 'Solunum takibi'),
+          YolMadde('d4', 'Beslenme / Gastroenteroloji', 'Yutma, kilo alımı'),
+          YolMadde('d5', 'Çocuk Ortopedisi', 'Omurga ve kalça takibi'),
+          YolMadde('d6', 'Fiziksel Tıp ve Rehabilitasyon', 'Rehabilitasyon planı'),
+        ],
+      ),
+      YolDal(
+        baslik: 'Terapiler',
+        icon: Icons.accessibility_new_outlined,
+        maddeler: [
+          YolMadde('t1', 'Fizyoterapi', 'Motor beceriler, solunum egzersizleri'),
+          YolMadde('t2', 'Ergoterapi', 'Günlük yaşam, oturma pozisyonu'),
+          YolMadde('t3', 'Dil ve konuşma terapisi', 'Yutma ve beslenme'),
+        ],
+      ),
+      YolDal(
+        baslik: 'Cihaz ve ekipman',
+        not: 'Doktorunuz önerdiyse',
+        icon: Icons.accessible_outlined,
+        maddeler: [
+          YolMadde('e1', 'Ortez / korse', 'Doktor reçetesiyle'),
+          YolMadde('e2', 'Tekerlekli sandalye (manuel / akülü)', 'İhtiyaca göre'),
+          YolMadde('e3', 'Ayakta durma sehpası', 'Kemik ve kalça sağlığı'),
+          YolMadde('e4', 'Solunum / öksürük destek cihazı', 'Göğüs hastalıkları doktoru önerdiyse'),
+        ],
+      ),
+      _okulDali,
+      _raporDali,
+    ],
+  ),
+  YolTani(
+    id: 'dmd',
+    ad: 'Duchenne Müsküler Distrofi (DMD)',
+    kaynak: 'DMD Bakım Önerileri (2018)',
+    sorular: [
+      YolSoru(
+        id: 'yurume',
+        metin: 'Destek almadan yürüyebiliyor mu?',
+        evetIseGerekYok: ['e2'],
+      ),
+      _okulSorusu,
+    ],
+    dallar: [
+      YolDal(
+        baslik: 'Doktorlar',
+        icon: Icons.medical_services_outlined,
+        maddeler: [
+          YolMadde('d1', 'Çocuk Nörolojisi (Nöromüsküler)', 'Tanı ve tedavi takibi'),
+          YolMadde('d2', 'Çocuk Kardiyolojisi', 'Düzenli kalp takibi'),
+          YolMadde('d3', 'Çocuk Göğüs Hastalıkları', 'Solunum fonksiyon testleri'),
+          YolMadde('d4', 'Çocuk Endokrinolojisi', 'Büyüme ve kemik sağlığı'),
+          YolMadde('d5', 'Çocuk Ortopedisi', 'Kontraktür ve omurga takibi'),
+          YolMadde('d6', 'Tıbbi Genetik', 'Aile için taşıyıcılık danışmanlığı'),
+        ],
+      ),
+      YolDal(
+        baslik: 'Terapiler',
+        icon: Icons.accessibility_new_outlined,
+        maddeler: [
+          YolMadde('t1', 'Fizyoterapi', 'Germe, kontraktürleri önleme'),
+          YolMadde('t2', 'Ergoterapi', 'Günlük yaşam becerileri'),
+          YolMadde('t3', 'Psikolojik destek', 'Çocuk ve aile için'),
+          YolMadde('t4', 'Özel eğitim', 'Öğrenme desteği gerekirse'),
+        ],
+      ),
+      YolDal(
+        baslik: 'Cihaz ve ekipman',
+        not: 'Doktorunuz önerdiyse',
+        icon: Icons.accessible_outlined,
+        maddeler: [
+          YolMadde('e1', 'Gece ateli (AFO)', 'Doktor reçetesiyle'),
+          YolMadde('e2', 'Tekerlekli sandalye', 'İhtiyaca göre'),
+          YolMadde('e3', 'Ayakta durma sehpası', 'Doktorunuz önerdiyse'),
+        ],
+      ),
+      _okulDali,
+      _raporDali,
+    ],
+  ),
+  YolTani(
+    id: 'premature',
+    ad: 'Prematüre Bebek',
+    kaynak: 'NICE NG72',
+    sorular: [_okulSorusu],
+    dallar: [
+      YolDal(
+        baslik: 'Doktorlar',
+        icon: Icons.medical_services_outlined,
+        maddeler: [
+          YolMadde('d1', 'Pediatri / Yenidoğan takip polikliniği', 'Düzenli gelişim izlemi'),
+          YolMadde('d2', 'Göz', 'ROP (prematüre retinopatisi) taraması'),
+          YolMadde('d3', 'KBB / Odyoloji', 'İşitme taraması'),
+          YolMadde('d4', 'Çocuk Nörolojisi', 'Doktorunuz gerek görürse'),
+          YolMadde('d5', 'Beslenme', 'Büyüme ve beslenme takibi'),
+        ],
+      ),
+      YolDal(
+        baslik: 'Terapiler',
+        icon: Icons.accessibility_new_outlined,
+        maddeler: [
+          YolMadde('t1', 'Erken müdahale / gelişim desteği', 'Gelişim değerlendirmesine göre'),
+          YolMadde('t2', 'Fizyoterapi', 'Motor gelişim gerekirse'),
+          YolMadde('t3', 'Ergoterapi', 'Beslenme ve duyusal destek gerekirse'),
+        ],
+      ),
+      YolDal(
+        baslik: 'Destek',
+        icon: Icons.groups_outlined,
+        maddeler: [
+          YolMadde('s1', 'Prematüre Gelişim Rehberi', 'Uygulamadaki rehberi incele'),
+        ],
+      ),
+      _okulDali,
+      _raporDali,
+    ],
+  ),
+  YolTani(
+    id: 'isitme',
+    ad: 'İşitme Kaybı',
+    kaynak: 'JCIH 2019',
+    sorular: [_okulSorusu],
+    dallar: [
+      YolDal(
+        baslik: 'Doktorlar',
+        icon: Icons.medical_services_outlined,
+        maddeler: [
+          YolMadde('d1', 'KBB', 'Tanı ve tedavi'),
+          YolMadde('d2', 'Odyoloji', 'Ayrıntılı işitme testleri, cihaz ayarı'),
+          YolMadde('d3', 'Tıbbi Genetik', 'Nedeni araştırmak için'),
+          YolMadde('d4', 'Göz', 'Görme kontrolü'),
+        ],
+      ),
+      YolDal(
+        baslik: 'Terapiler',
+        icon: Icons.accessibility_new_outlined,
+        maddeler: [
+          YolMadde('t1', 'İşitsel-sözel terapi / dil ve konuşma', 'Dil gelişimi'),
+          YolMadde('t2', 'Özel eğitim', 'İşitme yetersizliği olan çocuklar için'),
+        ],
+      ),
+      YolDal(
+        baslik: 'Cihaz ve ekipman',
+        not: 'Doktorunuz önerdiyse',
+        icon: Icons.accessible_outlined,
+        maddeler: [
+          YolMadde('e1', 'İşitme cihazı', 'Odyolog ayarıyla'),
+          YolMadde('e2', 'Koklear implant değerlendirmesi', 'KBB önerdiyse'),
+          YolMadde('e3', 'FM sistem', 'Okulda duymayı kolaylaştırır'),
+        ],
+      ),
+      _okulDali,
+      _raporDali,
+    ],
+  ),
+  YolTani(
+    id: 'gorme',
+    ad: 'Görme Yetersizliği (CVI dahil)',
+    kaynak: 'Genel klinik yaklaşım',
+    sorular: [_okulSorusu],
+    dallar: [
+      YolDal(
+        baslik: 'Doktorlar',
+        icon: Icons.medical_services_outlined,
+        maddeler: [
+          YolMadde('d1', 'Göz (Çocuk Oftalmolojisi)', 'Tanı ve takip'),
+          YolMadde('d2', 'Çocuk Nörolojisi', 'Serebral görme bozukluğunda (CVI)'),
+          YolMadde('d3', 'Az görme değerlendirmesi', 'Kalan görmeyi en iyi kullanmak için'),
+        ],
+      ),
+      YolDal(
+        baslik: 'Terapiler',
+        icon: Icons.accessibility_new_outlined,
+        maddeler: [
+          YolMadde('t1', 'Görme rehabilitasyonu / erken müdahale', 'Görsel becerileri geliştirme'),
+          YolMadde('t2', 'Ergoterapi', 'Günlük yaşam becerileri'),
+          YolMadde('t3', 'Özel eğitim', 'Görme yetersizliği olan çocuklar için'),
+          YolMadde('t4', 'Oryantasyon ve mobilite', 'Güvenli bağımsız hareket'),
+        ],
+      ),
+      YolDal(
+        baslik: 'Cihaz ve ekipman',
+        not: 'Doktorunuz önerdiyse',
+        icon: Icons.accessible_outlined,
+        maddeler: [
+          YolMadde('e1', 'Gözlük', 'Göz doktoru reçetesiyle'),
+          YolMadde('e2', 'Az görme cihazları', 'Büyüteç, ekran büyütme vb.'),
+          YolMadde('e3', 'Beyaz baston', 'Gerekirse'),
+        ],
+      ),
+      _okulDali,
+      _raporDali,
+    ],
+  ),
+  YolTani(
+    id: 'epilepsi',
+    ad: 'Epilepsi',
+    kaynak: 'NICE NG217',
+    sorular: [
+      YolSoru(
+        id: 'ogrenme',
+        metin: 'Gelişim veya öğrenmede güçlük var mı?',
+        hayirIseGerekYok: ['t1'],
+      ),
+      _okulSorusu,
+    ],
+    dallar: [
+      YolDal(
+        baslik: 'Doktorlar',
+        icon: Icons.medical_services_outlined,
+        maddeler: [
+          YolMadde('d1', 'Çocuk Nörolojisi', 'Tanı, EEG ve ilaç takibi'),
+          YolMadde('d2', 'Pediatri', 'Genel sağlık takibi'),
+          YolMadde('d3', 'Tıbbi Genetik', 'Doktorunuz gerek görürse'),
+          YolMadde(
+            'd4',
+            'Çocuk ve Ergen Psikiyatrisi',
+            'Dikkat, davranış veya duygu sorunlarında',
+          ),
+        ],
+      ),
+      YolDal(
+        baslik: 'Terapiler',
+        icon: Icons.accessibility_new_outlined,
+        maddeler: [
+          YolMadde('t1', 'Özel eğitim', 'Öğrenme desteği'),
+        ],
+      ),
+      YolDal(
+        baslik: 'Destek',
+        icon: Icons.groups_outlined,
+        maddeler: [
+          YolMadde(
+            's1',
+            'Nöbet acil planı',
+            'Aile ve okul için yazılı plan, doktorunuzla hazırlayın',
+          ),
+          YolMadde('s2', 'Acil ilaç', 'Doktorunuz önerdiyse'),
+        ],
+      ),
+      _okulDali,
+      _raporDali,
+    ],
+  ),
+  YolTani(
     id: 'genetik',
-    ad: 'Genetik / nadir hastalık',
+    ad: 'Diğer / Genetik / nadir hastalık',
     kaynak: 'Genel klinik yaklaşım; tanıya göre uzman onayı gerekir',
     sorular: [
       YolSoru(
