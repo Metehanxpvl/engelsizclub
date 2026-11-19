@@ -377,6 +377,7 @@ class _DuyurularSectionState extends State<DuyurularSection> {
       isAdmin: _isAdmin,
       onSeen: _onStorySeen,
       onDelete: _confirmDelete,
+      onEdit: _isAdmin ? (it) => _openAdminForm(edit: it) : null,
     );
     if (mounted) setState(() {});
   }
@@ -1037,6 +1038,7 @@ Future<void> _showDuyuruStoryViewer({
   required bool isAdmin,
   required ValueChanged<DuyuruItem> onSeen,
   Future<void> Function(DuyuruItem current)? onDelete,
+  Future<void> Function(DuyuruItem current)? onEdit,
 }) async {
   if (items.isEmpty) return;
   var start = items.indexWhere((d) => d.id == item.id);
@@ -1060,6 +1062,12 @@ Future<void> _showDuyuruStoryViewer({
             : (current) {
                 Navigator.of(ctx).pop();
                 onDelete(current);
+              },
+        onEdit: onEdit == null
+            ? null
+            : (current) {
+                Navigator.of(ctx).pop();
+                onEdit(current);
               },
       );
     },
@@ -1456,6 +1464,7 @@ class _DuyuruFullscreen extends StatefulWidget {
     required this.onSeen,
     this.isAdmin = false,
     this.onDelete,
+    this.onEdit,
   });
 
   final List<DuyuruItem> items;
@@ -1464,6 +1473,7 @@ class _DuyuruFullscreen extends StatefulWidget {
   final ValueChanged<DuyuruItem> onSeen;
   final bool isAdmin;
   final ValueChanged<DuyuruItem>? onDelete;
+  final ValueChanged<DuyuruItem>? onEdit;
 
   @override
   State<_DuyuruFullscreen> createState() => _DuyuruFullscreenState();
@@ -1484,6 +1494,12 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
   VoidCallback get onClose => widget.onClose;
   VoidCallback? get onDelete {
     final cb = widget.onDelete;
+    if (cb == null) return null;
+    return () => cb(item);
+  }
+
+  VoidCallback? get onEdit {
+    final cb = widget.onEdit;
     if (cb == null) return null;
     return () => cb(item);
   }
@@ -1755,6 +1771,22 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
               _bildirimButton(bg: btnBg),
               const SizedBox(width: 8),
             ],
+            if (isAdmin && onEdit != null && item.id > 0) ...[
+              Material(
+                color: const Color(0xCC1A6B4A),
+                shape: const CircleBorder(),
+                child: IconButton(
+                  tooltip: 'Düzenle',
+                  onPressed: onEdit,
+                  icon: const Icon(
+                    Icons.edit_outlined,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
             if (isAdmin && onDelete != null) ...[
               Material(
                 color: const Color(0xCCDC2626),
@@ -1973,6 +2005,22 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
             children: [
               if (_canSendBildirim) ...[
                 _bildirimButton(),
+                const SizedBox(width: 8),
+              ],
+              if (isAdmin && onEdit != null && item.id > 0) ...[
+                Material(
+                  color: const Color(0xCC1A6B4A),
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    tooltip: 'Düzenle',
+                    onPressed: onEdit,
+                    icon: const Icon(
+                      Icons.edit_outlined,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 8),
               ],
               if (isAdmin && onDelete != null) ...[

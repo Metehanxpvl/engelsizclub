@@ -119,6 +119,25 @@ class _DuyurularAllScreenState extends State<DuyurularAllScreen> {
     }
   }
 
+  Future<void> _openAdminForm({DuyuruItem? edit}) async {
+    final result = await showModalBottomSheet<DuyuruItem>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _AdminDuyuruSheet(
+        adminEmail: widget.userEmail,
+        edit: edit,
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _items = [
+        for (final d in _items)
+          if (d.id == result.id) result else d,
+      ];
+    });
+  }
+
   Future<void> _openViewer(DuyuruItem item) async {
     final items = _catalog;
     await _showDuyuruStoryViewer(
@@ -128,6 +147,7 @@ class _DuyurularAllScreenState extends State<DuyurularAllScreen> {
       isAdmin: _isAdmin,
       onSeen: _onStorySeen,
       onDelete: _isAdmin ? _confirmDelete : null,
+      onEdit: _isAdmin ? (it) => _openAdminForm(edit: it) : null,
     );
     if (mounted) setState(() {});
   }
