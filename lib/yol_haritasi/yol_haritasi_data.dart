@@ -626,3 +626,45 @@ YolTani? yolTaniBul(String? id) {
   }
   return null;
 }
+
+const Map<String, String> yolNeIseYarar = {
+  'Nöromüsküler': 'Kas hastalıklarında uzmanlaşmış çocuk nörolojisi.',
+  'Çocuk Nörolojisi': 'Beyin, sinir ve kas sistemi; nöbet ve gelişim takibi.',
+  'Fiziksel Tıp': 'Rehabilitasyon planı, fizyoterapi reçetesi, ortez ve cihazlar.',
+  'Ortopedi': 'Kemik, eklem, kalça ve omurga sağlığı.',
+  'Odyoloji': 'Ayrıntılı işitme testleri ve işitme cihazı ayarı.',
+  'KBB': 'Kulak, burun, boğaz; işitme ve sık kulak enfeksiyonları.',
+  'Göz': 'Görme keskinliği, şaşılık, gözlük ve göz sağlığı.',
+  'Gastroenteroloji': 'Yutma, reflü, kabızlık ve kilo alımı.',
+  'Diş': 'Diş ve ağız sağlığı; özel gereksinimli çocuklara deneyimli hekimler.',
+  'Psikiyatri': 'Gelişim, dikkat, davranış ve duygu durumu; ÇÖZGER sürecinde de rol alır.',
+  'Genetik': 'Altta yatan genetik nedeni araştırır, aileye danışmanlık verir.',
+  'Kardiyoloji': 'Kalp yapısı ve ritmi; ekokardiyografi.',
+  'Endokrinoloji': 'Hormonlar, tiroid, büyüme ve kemik sağlığı.',
+  'Göğüs': 'Akciğer ve solunum takibi.',
+  'Metabolizma': 'Doğuştan metabolik hastalıkların tanı ve takibi.',
+  'Uyku': 'Horlama, uyku apnesi ve uyku düzeni sorunları.',
+  'Gelişim': 'Çocuğun genel gelişiminin yaşına göre değerlendirilmesi.',
+  'Pediatri': 'Genel sağlık, büyüme, aşılar ve tüm takibin koordinasyonu.',
+  'Az görme': 'Kalan görmeyi en iyi kullanmak için cihaz ve yöntemler.',
+  'Fizyoterapi': 'Oturma, ayakta durma, yürüme gibi hareket becerilerini destekler.',
+  'Ergoterapi': 'Giyinme, yemek yeme, kalem tutma gibi günlük becerilere destek olur.',
+  'Dil ve konuşma': 'Konuşma, anlama, iletişim; yutma ve beslenme güçlüğünde de çalışır.',
+  'İşitsel-sözel': 'İşitme cihazı veya implantla dinleme ve konuşmayı geliştirir.',
+  'Özel eğitim': 'Bireysel programla öğrenme, iletişim ve günlük beceriler.',
+  'Erken müdahale': '0-3 yaşta gelişimi desteklemek için erken başlanan programlar.',
+  'Ebeveyn eğitimi': 'Ailenin evde davranış ve rutinleri yönetmesine destek.',
+  'Aile eğitimi': 'Terapide öğrenilenlerin evde uygulanmasına destek.',
+  'Okul iş birliği': 'Öğretmenle ortak plan, sınıf içi düzenlemeler.',
+  'Psikolojik destek': 'Çocuk ve ailenin duygusal yükünü paylaşmak için.',
+  'Görme rehabilitasyonu': 'Görsel becerileri ve kalan görmenin kullanımını geliştirir.',
+  'Oryantasyon': 'Güvenli ve bağımsız hareket etmeyi öğretir.',
+};
+
+/// Başlıkta ilk eşleşen anahtarın "ne işe yarar" açıklamasını döner.
+String? yolNeIseYararBul(String baslik) {
+  for (final entry in yolNeIseYarar.entries) {
+    if (baslik.contains(entry.key)) return entry.value;
+  }
+  return null;
+}

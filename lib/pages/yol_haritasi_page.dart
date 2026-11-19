@@ -638,6 +638,7 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
     final s = k.durumlar[m.id];
     final gerekYok = s == YolDurum.gerekYok;
     final otomatik = k.otomatik.contains(m.id);
+    final neIseYarar = yolNeIseYararBul(m.baslik);
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 10, 8),
       decoration: const BoxDecoration(
@@ -667,6 +668,14 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
                     color: MetoColors.mutedFg,
                   ),
                 ),
+                if (neIseYarar != null)
+                  Text(
+                    neIseYarar,
+                    style: GoogleFonts.nunito(
+                      fontSize: 11,
+                      color: MetoColors.mutedFg,
+                    ),
+                  ),
               ],
             ),
           ),
