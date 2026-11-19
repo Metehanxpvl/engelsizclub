@@ -77,7 +77,7 @@ class _InfoYoutubePlayerState extends State<InfoYoutubePlayer> {
           color: MetoColors.muted,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: const Text(
+        child: Text(
           'Geçerli bir YouTube bağlantısı yok',
           style: TextStyle(color: MetoColors.mutedFg),
         ),

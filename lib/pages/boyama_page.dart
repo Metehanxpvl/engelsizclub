@@ -228,7 +228,7 @@ class _BoyamaPageState extends State<BoyamaPage> {
           ),
           TextButton(
             onPressed: _busy ? null : _clearStrokes,
-            child: const Text(
+            child: Text(
               'Temizle',
               style: TextStyle(
                 fontWeight: FontWeight.w700,
@@ -240,7 +240,7 @@ class _BoyamaPageState extends State<BoyamaPage> {
       ),
       body: Column(
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(16, 10, 16, 4),
             child: Text(
               'Galeriden fotoğraf seç; boyama kalıbı hazırlanır. Sonra boya.',
@@ -318,7 +318,7 @@ class _BoyamaPageState extends State<BoyamaPage> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const CircularProgressIndicator(
+                                CircularProgressIndicator(
                                   color: MetoColors.primary,
                                 ),
                                 const SizedBox(height: 12),

@@ -172,7 +172,7 @@ class _StatusListState extends State<_StatusList> {
           return Center(
             child: L10nText(
               '${widget.label} listesi boş. Sahte video eklenmez.',
-              style: const TextStyle(color: MetoColors.mutedFg),
+              style: TextStyle(color: MetoColors.mutedFg),
             ),
           );
         }
@@ -192,7 +192,7 @@ class _StatusListState extends State<_StatusList> {
                 leading: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: v.resolvedThumb.isEmpty
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 64,
                           height: 64,
                           child: ColoredBox(color: MetoColors.muted),
@@ -202,7 +202,7 @@ class _StatusListState extends State<_StatusList> {
                           width: 64,
                           height: 64,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const SizedBox(
+                          errorBuilder: (_, __, ___) => SizedBox(
                             width: 64,
                             height: 64,
                             child: ColoredBox(color: MetoColors.muted),
@@ -299,7 +299,7 @@ class _ReportsListState extends State<_ReportsList> {
         }
         final list = snap.data ?? const [];
         if (list.isEmpty) {
-          return const Center(
+          return Center(
             child: L10nText(
               'Henüz rapor yok.',
               style: TextStyle(color: MetoColors.mutedFg),
@@ -429,7 +429,7 @@ class _KeywordsEditorState extends State<_KeywordsEditor> {
             ],
           ),
         ),
-        const Padding(
+        Padding(
           padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: L10nText(
             'Pozitif: alaka artırır. Negatif: düşürür (zayıf “gündem” otomatik red değildir). Güvenlik: sağlık iddiası, asla otomatik onay.',
@@ -628,7 +628,7 @@ class _AddYoutubeSheetState extends State<_AddYoutubeSheet> {
               ),
             ),
             const SizedBox(height: 8),
-            const L10nText(
+            L10nText(
               'Shorts veya normal YouTube bağlantısı. API anahtarı kullanılmaz (oEmbed).',
               style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
             ),
@@ -715,7 +715,7 @@ class _AddYoutubeSheetState extends State<_AddYoutubeSheet> {
                 if (_channel.isNotEmpty)
                   Text(
                     'Kanal: $_channel',
-                    style: const TextStyle(color: MetoColors.mutedFg),
+                    style: TextStyle(color: MetoColors.mutedFg),
                   ),
               ],
               const SizedBox(height: 14),

@@ -60,7 +60,7 @@ class InfoLibraryMoreCard extends StatelessWidget {
                   color: MetoColors.selectedBg,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.menu_book_outlined,
                   color: MetoColors.primary,
                 ),
@@ -90,7 +90,7 @@ class InfoLibraryMoreCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.arrow_forward_ios,
                 size: 16,
                 color: MetoColors.primary,

@@ -142,7 +142,7 @@ class _AdminGelisimEtkinlikSheetState extends State<AdminGelisimEtkinlikSheet> {
                 ),
               ],
             ),
-            const Text(
+            Text(
               'Her etkinliğe YouTube linki ve kaynak yazın. Kartta gömülü video + kaynak görünür.',
               style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
             ),
@@ -278,7 +278,7 @@ class _GelisimEditFormState extends State<_GelisimEditForm> {
             const SizedBox(height: 4),
             Text(
               '${widget.item.grupAd} · ${widget.item.yasAd} · ${widget.item.zorlukAd}',
-              style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+              style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
             ),
             const SizedBox(height: 14),
             TextField(

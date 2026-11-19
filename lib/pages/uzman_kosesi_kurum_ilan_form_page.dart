@@ -201,7 +201,7 @@ class _UzmanKosesKurumIlanFormPageState
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
-          const L10nText(
+          L10nText(
             'Klinik, merkez veya kurumunuzun aradığı uzmanı buradan yayınlayın.',
             style: TextStyle(color: MetoColors.mutedFg, height: 1.35),
           ),

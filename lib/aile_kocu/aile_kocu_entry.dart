@@ -74,7 +74,7 @@ class _AileKocuHubPageState extends State<AileKocuHubPage> {
             );
             setState(() {});
           },
-          child: const Icon(Icons.settings, color: MetoColors.foreground),
+          child: Icon(Icons.settings, color: MetoColors.foreground),
         ),
       ),
     );

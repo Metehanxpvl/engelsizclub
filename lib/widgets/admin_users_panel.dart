@@ -235,7 +235,7 @@ class _AdminUsersPanelState extends State<AdminUsersPanel> {
                 icon: const Icon(Icons.arrow_back, size: 18),
               ),
               const SizedBox(width: 8),
-              const Expanded(
+              Expanded(
                 child: Text(
                   'Kullanıcılar',
                   style: TextStyle(
@@ -248,7 +248,7 @@ class _AdminUsersPanelState extends State<AdminUsersPanel> {
               IconButton(
                 tooltip: 'Yenile',
                 onPressed: () => _reload(),
-                icon: const Icon(Icons.refresh, color: MetoColors.primary),
+                icon: Icon(Icons.refresh, color: MetoColors.primary),
               ),
             ],
           ),
@@ -356,7 +356,7 @@ class _AdminUsersPanelState extends State<AdminUsersPanel> {
           ),
         Expanded(
           child: _loading
-              ? const Center(
+              ? Center(
                   child: CircularProgressIndicator(color: MetoColors.primary),
                 )
               : RefreshIndicator(
@@ -371,7 +371,7 @@ class _AdminUsersPanelState extends State<AdminUsersPanel> {
                         _filter == 'online'
                             ? 'Çevrimiçi üye listesi'
                             : 'Tüm üyeler (${_users.length})',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
                           color: MetoColors.foreground,
@@ -379,7 +379,7 @@ class _AdminUsersPanelState extends State<AdminUsersPanel> {
                       ),
                       const SizedBox(height: 8),
                       if (_users.isEmpty)
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.symmetric(vertical: 24),
                           child: Text(
                             'Kayıt bulunamadı.',
@@ -551,7 +551,7 @@ class _StatCard extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     color: MetoColors.mutedFg,
@@ -590,7 +590,7 @@ class _RoleChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w700,
           color: MetoColors.foreground,
@@ -632,7 +632,7 @@ class _UserTile extends StatelessWidget {
                       user.displayName.isEmpty
                           ? '?'
                           : user.displayName[0].toUpperCase(),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w800,
                         color: MetoColors.primary,
                       ),
@@ -664,7 +664,7 @@ class _UserTile extends StatelessWidget {
                       user.displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 14,
                         color: MetoColors.foreground,
@@ -674,7 +674,7 @@ class _UserTile extends StatelessWidget {
                       user.email,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         color: MetoColors.mutedFg,
                       ),

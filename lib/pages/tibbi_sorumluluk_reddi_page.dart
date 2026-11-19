@@ -44,7 +44,7 @@ Future<void> showMedicalWelcomeDialog(BuildContext context) async {
                 color: MetoColors.primary.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.health_and_safety_outlined,
                 color: MetoColors.primary,
                 size: 22,

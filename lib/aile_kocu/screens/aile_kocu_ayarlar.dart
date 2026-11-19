@@ -148,7 +148,7 @@ class _AileKocuAyarlarScreenState extends State<AileKocuAyarlarScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Dokunarak seçin. Ders / ilaç / çocuk notu ekranlarında görünür.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
@@ -182,7 +182,7 @@ class _AileKocuAyarlarScreenState extends State<AileKocuAyarlarScreen> {
               AileKocuNotificationService.instance.exactAlarmsAllowed
                   ? 'Açık — ekran kapalıyken de planlanan saatte gelir.'
                   : 'Kapalı — Android ayarlarından “Alarmlar ve hatırlatıcılar” iznini açın.',
-              style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+              style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
             ),
             trailing: TextButton(
               onPressed: () async {
@@ -216,7 +216,7 @@ class _AileKocuAyarlarScreenState extends State<AileKocuAyarlarScreen> {
               AileKocuNotificationService.instance.notificationsAllowed
                   ? 'Açık — hatırlatmalar bildirim olarak gelebilir.'
                   : 'Kapalı — Android 13+ cihazlarda izin olmadan bildirim gelmez.',
-              style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+              style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
             ),
             trailing: TextButton(
               onPressed: () async {

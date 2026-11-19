@@ -534,7 +534,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                       kind == 'ikinciel'
                           ? 'Şu an: ${_ilanKindLabel(kind)} · ${ikincielAltDisplayLabel(ikincielCategory ?? '')}'
                           : 'Şu an: ${_ilanKindLabel(kind)}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: MetoColors.mutedFg,
                       ),
@@ -792,7 +792,7 @@ class IlanlarPageState extends State<IlanlarPage> {
           IconButton(
             tooltip: S.auto('Düzenle'),
             onPressed: onEdit,
-            icon: const Icon(
+            icon: Icon(
               Icons.edit_outlined,
               size: 18,
               color: MetoColors.primary,
@@ -2091,7 +2091,7 @@ class IlanlarPageState extends State<IlanlarPage> {
               _buildHeader(),
               if (_loadingFeed) const LinearProgressIndicator(minHeight: 2),
               if (_loadingFeed && _feedRetrying)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
                   child: L10nText(
                     'Yeniden deneniyor…',
@@ -2114,7 +2114,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.cloud_off,
                             size: 20,
                             color: MetoColors.mutedFg,
@@ -2123,7 +2123,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                           Expanded(
                             child: Text(
                               _feedError!,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 color: MetoColors.foreground,
@@ -2650,7 +2650,7 @@ class IlanlarPageState extends State<IlanlarPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const L10nText(
+              L10nText(
                 'Kategoriler',
                 style: TextStyle(
                   fontSize: 22,
@@ -2659,7 +2659,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                 ),
               ),
               const SizedBox(height: 4),
-              const L10nText(
+              L10nText(
                 'İhtiyacına uygun kategoriyi seç ve ilanları keşfet.',
                 style: TextStyle(
                   fontSize: 13,
@@ -2745,7 +2745,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const L10nText(
+                        L10nText(
                           'Basılı tutup sağa-sola kaydırın veya oklarla sırayı değiştirin.',
                           style: TextStyle(
                             fontSize: 12,
@@ -2771,7 +2771,7 @@ class IlanlarPageState extends State<IlanlarPage> {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: _hidingHub ? null : _addHubIlanKategori,
-        child: const Column(
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
@@ -2991,7 +2991,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                           minHeight: 28,
                         ),
                         padding: EdgeInsets.zero,
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.edit_outlined,
                           size: 16,
                           color: MetoColors.primary,
@@ -3038,7 +3038,7 @@ class IlanlarPageState extends State<IlanlarPage> {
             IconButton(
               tooltip: 'Kategoriler',
               onPressed: () => setState(() => _showCategoryHub = true),
-              icon: const Icon(
+              icon: Icon(
                 Icons.arrow_back,
                 color: MetoColors.foreground,
               ),
@@ -3049,7 +3049,7 @@ class IlanlarPageState extends State<IlanlarPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const L10nText(
+                L10nText(
                   'İlanlar',
                   style: TextStyle(
                     fontSize: 20,
@@ -3060,7 +3060,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                 if (!_showCategoryHub)
                   L10nText(
                     _hubListTitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       color: MetoColors.mutedFg,
                     ),
@@ -3189,7 +3189,7 @@ class IlanlarPageState extends State<IlanlarPage> {
       child: Material(
         color: const Color(0xFFE8F5EE),
         borderRadius: BorderRadius.circular(12),
-        child: const Padding(
+        child: Padding(
           padding: EdgeInsets.all(12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3266,7 +3266,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                 ? 'Bu kategoride yalnızca kendi ilanlarınız görünür. Tüm ilanları görmek için Destek Arayan rolünden Destek Veren rolüne geçin. Henüz ilanınız yoksa İlan Ver ile paylaşabilirsiniz.'
                 : 'Bu filtrede ilan yok',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, color: MetoColors.mutedFg),
+            style: TextStyle(fontSize: 13, color: MetoColors.mutedFg),
           ),
         );
       }
@@ -3275,7 +3275,7 @@ class IlanlarPageState extends State<IlanlarPage> {
         child: L10nText(
           '$total ilan',
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
+          style: TextStyle(fontSize: 11, color: MetoColors.mutedFg),
         ),
       );
     }
@@ -3287,7 +3287,7 @@ class IlanlarPageState extends State<IlanlarPage> {
         children: [
           L10nText(
             'Sayfa ${page + 1} / $pageCount · $total ilan',
-            style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
+            style: TextStyle(fontSize: 11, color: MetoColors.mutedFg),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -3331,9 +3331,9 @@ class IlanlarPageState extends State<IlanlarPage> {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
       child: Row(
         children: [
-          const Icon(Icons.location_on, size: 13, color: MetoColors.primary),
+          Icon(Icons.location_on, size: 13, color: MetoColors.primary),
           const SizedBox(width: 4),
-          const L10nText(
+          L10nText(
             'Mesafe',
             style: TextStyle(
               fontSize: 11,
@@ -3366,7 +3366,7 @@ class IlanlarPageState extends State<IlanlarPage> {
           ),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w800,
               color: MetoColors.primary,
@@ -3396,7 +3396,7 @@ class IlanlarPageState extends State<IlanlarPage> {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
               color: MetoColors.mutedFg,
@@ -3502,7 +3502,7 @@ class IlanlarPageState extends State<IlanlarPage> {
         children: [
           Text(
             S.t('ilan_ikinciel_alt'),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
               color: MetoColors.mutedFg,
@@ -3565,7 +3565,7 @@ class IlanlarPageState extends State<IlanlarPage> {
         children: [
           Text(
             S.t('ilan_condition'),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
               color: MetoColors.mutedFg,
@@ -3713,7 +3713,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                                   ilan.title,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w800,
                                     color: MetoColors.foreground,
@@ -3763,7 +3763,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                         ilan.poster.publicListingLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
                           color: MetoColors.primary,
@@ -3779,11 +3779,11 @@ class IlanlarPageState extends State<IlanlarPage> {
                     ),
                     L10nText(
                       ' (${ilan.poster.reviewCount})',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12, color: MetoColors.mutedFg),
                     ),
                     const SizedBox(width: 6),
-                    const L10nText(
+                    L10nText(
                       'Profil',
                       style: TextStyle(
                         fontSize: 11,
@@ -3791,7 +3791,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                         color: MetoColors.primary,
                       ),
                     ),
-                    const Icon(Icons.keyboard_arrow_up,
+                    Icon(Icons.keyboard_arrow_up,
                         size: 18, color: MetoColors.primary),
                   ],
                 ),
@@ -3818,7 +3818,7 @@ class IlanlarPageState extends State<IlanlarPage> {
               ilan.note,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 12, color: MetoColors.mutedFg, height: 1.4),
             ),
           ),
@@ -3934,7 +3934,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                                   ilan.title,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w800,
                                     color: MetoColors.foreground,
@@ -3972,7 +3972,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                         ilan.poster.publicListingLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
                           color: MetoColors.primary,
@@ -3988,11 +3988,11 @@ class IlanlarPageState extends State<IlanlarPage> {
                     ),
                     L10nText(
                       ' (${ilan.poster.reviewCount})',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12, color: MetoColors.mutedFg),
                     ),
                     const SizedBox(width: 6),
-                    const L10nText(
+                    L10nText(
                       'Profil',
                       style: TextStyle(
                         fontSize: 11,
@@ -4000,7 +4000,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                         color: MetoColors.primary,
                       ),
                     ),
-                    const Icon(Icons.keyboard_arrow_up,
+                    Icon(Icons.keyboard_arrow_up,
                         size: 18, color: MetoColors.primary),
                   ],
                 ),
@@ -4028,7 +4028,7 @@ class IlanlarPageState extends State<IlanlarPage> {
           ),
           const SizedBox(height: 8),
           L10nText('📅 ${ilan.hours}',
-              style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg)),
+              style: TextStyle(fontSize: 12, color: MetoColors.mutedFg)),
           const SizedBox(height: 4),
           GestureDetector(
             onTap: openDetail,
@@ -4036,7 +4036,7 @@ class IlanlarPageState extends State<IlanlarPage> {
               ilan.note,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 12, color: MetoColors.mutedFg, height: 1.4),
             ),
           ),
@@ -4130,7 +4130,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                         ilan.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
                           color: MetoColors.foreground,
@@ -4147,7 +4147,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                           }
                           return '${ilan.brand} · ${ikincielAltDisplayLabel(ilan.category)}';
                         }(),
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 12, color: MetoColors.mutedFg),
                       ),
                     ],
@@ -4183,7 +4183,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                               ilan.poster.publicListingLabel,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w800,
                                 color: MetoColors.primary,
@@ -4199,11 +4199,11 @@ class IlanlarPageState extends State<IlanlarPage> {
                           ),
                           L10nText(
                             ' (${ilan.poster.reviewCount})',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 12, color: MetoColors.mutedFg),
                           ),
                           const SizedBox(width: 6),
-                          const L10nText(
+                          L10nText(
                             'Profil',
                             style: TextStyle(
                               fontSize: 11,
@@ -4211,7 +4211,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                               color: MetoColors.primary,
                             ),
                           ),
-                          const Icon(Icons.keyboard_arrow_up,
+                          Icon(Icons.keyboard_arrow_up,
                               size: 18, color: MetoColors.primary),
                         ],
                       ),
@@ -4235,7 +4235,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                 visibleIlanNote(ilan.note),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 12, color: MetoColors.mutedFg, height: 1.4),
               ),
             ),
@@ -4334,7 +4334,7 @@ class _RatingBreakdown extends StatelessWidget {
                   '${c.star}',
                   textAlign: TextAlign.right,
                   style:
-                      const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+                      TextStyle(fontSize: 12, color: MetoColors.mutedFg),
                 ),
               ),
               const Icon(Icons.star, size: 10, color: MetoColors.accentGold),
@@ -4356,7 +4356,7 @@ class _RatingBreakdown extends StatelessWidget {
                 child: L10nText(
                   '${c.count}',
                   style:
-                      const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+                      TextStyle(fontSize: 12, color: MetoColors.mutedFg),
                 ),
               ),
             ],
@@ -4499,7 +4499,7 @@ class _Chip extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+        style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
       ),
     );
   }
@@ -4609,7 +4609,7 @@ class _CardFooter extends StatelessWidget {
               onPressed: onProfile,
               style: OutlinedButton.styleFrom(
                 foregroundColor: MetoColors.foreground,
-                side: const BorderSide(color: MetoColors.border),
+                side: BorderSide(color: MetoColors.border),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 shape: RoundedRectangleBorder(
@@ -4812,7 +4812,7 @@ class _KrediSheetState extends State<_KrediSheet> {
                       color: Color(0xFF16A34A), size: 28),
                 ),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -4864,7 +4864,7 @@ class _KrediSheetState extends State<_KrediSheet> {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -5174,7 +5174,7 @@ class _DrawerFooter extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
           border: Border(top: BorderSide(color: MetoColors.border))),
       child: FilledButton.icon(
         onPressed: enabled ? onTap : null,
@@ -5238,7 +5238,7 @@ class _ReviewSection extends StatelessWidget {
                   child: const L10nText('+ Yorum Yaz',
                       style: TextStyle(fontWeight: FontWeight.w800))),
             if (!canWrite)
-              const L10nText('Bu ilana rolünüzle yorum yazılamaz',
+              L10nText('Bu ilana rolünüzle yorum yazılamaz',
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -5334,7 +5334,7 @@ class _ReviewSection extends StatelessWidget {
                         Text(r.text,
                             style: const TextStyle(fontSize: 12, height: 1.4)),
                         Text(r.date,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 10, color: MetoColors.mutedFg)),
                       ],
                     ),
@@ -5629,7 +5629,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                 Expanded(
                   child: L10nText(
                     ilan.title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
                       color: MetoColors.foreground,
@@ -5640,7 +5640,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                   IconButton(
                     tooltip: S.auto('Düzenle'),
                     onPressed: widget.onEdit,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.edit_outlined,
                       size: 20,
                       color: MetoColors.primary,
@@ -5733,7 +5733,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                   const SizedBox(height: 6),
                   L10nText(
                     ilan.note,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       color: MetoColors.mutedFg,
                       height: 1.45,
@@ -5763,7 +5763,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                             children: [
                               L10nText(
                                 ilan.poster.publicListingLabel,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.w800,
                                   fontSize: 15,
                                   color: MetoColors.primary,
@@ -5776,7 +5776,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                                   style: const TextStyle(fontSize: 12),
                                 ),
                               ]),
-                              const L10nText(
+                              L10nText(
                                 'İlan sahibi profilini gör',
                                 style: TextStyle(
                                   fontSize: 12,
@@ -5786,7 +5786,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                             ],
                           ),
                         ),
-                        const Icon(Icons.keyboard_arrow_up,
+                        Icon(Icons.keyboard_arrow_up,
                             color: MetoColors.primary),
                       ],
                     ),
@@ -5821,7 +5821,7 @@ class _UzmanDrawerState extends State<_UzmanDrawer> {
                       .toList()),
               const SizedBox(height: 12),
               Text(widget.ilan.poster.bio,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 14, color: MetoColors.mutedFg, height: 1.5)),
               const SizedBox(height: 16),
               _RatingBreakdown(reviews: _reviews),
@@ -6024,7 +6024,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                 Expanded(
                   child: L10nText(
                     ilan.title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
                       color: MetoColors.foreground,
@@ -6035,7 +6035,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                   IconButton(
                     tooltip: S.auto('Düzenle'),
                     onPressed: widget.onEdit,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.edit_outlined,
                       size: 20,
                       color: MetoColors.primary,
@@ -6084,7 +6084,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
             const SizedBox(height: 10),
             Text(
               formatPriceTl(ilan.budget),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
                 color: MetoColors.primary,
@@ -6128,7 +6128,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                   const SizedBox(height: 6),
                   L10nText(
                     ilan.note,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       color: MetoColors.mutedFg,
                       height: 1.45,
@@ -6158,7 +6158,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                             children: [
                               L10nText(
                                 ilan.poster.publicListingLabel,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.w800,
                                   fontSize: 15,
                                   color: MetoColors.primary,
@@ -6171,7 +6171,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                                   style: const TextStyle(fontSize: 12),
                                 ),
                               ]),
-                              const L10nText(
+                              L10nText(
                                 'İlan sahibi profilini gör',
                                 style: TextStyle(
                                   fontSize: 12,
@@ -6181,7 +6181,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                             ],
                           ),
                         ),
-                        const Icon(Icons.keyboard_arrow_up,
+                        Icon(Icons.keyboard_arrow_up,
                             color: MetoColors.primary),
                       ],
                     ),
@@ -6214,7 +6214,7 @@ class _BakiciDrawerState extends State<_BakiciDrawer> {
                       .toList()),
               const SizedBox(height: 12),
               Text(widget.ilan.poster.bio,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 14, color: MetoColors.mutedFg, height: 1.5)),
               const SizedBox(height: 16),
               _RatingBreakdown(reviews: _reviews),
@@ -6397,7 +6397,7 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                 Expanded(
                   child: L10nText(
                     ilan.title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
                       color: MetoColors.foreground,
@@ -6408,7 +6408,7 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                   IconButton(
                     tooltip: S.auto('Düzenle'),
                     onPressed: widget.onEdit,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.edit_outlined,
                       size: 20,
                       color: MetoColors.primary,
@@ -6465,12 +6465,12 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                 }
                 return '${ilan.brand} · ${ikincielAltDisplayLabel(ilan.category)}';
               }(),
-              style: const TextStyle(fontSize: 13, color: MetoColors.mutedFg),
+              style: TextStyle(fontSize: 13, color: MetoColors.mutedFg),
             ),
             const SizedBox(height: 10),
             Text(
               formatPriceTl(ilan.price),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
                 color: MetoColors.primary,
@@ -6479,7 +6479,7 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
             if (ilan.originalPrice.trim().isNotEmpty)
               Text(
                 formatPriceTl(ilan.originalPrice),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   color: MetoColors.mutedFg,
                   decoration: TextDecoration.lineThrough,
@@ -6517,7 +6517,7 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                               width: 88,
                               child: Text(
                                 row.$1,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 12,
                                   color: MetoColors.mutedFg,
                                   fontWeight: FontWeight.w600,
@@ -6527,7 +6527,7 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                             Expanded(
                               child: Text(
                                 row.$2,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
                                   color: MetoColors.foreground,
@@ -6565,7 +6565,7 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                     const SizedBox(height: 6),
                     L10nText(
                       visibleIlanNote(ilan.note),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         color: MetoColors.mutedFg,
                         height: 1.45,
@@ -6599,7 +6599,7 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                                   fontSize: 14,
                                 ),
                               ),
-                              const L10nText(
+                              L10nText(
                                 'Satıcı profilini gör',
                                 style: TextStyle(
                                   fontSize: 12,
@@ -6609,7 +6609,7 @@ class _IkincielDrawerState extends State<_IkincielDrawer> {
                             ],
                           ),
                         ),
-                        const Icon(Icons.chevron_right,
+                        Icon(Icons.chevron_right,
                             color: MetoColors.mutedFg),
                       ],
                     ),
@@ -6685,7 +6685,7 @@ class _CvBlock extends StatelessWidget {
                   color: color ?? MetoColors.primary)),
           const SizedBox(height: 8),
           Text(body,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 12, color: MetoColors.mutedFg, height: 1.5)),
         ],
       ),
@@ -6695,7 +6695,7 @@ class _CvBlock extends StatelessWidget {
 
 List<Widget> _cvSection(PosterCv cv, {Color? color}) {
   if (!cv.hasContent) {
-    return const [
+    return [
       Padding(
         padding: EdgeInsets.symmetric(vertical: 32),
         child: Center(
@@ -7106,7 +7106,7 @@ class _SohbetPageState extends State<SohbetPage> {
                 scrubEmailsInText(m.body),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, color: MetoColors.mutedFg),
+                style: TextStyle(fontSize: 13, color: MetoColors.mutedFg),
               ),
             ),
             if (canDelete)
@@ -7125,7 +7125,7 @@ class _SohbetPageState extends State<SohbetPage> {
                 },
               )
             else
-              const Padding(
+              Padding(
                 padding: EdgeInsets.all(20),
                 child: L10nText(
                   'Karşı tarafın mesajını silemezsiniz. Tüm sohbeti silmek için üstteki menüyü kullanın.',
@@ -7246,7 +7246,7 @@ class _SohbetPageState extends State<SohbetPage> {
         children: [
           Expanded(
             child: _loading
-                ? const Center(
+                ? Center(
                     child: CircularProgressIndicator(color: MetoColors.primary))
                 : ListView(
                     controller: _scroll,
@@ -7265,7 +7265,7 @@ class _SohbetPageState extends State<SohbetPage> {
                                   : _peer.isEmpty
                                       ? 'Örnek ilan — bot cevap kapalı'
                                       : 'Gerçek sohbet · basılı tutarak mesaj silin',
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 10, color: MetoColors.mutedFg)),
                         ),
                       ),
@@ -7285,7 +7285,7 @@ class _SohbetPageState extends State<SohbetPage> {
                                 ? 'Bu sohbette henüz mesaj yok.'
                                 : 'Henüz mesaj yok. İlk mesajı siz yazın — karşı taraf kendi hesabından görür.',
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 12, color: MetoColors.mutedFg),
                           ),
                         ),
@@ -7380,7 +7380,7 @@ class _SohbetPageState extends State<SohbetPage> {
                             ? 'Admin: mesajları basılı tutarak silebilirsiniz (gönderim kapalı).'
                             : 'Bu sohbette mesaj gönderilemez.',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           color: MetoColors.mutedFg,
                         ),
@@ -8044,13 +8044,13 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                 ),
               ),
               ListTile(
-                leading: const Icon(Icons.photo_library_outlined,
+                leading: Icon(Icons.photo_library_outlined,
                     color: MetoColors.primary),
                 title: const L10nText('Galeriden seç'),
                 onTap: () => Navigator.pop(ctx, ImageSource.gallery),
               ),
               ListTile(
-                leading: const Icon(Icons.photo_camera_outlined,
+                leading: Icon(Icons.photo_camera_outlined,
                     color: MetoColors.primary),
                 title: const L10nText('Kamerayla çek'),
                 onTap: () => Navigator.pop(ctx, ImageSource.camera),
@@ -8385,7 +8385,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
         children: [
           Text(
             label.toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
               color: MetoColors.mutedFg,
@@ -8432,7 +8432,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label.toUpperCase(),
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: MetoColors.mutedFg)),
@@ -8498,7 +8498,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
           const SizedBox(height: 16),
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: L10nText(
                   'İLAN KATEGORİSİ',
                   style: TextStyle(
@@ -8580,7 +8580,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             const SizedBox(height: 16),
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: L10nText(
                     'UZMANLIK ALANI',
                     style: TextStyle(
@@ -8995,7 +8995,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                   Expanded(
                     child: Text(
                       S.t('ilan_ikinciel_alt').toUpperCase(),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: MetoColors.mutedFg,
@@ -9084,7 +9084,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                     : _isIkinciel
                         ? 'ÜRÜN FOTOĞRAFLARI'
                         : 'FOTOĞRAFLAR',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: MetoColors.mutedFg)),
@@ -9094,7 +9094,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                 _isUzmanOrBakici
                     ? 'En fazla $kUzmanBakiciMaxPhotos fotoğraf ekleyebilirsiniz. İlk fotoğraf kapak olur.'
                     : 'En fazla $_maxPhotos fotoğraf ekleyebilirsiniz. İlk fotoğraf kapak olur.',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 12, color: MetoColors.mutedFg),
               ),
             ),
@@ -9122,7 +9122,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                         ),
                         child: provider != null
                             ? null
-                            : const Center(
+                            : Center(
                                 child: Icon(Icons.image_outlined,
                                     color: MetoColors.mutedFg),
                               ),
@@ -9172,7 +9172,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
                         border: Border.all(color: MetoColors.border),
                       ),
                       child: _pickingPhoto
-                          ? const Center(
+                          ? Center(
                               child: SizedBox(
                                 width: 22,
                                 height: 22,
@@ -9209,7 +9209,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
               ),
             const SizedBox(height: 16),
           ],
-          const L10nText('AÇIKLAMA',
+          L10nText('AÇIKLAMA',
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -9245,7 +9245,7 @@ class _YeniIlanFormState extends State<_YeniIlanForm> {
             decoration: BoxDecoration(
                 color: MetoColors.muted,
                 borderRadius: BorderRadius.circular(16)),
-            child: const Row(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(Icons.shield_outlined,

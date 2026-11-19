@@ -27,7 +27,7 @@ class EtkinlikPendingSheet extends StatelessWidget {
     final pending = items.where(isEtkinlikPending).toList();
     final rejected = items.where(isEtkinlikRejected).toList();
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: MetoColors.background,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),

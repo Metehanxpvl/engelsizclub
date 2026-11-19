@@ -1139,14 +1139,14 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                       ? 'İlaç kutusunun arka yüzünü (küpür) veya prospektüsü yakından net çekin. Ön yüz yetmez.'
                       : 'İÇİNDEKİLER / INGREDIENTS yazısının yakından net fotoğrafını çekin. Paketin ön yüzü yetmez.',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: MetoColors.mutedFg,
                     fontSize: 13,
                   ),
                 ),
                 const SizedBox(height: 12),
                 ListTile(
-                  leading: const Icon(Icons.photo_camera_outlined,
+                  leading: Icon(Icons.photo_camera_outlined,
                       color: MetoColors.primary),
                   title: L10nText(
                     kIsWeb ? 'Fotoğraf çek' : 'Kamera ile çek',
@@ -1161,7 +1161,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.photo_library_outlined,
+                  leading: Icon(Icons.photo_library_outlined,
                       color: MetoColors.primary),
                   title: const L10nText('Galeriden seç'),
                   onTap: () {
@@ -1406,7 +1406,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
       padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
       child: Row(
         children: [
-          const Icon(Icons.search, size: 20, color: MetoColors.mutedFg),
+          Icon(Icons.search, size: 20, color: MetoColors.mutedFg),
           const SizedBox(width: 8),
           Expanded(
             child: TextField(
@@ -1445,7 +1445,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                         _nameSearchError = null;
                       });
                     },
-              icon: const Icon(Icons.close, size: 18, color: MetoColors.mutedFg),
+              icon: Icon(Icons.close, size: 18, color: MetoColors.mutedFg),
               visualDensity: VisualDensity.compact,
               tooltip: 'Temizle',
             ),
@@ -1565,7 +1565,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                           ],
                         ),
                       ),
-                      const Icon(
+                      Icon(
                         Icons.chevron_right,
                         color: MetoColors.mutedFg,
                       ),
@@ -1628,7 +1628,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: const SizedBox(
+                        child: SizedBox(
                           width: 44,
                           height: 44,
                           child: ColoredBox(
@@ -1685,7 +1685,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                           ],
                         ),
                       ),
-                      const Icon(
+                      Icon(
                         Icons.chevron_right,
                         color: MetoColors.mutedFg,
                       ),
@@ -1987,7 +1987,7 @@ class _NameHitThumb extends StatelessWidget {
   Widget build(BuildContext context) {
     final src = (url ?? '').trim();
     const size = 44.0;
-    Widget child = const ColoredBox(
+    Widget child = ColoredBox(
       color: Color(0xFFF1F5F9),
       child: Icon(Icons.inventory_2_outlined, color: MetoColors.mutedFg, size: 22),
     );
@@ -1997,7 +1997,7 @@ class _NameHitThumb extends StatelessWidget {
         width: size,
         height: size,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => const ColoredBox(
+        errorBuilder: (_, __, ___) => ColoredBox(
           color: Color(0xFFF1F5F9),
           child: Icon(
             Icons.inventory_2_outlined,
@@ -2035,7 +2035,7 @@ class _NotFoundCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Icon(Icons.search_off, color: MetoColors.mutedFg, size: 36),
+          Icon(Icons.search_off, color: MetoColors.mutedFg, size: 36),
           const SizedBox(height: 8),
           L10nText(
             message,
@@ -2227,7 +2227,7 @@ class _OfficialProspectusButtonState extends State<_OfficialProspectusButton> {
       label: L10nText(label),
       style: OutlinedButton.styleFrom(
         foregroundColor: MetoColors.primaryDark,
-        side: const BorderSide(color: MetoColors.border),
+        side: BorderSide(color: MetoColors.border),
         minimumSize: const Size.fromHeight(46),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
@@ -2437,7 +2437,7 @@ class _MedicineIdentityHeader extends StatelessWidget {
                 color: MetoColors.selectedBg,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.medication_outlined,
                 color: MetoColors.primary,
                 size: 26,
@@ -2945,7 +2945,7 @@ class _ProductResultCard extends StatelessWidget {
                     Text(
                       'Barkod: ${product.barcode}'
                       '${fromCache ? ' · önbellek' : ''}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         color: MetoColors.mutedFg,
                       ),
@@ -3115,7 +3115,7 @@ class _ProductResultCard extends StatelessWidget {
                   ProductRecord.isUsableIngredientText(product.ingredients)
                       ? product.ingredients!
                       : 'Bilinmiyor. İsterseniz etiket fotoğrafı ekleyerek tamamlayabilirsiniz.',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     height: 1.45,
                     color: MetoColors.mutedFg,
@@ -3147,7 +3147,7 @@ class _ProductResultCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                const L10nText(
+                L10nText(
                   'Bu kodlar etiket / açık veri kaynaklarında yer alıyor; tıbbi tavsiye değildir.',
                   style: TextStyle(
                     fontSize: 12,

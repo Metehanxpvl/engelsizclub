@@ -371,15 +371,15 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
         hintStyle: GoogleFonts.nunito(color: MetoColors.mutedFg),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.primary),
+          borderSide: BorderSide(color: MetoColors.primary),
         ),
       );
 
@@ -444,7 +444,7 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
                       tooltip: 'Yeni kategori ekle',
                       onPressed: _saving ? null : _addCategory,
                       visualDensity: VisualDensity.compact,
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.add_circle_outline,
                         color: MetoColors.primary,
                       ),
@@ -618,7 +618,7 @@ class _GeziKampanyaAdminSheetState extends State<GeziKampanyaAdminSheet> {
                 label: const L10nText('Galeriden görsel seç'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: MetoColors.primary,
-                  side: const BorderSide(color: MetoColors.border),
+                  side: BorderSide(color: MetoColors.border),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

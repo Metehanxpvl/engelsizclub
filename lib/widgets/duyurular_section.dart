@@ -679,7 +679,7 @@ class _StoryKart extends StatelessWidget {
     }
     final src = item.imageUrl.trim();
     if (src.isEmpty) {
-      return const ColoredBox(
+      return ColoredBox(
         color: MetoColors.muted,
         child: Center(
           child: Icon(
@@ -735,12 +735,12 @@ class _StoryCircle extends StatelessWidget {
                     shape: BoxShape.circle,
                     gradient: seen
                         ? null
-                        : const LinearGradient(
+                        : LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
                               MetoColors.primary,
-                              Color(0xFF2F9B6A),
+                              const Color(0xFF2F9B6A),
                               MetoColors.accentGold,
                             ],
                           ),
@@ -748,7 +748,7 @@ class _StoryCircle extends StatelessWidget {
                   ),
                   child: Container(
                     padding: const EdgeInsets.all(2.5),
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: MetoColors.background,
                       shape: BoxShape.circle,
                     ),
@@ -847,7 +847,7 @@ class _DuyuruImage extends StatelessWidget {
           child: SizedBox(
             width: width,
             height: height,
-            child: const Icon(
+            child: Icon(
               Icons.campaign_outlined,
               color: MetoColors.primary,
             ),
@@ -1466,7 +1466,7 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
         ConstrainedBox(
           constraints: BoxConstraints(maxHeight: maxCaptionH),
           child: DecoratedBox(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: MetoColors.background,
               border: Border(
                 top: BorderSide(color: MetoColors.border),
@@ -1592,7 +1592,7 @@ class _DuyuruPopupDialogState extends State<_DuyuruPopupDialog> {
                 ConstrainedBox(
                   constraints: BoxConstraints(maxHeight: h * 0.42),
                   child: DecoratedBox(
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: MetoColors.background,
                       border: Border(
                         top: BorderSide(color: MetoColors.border),

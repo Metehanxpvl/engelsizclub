@@ -61,7 +61,7 @@ class OtomobilHasarSchematic extends StatelessWidget {
         ),
         if (_editable) ...[
           const SizedBox(height: 4),
-          const L10nText(
+          L10nText(
             'Parçaya dokunun: Orijinal → Lokal boyalı → Boyalı → Değişen',
             style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
           ),

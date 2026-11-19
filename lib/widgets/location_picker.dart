@@ -322,7 +322,7 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
 
   Widget _label(String text) => L10nText(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w700,
           color: MetoColors.mutedFg,

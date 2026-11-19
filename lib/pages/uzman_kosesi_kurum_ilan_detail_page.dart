@@ -288,7 +288,7 @@ class _UzmanKosesKurumIlanDetailPageState
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 _ilan.yerLabel,
-                style: const TextStyle(color: MetoColors.mutedFg),
+                style: TextStyle(color: MetoColors.mutedFg),
               ),
             ),
           if (_ilan.adres.trim().isNotEmpty)
@@ -297,7 +297,7 @@ class _UzmanKosesKurumIlanDetailPageState
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.place_outlined,
                     size: 18,
                     color: MetoColors.mutedFg,
@@ -306,7 +306,7 @@ class _UzmanKosesKurumIlanDetailPageState
                   Expanded(
                     child: Text(
                       _ilan.adres.trim(),
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: MetoColors.foreground,
                         height: 1.35,
                       ),
@@ -356,7 +356,7 @@ class _UzmanKosesKurumIlanDetailPageState
                       onPressed: _openMesaj,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: MetoColors.primary,
-                        side: const BorderSide(
+                        side: BorderSide(
                           color: MetoColors.primary,
                           width: 1.5,
                         ),

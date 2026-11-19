@@ -34,6 +34,7 @@ import 'l10n/app_strings.dart';
 import 'l10n/locale_controller.dart';
 import 'medical_disclaimer_store.dart';
 import 'meto_theme.dart';
+import 'renk_temasi_store.dart';
 import 'cvi/cvi2_entry.dart';
 import 'cvi/cvi_entry.dart';
 import 'aile_kocu/aile_kocu_entry.dart';
@@ -730,7 +731,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                           Expanded(
                             child: Text(
                               S.t('nav_more'),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
                                 color: MetoColors.foreground,
@@ -1747,7 +1748,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                       ),
                       Expanded(
                         child: list.isEmpty
-                            ? const Center(
+                            ? Center(
                                 child: Padding(
                                   padding: EdgeInsets.all(24),
                                   child: L10nText(
@@ -2161,7 +2162,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               children: [
                 Text(
                   _peerDisplayName(b.actorEmail),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: MetoColors.mutedFg,
@@ -2276,7 +2277,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 icon: const Icon(Icons.arrow_back, size: 18),
               ),
               const SizedBox(width: 8),
-              const Expanded(
+              Expanded(
                 child: L10nText(
                   'Mesajlarım',
                   style: TextStyle(
@@ -2307,14 +2308,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               IconButton(
                 tooltip: S.auto('Yenile'),
                 onPressed: _loadSohbetOzetleri,
-                icon: const Icon(Icons.refresh, color: MetoColors.primary),
+                icon: Icon(Icons.refresh, color: MetoColors.primary),
               ),
             ],
           ),
         ),
         Expanded(
           child: empty
-              ? const Center(
+              ? Center(
                   child: Padding(
                     padding: EdgeInsets.all(32),
                     child: L10nText(
@@ -2608,7 +2609,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 ),
               ),
               ListTile(
-                leading: const Icon(
+                leading: Icon(
                   Icons.photo_library_outlined,
                   color: MetoColors.primary,
                 ),
@@ -2616,7 +2617,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 onTap: () => Navigator.pop(ctx, ImageSource.gallery),
               ),
               ListTile(
-                leading: const Icon(
+                leading: Icon(
                   Icons.photo_camera_outlined,
                   color: MetoColors.primary,
                 ),
@@ -2779,7 +2780,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const L10nText(
+          L10nText(
             'Hesap rolü',
             style: TextStyle(
               fontSize: 12,
@@ -3631,7 +3632,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               Expanded(
                 child: L10nText(
                   'İlanlarım (${entries.length})',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                     color: MetoColors.foreground,
@@ -3659,7 +3660,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           ),
         ),
         if (_bildirimlerInbox.any((b) => b.isTeklif)) ...[
-          const L10nText(
+          L10nText(
             'TEKLİF BİLDİRİMLERİ',
             style: TextStyle(
               fontSize: 11,
@@ -3740,7 +3741,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             const SizedBox(height: 6),
           ],
           const SizedBox(height: 12),
-          const L10nText(
+          L10nText(
             'İLANLARIM',
             style: TextStyle(
               fontSize: 11,
@@ -3762,7 +3763,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               children: [
                 const L10nText('📋', style: TextStyle(fontSize: 32)),
                 const SizedBox(height: 12),
-                const L10nText(
+                L10nText(
                   'Henüz ilanınız yok',
                   style: TextStyle(
                     fontSize: 14,
@@ -3771,7 +3772,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const L10nText(
+                L10nText(
                   'İlanlar sekmesinden "İlan Ver" ile ücretsiz ilan yayınlayabilirsiniz.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -3895,7 +3896,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                           e.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
                             color: MetoColors.foreground,
@@ -3906,7 +3907,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                           '${e.konum} · ${formatPriceTl(e.fiyat)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
                             color: MetoColors.mutedFg,
                           ),
@@ -3952,7 +3953,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                         _openMesajlar();
                         _openBildirim(b);
                       },
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.chat_bubble_outline,
                         color: MetoColors.primary,
                         size: 18,
@@ -4011,7 +4012,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   IconButton(
                     tooltip: S.auto('İlanı düzenle'),
                     onPressed: () => _openEditIlanFromProfil(e.kind, e.id),
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.edit_outlined,
                       color: MetoColors.primary,
                       size: 18,
@@ -4090,7 +4091,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               Expanded(
                 child: L10nText(
                   'Kaydedilenler (${_favoriler.length})',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                     color: MetoColors.foreground,
@@ -4107,7 +4108,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               color: MetoColors.muted,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Column(
+            child: Column(
               children: [
                 L10nText('❤️', style: TextStyle(fontSize: 28)),
                 SizedBox(height: 8),
@@ -4160,7 +4161,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                           f.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
                             color: MetoColors.foreground,
@@ -4172,7 +4173,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                               if (f.konum.isNotEmpty) f.konum,
                               if (f.fiyat.isNotEmpty) formatPriceTl(f.fiyat),
                             ].join(' · '),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
                               color: MetoColors.mutedFg,
                             ),
@@ -4234,7 +4235,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
                       color: MetoColors.foreground,
@@ -4242,7 +4243,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   ),
                   Text(
                     sub,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       color: MetoColors.mutedFg,
                     ),
@@ -4283,7 +4284,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 icon: const Icon(Icons.arrow_back, size: 18),
               ),
               const SizedBox(width: 8),
-              const Expanded(
+              Expanded(
                 child: L10nText(
                   'Bildirimler',
                   style: TextStyle(
@@ -4307,7 +4308,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             _bildirimler.acikSayisi == 0
                 ? 'Tüm bildirimler kapalı. İsterseniz aşağıdan açabilirsiniz.'
                 : 'Tercihleriniz hesabınıza kaydedilir; çıkış yapınca da korunur. Push bildirimleri (telefon) bu anahtarlara bağlıdır.',
-            style: const TextStyle(fontSize: 12, color: MetoColors.foreground),
+            style: TextStyle(fontSize: 12, color: MetoColors.foreground),
           ),
         ),
         toggleRow(
@@ -4420,7 +4421,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                       _kullaniciProfil.adSoyad.trim().isEmpty
                           ? S.t('profile_complete')
                           : _kullaniciProfil.adSoyad.trim(),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                         color: MetoColors.foreground,
@@ -4431,7 +4432,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                       widget.user.email,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: MetoColors.mutedFg,
                       ),
@@ -4441,7 +4442,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                       _profilFoto == null
                           ? S.t('profile_photo_add')
                           : S.t('profile_photo_hint'),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         color: MetoColors.mutedFg,
                       ),
@@ -4730,7 +4731,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 colors: [MetoColors.primary, MetoColors.primaryDark],
               ),
               borderRadius: BorderRadius.circular(16),
@@ -4933,6 +4934,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: _menuTile(
+            emoji: '🎨',
+            label: 'Uygulama rengi',
+            sub: MetoColors.aktif.name,
+            onTap: _openRenkTemasiSheet,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _menuTile(
             emoji: '🚫',
             label: S.t('menu_blocked'),
             sub: S.t('menu_blocked_sub'),
@@ -5048,6 +5058,112 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _openRenkTemasiSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: MetoColors.card,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final aktifId = MetoColors.aktif.id;
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: MetoColors.border,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Uygulama rengi',
+                  style: GoogleFonts.nunito(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: MetoColors.foreground,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Çocuğunuzun tanısının farkındalık rengini seçebilirsiniz.',
+                  style: GoogleFonts.nunito(
+                    fontSize: 13,
+                    height: 1.35,
+                    color: MetoColors.mutedFg,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                for (final p in kMetoPalettes) ...[
+                  Material(
+                    color: p.id == aktifId
+                        ? MetoColors.primary.withValues(alpha: 0.10)
+                        : MetoColors.background,
+                    borderRadius: BorderRadius.circular(14),
+                    child: ListTile(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: BorderSide(
+                          color: p.id == aktifId
+                              ? MetoColors.primary
+                              : MetoColors.border,
+                        ),
+                      ),
+                      leading: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: p.primary,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      title: Text(
+                        p.name,
+                        style: GoogleFonts.nunito(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: MetoColors.foreground,
+                        ),
+                      ),
+                      subtitle: Text(
+                        p.aciklama,
+                        style: GoogleFonts.nunito(
+                          fontSize: 12,
+                          color: MetoColors.mutedFg,
+                        ),
+                      ),
+                      trailing: p.id == aktifId
+                          ? Icon(
+                              Icons.check_circle,
+                              color: MetoColors.primary,
+                            )
+                          : null,
+                      onTap: () async {
+                        await saveAndApplyRenkTemasi(p);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildDilSecimi() {
     final current = LocaleController.instance.lang;
     return Column(
@@ -5065,7 +5181,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               Expanded(
                 child: Text(
                   S.t('lang_title'),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
                     color: MetoColors.foreground,
@@ -5077,7 +5193,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         ),
         Text(
           S.t('lang_hint'),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
             color: MetoColors.mutedFg,
             height: 1.35,
@@ -5105,7 +5221,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 style: const TextStyle(fontWeight: FontWeight.w800),
               ),
               trailing: lang == current
-                  ? const Icon(Icons.check_circle, color: MetoColors.primary)
+                  ? Icon(Icons.check_circle, color: MetoColors.primary)
                   : null,
               onTap: () async {
                 await LocaleController.instance.setLang(lang);
@@ -5162,7 +5278,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 ],
               ),
             ),
-            const L10nText(
+            L10nText(
               'Engellediğiniz kullanıcılar size mesaj gönderemez; sohbetleri listede görünmez.',
               style: TextStyle(
                 fontSize: 12,
@@ -5177,7 +5293,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (list.isEmpty)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(vertical: 32),
                 child: L10nText(
                   'Engellenen kullanıcı yok.',
@@ -5241,7 +5357,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                             );
                           }
                         },
-                        child: const L10nText(
+                        child: L10nText(
                           'Engeli kaldır',
                           style: TextStyle(
                             color: MetoColors.primary,
@@ -5264,7 +5380,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           padding: const EdgeInsets.only(top: 4, bottom: 8),
           child: Text(
             text,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w800,
               color: MetoColors.foreground,
@@ -5274,7 +5390,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
     Widget body(String text) => Text(
           text,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
             height: 1.5,
             color: MetoColors.mutedFg,
@@ -5293,7 +5409,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             children: [
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
                   color: MetoColors.foreground,
@@ -5302,7 +5418,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               const SizedBox(height: 4),
               Text(
                 desc,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   height: 1.45,
                   color: MetoColors.mutedFg,
@@ -5325,7 +5441,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 icon: const Icon(Icons.arrow_back, size: 18),
               ),
               const SizedBox(width: 8),
-              const Expanded(
+              Expanded(
                 child: L10nText(
                   'Hakkında',
                   style: TextStyle(
@@ -5412,13 +5528,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   children: [
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.info_outline,
                           color: MetoColors.primary,
                           size: 22,
                         ),
                         const SizedBox(width: 8),
-                        const L10nText(
+                        L10nText(
                           'Platform Hakkında',
                           style: TextStyle(
                             fontSize: 14,
@@ -5455,7 +5571,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                         },
                         style: OutlinedButton.styleFrom(
                           foregroundColor: MetoColors.primary,
-                          side: const BorderSide(color: MetoColors.primary),
+                          side: BorderSide(color: MetoColors.primary),
                         ),
                         child: const L10nText('Bilgilendirme Notu'),
                       ),
@@ -5471,7 +5587,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   color: MetoColors.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const L10nText(
+                child: L10nText(
                   'Engelsiz Club ile kimse yalnız değil; engelleri birlikte aşıyoruz.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -5586,7 +5702,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   _KrediStep.paket => _krediYukleLabel,
                   _KrediStep.odeme => 'Mağaza Ödemesi',
                 },
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                   color: MetoColors.foreground,
@@ -5595,7 +5711,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               const Spacer(),
               Text(
                 _krediStep == _KrediStep.paket ? '1/2' : '2/2',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: MetoColors.mutedFg,
@@ -5625,11 +5741,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             children: [
               Text(
                 _isAileRole ? 'Mevcut iyilik puanınız' : 'Mevcut puanınız',
-                style: const TextStyle(fontSize: 14, color: MetoColors.mutedFg),
+                style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
               ),
               L10nText(
                 '${_isAileRole ? '💚' : '🪙'} $_userKredi $_krediBirimLabel',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                   color: MetoColors.primary,
@@ -5639,7 +5755,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           ),
         ),
         const SizedBox(height: 20),
-        const L10nText(
+        L10nText(
           'PAKET SEÇ',
           style: TextStyle(
             fontSize: 11,
@@ -5709,7 +5825,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                               children: [
                                 L10nText(
                                   '${p.adet} $_krediBirimLabelCap',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w800,
                                     color: MetoColors.foreground,
@@ -5741,7 +5857,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                             const SizedBox(height: 2),
                             L10nText(
                               p.desc,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 color: MetoColors.mutedFg,
                               ),
@@ -5763,7 +5879,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                       ),
                       Text(
                         _paketFiyatLabel(p),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
                           color: MetoColors.primary,
@@ -5780,7 +5896,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         L10nText(
           'Ödeme ${StoreBillingService.instance.storeName} üzerinden alınır',
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+          style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
         ),
       ],
     );
@@ -5795,8 +5911,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [MetoColors.primary, Color(0xFF1A5C51)],
+            gradient: LinearGradient(
+              colors: [MetoColors.primary, const Color(0xFF1A5C51)],
             ),
             borderRadius: BorderRadius.circular(16),
           ),
@@ -6050,7 +6166,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     if (sub != null)
                       Text(
                         sub,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           color: MetoColors.mutedFg,
                         ),
@@ -6147,18 +6263,18 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
 
   InputDecoration _dec(String hint) => InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: MetoColors.mutedFg, fontSize: 14),
+        hintStyle: TextStyle(color: MetoColors.mutedFg, fontSize: 14),
         filled: true,
         fillColor: MetoColors.background,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
       );
 
@@ -6166,7 +6282,7 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
         padding: const EdgeInsets.only(bottom: 6),
         child: Text(
           text.toUpperCase(),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w800,
             color: MetoColors.mutedFg,
@@ -6263,7 +6379,7 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
               Expanded(
                 child: L10nText(
                   '$_roleLabel Profili & Özgeçmiş',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                     color: MetoColors.foreground,
@@ -6282,7 +6398,7 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
           ),
           child: L10nText(
             'Profiliniz başlangıçta boştur. Bilgileri siz doldurur ve istediğiniz zaman güncellersiniz.',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               color: MetoColors.primary,
               height: 1.4,
@@ -6300,7 +6416,7 @@ class _KullaniciProfilFormState extends State<_KullaniciProfilForm> {
           ),
           child: Text(
             widget.email,
-            style: const TextStyle(fontSize: 14, color: MetoColors.mutedFg),
+            style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
           ),
         ),
         if (_isAile) _phoneField(),
@@ -6465,18 +6581,18 @@ class _CocukProfilFormState extends State<_CocukProfilForm> {
 
   InputDecoration _dec(String hint) => InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: MetoColors.mutedFg, fontSize: 14),
+        hintStyle: TextStyle(color: MetoColors.mutedFg, fontSize: 14),
         filled: true,
         fillColor: MetoColors.background,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
       );
 
@@ -6484,7 +6600,7 @@ class _CocukProfilFormState extends State<_CocukProfilForm> {
         padding: const EdgeInsets.only(bottom: 6),
         child: Text(
           text.toUpperCase(),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w800,
             color: MetoColors.mutedFg,
@@ -6508,7 +6624,7 @@ class _CocukProfilFormState extends State<_CocukProfilForm> {
                 icon: const Icon(Icons.arrow_back, size: 18),
               ),
               const SizedBox(width: 8),
-              const Expanded(
+              Expanded(
                 child: L10nText(
                   'Çocuk Profilim',
                   style: TextStyle(
@@ -6529,7 +6645,7 @@ class _CocukProfilFormState extends State<_CocukProfilForm> {
             border:
                 Border.all(color: MetoColors.primary.withValues(alpha: 0.2)),
           ),
-          child: const L10nText(
+          child: L10nText(
             'Durum ve gelişim bilgileri yalnızca sizin hesabınızda saklanır; ilan ve tekliflerde otomatik paylaşılmaz.',
             style: TextStyle(
               fontSize: 12,
@@ -6727,7 +6843,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                 padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
                 child: Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -6759,7 +6875,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                   ],
                 ),
               ),
-              const Divider(height: 1, color: MetoColors.border),
+              Divider(height: 1, color: MetoColors.border),
               if (_sent)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
@@ -6776,7 +6892,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                         child: const Text('✅', style: TextStyle(fontSize: 28)),
                       ),
                       const SizedBox(height: 12),
-                      const L10nText(
+                      L10nText(
                         'İletildi!',
                         style: TextStyle(
                           fontSize: 16,
@@ -6785,7 +6901,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      const L10nText(
+                      L10nText(
                         'Mesajınız ekibimize ulaştı. En kısa sürede dönüş yapacağız.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
@@ -6822,7 +6938,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const L10nText(
+                        L10nText(
                           'Mesaj Türü',
                           style: TextStyle(
                             fontSize: 12,
@@ -6887,7 +7003,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        const Text.rich(
+                        Text.rich(
                           TextSpan(
                             children: [
                               TextSpan(
@@ -6920,20 +7036,20 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                             fillColor: MetoColors.muted,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
+                              borderSide: BorderSide(
                                 color: MetoColors.border,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
+                              borderSide: BorderSide(
                                 color: MetoColors.border,
                               ),
                             ),
                           ),
                         ),
                         const SizedBox(height: 12),
-                        const Text.rich(
+                        Text.rich(
                           TextSpan(
                             children: [
                               TextSpan(
@@ -6966,13 +7082,13 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                             fillColor: MetoColors.muted,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
+                              borderSide: BorderSide(
                                 color: MetoColors.border,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
+                              borderSide: BorderSide(
                                 color: MetoColors.border,
                               ),
                             ),
@@ -6985,7 +7101,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
                             color: MetoColors.selectedBg,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Row(
+                          child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               L10nText('📧', style: TextStyle(fontSize: 14)),
@@ -7389,7 +7505,7 @@ class _BottomNav extends StatelessWidget {
     final primaryActive = _swipePageOf(active) >= 0;
 
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: MetoColors.card,
         border: Border(top: BorderSide(color: MetoColors.border)),
         boxShadow: [

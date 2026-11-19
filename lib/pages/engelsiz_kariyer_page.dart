@@ -315,11 +315,11 @@ class _EngelsizKariyerPageState extends State<EngelsizKariyerPage> {
               style: GoogleFonts.nunito(),
               decoration: InputDecoration(
                 hintText: S.auto('İl veya ilan ara…'),
-                prefixIcon: const Icon(Icons.search, color: MetoColors.mutedFg),
+                prefixIcon: Icon(Icons.search, color: MetoColors.mutedFg),
                 suffixIcon: _search.text.isNotEmpty
                     ? IconButton(
                         onPressed: () => setState(_search.clear),
-                        icon: const Icon(Icons.close, color: MetoColors.mutedFg),
+                        icon: Icon(Icons.close, color: MetoColors.mutedFg),
                       )
                     : null,
                 filled: true,
@@ -327,27 +327,27 @@ class _EngelsizKariyerPageState extends State<EngelsizKariyerPage> {
                 hintStyle: GoogleFonts.nunito(color: MetoColors.mutedFg),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: MetoColors.border),
+                  borderSide: BorderSide(color: MetoColors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: MetoColors.border),
+                  borderSide: BorderSide(color: MetoColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: MetoColors.primary),
+                  borderSide: BorderSide(color: MetoColors.primary),
                 ),
               ),
             ),
           ),
           if (_loading)
-            const LinearProgressIndicator(
+            LinearProgressIndicator(
               minHeight: 2,
               color: MetoColors.primary,
             ),
           Expanded(
             child: _loading && items.isEmpty
-                ? const Center(
+                ? Center(
                     child: CircularProgressIndicator(color: MetoColors.primary),
                   )
                 : items.isEmpty

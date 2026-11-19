@@ -638,7 +638,7 @@ class _ConditionCard extends StatelessWidget {
                         child: InkWell(
                           customBorder: const CircleBorder(),
                           onTap: onEdit,
-                          child: const Padding(
+                          child: Padding(
                             padding: EdgeInsets.all(4),
                             child: Icon(
                               Icons.edit_outlined,
@@ -952,7 +952,7 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
                                       )
                                     : ColoredBox(
                                         color: MetoColors.muted,
-                                        child: const Icon(
+                                        child: Icon(
                                           Icons.image_outlined,
                                           color: MetoColors.primary,
                                         ),
@@ -1367,7 +1367,7 @@ class _AdminConditionManageSheetState extends State<_AdminConditionManageSheet> 
                               children: [
                                 ReorderableDragStartListener(
                                   index: i,
-                                  child: const Padding(
+                                  child: Padding(
                                     padding: EdgeInsets.symmetric(horizontal: 4),
                                     child: Icon(
                                       Icons.drag_handle,
@@ -1383,7 +1383,7 @@ class _AdminConditionManageSheetState extends State<_AdminConditionManageSheet> 
                                     child: item.imageUrl.trim().isEmpty
                                         ? ColoredBox(
                                             color: MetoColors.muted,
-                                            child: const Icon(
+                                            child: Icon(
                                               Icons.medical_services_outlined,
                                               color: MetoColors.primary,
                                             ),

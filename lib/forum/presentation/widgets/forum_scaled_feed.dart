@@ -76,7 +76,7 @@ class _ForumScaledFeedState extends ConsumerState<ForumScaledFeed> {
               ),
             ),
             if (state.loading && state.items.isEmpty)
-              const SliverFillRemaining(
+              SliverFillRemaining(
                 hasScrollBody: false,
                 child: Center(
                   child: CircularProgressIndicator(color: MetoColors.primary),
@@ -91,7 +91,7 @@ class _ForumScaledFeedState extends ConsumerState<ForumScaledFeed> {
                 ),
               )
             else if (state.items.isEmpty)
-              const SliverFillRemaining(
+              SliverFillRemaining(
                 hasScrollBody: false,
                 child: Center(
                   child: Padding(
@@ -115,7 +115,7 @@ class _ForumScaledFeedState extends ConsumerState<ForumScaledFeed> {
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         child: Center(
                           child: state.loadingMore
-                              ? const SizedBox(
+                              ? SizedBox(
                                   width: 22,
                                   height: 22,
                                   child: CircularProgressIndicator(
@@ -165,7 +165,7 @@ class _ErrorBox extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               'Liste yüklenemedi.\nSupabase’de forum_scale_taxonomy.sql çalıştırın.',
               textAlign: TextAlign.center,
               style: TextStyle(color: MetoColors.mutedFg),

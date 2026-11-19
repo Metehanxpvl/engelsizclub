@@ -78,15 +78,15 @@ class _EtkinlikOneriSheetState extends State<EtkinlikOneriSheet> {
         hintStyle: GoogleFonts.nunito(color: MetoColors.mutedFg),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.primary),
+          borderSide: BorderSide(color: MetoColors.primary),
         ),
       );
 
@@ -348,7 +348,7 @@ class _EtkinlikOneriSheetState extends State<EtkinlikOneriSheet> {
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: MetoColors.primary,
-                        side: const BorderSide(color: MetoColors.border),
+                        side: BorderSide(color: MetoColors.border),
                       ),
                     ),
                   ),
@@ -360,7 +360,7 @@ class _EtkinlikOneriSheetState extends State<EtkinlikOneriSheet> {
                       label: L10nText(_timeLabel),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: MetoColors.primary,
-                        side: const BorderSide(color: MetoColors.border),
+                        side: BorderSide(color: MetoColors.border),
                       ),
                     ),
                   ),
@@ -392,7 +392,7 @@ class _EtkinlikOneriSheetState extends State<EtkinlikOneriSheet> {
                 label: const L10nText('Fotoğraf (isteğe bağlı)'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: MetoColors.primary,
-                  side: const BorderSide(color: MetoColors.border),
+                  side: BorderSide(color: MetoColors.border),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

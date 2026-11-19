@@ -183,14 +183,14 @@ class _SectionEditorsPanelState extends State<SectionEditorsPanel> {
               IconButton(
                 tooltip: 'Yenile',
                 onPressed: _loading ? null : _reload,
-                icon: const Icon(Icons.refresh, color: MetoColors.primary),
+                icon: Icon(Icons.refresh, color: MetoColors.primary),
               ),
             ],
           ),
         ),
         Expanded(
           child: _loading
-              ? const Center(
+              ? Center(
                   child: CircularProgressIndicator(color: MetoColors.primary),
                 )
               : ListView(

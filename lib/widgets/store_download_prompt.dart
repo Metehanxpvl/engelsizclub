@@ -182,7 +182,7 @@ class StoreDownloadDialog extends StatelessWidget {
                             color: MetoColors.primary.withValues(alpha: 0.12),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.smartphone_outlined,
                             color: MetoColors.primary,
                             size: 22,

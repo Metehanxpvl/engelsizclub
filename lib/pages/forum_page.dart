@@ -1012,13 +1012,13 @@ class ForumPageState extends State<ForumPage> {
                 ),
               ),
               ListTile(
-                leading: const Icon(Icons.photo_library_outlined,
+                leading: Icon(Icons.photo_library_outlined,
                     color: MetoColors.primary),
                 title: const L10nText('Galeriden seç'),
                 onTap: () => Navigator.pop(ctx, ImageSource.gallery),
               ),
               ListTile(
-                leading: const Icon(Icons.photo_camera_outlined,
+                leading: Icon(Icons.photo_camera_outlined,
                     color: MetoColors.primary),
                 title: const L10nText('Kamerayla çek'),
                 onTap: () => Navigator.pop(ctx, ImageSource.camera),
@@ -1250,7 +1250,7 @@ class ForumPageState extends State<ForumPage> {
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1312,13 +1312,13 @@ class ForumPageState extends State<ForumPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 child: Row(
                   children: [
-                    const Icon(Icons.search, size: 15, color: MetoColors.mutedFg),
+                    Icon(Icons.search, size: 15, color: MetoColors.mutedFg),
                     const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
                         controller: _searchController,
                         onChanged: (v) => setState(() => _searchQuery = v),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           color: MetoColors.foreground,
                         ),
@@ -1354,9 +1354,9 @@ class ForumPageState extends State<ForumPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  const Icon(Icons.sort, size: 18, color: MetoColors.mutedFg),
+                  Icon(Icons.sort, size: 18, color: MetoColors.mutedFg),
                   const SizedBox(width: 8),
-                  const L10nText(
+                  L10nText(
                     'Sırala',
                     style: TextStyle(
                       fontSize: 13,
@@ -1378,9 +1378,9 @@ class ForumPageState extends State<ForumPage> {
                           value: _sort,
                           isExpanded: true,
                           borderRadius: BorderRadius.circular(12),
-                          icon: const Icon(Icons.keyboard_arrow_down,
+                          icon: Icon(Icons.keyboard_arrow_down,
                               color: MetoColors.primary),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
                             color: MetoColors.foreground,
@@ -1454,7 +1454,7 @@ class ForumPageState extends State<ForumPage> {
                   children: [
                     Row(
                       children: [
-                        const L10nText(
+                        L10nText(
                           'Etiketler',
                           style: TextStyle(
                             fontSize: 12,
@@ -1552,7 +1552,7 @@ class ForumPageState extends State<ForumPage> {
                   ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: MetoColors.primary,
-                    side: const BorderSide(color: MetoColors.border),
+                    side: BorderSide(color: MetoColors.border),
                     visualDensity: VisualDensity.compact,
                   ),
                 ),
@@ -1560,7 +1560,7 @@ class ForumPageState extends State<ForumPage> {
             const SizedBox(height: 12),
             if (_loading) const LinearProgressIndicator(minHeight: 2),
             if (_loading && filtered.isEmpty)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(vertical: 80),
                 child: Center(
                   child: CircularProgressIndicator(color: MetoColors.primary),
@@ -1574,7 +1574,7 @@ class ForumPageState extends State<ForumPage> {
                     Text(
                       _loadError!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: MetoColors.mutedFg,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1654,7 +1654,7 @@ class ForumPageState extends State<ForumPage> {
       return L10nText(
         '$total gönderi',
         textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
+        style: TextStyle(fontSize: 11, color: MetoColors.mutedFg),
       );
     }
     final pageCount = (total / _pageSize).ceil();
@@ -1663,7 +1663,7 @@ class ForumPageState extends State<ForumPage> {
       children: [
         L10nText(
           'Sayfa ${page + 1} / $pageCount · $total gönderi',
-          style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
+          style: TextStyle(fontSize: 11, color: MetoColors.mutedFg),
         ),
         const SizedBox(height: 8),
         Wrap(
@@ -1711,14 +1711,14 @@ class ForumPageState extends State<ForumPage> {
             Container(
               width: 56,
               height: 56,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: MetoColors.muted,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.search, size: 24, color: MetoColors.mutedFg),
+              child: Icon(Icons.search, size: 24, color: MetoColors.mutedFg),
             ),
             const SizedBox(height: 16),
-            const L10nText(
+            L10nText(
               'Sonuç bulunamadı',
               style: TextStyle(
                 fontSize: 14,
@@ -1730,7 +1730,7 @@ class ForumPageState extends State<ForumPage> {
             L10nText(
               '"$_searchQuery" için eşleşen konu yok.\nFarklı bir kelime deneyin.',
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 color: MetoColors.mutedFg,
                 height: 1.5,
@@ -1797,7 +1797,7 @@ class ForumPageState extends State<ForumPage> {
                             _displayName(post.author),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
                               color: MetoColors.foreground,
@@ -1829,7 +1829,7 @@ class ForumPageState extends State<ForumPage> {
                     ),
                     Text(
                       post.time,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: MetoColors.mutedFg,
                       ),
@@ -1907,7 +1907,7 @@ class ForumPageState extends State<ForumPage> {
                     ),
                   ),
                 ],
-                icon: const Icon(Icons.more_vert, color: MetoColors.mutedFg),
+                icon: Icon(Icons.more_vert, color: MetoColors.mutedFg),
               ),
             ],
           ),
@@ -2060,7 +2060,7 @@ class ForumPageState extends State<ForumPage> {
                       },
                     );
                   },
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.flag_outlined,
                     color: MetoColors.mutedFg,
                     size: 20,
@@ -2070,7 +2070,7 @@ class ForumPageState extends State<ForumPage> {
                 IconButton(
                   tooltip: S.auto('Düzenle'),
                   onPressed: () => _startEditPost(post),
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.edit_outlined,
                     color: MetoColors.primary,
                     size: 20,
@@ -2088,8 +2088,8 @@ class ForumPageState extends State<ForumPage> {
                 ),
             ],
           ),
-          const Divider(color: MetoColors.border, height: 32),
-          const L10nText(
+          Divider(color: MetoColors.border, height: 32),
+          L10nText(
             'Yorumlar',
             style: TextStyle(
               fontSize: 14,
@@ -2110,7 +2110,7 @@ class ForumPageState extends State<ForumPage> {
               ),
             )
           else if (_rootComments.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(bottom: 12),
               child: L10nText(
                 'Henüz yorum yok. İlk yorumu siz yazın.',
@@ -2197,7 +2197,7 @@ class ForumPageState extends State<ForumPage> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.reply,
                                 size: 16,
                                 color: MetoColors.primary,
@@ -2206,7 +2206,7 @@ class ForumPageState extends State<ForumPage> {
                               Expanded(
                                 child: L10nText(
                                   '${_displayName(_replyingTo!.name)} adlı üyeye yanıt',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
                                     color: MetoColors.foreground,
@@ -2256,12 +2256,12 @@ class ForumPageState extends State<ForumPage> {
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide:
-                                    const BorderSide(color: MetoColors.border),
+                                    BorderSide(color: MetoColors.border),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide:
-                                    const BorderSide(color: MetoColors.border),
+                                    BorderSide(color: MetoColors.border),
                               ),
                             ),
                           ),
@@ -2331,7 +2331,7 @@ class ForumPageState extends State<ForumPage> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            const L10nText(
+                            L10nText(
                               'Anonim yorum',
                               style: TextStyle(
                                 fontSize: 13,
@@ -2344,7 +2344,7 @@ class ForumPageState extends State<ForumPage> {
                               _commentAnon
                                   ? '(adın gizlenecek)'
                                   : '(isteğe bağlı)',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 color: MetoColors.mutedFg,
                               ),
@@ -2376,13 +2376,13 @@ class ForumPageState extends State<ForumPage> {
             children: [
               IconButton(
                 onPressed: _closePostForm,
-                icon: const Icon(Icons.chevron_left, color: MetoColors.primary),
+                icon: Icon(Icons.chevron_left, color: MetoColors.primary),
               ),
               Text(
                 isEdit
                     ? 'Gönderiyi Düzenle'
                     : (expertMode ? 'Köşe Yazısı' : 'Yeni Gönderi'),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                   color: MetoColors.foreground,
@@ -2486,7 +2486,7 @@ class ForumPageState extends State<ForumPage> {
                 'Köşe yazısı olarak paylaş',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
-              subtitle: const L10nText(
+              subtitle: L10nText(
                 'Doktor, fizyoterapist vb. uzman yazısı',
                 style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
               ),
@@ -2614,7 +2614,7 @@ class ForumPageState extends State<ForumPage> {
                     onChanged: (v) => setState(() => _anon = v ?? false),
                     activeColor: MetoColors.primary,
                   ),
-                  const L10nText(
+                  L10nText(
                     'Anonim paylaş',
                     style: TextStyle(fontSize: 14, color: MetoColors.foreground),
                   ),
@@ -2693,7 +2693,7 @@ class ForumPageState extends State<ForumPage> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             ),
                           )
-                        : const Icon(
+                        : Icon(
                             Icons.add_a_photo_outlined,
                             color: MetoColors.mutedFg,
                           ),
@@ -2754,11 +2754,11 @@ class ForumPageState extends State<ForumPage> {
     );
   }
 
-  static const _metaStyle = TextStyle(fontSize: 14, color: MetoColors.mutedFg);
+  static final _metaStyle = TextStyle(fontSize: 14, color: MetoColors.mutedFg);
 
   Widget _fieldLabel(String text) => Text(
         text.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w700,
           color: MetoColors.mutedFg,
@@ -2768,17 +2768,17 @@ class ForumPageState extends State<ForumPage> {
 
   InputDecoration _inputDecoration({String? hint}) => InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: MetoColors.mutedFg, fontSize: 14),
+        hintStyle: TextStyle(color: MetoColors.mutedFg, fontSize: 14),
         filled: true,
         fillColor: MetoColors.card,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
       );
 }
@@ -2824,7 +2824,7 @@ class _PostCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (post.pinned)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(bottom: 8),
                   child: Row(
                     children: [
@@ -2864,7 +2864,7 @@ class _PostCard extends StatelessWidget {
                                 authorLabel,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                   color: MetoColors.foreground,
@@ -2882,7 +2882,7 @@ class _PostCard extends StatelessWidget {
                                   color: MetoColors.primary.withValues(alpha: 0.10),
                                   borderRadius: BorderRadius.circular(999),
                                 ),
-                                child: const Text(
+                                child: Text(
                                   'Uzman',
                                   style: TextStyle(
                                     fontSize: 12,
@@ -2896,7 +2896,7 @@ class _PostCard extends StatelessWidget {
                         ),
                         Text(
                           post.time,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             color: MetoColors.mutedFg,
                           ),
@@ -2933,7 +2933,7 @@ class _PostCard extends StatelessWidget {
                 post.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: MetoColors.foreground,
@@ -2944,7 +2944,7 @@ class _PostCard extends StatelessWidget {
                 post.content,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   color: MetoColors.mutedFg,
                   height: 1.4,
@@ -3022,7 +3022,7 @@ class _PostCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  const Icon(Icons.chat_bubble_outline,
+                  Icon(Icons.chat_bubble_outline,
                       size: 12, color: MetoColors.mutedFg),
                   const SizedBox(width: 4),
                   L10nText('${post.comments}', style: ForumPageState._metaStyle),
@@ -3032,7 +3032,7 @@ class _PostCard extends StatelessWidget {
                       IconButton(
                         tooltip: S.auto('Şikayet / Engelle'),
                         onPressed: onReport,
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.flag_outlined,
                           size: 18,
                           color: MetoColors.mutedFg,
@@ -3046,7 +3046,7 @@ class _PostCard extends StatelessWidget {
                       IconButton(
                         tooltip: S.auto('Düzenle'),
                         onPressed: onEdit,
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.edit_outlined,
                           size: 18,
                           color: MetoColors.primary,
@@ -3203,7 +3203,7 @@ class _CommentBubble extends StatelessWidget {
                       Expanded(
                         child: Text(
                           nameLabel,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                             color: MetoColors.foreground,
@@ -3214,7 +3214,7 @@ class _CommentBubble extends StatelessWidget {
                         IconButton(
                           tooltip: S.auto('Şikayet / Engelle'),
                           onPressed: onReport,
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.flag_outlined,
                             size: 16,
                             color: MetoColors.mutedFg,
@@ -3257,7 +3257,7 @@ class _CommentBubble extends StatelessWidget {
                     children: [
                       Text(
                         comment.time,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
                           color: MetoColors.mutedFg,
                         ),
@@ -3303,7 +3303,7 @@ class _CommentBubble extends StatelessWidget {
                       InkWell(
                         onTap: onReply,
                         borderRadius: BorderRadius.circular(8),
-                        child: const Padding(
+                        child: Padding(
                           padding: EdgeInsets.symmetric(
                             horizontal: 4,
                             vertical: 2,
@@ -3357,7 +3357,7 @@ class _ForumReadBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
+          Icon(
             Icons.visibility_outlined,
             size: 14,
             color: MetoColors.mutedFg,
@@ -3365,7 +3365,7 @@ class _ForumReadBadge extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             forumReadLabel(count),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w800,
               color: MetoColors.mutedFg,

@@ -297,12 +297,12 @@ class _DuyuruAllTile extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                       gradient: seen
                           ? null
-                          : const LinearGradient(
+                          : LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                               colors: [
                                 MetoColors.primary,
-                                Color(0xFF2F9B6A),
+                                const Color(0xFF2F9B6A),
                                 MetoColors.accentGold,
                               ],
                             ),

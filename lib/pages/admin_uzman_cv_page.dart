@@ -236,7 +236,7 @@ class _AdminUzmanCvPageState extends State<AdminUzmanCvPage>
                 if (p.ownerEmail.isNotEmpty)
                   Text(
                     p.ownerEmail,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       color: MetoColors.mutedFg,
                     ),

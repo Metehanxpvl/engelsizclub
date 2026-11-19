@@ -213,7 +213,7 @@ class ForumTopicCard extends StatelessWidget {
         const SizedBox(width: 3),
         Text(
           '$n',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
             color: MetoColors.mutedFg,

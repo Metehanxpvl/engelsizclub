@@ -27,13 +27,13 @@ class LoadingErrorView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const CircularProgressIndicator(color: MetoColors.primary),
+            CircularProgressIndicator(color: MetoColors.primary),
             if (loadingMessage != null) ...[
               const SizedBox(height: 12),
               L10nText(
                 loadingMessage!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   color: MetoColors.mutedFg,
                   fontWeight: FontWeight.w600,
@@ -52,12 +52,12 @@ class LoadingErrorView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.cloud_off, size: 40, color: MetoColors.mutedFg),
+              Icon(Icons.cloud_off, size: 40, color: MetoColors.mutedFg),
               const SizedBox(height: 12),
               Text(
                 error!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   color: MetoColors.mutedFg,
                   fontWeight: FontWeight.w600,
                   height: 1.35,
@@ -84,7 +84,7 @@ class LoadingErrorView extends StatelessWidget {
           child: L10nText(
             emptyMessage!,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: MetoColors.mutedFg),
+            style: TextStyle(color: MetoColors.mutedFg),
           ),
         ),
       );

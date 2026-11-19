@@ -102,7 +102,7 @@ class _IyilikMarketKonfetiState extends State<IyilikMarketKonfeti>
                           ),
                         ],
                       ),
-                      child: const Column(
+                      child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text('🎉', style: TextStyle(fontSize: 36)),
@@ -152,13 +152,13 @@ class _Piece {
 
   static List<_Piece> burst(int n) {
     final rnd = math.Random();
-    const colors = <Color>[
+    final colors = <Color>[
       MetoColors.primary,
       MetoColors.accentGold,
-      Color(0xFF0F766E),
-      Color(0xFF22C55E),
-      Color(0xFFFB7185),
-      Color(0xFF38BDF8),
+      const Color(0xFF0F766E),
+      const Color(0xFF22C55E),
+      const Color(0xFFFB7185),
+      const Color(0xFF38BDF8),
     ];
     return List<_Piece>.generate(n, (_) {
       return _Piece(

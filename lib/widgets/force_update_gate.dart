@@ -100,11 +100,11 @@ class _StoreUpdateSheet extends StatelessWidget {
                       Container(
                         width: 56,
                         height: 56,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: MetoColors.muted,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.system_update_alt,
                           color: MetoColors.primary,
                           size: 28,

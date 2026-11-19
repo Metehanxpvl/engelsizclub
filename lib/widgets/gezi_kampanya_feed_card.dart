@@ -644,7 +644,7 @@ class _CampaignCodeBlock extends StatelessWidget {
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: MetoColors.primary,
-              side: const BorderSide(color: MetoColors.border),
+              side: BorderSide(color: MetoColors.border),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),

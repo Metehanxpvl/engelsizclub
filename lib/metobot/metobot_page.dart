@@ -299,7 +299,7 @@ class _MetoBotPageState extends State<MetoBotPage> {
         children: [
           Expanded(
             child: _loading
-                ? const Center(
+                ? Center(
                     child: CircularProgressIndicator(color: MetoColors.primary),
                   )
                 : ListView(
@@ -528,7 +528,7 @@ class _MetoBotPageState extends State<MetoBotPage> {
                               ? null
                               : () => Navigator.of(context).pop(hint.route),
                           backgroundColor: MetoColors.selectedBg,
-                          side: const BorderSide(color: MetoColors.border),
+                          side: BorderSide(color: MetoColors.border),
                           label: L10nText(
                             hint.title,
                             style: GoogleFonts.nunito(

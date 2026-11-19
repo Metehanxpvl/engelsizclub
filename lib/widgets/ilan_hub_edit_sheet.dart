@@ -252,7 +252,7 @@ class _IlanHubEditSheetState extends State<_IlanHubEditSheet> {
                             width: double.infinity,
                             height: double.infinity,
                           )
-                        : const Center(
+                        : Center(
                             child: Icon(
                               Icons.image_outlined,
                               size: 40,
@@ -291,7 +291,7 @@ class _IlanHubEditSheetState extends State<_IlanHubEditSheet> {
             ],
           ),
           const SizedBox(height: 16),
-          const L10nText(
+          L10nText(
             'Kart adı',
             style: TextStyle(
               fontSize: 12,

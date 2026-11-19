@@ -565,7 +565,7 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
   InputDecoration _searchDecoration() {
     return InputDecoration(
       hintText: S.auto('İl ara (Ankara, İzmir…)'),
-      prefixIcon: const Icon(Icons.search, color: MetoColors.mutedFg),
+      prefixIcon: Icon(Icons.search, color: MetoColors.mutedFg),
       suffixIcon: (_search.text.isNotEmpty || _city != null)
           ? IconButton(
               tooltip: S.auto('Temizle'),
@@ -576,7 +576,7 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
                   setState(() => _search.clear());
                 }
               },
-              icon: const Icon(Icons.close, color: MetoColors.mutedFg),
+              icon: Icon(Icons.close, color: MetoColors.mutedFg),
             )
           : null,
       filled: true,
@@ -584,15 +584,15 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
       hintStyle: GoogleFonts.nunito(color: MetoColors.mutedFg),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: MetoColors.border),
+        borderSide: BorderSide(color: MetoColors.border),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: MetoColors.border),
+        borderSide: BorderSide(color: MetoColors.border),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: MetoColors.primary),
+        borderSide: BorderSide(color: MetoColors.primary),
       ),
     );
   }
@@ -869,7 +869,7 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
               ),
             ),
           if (_loading)
-            const LinearProgressIndicator(
+            LinearProgressIndicator(
               minHeight: 2,
               color: MetoColors.primary,
             ),
@@ -877,7 +877,7 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
             child: pickingCity
                 ? _buildCityList()
                 : _loading && items.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: CircularProgressIndicator(
                           color: MetoColors.primary,
                         ),
@@ -1254,7 +1254,7 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     alignment: Alignment.center,
-                    child: const Icon(
+                    child: Icon(
                       Icons.location_city_outlined,
                       size: 18,
                       color: MetoColors.primary,
@@ -1291,7 +1291,7 @@ class _KampanyalarPageState extends State<KampanyalarPage> {
                       ),
                     ),
                   const SizedBox(width: 4),
-                  const Icon(
+                  Icon(
                     Icons.chevron_right,
                     color: MetoColors.mutedFg,
                   ),

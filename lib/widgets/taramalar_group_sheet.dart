@@ -41,7 +41,7 @@ class MoreMenuGroupSheet extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                     color: MetoColors.foreground,
@@ -117,10 +117,10 @@ class MoreMenuGroupSheet extends StatelessWidget {
       case 'games':
         return Icon(Icons.extension_outlined, color: Colors.green.shade700);
       case 'search':
-        return const Icon(Icons.search, color: MetoColors.primary);
+        return Icon(Icons.search, color: MetoColors.primary);
       case 'folder':
       case 'apps':
-        return const Icon(Icons.folder_outlined, color: MetoColors.primary);
+        return Icon(Icons.folder_outlined, color: MetoColors.primary);
       default:
         return Icon(
           item.isFolder ? Icons.folder_outlined : Icons.link,

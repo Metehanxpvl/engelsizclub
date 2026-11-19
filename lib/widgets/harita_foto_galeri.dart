@@ -190,7 +190,7 @@ class _HaritaFotoGaleriState extends State<HaritaFotoGaleri> {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: L10nText(
                   'Mekan fotoğrafları',
                   style: TextStyle(
@@ -230,7 +230,7 @@ class _HaritaFotoGaleriState extends State<HaritaFotoGaleri> {
               ),
             )
           else if (_photos.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: L10nText(
                 'Henüz fotoğraf yok. İlk erişilebilirlik fotoğrafını siz ekleyin.',

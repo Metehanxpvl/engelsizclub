@@ -526,7 +526,7 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 12),
                   L10nText(
                     d.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
                       color: MetoColors.foreground,
@@ -536,7 +536,7 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 8),
                   L10nText(
                     d.desc,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       color: MetoColors.mutedFg,
                       height: 1.45,
@@ -577,7 +577,7 @@ class _HomePageState extends State<HomePage> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            const L10nText(
+                            L10nText(
                               'Sık görülen özellikler',
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
@@ -596,7 +596,7 @@ class _HomePageState extends State<HomePage> {
                               Expanded(
                                 child: Text(
                                   s,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 14,
                                     color: MetoColors.foreground,
                                   ),
@@ -621,7 +621,7 @@ class _HomePageState extends State<HomePage> {
                             Icon(Icons.medical_services_outlined,
                                 size: 16, color: d.color),
                             const SizedBox(width: 8),
-                            const L10nText(
+                            L10nText(
                               'Bilgilendirme',
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
@@ -633,7 +633,7 @@ class _HomePageState extends State<HomePage> {
                         const SizedBox(height: 8),
                         Text(
                           d.diagnosis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
                             color: MetoColors.mutedFg,
                             height: 1.45,
@@ -654,7 +654,7 @@ class _HomePageState extends State<HomePage> {
                             Icon(Icons.favorite_outline,
                                 size: 16, color: d.color),
                             const SizedBox(width: 8),
-                            const L10nText(
+                            L10nText(
                               'Destek Yolları',
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
@@ -704,7 +704,7 @@ class _HomePageState extends State<HomePage> {
                           Icon(Icons.menu_book_outlined,
                               size: 16, color: d.color),
                           const SizedBox(width: 8),
-                          const L10nText(
+                          L10nText(
                             'Sık Sorulan Sorular',
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
@@ -740,7 +740,7 @@ class _HomePageState extends State<HomePage> {
                                       Expanded(
                                         child: Text(
                                           d.faq[i].q,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: 14,
                                             fontWeight: FontWeight.w600,
                                             color: MetoColors.foreground,
@@ -764,7 +764,7 @@ class _HomePageState extends State<HomePage> {
                                       const EdgeInsets.fromLTRB(12, 0, 12, 12),
                                   child: Text(
                                     d.faq[i].a,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 14,
                                       color: MetoColors.mutedFg,
                                       height: 1.45,
@@ -927,7 +927,7 @@ class _HomePageState extends State<HomePage> {
                                   children: [
                                     L10nText(
                                       h.name,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w800,
                                         color: MetoColors.foreground,
@@ -936,7 +936,7 @@ class _HomePageState extends State<HomePage> {
                                     const SizedBox(height: 4),
                                     Text(
                                       h.shortDesc,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 12,
                                         color: MetoColors.mutedFg,
                                         height: 1.45,
@@ -979,7 +979,7 @@ class _HomePageState extends State<HomePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const L10nText(
+                      L10nText(
                         'Faydalı Kaynaklar',
                         style: TextStyle(
                           fontSize: 12,
@@ -998,13 +998,13 @@ class _HomePageState extends State<HomePage> {
                               padding: const EdgeInsets.symmetric(vertical: 4),
                               child: Row(
                                 children: [
-                                  const Icon(Icons.open_in_new,
+                                  Icon(Icons.open_in_new,
                                       size: 12, color: MetoColors.primary),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
                                       r.label,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
                                         color: MetoColors.primary,
@@ -1275,7 +1275,7 @@ class _DisclaimerBannerState extends State<DisclaimerBanner> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.only(top: 2),
             child: Icon(Icons.info_outline, size: 16, color: MetoColors.primary),
           ),
@@ -1307,7 +1307,7 @@ class _DisclaimerBannerState extends State<DisclaimerBanner> {
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            icon: const Icon(Icons.close, size: 18, color: MetoColors.mutedFg),
+            icon: Icon(Icons.close, size: 18, color: MetoColors.mutedFg),
           ),
         ],
       ),
@@ -2025,18 +2025,18 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
           ),
           child: Row(
             children: [
-              const Icon(Icons.search, size: 16, color: MetoColors.mutedFg),
+              Icon(Icons.search, size: 16, color: MetoColors.mutedFg),
               const SizedBox(width: 8),
               Expanded(
                 child: TextField(
                   controller: _controller,
                   focusNode: _focus,
                   onSubmitted: (_) => _search(),
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 14, color: MetoColors.foreground),
                   decoration: InputDecoration(
                     hintText: widget.placeholder,
-                    hintStyle: const TextStyle(
+                    hintStyle: TextStyle(
                         fontSize: 14, color: MetoColors.mutedFg),
                     border: InputBorder.none,
                     isDense: true,
@@ -2047,7 +2047,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
               if (_controller.text.isNotEmpty)
                 IconButton(
                   onPressed: _clear,
-                  icon: const Icon(Icons.close,
+                  icon: Icon(Icons.close,
                       size: 14, color: MetoColors.mutedFg),
                   visualDensity: VisualDensity.compact,
                 ),
@@ -2093,13 +2093,13 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                           horizontal: 12, vertical: 10),
                       child: Row(
                         children: [
-                          const Icon(Icons.north_west,
+                          Icon(Icons.north_west,
                               size: 14, color: MetoColors.mutedFg),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               _suggestions[i],
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 color: MetoColors.foreground,
@@ -2109,7 +2109,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                           if (_typoHints[
                                   _controller.text.trim().toLowerCase()] ==
                               _suggestions[i].toLowerCase())
-                            const L10nText(
+                            L10nText(
                               'Bunu mu demek istediniz?',
                               style: TextStyle(
                                 fontSize: 10,
@@ -2126,7 +2126,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
           ),
         ],
         const SizedBox(height: 6),
-        const Row(
+        Row(
           children: [
             Icon(Icons.open_in_new, size: 10, color: MetoColors.mutedFg),
             SizedBox(width: 4),
@@ -2139,7 +2139,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
           ],
         ),
         if (_loading)
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(vertical: 32),
             child: Column(
               children: [
@@ -2169,7 +2169,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
             padding: const EdgeInsets.symmetric(vertical: 32),
             child: Column(
               children: [
-                const L10nText(
+                L10nText(
                   'Sonuç bulunamadı',
                   style: TextStyle(
                       fontSize: 14,
@@ -2183,7 +2183,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                       : 'Farklı bir kelime deneyin.',
                   textAlign: TextAlign.center,
                   style:
-                      const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+                      TextStyle(fontSize: 12, color: MetoColors.mutedFg),
                 ),
               ],
             ),
@@ -2219,7 +2219,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
           if (_tab == 'pubmed')
             ...(_pubmed.isEmpty
                 ? [
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.symmetric(vertical: 16),
                       child: L10nText(
                         "PubMed'de sonuç bulunamadı.",
@@ -2244,7 +2244,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
           else
             ...(_trials.isEmpty
                 ? [
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.symmetric(vertical: 16),
                       child: L10nText(
                         'Araştırma bulunamadı.',
@@ -2283,7 +2283,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
         child: L10nText(
           '$total sonuç',
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
+          style: TextStyle(fontSize: 11, color: MetoColors.mutedFg),
         ),
       );
     }
@@ -2310,7 +2310,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
         children: [
           L10nText(
             'Sayfa ${page + 1} / $pageCount · $total sonuç',
-            style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
+            style: TextStyle(fontSize: 11, color: MetoColors.mutedFg),
           ),
           const SizedBox(height: 8),
           Row(
@@ -2324,7 +2324,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
               const SizedBox(width: 4),
               ...pages.map((p) {
                 if (p < 0) {
-                  return const Padding(
+                  return Padding(
                     padding: EdgeInsets.symmetric(horizontal: 4),
                     child: Text('…',
                         style: TextStyle(
@@ -2441,7 +2441,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
             child: L10nText(
               r.title,
               from: r.titleEn.isNotEmpty && r.title == r.titleEn ? 'en' : 'tr',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
                 color: MetoColors.primary,
@@ -2464,7 +2464,7 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
                   ),
                   child: Text(
                     r.year,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       color: MetoColors.primary,
@@ -2474,20 +2474,20 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
               if (r.journal.isNotEmpty)
                 Text(
                   r.journal,
-                  style: const TextStyle(fontSize: 10, color: MetoColors.mutedFg),
+                  style: TextStyle(fontSize: 10, color: MetoColors.mutedFg),
                 ),
             ],
           ),
           if (r.authors.isNotEmpty)
             Text(
               r.authors,
-              style: const TextStyle(fontSize: 10, color: MetoColors.mutedFg),
+              style: TextStyle(fontSize: 10, color: MetoColors.mutedFg),
             ),
           if (r.titleEn.isNotEmpty && r.titleEn != r.title) ...[
             const SizedBox(height: 8),
             Text(
               r.titleEn,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 fontStyle: FontStyle.italic,
                 color: MetoColors.mutedFg,
@@ -2534,21 +2534,21 @@ class _PubMedSearchBarState extends State<PubMedSearchBar> {
             const SizedBox(height: 6),
             Text(
               t.status,
-              style: const TextStyle(fontSize: 10, color: MetoColors.mutedFg),
+              style: TextStyle(fontSize: 10, color: MetoColors.mutedFg),
             ),
           ],
           if (t.nctId.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
               t.nctId,
-              style: const TextStyle(fontSize: 11, color: MetoColors.mutedFg),
+              style: TextStyle(fontSize: 11, color: MetoColors.mutedFg),
             ),
           ],
           if (t.titleEn.isNotEmpty && t.titleEn != t.title) ...[
             const SizedBox(height: 8),
             Text(
               t.titleEn,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 fontStyle: FontStyle.italic,
                 color: MetoColors.mutedFg,
@@ -2593,7 +2593,7 @@ class _NadirSectionCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             body.isEmpty ? 'İçerik henüz eklenmedi.' : body,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               height: 1.5,
               color: MetoColors.mutedFg,

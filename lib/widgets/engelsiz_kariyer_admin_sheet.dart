@@ -88,15 +88,15 @@ class _EngelsizKariyerAdminSheetState extends State<EngelsizKariyerAdminSheet> {
         hintStyle: GoogleFonts.nunito(color: MetoColors.mutedFg),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.primary),
+          borderSide: BorderSide(color: MetoColors.primary),
         ),
       );
 

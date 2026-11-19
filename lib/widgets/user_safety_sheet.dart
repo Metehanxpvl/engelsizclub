@@ -232,14 +232,14 @@ class _UserSafetySheetBodyState extends State<_UserSafetySheetBody> {
           const SizedBox(height: 16),
           Text(
             widget.targetDisplayName,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
               color: MetoColors.foreground,
             ),
           ),
           const SizedBox(height: 4),
-          const L10nText(
+          L10nText(
             'Hakaret, taciz veya uygunsuz davranış için şikayet edin veya engelleyin.',
             style: TextStyle(fontSize: 13, color: MetoColors.mutedFg, height: 1.35),
           ),

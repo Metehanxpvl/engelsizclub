@@ -232,7 +232,7 @@ class _AdminCityPostersScreenState extends State<AdminCityPostersScreen> {
                       fillColor: MetoColors.card,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: MetoColors.border),
+                        borderSide: BorderSide(color: MetoColors.border),
                       ),
                     ),
                   ),
@@ -378,7 +378,7 @@ class _CityPosterCard extends StatelessWidget {
   Widget _missingThumb() {
     return ColoredBox(
       color: MetoColors.selectedBg,
-      child: const Center(
+      child: Center(
         child: Icon(Icons.image_outlined, color: MetoColors.mutedFg),
       ),
     );

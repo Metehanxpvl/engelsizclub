@@ -331,7 +331,7 @@ class _KesfetPageState extends State<KesfetPage> with WidgetsBindingObserver {
 
   Widget _body(bool reduce) {
     if (_loading) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(color: MetoColors.primary),
       );
     }
@@ -496,7 +496,7 @@ class _KesfetGuestLimitOverlay extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.lock_outline,
                           size: 40,
                           color: MetoColors.primary,
@@ -573,7 +573,7 @@ class _EmptyKesfet extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.play_circle_outline,
+                Icon(Icons.play_circle_outline,
                     size: 56, color: MetoColors.primary),
                 const SizedBox(height: 16),
                 L10nText(

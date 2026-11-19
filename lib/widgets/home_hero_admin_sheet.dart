@@ -454,7 +454,7 @@ class _HomeHeroAdminSheetState extends State<HomeHeroAdminSheet> {
       return Image.network(
         item.imageUrl,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const ColoredBox(
+        errorBuilder: (_, __, ___) => ColoredBox(
           color: MetoColors.muted,
           child: Icon(Icons.broken_image_outlined),
         ),
@@ -464,13 +464,13 @@ class _HomeHeroAdminSheetState extends State<HomeHeroAdminSheet> {
       return Image.asset(
         item.assetPath,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const ColoredBox(
+        errorBuilder: (_, __, ___) => ColoredBox(
           color: MetoColors.muted,
           child: Icon(Icons.image_outlined),
         ),
       );
     }
-    return const ColoredBox(
+    return ColoredBox(
       color: MetoColors.muted,
       child: Icon(Icons.image_outlined),
     );

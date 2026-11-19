@@ -1049,7 +1049,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const L10nText(
+                          L10nText(
                             'Merkezler',
                             style: TextStyle(
                               fontSize: 20,
@@ -1065,7 +1065,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                                 : _liveCenters.isEmpty && !_centersLoading
                                     ? 'İl/ilçe seçin veya haritaya dokunarak rampa/WC bildirin'
                                     : '$_selectedCity · $_selectedIlce · haritaya dokunup yer bildirin',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
                               color: MetoColors.mutedFg,
                             ),
@@ -1120,7 +1120,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.search,
                         size: 15,
                         color: MetoColors.mutedFg,
@@ -1132,7 +1132,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                           onChanged: _onSearchTextChanged,
                           onSubmitted: _onSearchSubmitted,
                           textInputAction: TextInputAction.search,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
                             color: MetoColors.foreground,
                           ),
@@ -1149,7 +1149,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                         ),
                       ),
                       if (_searchLoading)
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.only(right: 4),
                           child: SizedBox(
                             width: 14,
@@ -1174,7 +1174,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                               _dataNote = null;
                             });
                           },
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.close,
                             size: 14,
                             color: MetoColors.mutedFg,
@@ -1243,7 +1243,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const SizedBox(
+                          SizedBox(
                             width: 22,
                             height: 22,
                             child: CircularProgressIndicator(
@@ -1258,7 +1258,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                                 : (_selectedIlce == kAllIlceler
                                     ? '$_selectedCity merkezleri aranıyor…'
                                     : '$_selectedIlce / $_selectedCity aranıyor…'),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                               color: MetoColors.mutedFg,
@@ -1331,7 +1331,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                             Text(
                               _centersError!,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 color: MetoColors.mutedFg,
@@ -1415,12 +1415,12 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                 children: [
                   TextButton.icon(
                     onPressed: () => setState(() => _selectedCenter = null),
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.chevron_left,
                       size: 18,
                       color: MetoColors.primary,
                     ),
-                    label: const L10nText(
+                    label: L10nText(
                       'Geri',
                       style: TextStyle(
                         fontSize: 14,
@@ -1455,7 +1455,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                   const SizedBox(height: 12),
                   L10nText(
                     center.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
                       color: MetoColors.foreground,
@@ -1496,7 +1496,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                           ),
                           child: L10nText(
                             reportLabel,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
                               color: MetoColors.primary,
@@ -1530,7 +1530,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.groups_outlined,
                           color: MetoColors.primary,
                         ),
@@ -1538,7 +1538,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                         Expanded(
                           child: L10nText(
                             reportLabel,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w800,
                               color: MetoColors.foreground,
@@ -1598,7 +1598,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                     children: [
                       L10nText(
                         isErisim ? 'Erişilebilirlik' : 'Sunulan Hizmetler',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           color: MetoColors.mutedFg,
                         ),
@@ -1675,7 +1675,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const L10nText(
+                            L10nText(
                               'Değerlendirme',
                               style: TextStyle(
                                 fontSize: 12,
@@ -1693,7 +1693,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                                 const SizedBox(width: 4),
                                 L10nText(
                                   '${center.rating}',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w800,
                                     color: MetoColors.foreground,
@@ -1702,7 +1702,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                                 const SizedBox(width: 4),
                                 L10nText(
                                   '(${center.reviews} yorum)',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
                                     color: MetoColors.mutedFg,
                                   ),
@@ -1715,7 +1715,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          const L10nText(
+                          L10nText(
                             'Uzaklık',
                             style: TextStyle(
                               fontSize: 12,
@@ -1725,7 +1725,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                           const SizedBox(height: 4),
                           Text(
                             formatDistanceKm(distKm),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
                               color: MetoColors.primary,
@@ -1766,7 +1766,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                               _callPhoneNumber(context, center.phone),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: MetoColors.primary,
-                            side: const BorderSide(
+                            side: BorderSide(
                               color: MetoColors.primary,
                               width: 2,
                             ),
@@ -1802,7 +1802,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: MetoColors.primary,
-                        side: const BorderSide(
+                        side: BorderSide(
                           color: MetoColors.primary,
                           width: 2,
                         ),
@@ -1845,7 +1845,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: MetoColors.primary,
-                        side: const BorderSide(
+                        side: BorderSide(
                           color: MetoColors.primary,
                           width: 2,
                         ),
@@ -1947,9 +1947,9 @@ class _CityDropdown extends StatelessWidget {
         child: DropdownButton<String>(
           value: value,
           isExpanded: true,
-          icon: const Icon(Icons.expand_more,
+          icon: Icon(Icons.expand_more,
               size: 18, color: MetoColors.mutedFg),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
             color: MetoColors.foreground,
@@ -2208,19 +2208,19 @@ class _EmptySearch extends StatelessWidget {
             width: 56,
             height: 56,
             child: DecoratedBox(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: MetoColors.muted,
                 shape: BoxShape.circle,
               ),
               child: searching
-                  ? const Padding(
+                  ? Padding(
                       padding: EdgeInsets.all(16),
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         color: MetoColors.primary,
                       ),
                     )
-                  : const Icon(
+                  : Icon(
                       Icons.search,
                       size: 22,
                       color: MetoColors.mutedFg,
@@ -2234,7 +2234,7 @@ class _EmptySearch extends StatelessWidget {
                 : active
                     ? 'Arama sonucu yok'
                     : 'Merkez bulunamadı',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: MetoColors.foreground,
@@ -2247,7 +2247,7 @@ class _EmptySearch extends StatelessWidget {
                 : active
                     ? '"$query" için eşleşme bulunamadı. Şehir/ilçe veya yazımı deneyin.'
                     : 'Bu bölgede kayıtlı merkez yok.',
-            style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+            style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
             textAlign: TextAlign.center,
           ),
         ],
@@ -2311,7 +2311,7 @@ class _CenterListTile extends StatelessWidget {
                       children: [
                         L10nText(
                           center.name,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
                             color: MetoColors.foreground,
@@ -2320,7 +2320,7 @@ class _CenterListTile extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           center.category,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             color: MetoColors.mutedFg,
                           ),
@@ -2328,7 +2328,7 @@ class _CenterListTile extends StatelessWidget {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.location_on,
                               size: 10,
                               color: MetoColors.mutedFg,
@@ -2337,7 +2337,7 @@ class _CenterListTile extends StatelessWidget {
                             Expanded(
                               child: L10nText(
                                 '${center.ilce} · ${center.city}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 12,
                                   color: MetoColors.mutedFg,
                                 ),
@@ -2363,14 +2363,14 @@ class _CenterListTile extends StatelessWidget {
                             const SizedBox(width: 2),
                             L10nText(
                               '${center.rating}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 color: MetoColors.foreground,
                               ),
                             ),
                           ] else
-                            const L10nText(
+                            L10nText(
                               'Maps',
                               style: TextStyle(
                                 fontSize: 10,
@@ -2383,7 +2383,7 @@ class _CenterListTile extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         formatDistanceKm(distKm),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                           color: MetoColors.primary,
@@ -2476,11 +2476,11 @@ class _InfoRow extends StatelessWidget {
                 Text(
                   label,
                   style:
-                      const TextStyle(fontSize: 12, color: MetoColors.mutedFg),
+                      TextStyle(fontSize: 12, color: MetoColors.mutedFg),
                 ),
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: MetoColors.foreground,
@@ -2503,7 +2503,7 @@ class _MedicalVendorsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Row(
+        Row(
           children: [
             Icon(
               Icons.shopping_bag_outlined,
@@ -2540,7 +2540,7 @@ class _MedicalVendorsSection extends StatelessWidget {
                 ),
                 child: Text(
                   kVendorFilterLabels[i],
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: MetoColors.mutedFg,
@@ -2602,7 +2602,7 @@ class _VendorCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 L10nText(
                   '${vendor.city} / ${vendor.district}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     color: MetoColors.mutedFg,
                   ),
@@ -2619,7 +2619,7 @@ class _VendorCard extends StatelessWidget {
                       if (vendor.sgk) 'SGK',
                       if (vendor.cargo) 'Kargo',
                     ].join(' · '),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: MetoColors.primary,
@@ -2687,7 +2687,7 @@ class _VendorCard extends StatelessWidget {
                   children: [
                     L10nText(
                       vendor.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: MetoColors.foreground,
@@ -2696,7 +2696,7 @@ class _VendorCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     L10nText(
                       '${vendor.city} / ${vendor.district}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: MetoColors.mutedFg,
                       ),
@@ -2797,7 +2797,7 @@ class _VendorCard extends StatelessWidget {
                 onPressed: () => _showVendorDetail(context),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: MetoColors.foreground,
-                  side: const BorderSide(color: MetoColors.border),
+                  side: BorderSide(color: MetoColors.border),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 10,

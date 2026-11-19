@@ -177,7 +177,7 @@ class _KartlarPageState extends State<KartlarPage> {
   @override
   Widget build(BuildContext context) {
     if (!_loaded) {
-      return const ColoredBox(
+      return ColoredBox(
         color: MetoColors.background,
         child:
             Center(child: CircularProgressIndicator(color: MetoColors.primary)),
@@ -202,7 +202,7 @@ class _KartlarPageState extends State<KartlarPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const L10nText(
+                          L10nText(
                             'İletişim Kartları',
                             style: TextStyle(
                               fontSize: 20,
@@ -215,7 +215,7 @@ class _KartlarPageState extends State<KartlarPage> {
                             _editMode
                                 ? 'Düzenleme modu — bir karta dokunarak özelleştir'
                                 : 'Karta dokunarak sesli okut',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
                               color: MetoColors.mutedFg,
                             ),
@@ -352,7 +352,7 @@ class _KartlarPageState extends State<KartlarPage> {
                             ),
                           ],
                         ),
-                        child: const Column(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
@@ -395,7 +395,7 @@ class _KartlarPageState extends State<KartlarPage> {
                             color: MetoColors.primary.withValues(alpha: 0.20),
                           ),
                         ),
-                        child: const Column(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
@@ -658,7 +658,7 @@ class _AddCardTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: CustomPaint(
           painter: _DashedBorderPainter(color: MetoColors.primary),
-          child: const Center(
+          child: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -1022,7 +1022,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                         Expanded(
                           child: Text(
                             widget.isNew ? 'Yeni Kart Ekle' : 'Kartı Düzenle',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
                               color: MetoColors.foreground,
@@ -1035,7 +1035,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                           child: InkWell(
                             onTap: widget.onClose,
                             customBorder: const CircleBorder(),
-                            child: const Padding(
+                            child: Padding(
                               padding: EdgeInsets.all(8),
                               child: Icon(
                                 Icons.close,
@@ -1048,14 +1048,14 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                       ],
                     ),
                   ),
-                  const Divider(height: 1, color: MetoColors.border),
+                  Divider(height: 1, color: MetoColors.border),
                   Flexible(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const L10nText(
+                          L10nText(
                             'Fotoğraf (isteğe bağlı)',
                             style: TextStyle(
                               fontSize: 12,
@@ -1131,7 +1131,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                                             color: _draft.color,
                                           ),
                                         ),
-                                        const L10nText(
+                                        L10nText(
                                           'Galeriden seç',
                                           style: TextStyle(
                                             fontSize: 10,
@@ -1143,7 +1143,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          const L10nText(
+                          L10nText(
                             'İfade (Kart yazısı)',
                             style: TextStyle(
                               fontSize: 12,
@@ -1170,14 +1170,14 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                                 vertical: 12,
                               ),
                             ),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                               color: MetoColors.foreground,
                             ),
                           ),
                           const SizedBox(height: 16),
-                          const L10nText(
+                          L10nText(
                             'Açıklama (isteğe bağlı)',
                             style: TextStyle(
                               fontSize: 12,
@@ -1208,14 +1208,14 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                                 vertical: 12,
                               ),
                             ),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               color: MetoColors.foreground,
                             ),
                           ),
                           if (photoBytes == null) ...[
                             const SizedBox(height: 16),
-                            const L10nText(
+                            L10nText(
                               'Simge',
                               style: TextStyle(
                                 fontSize: 12,
@@ -1261,7 +1261,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                             ),
                           ],
                           const SizedBox(height: 16),
-                          const L10nText(
+                          L10nText(
                             'Renk',
                             style: TextStyle(
                               fontSize: 12,
@@ -1310,7 +1310,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                             ],
                           ),
                           const SizedBox(height: 16),
-                          const L10nText(
+                          L10nText(
                             'Kategori',
                             style: TextStyle(
                               fontSize: 12,
@@ -1354,7 +1354,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                                     vertical: 12,
                                   ),
                                 ),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                   color: MetoColors.foreground,
@@ -1363,7 +1363,7 @@ class _EditCardSheetState extends State<_EditCardSheet> {
                             },
                           ),
                           const SizedBox(height: 16),
-                          const L10nText(
+                          L10nText(
                             'Önizleme',
                             style: TextStyle(
                               fontSize: 12,

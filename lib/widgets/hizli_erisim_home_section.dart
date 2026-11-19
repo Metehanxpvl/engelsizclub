@@ -108,7 +108,7 @@ class _YolHaritasiTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(Icons.account_tree,
+              Icon(Icons.account_tree,
                   size: 28, color: MetoColors.primary),
               const SizedBox(width: 12),
               Expanded(
@@ -135,7 +135,7 @@ class _YolHaritasiTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: MetoColors.primary),
+              Icon(Icons.chevron_right, color: MetoColors.primary),
             ],
           ),
         ),

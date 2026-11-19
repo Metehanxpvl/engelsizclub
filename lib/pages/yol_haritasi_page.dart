@@ -270,20 +270,20 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
           decoration: InputDecoration(
             hintText: 'Tanı ara',
             hintStyle: GoogleFonts.nunito(color: MetoColors.mutedFg),
-            prefixIcon: const Icon(Icons.search, color: MetoColors.mutedFg),
+            prefixIcon: Icon(Icons.search, color: MetoColors.mutedFg),
             filled: true,
             fillColor: MetoColors.card,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: MetoColors.border),
+              borderSide: BorderSide(color: MetoColors.border),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: MetoColors.border),
+              borderSide: BorderSide(color: MetoColors.border),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: MetoColors.primary),
+              borderSide: BorderSide(color: MetoColors.primary),
             ),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -313,7 +313,7 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
               ),
             ),
             trailing: _taslakTani == t.id
-                ? const Icon(Icons.check, color: MetoColors.primary)
+                ? Icon(Icons.check, color: MetoColors.primary)
                 : null,
             onTap: () => setState(() {
               if (_taslakTani != t.id) _taslakCevaplar.clear();
@@ -338,7 +338,7 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
             ),
           ),
           trailing: _taslakTani == 'genetik'
-              ? const Icon(Icons.check, color: MetoColors.primary)
+              ? Icon(Icons.check, color: MetoColors.primary)
               : null,
           onTap: () => setState(() {
             if (_taslakTani != 'genetik') _taslakCevaplar.clear();
@@ -411,7 +411,7 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
         );
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(top: BorderSide(color: MetoColors.border)),
       ),
       child: Column(
@@ -719,7 +719,7 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: MetoColors.primary,
-              side: const BorderSide(color: MetoColors.primary),
+              side: BorderSide(color: MetoColors.primary),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
@@ -822,7 +822,7 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
     final neIseYarar = yolNeIseYararBul(m.baslik);
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 10, 8),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(top: BorderSide(color: MetoColors.border)),
       ),
       child: Row(

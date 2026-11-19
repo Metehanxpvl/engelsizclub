@@ -29,6 +29,7 @@ import 'l10n/l10n_text.dart';
 import 'main_shell.dart';
 import 'meto_theme.dart';
 import 'pages/legal_document_page.dart';
+import 'renk_temasi_store.dart';
 import 'remote/app_screen_config.dart';
 import 'services/app_catalog_service.dart';
 import 'services/push_notification_service.dart';
@@ -234,6 +235,11 @@ Future<void> main() async {
       statusBarIconBrightness: Brightness.light,
     ),
   );
+  try {
+    await loadAndApplyRenkTemasi();
+  } catch (_) {
+    MetoColors.uygula(metoPaletteById('yesil'));
+  }
   runApp(const ProviderScope(child: MetoCareApp()));
   unawaited(_bootstrapPlatformServices());
   unawaited(_deferredAfterFirstFrame());
@@ -611,7 +617,11 @@ class _MetoCareAppState extends State<MetoCareApp> {
       ]),
       builder: (context, _) {
         final lang = LocaleController.instance.lang;
-        return MaterialApp(
+        return ValueListenableBuilder<int>(
+          valueListenable: renkTemasiSurumu,
+          builder: (context, surum, _) {
+            return MaterialApp(
+          key: ValueKey(surum),
           title: 'EngelsizClub',
           debugShowCheckedModeBanner: false,
           scaffoldMessengerKey: _messengerKey,
@@ -635,7 +645,7 @@ class _MetoCareAppState extends State<MetoCareApp> {
             scaffoldBackgroundColor: MetoColors.background,
             textTheme: GoogleFonts.nunitoTextTheme(),
             primaryTextTheme: GoogleFonts.nunitoTextTheme(),
-            colorScheme: const ColorScheme.light(
+            colorScheme: ColorScheme.light(
               primary: MetoColors.primary,
               onPrimary: Colors.white,
               surface: MetoColors.card,
@@ -720,6 +730,8 @@ class _MetoCareAppState extends State<MetoCareApp> {
                             _authOpenOnSignup = true;
                           }),
                         ),
+            );
+          },
         );
       },
     );
@@ -815,7 +827,7 @@ class _NewPasswordScreenState extends State<_NewPasswordScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const L10nText(
+                  L10nText(
                     'Yeni şifre belirle',
                     textAlign: TextAlign.center,
                     style: TextStyle(
@@ -825,7 +837,7 @@ class _NewPasswordScreenState extends State<_NewPasswordScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const L10nText(
+                  L10nText(
                     'E-postadaki bağlantı ile geldiniz. Hesabınız için yeni bir şifre girin.',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
@@ -1150,7 +1162,7 @@ class _AuthScreenState extends State<AuthScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const L10nText(
+              L10nText(
                 'Şifre sıfırlama bağlantısını göndereceğimiz e-posta adresinizi girin.',
                 style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
               ),
@@ -1690,7 +1702,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                const L10nText(
+                                L10nText(
                                   'Sunucuya bağlanırken gecikme yaşandı. '
                                   'Misafir olarak devam edebilir veya tekrar deneyebilirsiniz.',
                                   style: TextStyle(
@@ -2075,7 +2087,7 @@ class _SplashStep extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: MetoColors.primary,
                       backgroundColor: MetoColors.card,
-                      side: const BorderSide(color: MetoColors.primary, width: 1.5),
+                      side: BorderSide(color: MetoColors.primary, width: 1.5),
                       tapTargetSize: MaterialTapTargetSize.padded,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
@@ -2186,7 +2198,7 @@ class _SignInStep extends StatelessWidget {
           subtitle: 'Özel gereksinimli kahramanlarımız için',
           logoRadius: 16,
         ),
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(bottom: 4),
           child: L10nText(
             'v1.1.1',
@@ -2240,7 +2252,7 @@ class _SignInStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const L10nText(
+        L10nText(
           'Hesap Türü',
           style: TextStyle(
             fontSize: 12,
@@ -2330,7 +2342,7 @@ class _SignInStep extends StatelessWidget {
                 onPressed: () => onGoogleSignIn(girisHesapTip),
               ),
               if (showTourFinger)
-                const Positioned(
+                Positioned(
                   right: 18,
                   top: -6,
                   child: IgnorePointer(
@@ -2353,7 +2365,7 @@ class _SignInStep extends StatelessWidget {
         ),
         if (girisHesapTip == null) ...[
           const SizedBox(height: 10),
-          const L10nText(
+          L10nText(
             'Sosyal giriş için önce Destek Arayan veya Destek Veren seçin.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
@@ -2422,7 +2434,7 @@ class _SignInStep extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          const Text.rich(
+          Text.rich(
             TextSpan(
               style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
               children: [
@@ -2448,13 +2460,13 @@ class _SignInStep extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: MetoColors.primary,
                   backgroundColor: MetoColors.card,
-                  side: const BorderSide(color: MetoColors.primary),
+                  side: BorderSide(color: MetoColors.primary),
                   tapTargetSize: MaterialTapTargetSize.padded,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                child: const L10nText(
+                child: L10nText(
                   'Üye olmadan keşfet',
                   style: TextStyle(
                     color: MetoColors.primary,
@@ -2472,7 +2484,7 @@ class _SignInStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const L10nText(
+        L10nText(
           'Yeni hesap oluşturun',
           style: TextStyle(
             fontSize: 13,
@@ -2481,7 +2493,7 @@ class _SignInStep extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        const L10nText(
+        L10nText(
           'Hesap Türü',
           style: TextStyle(
             fontSize: 12,
@@ -2515,7 +2527,7 @@ class _SignInStep extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         if (kayitTip == null) ...[
-          const L10nText(
+          L10nText(
             'Üye olmak için önce Destek Arayan veya Destek Veren seçin.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
@@ -2532,7 +2544,7 @@ class _SignInStep extends StatelessWidget {
             ),
             child: L10nText(
               '🎁 Hoş geldin hediyesi: hesabınıza $kWelcomeKredi ücretsiz puan tanımlanır.',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: MetoColors.primary,
@@ -2581,7 +2593,7 @@ class _SignInStep extends StatelessWidget {
               child: DropdownButton<String>(
                 isExpanded: true,
                 value: kayitUzmanlik,
-                hint: const L10nText(
+                hint: L10nText(
                   'Uzmanlık Alanı Seçin',
                   style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
                 ),
@@ -2605,7 +2617,7 @@ class _SignInStep extends StatelessWidget {
             color: MetoColors.muted,
             borderRadius: BorderRadius.circular(16),
           ),
-          child: const Row(
+          child: Row(
             children: [
               Icon(Icons.shield_outlined, size: 16, color: MetoColors.primary),
               SizedBox(width: 12),
@@ -2739,7 +2751,7 @@ class _KayitLegalCheckbox extends StatelessWidget {
   final bool accepted;
   final VoidCallback onToggle;
 
-  static const _linkStyle = TextStyle(
+  static final _linkStyle = TextStyle(
     color: MetoColors.primary,
     fontWeight: FontWeight.w700,
     fontSize: 12,
@@ -2748,7 +2760,7 @@ class _KayitLegalCheckbox extends StatelessWidget {
     decorationColor: MetoColors.primary,
   );
 
-  static const _baseStyle = TextStyle(
+  static final _baseStyle = TextStyle(
     fontSize: 12,
     color: MetoColors.mutedFg,
     height: 1.45,
@@ -2793,7 +2805,7 @@ class _KayitLegalCheckbox extends StatelessWidget {
                   child: GestureDetector(
                     onTap: () =>
                         LegalDocumentPage.open(context, LegalDocKind.terms),
-                    child: const Text('Kullanım Koşulları', style: _linkStyle),
+                    child: Text('Kullanım Koşulları', style: _linkStyle),
                   ),
                 ),
                 const TextSpan(text: ', '),
@@ -2803,7 +2815,7 @@ class _KayitLegalCheckbox extends StatelessWidget {
                   child: GestureDetector(
                     onTap: () =>
                         LegalDocumentPage.open(context, LegalDocKind.privacy),
-                    child: const Text('Gizlilik Politikası', style: _linkStyle),
+                    child: Text('Gizlilik Politikası', style: _linkStyle),
                   ),
                 ),
                 const TextSpan(text: ' ve '),
@@ -2815,7 +2827,7 @@ class _KayitLegalCheckbox extends StatelessWidget {
                       context,
                       LegalDocKind.disclaimer,
                     ),
-                    child: const Text('Sorumluluk Reddi Beyanı', style: _linkStyle),
+                    child: Text('Sorumluluk Reddi Beyanı', style: _linkStyle),
                   ),
                 ),
                 const TextSpan(text: '’nı okudum, onaylıyorum. Uygunsuz içeriğe sıfır tolerans uygulanır.'),
@@ -2839,19 +2851,19 @@ class _OrDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Expanded(child: Divider(color: MetoColors.border, thickness: 1)),
+        Expanded(child: Divider(color: MetoColors.border, thickness: 1)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
               color: MetoColors.mutedFg,
             ),
           ),
         ),
-        const Expanded(child: Divider(color: MetoColors.border, thickness: 1)),
+        Expanded(child: Divider(color: MetoColors.border, thickness: 1)),
       ],
     );
   }
@@ -2999,7 +3011,7 @@ class _LoadingStepState extends State<_LoadingStep>
           const SizedBox(height: 20),
           L10nText(
             _showCancel ? 'Bağlantı bekleniyor…' : 'Giriş yapılıyor…',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
               color: MetoColors.foreground,
@@ -3011,7 +3023,7 @@ class _LoadingStepState extends State<_LoadingStep>
                 ? 'Sunucu yanıt vermiyor. Biraz daha bekleyin veya iptal edin.'
                 : 'Hesabınız doğrulanıyor',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 14, color: MetoColors.mutedFg),
+            style: TextStyle(fontSize: 14, color: MetoColors.mutedFg),
           ),
           const SizedBox(height: 20),
           AnimatedBuilder(
@@ -3027,7 +3039,7 @@ class _LoadingStepState extends State<_LoadingStep>
                     transform: Matrix4.translationValues(0, dy, 0),
                     width: 8,
                     height: 8,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: MetoColors.primary,
                       shape: BoxShape.circle,
                     ),
@@ -3092,16 +3104,16 @@ class _BrandHeader extends StatelessWidget {
       child: ClipPath(
         clipper: const _AuthWaveClipper(),
         child: DecoratedBox(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
-              begin: Alignment(-0.8, -1),
-              end: Alignment(1, 1.2),
+              begin: const Alignment(-0.8, -1),
+              end: const Alignment(1, 1.2),
               colors: [
                 MetoColors.primary,
                 MetoColors.primaryDark,
                 MetoColors.accentGold,
               ],
-              stops: [0.0, 0.55, 1.0],
+              stops: const [0.0, 0.55, 1.0],
             ),
           ),
           child: SafeArea(
@@ -3352,10 +3364,10 @@ class _AuthFieldState extends State<_AuthField> {
       onChanged: widget.onChanged,
       obscureText: widget.obscure,
       keyboardType: widget.keyboardType,
-      style: const TextStyle(fontSize: 14, color: MetoColors.foreground),
+      style: TextStyle(fontSize: 14, color: MetoColors.foreground),
       decoration: InputDecoration(
         hintText: widget.hint,
-        hintStyle: const TextStyle(color: MetoColors.mutedFg, fontSize: 14),
+        hintStyle: TextStyle(color: MetoColors.mutedFg, fontSize: 14),
         filled: true,
         fillColor: MetoColors.card,
         contentPadding: const EdgeInsets.symmetric(
@@ -3364,15 +3376,15 @@ class _AuthFieldState extends State<_AuthField> {
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.primary, width: 1.6),
+          borderSide: BorderSide(color: MetoColors.primary, width: 1.6),
         ),
       ),
     );

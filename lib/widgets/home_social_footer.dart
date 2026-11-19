@@ -210,7 +210,7 @@ class _SocialTile extends StatelessWidget {
                   ),
                 ),
               ),
-              const Icon(Icons.open_in_new, size: 16, color: MetoColors.mutedFg),
+              Icon(Icons.open_in_new, size: 16, color: MetoColors.mutedFg),
             ],
           ),
         ),

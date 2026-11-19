@@ -252,7 +252,7 @@ class _DerneklerHomeSectionState extends State<DerneklerHomeSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Dernekler',
             style: TextStyle(
               fontSize: 16,
@@ -291,7 +291,7 @@ class _DerneklerHomeSectionState extends State<DerneklerHomeSection> {
                   textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                     height: 1.2,
@@ -421,7 +421,7 @@ class _DernekBox extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(16),
-          child: const Center(
+          child: Center(
             child: Icon(Icons.groups_outlined, color: MetoColors.primary),
           ),
         ),
@@ -640,15 +640,15 @@ class _DernekEditSheetState extends State<_DernekEditSheet> {
         hintStyle: GoogleFonts.nunito(color: MetoColors.mutedFg),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.primary),
+          borderSide: BorderSide(color: MetoColors.primary),
         ),
       );
 
@@ -716,7 +716,7 @@ class _DernekEditSheetState extends State<_DernekEditSheet> {
                 label: const L10nText('Galeriden görsel seç'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: MetoColors.primary,
-                  side: const BorderSide(color: MetoColors.border),
+                  side: BorderSide(color: MetoColors.border),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

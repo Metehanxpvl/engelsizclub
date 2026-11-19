@@ -555,14 +555,14 @@ class IlanPhoto {
 
 // ─── Theme helpers ─────────────────────────────────────────────────────────
 
-const _c = MetoColors.primary;
+final _c = MetoColors.primary;
 const _e07 = Color(0xFFE07A5F);
 const _9c6 = Color(0xFF9C6DB3);
 const _6b9 = Color(0xFF6B9AC4);
 const _f4a = Color(0xFFF4A832);
 const _5b8 = Color(0xFF5B8DD9);
 
-const uzmanRenk = <String, UzmanRenk>{
+final uzmanRenk = <String, UzmanRenk>{
   'Fizyoterapist': UzmanRenk(
     color: _c,
     bg: MetoColors.selectedBg,
@@ -679,7 +679,7 @@ const formPhotoColors = [
 
 // ─── Listing data ────────────────────────────────────────────────────────────
 
-const uzmanIlanlar = <UzmanIlani>[
+final uzmanIlanlar = <UzmanIlani>[
   UzmanIlani(
     id: 1,
     title: 'Evde Fizyoterapist Arıyoruz',
@@ -932,7 +932,7 @@ const uzmanIlanlar = <UzmanIlani>[
   ),
 ];
 
-const bakiciIlanlar = <BakiciIlani>[
+final bakiciIlanlar = <BakiciIlani>[
   BakiciIlani(
     id: 10,
     title: 'Gündüz Bakıcı Arıyoruz',
@@ -1120,7 +1120,7 @@ const bakiciIlanlar = <BakiciIlani>[
   ),
 ];
 
-const ikincielIlanlar = <IkincielIlani>[
+final ikincielIlanlar = <IkincielIlani>[
   IkincielIlani(
     id: 20,
     title: 'Çocuk Tekerlekli Sandalye',
@@ -1570,7 +1570,7 @@ void syncIlanIdSeq(int maxId) {
 }
 
 /// İlanı paylaşan kullanıcıyı temsil eden basit profil.
-const selfIlanPoster = IlanPoster(
+final selfIlanPoster = IlanPoster(
   name: 'Siz',
   avatar: 'SZ',
   avatarColor: MetoColors.primary,
@@ -1588,7 +1588,7 @@ double avgRating(List<IlanReview> reviews) {
 
 UzmanRenk uzmanRenkFor(String uzmanlik) {
   return uzmanRenk[uzmanlik] ??
-      const UzmanRenk(
+      UzmanRenk(
         color: MetoColors.primary,
         bg: MetoColors.selectedBg,
         emoji: '👤',

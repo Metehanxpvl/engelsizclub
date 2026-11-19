@@ -75,13 +75,13 @@ class _YoutubeEmbedState extends State<YoutubeEmbed> {
               Text(
                 widget.title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w800,
                   color: MetoColors.foreground,
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'YouTube’da aç',
                 style: TextStyle(color: MetoColors.mutedFg, fontSize: 13),
               ),

@@ -356,7 +356,7 @@ class _UzmanKosesCvFormPageState extends State<UzmanKosesCvFormPage> {
             radius: 52,
             backgroundColor: MetoColors.primary.withValues(alpha: 0.12),
             child: _photoUrl.isEmpty
-                ? const Icon(Icons.add_a_photo_outlined, size: 36, color: MetoColors.primary)
+                ? Icon(Icons.add_a_photo_outlined, size: 36, color: MetoColors.primary)
                 : ClipOval(
                     child: CatalogImage(
                       source: _photoUrl,
@@ -825,7 +825,7 @@ class _UzmanKosesCvFormPageState extends State<UzmanKosesCvFormPage> {
               ? 'Mahalle / semt veya açık adres'
               : 'Klinik / ofis / iş yeri açık adresi'),
         ),
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(top: 6),
           child: L10nText(
             kUzmanIsYeriAdresUyeNotu,
@@ -994,7 +994,7 @@ class _UzmanKosesCvFormPageState extends State<UzmanKosesCvFormPage> {
             ),
           ],
         ),
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(top: 6),
           child: L10nText(
             'İstediğiniz kadarını işaretleyin: yalnızca mesaj, yalnızca telefon veya ikisi birden.',
@@ -1019,7 +1019,7 @@ class _UzmanKosesCvFormPageState extends State<UzmanKosesCvFormPage> {
         )) ...[
           _label('${s.etiket}${s.zorunlu ? ' *' : ''}'),
           if (s.alanKey.contains('referans'))
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(bottom: 6),
               child: L10nText(
                 'Önemli: önceki aile / işveren referanslarınızı yazın.',
@@ -1040,13 +1040,13 @@ class _UzmanKosesCvFormPageState extends State<UzmanKosesCvFormPage> {
       children: [
         Center(child: _photoPicker()),
         const SizedBox(height: 8),
-        const L10nText(
+        L10nText(
           'Profil fotoğrafı kartta görünür. Diploma fotoğrafı kartta görünmez.',
           style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
         ),
         const SizedBox(height: 16),
         if (files.isNotEmpty) ...[
-          const L10nText(
+          L10nText(
             kBelgeFotoAciklama,
             style: TextStyle(
               fontSize: 13,
@@ -1085,7 +1085,7 @@ class _UzmanKosesCvFormPageState extends State<UzmanKosesCvFormPage> {
             ),
           ),
           if (isOpsiyonelBelgeAlani(s.alanKey))
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(top: 4, bottom: 8),
               child: L10nText(
                 kBelgeFotoOpsiyonelNot,
@@ -1099,7 +1099,7 @@ class _UzmanKosesCvFormPageState extends State<UzmanKosesCvFormPage> {
           _bakimFormu
               ? 'TC kimlik no, ev adresi ve doğum tarihi istenmez. Hizmet adresi isteğe bağlıdır.'
               : 'TC kimlik no, ev adresi ve doğum tarihi istenmez. İş yeri adresi isteğe bağlıdır.',
-          style: const TextStyle(fontSize: 12, color: MetoColors.mutedFg, height: 1.35),
+          style: TextStyle(fontSize: 12, color: MetoColors.mutedFg, height: 1.35),
         ),
       ],
     );
@@ -1113,14 +1113,14 @@ class _UzmanKosesCvFormPageState extends State<UzmanKosesCvFormPage> {
       children: [
         L10nText(_ad.text, style: GoogleFonts.nunito(fontSize: 18, fontWeight: FontWeight.w800)),
         Text('$etiket · ${_loc.state} / ${_loc.city}',
-            style: const TextStyle(color: MetoColors.mutedFg)),
+            style: TextStyle(color: MetoColors.mutedFg)),
         if (_telefon.text.trim().isNotEmpty)
           Text(_telefon.text.trim(),
-              style: const TextStyle(color: MetoColors.mutedFg)),
+              style: TextStyle(color: MetoColors.mutedFg)),
         if (_isYeriAdres.text.trim().isNotEmpty)
           Text(
             _isYeriAdres.text.trim(),
-            style: const TextStyle(color: MetoColors.mutedFg),
+            style: TextStyle(color: MetoColors.mutedFg),
           ),
         const SizedBox(height: 12),
         Text(_tanitim.text, style: const TextStyle(height: 1.4)),
@@ -1159,12 +1159,12 @@ class _UzmanKosesCvFormPageState extends State<UzmanKosesCvFormPage> {
           ),
         ),
         const SizedBox(height: 8),
-        const L10nText(
+        L10nText(
           kUzmanSorumlulukReddi,
           style: TextStyle(fontSize: 12, color: MetoColors.mutedFg, height: 1.35),
         ),
         const SizedBox(height: 12),
-        const L10nText(
+        L10nText(
           'Yayınla: admin onayına düşer. Taslak: istediğiniz zaman devam edebilirsiniz.',
           style: TextStyle(fontSize: 12, color: MetoColors.mutedFg),
         ),
@@ -1274,12 +1274,12 @@ class _UzmanKosesCvFormPageState extends State<UzmanKosesCvFormPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline, size: 18, color: MetoColors.primary),
+          Icon(Icons.info_outline, size: 18, color: MetoColors.primary),
           const SizedBox(width: 8),
           Expanded(
             child: L10nText(
               kUzmanKartUstBilgi,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 height: 1.35,
                 fontWeight: FontWeight.w700,
@@ -1315,7 +1315,7 @@ class _UzmanKosesCvFormPageState extends State<UzmanKosesCvFormPage> {
             ),
           ),
           const SizedBox(height: 6),
-          const L10nText(
+          L10nText(
             kUzmanKartUyeTarifeMetni,
             style: TextStyle(
               fontSize: 13,
@@ -1326,7 +1326,7 @@ class _UzmanKosesCvFormPageState extends State<UzmanKosesCvFormPage> {
           const SizedBox(height: 8),
           L10nText(
             uzmanKartUcretAciklamasi(span: _kartSpan, ucretsiz: ucretsiz),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               height: 1.35,
               color: MetoColors.mutedFg,
@@ -1371,7 +1371,7 @@ class _UzmanKosesCvFormPageState extends State<UzmanKosesCvFormPage> {
               const SizedBox(height: 4),
               Text(
                 sub,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   height: 1.3,
                   color: MetoColors.mutedFg,
@@ -1388,7 +1388,7 @@ class _UzmanKosesCvFormPageState extends State<UzmanKosesCvFormPage> {
         padding: const EdgeInsets.only(bottom: 6),
         child: L10nText(
           t.toUpperCase(),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
             color: MetoColors.mutedFg,

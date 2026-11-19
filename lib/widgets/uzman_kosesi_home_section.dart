@@ -257,7 +257,7 @@ class _UzmanKosesBox extends StatelessWidget {
                       ),
                       padding: EdgeInsets.zero,
                       onPressed: onEdit,
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.edit_outlined,
                         size: 18,
                         color: MetoColors.primary,
@@ -292,7 +292,7 @@ class _DefaultCover extends StatelessWidget {
       decoration: BoxDecoration(
         color: MetoColors.primary.withValues(alpha: 0.08),
       ),
-      child: const Center(
+      child: Center(
         child: Icon(
           Icons.menu_book_outlined,
           size: 36,
@@ -359,7 +359,7 @@ class _UzmanKosesEditSheetState extends State<_UzmanKosesEditSheet> {
                 ),
               ),
               ListTile(
-                leading: const Icon(
+                leading: Icon(
                   Icons.photo_library_outlined,
                   color: MetoColors.primary,
                 ),
@@ -367,7 +367,7 @@ class _UzmanKosesEditSheetState extends State<_UzmanKosesEditSheet> {
                 onTap: () => Navigator.pop(ctx, ImageSource.gallery),
               ),
               ListTile(
-                leading: const Icon(
+                leading: Icon(
                   Icons.photo_camera_outlined,
                   color: MetoColors.primary,
                 ),
@@ -465,15 +465,15 @@ class _UzmanKosesEditSheetState extends State<_UzmanKosesEditSheet> {
         hintStyle: GoogleFonts.nunito(color: MetoColors.mutedFg),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.primary),
+          borderSide: BorderSide(color: MetoColors.primary),
         ),
       );
 
@@ -541,7 +541,7 @@ class _UzmanKosesEditSheetState extends State<_UzmanKosesEditSheet> {
                 label: const L10nText('Galeriden / kameradan görsel seç'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: MetoColors.primary,
-                  side: const BorderSide(color: MetoColors.border),
+                  side: BorderSide(color: MetoColors.border),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

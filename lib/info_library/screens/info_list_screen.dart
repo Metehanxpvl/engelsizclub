@@ -426,7 +426,7 @@ class _InfoContentBlockState extends State<_InfoContentBlock>
                 if (dragIndex != null) ...[
                   ReorderableDragStartListener(
                     index: dragIndex,
-                    child: const Padding(
+                    child: Padding(
                       padding: EdgeInsets.only(right: 4, top: 2),
                       child: MouseRegion(
                         cursor: SystemMouseCursors.grab,

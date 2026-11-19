@@ -178,7 +178,7 @@ class _KesfetDiseasePage extends StatelessWidget {
               ),
           ],
           const SizedBox(height: 24),
-          const L10nText(
+          L10nText(
             'Bu içerik bilgilendirme amaçlıdır; tıbbi tavsiye değildir. '
             'Engelsiz Club klinik hizmet sunmaz.',
             style: TextStyle(

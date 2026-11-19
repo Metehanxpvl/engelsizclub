@@ -162,7 +162,7 @@ class _UzmanKosesProfilFormPageState extends State<UzmanKosesProfilFormPage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
-          const L10nText(
+          L10nText(
             'Kartında meslek, adın ve il / ilçe görünür.',
             style: TextStyle(
               fontSize: 14,
@@ -171,7 +171,7 @@ class _UzmanKosesProfilFormPageState extends State<UzmanKosesProfilFormPage> {
             ),
           ),
           const SizedBox(height: 18),
-          const L10nText(
+          L10nText(
             'AD SOYAD',
             style: TextStyle(
               fontSize: 12,
@@ -193,7 +193,7 @@ class _UzmanKosesProfilFormPageState extends State<UzmanKosesProfilFormPage> {
             ),
           ),
           const SizedBox(height: 16),
-          const L10nText(
+          L10nText(
             'MESLEK',
             style: TextStyle(
               fontSize: 12,
@@ -225,7 +225,7 @@ class _UzmanKosesProfilFormPageState extends State<UzmanKosesProfilFormPage> {
                   },
           ),
           const SizedBox(height: 16),
-          const L10nText(
+          L10nText(
             'İL / İLÇE',
             style: TextStyle(
               fontSize: 12,

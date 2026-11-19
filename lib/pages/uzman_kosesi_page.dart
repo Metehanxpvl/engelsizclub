@@ -712,7 +712,7 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
               const SizedBox(height: 12),
             ],
             if (showKurumList) ...[
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(bottom: 8),
                 child: L10nText(
                   'Klinik veya merkez, aradığı uzmanı buradan yayınlar.',
@@ -922,11 +922,11 @@ class _AranirSecimSheetState extends State<_AranirSecimSheet> {
                 isDense: true,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: MetoColors.border),
+                  borderSide: BorderSide(color: MetoColors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: MetoColors.border),
+                  borderSide: BorderSide(color: MetoColors.border),
                 ),
               ),
             ),
@@ -938,7 +938,7 @@ class _AranirSecimSheetState extends State<_AranirSecimSheet> {
                 style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
               ),
               trailing: widget.value.isEmpty
-                  ? const Icon(Icons.check, color: MetoColors.primary, size: 18)
+                  ? Icon(Icons.check, color: MetoColors.primary, size: 18)
                   : null,
               onTap: () => Navigator.pop(context, ''),
             ),
@@ -965,7 +965,7 @@ class _AranirSecimSheetState extends State<_AranirSecimSheet> {
                             ),
                           ),
                           trailing: selected
-                              ? const Icon(
+                              ? Icon(
                                   Icons.check,
                                   color: MetoColors.primary,
                                   size: 18,
@@ -1307,7 +1307,7 @@ class _AddProfileTile extends StatelessWidget {
                     border: Border.all(color: MetoColors.primary, width: 1.5),
                     color: MetoColors.primary.withValues(alpha: 0.08),
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Icon(
                       Icons.add,
                       size: 48,
@@ -1430,7 +1430,7 @@ class _ProfileTile extends StatelessWidget {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Padding(
+              child: Padding(
                 padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                 child: Icon(
                   Icons.verified,
@@ -1642,7 +1642,7 @@ class _ProfileTile extends StatelessWidget {
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Padding(
+                            child: Padding(
                               padding: EdgeInsets.symmetric(
                                 horizontal: 6,
                                 vertical: 3,

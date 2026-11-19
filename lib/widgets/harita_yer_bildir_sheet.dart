@@ -92,7 +92,7 @@ class _HaritaYerBildirSheetState extends State<HaritaYerBildirSheet> {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: MetoColors.border),
+          borderSide: BorderSide(color: MetoColors.border),
         ),
       );
 
@@ -288,7 +288,7 @@ class _HaritaYerBildirSheetState extends State<HaritaYerBildirSheet> {
                   ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: MetoColors.primary,
-                    side: const BorderSide(color: MetoColors.primary),
+                    side: BorderSide(color: MetoColors.primary),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                 ),

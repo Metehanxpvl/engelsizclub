@@ -24,14 +24,14 @@ Future<bool> ensureUgcTermsAccepted(BuildContext context) async {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const L10nText(
+            L10nText(
               kUgcPolicySummaryTr,
               style: TextStyle(fontSize: 13, height: 1.45, color: MetoColors.mutedFg),
             ),
             const SizedBox(height: 12),
             GestureDetector(
               onTap: () => LegalDocumentPage.open(ctx, LegalDocKind.terms),
-              child: const Text(
+              child: Text(
                 'Kullanım Koşulları’nın tamamını oku',
                 style: TextStyle(
                   color: MetoColors.primary,

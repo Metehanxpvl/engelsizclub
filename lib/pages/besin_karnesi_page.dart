@@ -497,15 +497,15 @@ class _BesinKarnesiPageState extends State<BesinKarnesiPage> {
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: MetoColors.border),
+                borderSide: BorderSide(color: MetoColors.border),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: MetoColors.border),
+                borderSide: BorderSide(color: MetoColors.border),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: MetoColors.primary),
+                borderSide: BorderSide(color: MetoColors.primary),
               ),
             ),
           ),
@@ -520,7 +520,7 @@ class _BesinKarnesiPageState extends State<BesinKarnesiPage> {
           ),
           style: OutlinedButton.styleFrom(
             foregroundColor: MetoColors.primary,
-            side: const BorderSide(color: MetoColors.border),
+            side: BorderSide(color: MetoColors.border),
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
@@ -984,7 +984,7 @@ class _BesinKarnesiPageState extends State<BesinKarnesiPage> {
                       onPressed: _reset,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: MetoColors.primary,
-                        side: const BorderSide(color: MetoColors.border),
+                        side: BorderSide(color: MetoColors.border),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
@@ -1484,7 +1484,7 @@ class _Bar extends StatelessWidget {
                 ),
               ),
               if (stat.inTargetBand)
-                const Icon(Icons.check, size: 12, color: MetoColors.primary),
+                Icon(Icons.check, size: 12, color: MetoColors.primary),
               Expanded(
                 child: Align(
                   alignment: Alignment.bottomCenter,
@@ -1775,7 +1775,7 @@ class _BesinAnalizLoadingState extends State<_BesinAnalizLoading>
                           ),
                         ],
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.restaurant_outlined,
                         size: 42,
                         color: MetoColors.primary,

@@ -120,7 +120,7 @@ class _MedicalInfoCardState extends State<MedicalInfoCard> {
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.close,
                     size: 18,
                     color: MetoColors.mutedFg,

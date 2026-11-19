@@ -363,7 +363,7 @@ class _AdminRightsManageSheetState extends State<AdminRightsManageSheet>
               return ListTile(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: const BorderSide(color: MetoColors.border),
+                  side: BorderSide(color: MetoColors.border),
                 ),
                 tileColor: MetoColors.card,
                 leading: Text(
@@ -440,7 +440,7 @@ class _AdminRightsManageSheetState extends State<AdminRightsManageSheet>
               return ListTile(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: const BorderSide(color: MetoColors.border),
+                  side: BorderSide(color: MetoColors.border),
                 ),
                 tileColor: MetoColors.card,
                 leading: Text(
