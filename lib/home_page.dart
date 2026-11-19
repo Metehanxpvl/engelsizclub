@@ -27,6 +27,7 @@ import 'widgets/home_social_footer.dart';
 import 'widgets/store_download_prompt.dart';
 import 'pages/premature_gelisim_rehberi_page.dart';
 import 'pages/yas02_gelisim_rehberi_page.dart';
+import 'pages/yol_haritasi_page.dart';
 import 'widgets/admin_disease_edit_sheet.dart';
 import 'widgets/home_hero_admin_sheet.dart';
 import 'widgets/medical_info_card.dart';
@@ -409,6 +410,7 @@ class _HomePageState extends State<HomePage> {
             onOpenDestek: widget.onOpenDestek,
             onOpenHaklar: widget.onOpenHaklar,
             onOpenHarita: widget.onOpenHarita,
+            onOpenYolHaritasi: () => YolHaritasiPage.open(context),
           ),
 
           const DisclaimerBanner(),
