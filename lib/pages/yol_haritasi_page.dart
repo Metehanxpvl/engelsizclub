@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -439,9 +440,157 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
 
   // ------------------------------------------------------------------ Harita
 
+  static const _doktoraDallar = {
+    'Doktorlar',
+    'Terapiler',
+    'Cihaz ve ekipman',
+    'Destek',
+  };
+
   List<YolDal> _gorunenDallar(YolKayit k, YolTani t) => t.dallar
       .where((d) => d.sadeceEvetIse == null || k.cevaplar[d.sadeceEvetIse] == true)
       .toList();
+
+  List<(YolDal, List<YolMadde>)> _doktoraSorulacaklar(YolKayit k, YolTani t) {
+    final sonuc = <(YolDal, List<YolMadde>)>[];
+    for (final d in _gorunenDallar(k, t)) {
+      if (!_doktoraDallar.contains(d.baslik)) continue;
+      final bos = d.maddeler
+          .where((m) => !k.durumlar.containsKey(m.id))
+          .toList();
+      if (bos.isNotEmpty) sonuc.add((d, bos));
+    }
+    return sonuc;
+  }
+
+  int _doktoraSorulacakSayisi(YolKayit k, YolTani t) {
+    var n = 0;
+    for (final e in _doktoraSorulacaklar(k, t)) {
+      n += e.$2.length;
+    }
+    return n;
+  }
+
+  void _doktoraSoracaklarimiGoster(YolKayit k, YolTani t) {
+    final gruplar = _doktoraSorulacaklar(k, t);
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        final bos = gruplar.isEmpty;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Doktora soracaklarım',
+                  style: GoogleFonts.nunito(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: MetoColors.foreground,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (bos)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                      'Sorulacak madde kalmadı.',
+                      style: GoogleFonts.nunito(
+                        fontSize: 14,
+                        color: MetoColors.mutedFg,
+                      ),
+                    ),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(ctx).size.height * 0.55,
+                    ),
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final (dal, maddeler) in gruplar) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8, bottom: 4),
+                            child: Text(
+                              dal.baslik,
+                              style: GoogleFonts.nunito(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: MetoColors.primary,
+                              ),
+                            ),
+                          ),
+                          for (final m in maddeler)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Text(
+                                'Çocuğum için ${m.baslik} gerekli mi?',
+                                style: GoogleFonts.nunito(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: MetoColors.foreground,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ],
+                    ),
+                  ),
+                if (!bos) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 48,
+                    child: FilledButton.icon(
+                      onPressed: () async {
+                        final buf = StringBuffer()
+                          ..writeln('${t.ad} – Doktora soracaklarım');
+                        for (final (_, maddeler) in gruplar) {
+                          for (final m in maddeler) {
+                            buf.writeln(
+                              '• Çocuğum için ${m.baslik} gerekli mi?',
+                            );
+                          }
+                        }
+                        final metin = buf.toString().trimRight();
+                        final nav = Navigator.of(ctx);
+                        final messenger = ScaffoldMessenger.of(context);
+                        await Clipboard.setData(ClipboardData(text: metin));
+                        nav.pop();
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Liste kopyalandı',
+                              style: GoogleFonts.nunito(),
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.copy_outlined, size: 18),
+                      label: Text(
+                        'Kopyala',
+                        style: GoogleFonts.nunito(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: MetoColors.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   Widget _buildHarita(YolKayit k, YolTani t) {
     final dallar = _gorunenDallar(k, t);
@@ -449,6 +598,7 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
     var yapilan = 0;
     final eksikler = <String>[];
     for (final d in dallar) {
+      if (d.bilgi) continue;
       var a = 0;
       var y = 0;
       for (final m in d.maddeler) {
@@ -462,6 +612,7 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
       if (y < a) eksikler.add('${d.baslik}: ${a - y}');
     }
     final oran = toplam == 0 ? 1.0 : yapilan / toplam;
+    final doktoraN = _doktoraSorulacakSayisi(k, t);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
@@ -556,6 +707,26 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
         for (var i = 0; i < dallar.length; i++)
           _dalKarti(k, dallar[i], acik: i == 0),
         const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: OutlinedButton.icon(
+            onPressed: () => _doktoraSoracaklarimiGoster(k, t),
+            icon: const Icon(Icons.help_outline, size: 18),
+            label: Text(
+              'Doktora soracaklarım ($doktoraN)',
+              style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: MetoColors.primary,
+              side: const BorderSide(color: MetoColors.primary),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
         _altBilgi(t.kaynak),
       ],
     );
@@ -576,13 +747,15 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
   Widget _dalKarti(YolKayit k, YolDal d, {required bool acik}) {
     var a = 0;
     var y = 0;
-    for (final m in d.maddeler) {
-      final s = k.durumlar[m.id];
-      if (s == YolDurum.gerekYok) continue;
-      a++;
-      if (s == YolDurum.yapildi) y++;
+    if (!d.bilgi) {
+      for (final m in d.maddeler) {
+        final s = k.durumlar[m.id];
+        if (s == YolDurum.gerekYok) continue;
+        a++;
+        if (s == YolDurum.yapildi) y++;
+      }
     }
-    final tamam = y == a;
+    final tamam = !d.bilgi && y == a;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -616,25 +789,33 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
           trailing: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: tamam ? MetoColors.selectedBg : const Color(0xFFFFF3DC),
+              color: d.bilgi
+                  ? MetoColors.muted
+                  : (tamam ? MetoColors.selectedBg : const Color(0xFFFFF3DC)),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              a == 0 ? 'Gerek görülmedi' : '$y / $a',
+              d.bilgi
+                  ? 'Bilgi'
+                  : (a == 0 ? 'Gerek görülmedi' : '$y / $a'),
               style: GoogleFonts.nunito(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
-                color: tamam ? MetoColors.primary : const Color(0xFF8A5300),
+                color: d.bilgi
+                    ? MetoColors.mutedFg
+                    : (tamam ? MetoColors.primary : const Color(0xFF8A5300)),
               ),
             ),
           ),
-          children: [for (final m in d.maddeler) _maddeSatiri(k, m)],
+          children: [
+            for (final m in d.maddeler) _maddeSatiri(k, m, bilgi: d.bilgi),
+          ],
         ),
       ),
     );
   }
 
-  Widget _maddeSatiri(YolKayit k, YolMadde m) {
+  Widget _maddeSatiri(YolKayit k, YolMadde m, {bool bilgi = false}) {
     final s = k.durumlar[m.id];
     final gerekYok = s == YolDurum.gerekYok;
     final otomatik = k.otomatik.contains(m.id);
@@ -655,14 +836,17 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
                   style: GoogleFonts.nunito(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: gerekYok
+                    color: gerekYok && !bilgi
                         ? MetoColors.mutedFg
                         : MetoColors.foreground,
-                    decoration: gerekYok ? TextDecoration.lineThrough : null,
+                    decoration:
+                        gerekYok && !bilgi ? TextDecoration.lineThrough : null,
                   ),
                 ),
                 Text(
-                  otomatik ? '${m.aciklama} · cevabınıza göre' : m.aciklama,
+                  otomatik && !bilgi
+                      ? '${m.aciklama} · cevabınıza göre'
+                      : m.aciklama,
                   style: GoogleFonts.nunito(
                     fontSize: 12,
                     color: MetoColors.mutedFg,
@@ -679,20 +863,22 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          _durumButonu(
-            icon: Icons.check,
-            tooltip: 'Gittik / alıyoruz',
-            secili: s == YolDurum.yapildi,
-            onTap: () => _durumDegistir(m.id, YolDurum.yapildi),
-          ),
-          const SizedBox(width: 6),
-          _durumButonu(
-            icon: Icons.remove,
-            tooltip: 'Doktorumuz gerek görmedi',
-            secili: gerekYok,
-            onTap: () => _durumDegistir(m.id, YolDurum.gerekYok),
-          ),
+          if (!bilgi) ...[
+            const SizedBox(width: 8),
+            _durumButonu(
+              icon: Icons.check,
+              tooltip: 'Gittik / alıyoruz',
+              secili: s == YolDurum.yapildi,
+              onTap: () => _durumDegistir(m.id, YolDurum.yapildi),
+            ),
+            const SizedBox(width: 6),
+            _durumButonu(
+              icon: Icons.remove,
+              tooltip: 'Doktorumuz gerek görmedi',
+              secili: gerekYok,
+              onTap: () => _durumDegistir(m.id, YolDurum.gerekYok),
+            ),
+          ],
         ],
       ),
     );

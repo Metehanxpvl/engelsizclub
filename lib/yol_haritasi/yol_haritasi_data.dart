@@ -19,6 +19,7 @@ class YolDal {
     required this.maddeler,
     this.not,
     this.sadeceEvetIse,
+    this.bilgi = false,
   });
 
   final String baslik;
@@ -30,7 +31,23 @@ class YolDal {
 
   /// Bu soru "Evet" cevaplanmazsa dal hiç gösterilmez.
   final String? sadeceEvetIse;
+
+  /// Bilgi dalı: ilerlemeye dahil edilmez, ✓/– butonları gösterilmez.
+  final bool bilgi;
 }
+
+YolMadde _ym(String satir) {
+  final p = satir.split('|');
+  return YolMadde(p[0], p[1], p[2]);
+}
+
+YolDal _gozdenKacabilenler(List<String> satirlar) => YolDal(
+      baslik: 'Gözden kaçabilenler',
+      icon: Icons.lightbulb_outline,
+      bilgi: true,
+      not: 'Fark ederseniz doktorunuza sorun',
+      maddeler: [for (final s in satirlar) _ym(s)],
+    );
 
 class YolSoru {
   const YolSoru({
@@ -89,7 +106,7 @@ const _raporDali = YolDal(
   ],
 );
 
-const List<YolTani> yolTanilari = [
+final List<YolTani> yolTanilari = [
   YolTani(
     id: 'otizm',
     ad: 'Otizm',
@@ -118,6 +135,11 @@ const List<YolTani> yolTanilari = [
           YolMadde('t4', 'Aile eğitimi', 'Evde uygulama için'),
         ],
       ),
+      _gozdenKacabilenler([
+        'g1|Uyku sorunları|Pediatri veya Çocuk Psikiyatrisi',
+        'g2|Dikkat eksikliği veya kaygı|Çocuk Psikiyatrisi',
+        'g3|Kazanılmış becerilerin kaybı|Vakit kaybetmeden doktorunuza',
+      ]),
       _okulDali,
       _raporDali,
     ],
@@ -169,6 +191,12 @@ const List<YolTani> yolTanilari = [
           YolMadde('e4', 'Ayakta durma sehpası', 'Kemik ve kalça sağlığı için'),
         ],
       ),
+      _gozdenKacabilenler([
+        'g1|Ağrı ve uyku sorunları|Pediatri veya Çocuk Nörolojisi',
+        'g2|Salya kontrolü güçlüğü|KBB veya Çocuk Nörolojisi',
+        'g3|Davranış veya duygusal zorluklar|Çocuk Psikiyatrisi',
+        'g4|Kabızlık|Gastroenteroloji',
+      ]),
       _okulDali,
       _raporDali,
     ],
@@ -202,6 +230,13 @@ const List<YolTani> yolTanilari = [
           YolMadde('t4', 'Özel eğitim / erken müdahale', 'Bilişsel gelişim'),
         ],
       ),
+      _gozdenKacabilenler([
+        'g1|Beslenme ve yutma güçlüğü|Beslenme, Dil ve konuşma terapisi',
+        'g2|Kabızlık, kilo alamama, karın ağrısı|Gastroenteroloji (çölyak açısından)',
+        'g3|Otizm veya davranış belirtileri|Çocuk Psikiyatrisi',
+        'g4|Nöbet|Çocuk Nörolojisi',
+        'g5|Boyun ağrısı, yürüyüşte veya el kullanımında değişiklik|Vakit kaybetmeden doktorunuza',
+      ]),
       _okulDali,
       _raporDali,
     ],
@@ -230,6 +265,12 @@ const List<YolTani> yolTanilari = [
           YolMadde('t3', 'Psikolojik destek', 'Bilişsel davranışçı terapi, sosyal beceri'),
         ],
       ),
+      _gozdenKacabilenler([
+        'g1|Uyku sorunları|Pediatri',
+        'g2|Okuma, yazma veya matematikte güçlük|RAM ve özel eğitim',
+        'g3|Kaygı veya duygu durumu değişiklikleri|Çocuk Psikiyatrisi',
+        'g4|Tikler|Çocuk Nörolojisi veya Psikiyatri',
+      ]),
       _okulDali,
       _raporDali,
     ],
@@ -262,6 +303,12 @@ const List<YolTani> yolTanilari = [
           YolMadde('t4', 'Dil ve konuşma terapisi', 'İletişim'),
         ],
       ),
+      _gozdenKacabilenler([
+        'g1|Nöbet|Çocuk Nörolojisi',
+        'g2|Otizm veya davranış belirtileri|Çocuk Psikiyatrisi',
+        'g3|Beslenme güçlüğü|Beslenme, Dil ve konuşma terapisi',
+        'g4|Uyku sorunları|Pediatri',
+      ]),
       _okulDali,
       _raporDali,
     ],
@@ -291,6 +338,11 @@ const List<YolTani> yolTanilari = [
           YolMadde('t3', 'Özel eğitim', 'Gerekirse'),
         ],
       ),
+      _gozdenKacabilenler([
+        'g1|Göz teması, ilgi ve oyunda farklılıklar|Çocuk Psikiyatrisi',
+        'g2|Sık kulak enfeksiyonu|KBB',
+        'g3|Çiğneme veya yutma güçlüğü|Dil ve konuşma terapisi',
+      ]),
       _okulDali,
       _raporDali,
     ],
@@ -321,6 +373,11 @@ const List<YolTani> yolTanilari = [
           YolMadde('t2', 'Aile eğitimi', 'Evde duyusal düzenlemeler'),
         ],
       ),
+      _gozdenKacabilenler([
+        'g1|Uyku sorunları|Pediatri',
+        'g2|Belirgin yemek seçiciliği|Beslenme, Ergoterapi',
+        'g3|Dikkat sorunları|Çocuk Psikiyatrisi',
+      ]),
       _okulDali,
       _raporDali,
     ],
@@ -370,6 +427,11 @@ const List<YolTani> yolTanilari = [
           YolMadde('e4', 'Solunum / öksürük destek cihazı', 'Göğüs hastalıkları doktoru önerdiyse'),
         ],
       ),
+      _gozdenKacabilenler([
+        'g1|Omurga eğriliği (skolyoz)|Çocuk Ortopedisi',
+        'g2|Sık solunum yolu enfeksiyonu|Çocuk Göğüs Hastalıkları',
+        'g3|Kabızlık veya reflü|Gastroenteroloji',
+      ]),
       _okulDali,
       _raporDali,
     ],
@@ -419,6 +481,12 @@ const List<YolTani> yolTanilari = [
           YolMadde('e3', 'Ayakta durma sehpası', 'Doktorunuz önerdiyse'),
         ],
       ),
+      _gozdenKacabilenler([
+        'g1|Öğrenme veya dikkat güçlüğü|RAM, Çocuk Psikiyatrisi',
+        'g2|Hızlı kilo artışı|Beslenme',
+        'g3|Kemik kırığı|Endokrinoloji, Ortopedi',
+        'g4|Duygusal zorluklar|Psikolojik destek',
+      ]),
       _okulDali,
       _raporDali,
     ],
@@ -456,6 +524,12 @@ const List<YolTani> yolTanilari = [
           YolMadde('s1', 'Prematüre Gelişim Rehberi', 'Uygulamadaki rehberi incele'),
         ],
       ),
+      _gozdenKacabilenler([
+        'g1|Göz ve işitme kontrollerinin aksaması|Göz, Odyoloji',
+        'g2|Oturma veya yürümede gecikme|Fizyoterapi',
+        'g3|Kilo alamama, beslenme güçlüğü|Beslenme',
+        'g4|Okul çağında dikkat veya öğrenme güçlüğü|RAM, Çocuk Psikiyatrisi',
+      ]),
       _okulDali,
       _raporDali,
     ],
@@ -494,6 +568,11 @@ const List<YolTani> yolTanilari = [
           YolMadde('e3', 'FM sistem', 'Okulda duymayı kolaylaştırır'),
         ],
       ),
+      _gozdenKacabilenler([
+        'g1|Görme kontrolü|Göz',
+        'g2|Denge sorunları|KBB veya Fiziksel Tıp ve Rehabilitasyon',
+        'g3|Dil gelişiminde duraklama|Odyoloji, Dil ve konuşma terapisi',
+      ]),
       _okulDali,
       _raporDali,
     ],
@@ -533,6 +612,11 @@ const List<YolTani> yolTanilari = [
           YolMadde('e3', 'Beyaz baston', 'Gerekirse'),
         ],
       ),
+      _gozdenKacabilenler([
+        'g1|Gelişimde gecikme|Gelişimsel Pediatri',
+        'g2|Uyku düzeni sorunları|Pediatri',
+        'g3|Nöbet|Çocuk Nörolojisi',
+      ]),
       _okulDali,
       _raporDali,
     ],
@@ -576,6 +660,12 @@ const List<YolTani> yolTanilari = [
           YolMadde('s2', 'Acil ilaç', 'Doktorunuz önerdiyse'),
         ],
       ),
+      _gozdenKacabilenler([
+        'g1|Uyku sorunları|Pediatri',
+        'g2|Dikkat veya öğrenme güçlüğü|RAM, Çocuk Psikiyatrisi',
+        'g3|Kaygı veya duygu durumu değişiklikleri|Çocuk Psikiyatrisi',
+        'g4|İlaç yan etkisi şüphesi|Çocuk Nörolojisi',
+      ]),
       _okulDali,
       _raporDali,
     ],
@@ -614,6 +704,12 @@ const List<YolTani> yolTanilari = [
           YolMadde('s2', 'Özel mama / ilaç raporu', 'Gerekiyorsa doktorunuzla'),
         ],
       ),
+      _gozdenKacabilenler([
+        'g1|Beslenme güçlüğü|Beslenme',
+        'g2|Uyku sorunları|Pediatri',
+        'g3|Nöbet|Çocuk Nörolojisi',
+        'g4|Davranış değişiklikleri|Çocuk Psikiyatrisi',
+      ]),
       _okulDali,
       _raporDali,
     ],
