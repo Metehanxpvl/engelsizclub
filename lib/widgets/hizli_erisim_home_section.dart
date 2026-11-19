@@ -48,7 +48,7 @@ class HizliErisimHomeSection extends StatelessWidget {
               Expanded(
                 child: _HizliTile(
                   label: 'Destek Sorgulama',
-                  icon: Icons.favorite_outline,
+                  icon: Icons.favorite,
                   onTap: onOpenDestek,
                 ),
               ),
@@ -56,7 +56,7 @@ class HizliErisimHomeSection extends StatelessWidget {
               Expanded(
                 child: _HizliTile(
                   label: 'Hak Sorgulama',
-                  icon: Icons.verified_user_outlined,
+                  icon: Icons.verified_user,
                   onTap: onOpenHaklar,
                 ),
               ),
@@ -64,7 +64,7 @@ class HizliErisimHomeSection extends StatelessWidget {
               Expanded(
                 child: _HizliTile(
                   label: 'Engelsiz Haritalar',
-                  icon: Icons.place_outlined,
+                  icon: Icons.place,
                   onTap: onOpenHarita,
                 ),
               ),
@@ -96,19 +96,27 @@ class _HizliTile extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Container(
-          constraints: const BoxConstraints(minHeight: 96),
+          constraints: const BoxConstraints(minHeight: 116),
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: MetoColors.primary.withValues(alpha: 0.45),
-              width: 1.5,
+              color: MetoColors.primary,
+              width: 2,
             ),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 28, color: MetoColors.primary),
+              Container(
+                width: 52,
+                height: 52,
+                decoration: const BoxDecoration(
+                  color: MetoColors.muted,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 28, color: MetoColors.primary),
+              ),
               const SizedBox(height: 8),
               L10nText(
                 label,
@@ -116,9 +124,9 @@ class _HizliTile extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.nunito(
-                  fontSize: 11,
+                  fontSize: 13,
                   height: 1.15,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                   color: MetoColors.foreground,
                 ),
               ),
