@@ -833,6 +833,8 @@ const kGeziTileKey = 'gezi';
 const kKampanyaTileKey = 'kampanya';
 const kEtkinlikTileKey = 'etkinlik';
 const kKariyerTileKey = 'kariyer';
+const kUzmanTileKey = 'uzman';
+const kKurumIlanTileKey = 'kurum_ilan';
 /// Ana sayfa Engelsiz Kariyer kutusu.
 const kShowEngelsizKariyerTile = true;
 const kKampanyaTable = 'kampanyalar';
@@ -843,6 +845,8 @@ const _kTileKeys = <String>{
   kGeziTileKey,
   kKampanyaTileKey,
   kEtkinlikTileKey,
+  kUzmanTileKey,
+  kKurumIlanTileKey,
 };
 
 Map<String, String> get _emptyTileCovers => {
@@ -850,6 +854,8 @@ Map<String, String> get _emptyTileCovers => {
       kGeziTileKey: '',
       kKampanyaTileKey: '',
       kEtkinlikTileKey: '',
+      kUzmanTileKey: '',
+      kKurumIlanTileKey: '',
     };
 
 List<GeziItem>? _geziCache;

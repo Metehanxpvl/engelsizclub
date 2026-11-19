@@ -13,11 +13,12 @@ import '../pages/engelsiz_kariyer_page.dart';
 import '../pages/etkinlikler_page.dart';
 import '../pages/gezi_rehberi_page.dart';
 import '../pages/kampanyalar_page.dart';
+import '../pages/uzman_kosesi_page.dart';
 import '../services/image_optimize_service.dart';
 import '../services/r2_storage_service.dart';
 import 'catalog_media.dart';
 
-/// Ana sayfa: Bilgi Kütüphanesi üstü — üstte Kariyer | Gezi, altta Kampanya | Etkinlik.
+/// Ana sayfa: Bilgi Kütüphanesi üstü — Engelsiz Rehber kutucukları.
 /// Kariyer kutusu [kShowEngelsizKariyerTile] ile açılıp kapanır.
 class GeziKampanyaHomeSection extends StatefulWidget {
   const GeziKampanyaHomeSection({
@@ -42,6 +43,8 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
     kGeziTileKey: '',
     kKampanyaTileKey: '',
     kEtkinlikTileKey: '',
+    kUzmanTileKey: '',
+    kKurumIlanTileKey: '',
   };
 
   bool _canEditTile(String tileKey) {
@@ -94,14 +97,16 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: L10nText(
-              kShowEngelsizKariyerTile
-                  ? 'Engelsiz Kariyer & Gezi Rehberi & Kampanyalar & Etkinlikler'
-                  : 'Gezi Rehberi & Kampanyalar & Etkinlikler',
-              style: GoogleFonts.nunito(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: MetoColors.foreground,
+            child: SizedBox(
+              width: double.infinity,
+              child: L10nText(
+                'Engelsiz Rehber',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.nunito(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: MetoColors.foreground,
+                ),
               ),
             ),
           ),
@@ -164,34 +169,17 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
                   );
                 }
 
-                final kariyer = tile(
-                  title: 'Engelsiz Kariyer',
-                  tileKey: kKariyerTileKey,
-                  emptyIcon: Icons.work_outline,
+                final uzman = tile(
+                  title: 'Uzman Bul',
+                  tileKey: kUzmanTileKey,
+                  emptyIcon: Icons.medical_services_outlined,
                   cardW: twoColW,
-                  onTap: () => EngelsizKariyerPage.open(
-                    context,
-                    userEmail: widget.userEmail,
-                  ),
-                );
-                final gezi = tile(
-                  title: 'Gezi Rehberi',
-                  tileKey: kGeziTileKey,
-                  cardW: twoColW,
-                  onTap: () => GeziRehberiPage.open(
-                    context,
-                    userEmail: widget.userEmail,
-                  ),
-                );
-                final kampanya = tile(
-                  title: 'Kampanyalar',
-                  tileKey: kKampanyaTileKey,
-                  cardW: twoColW,
-                  onTap: () => KampanyalarPage.open(
+                  onTap: () => UzmanKosesPage.open(
                     context,
                     userEmail: widget.userEmail,
                     isGuest: widget.isGuest,
                     onRequireLogin: widget.onRequireLogin,
+                    viewMode: UzmanKosesViewMode.uzmanOnly,
                   ),
                 );
                 final etkinlik = tile(
@@ -205,6 +193,49 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
                     onRequireLogin: widget.onRequireLogin,
                   ),
                 );
+                final kampanya = tile(
+                  title: 'Kampanyalar',
+                  tileKey: kKampanyaTileKey,
+                  cardW: twoColW,
+                  onTap: () => KampanyalarPage.open(
+                    context,
+                    userEmail: widget.userEmail,
+                    isGuest: widget.isGuest,
+                    onRequireLogin: widget.onRequireLogin,
+                  ),
+                );
+                final gezi = tile(
+                  title: 'Gezi Rehberi',
+                  tileKey: kGeziTileKey,
+                  cardW: twoColW,
+                  onTap: () => GeziRehberiPage.open(
+                    context,
+                    userEmail: widget.userEmail,
+                  ),
+                );
+                final kariyer = tile(
+                  title: 'Engelsiz Kariyer',
+                  tileKey: kKariyerTileKey,
+                  emptyIcon: Icons.work_outline,
+                  cardW: twoColW,
+                  onTap: () => EngelsizKariyerPage.open(
+                    context,
+                    userEmail: widget.userEmail,
+                  ),
+                );
+                final kurumIlan = tile(
+                  title: 'Kurum İş İlanları',
+                  tileKey: kKurumIlanTileKey,
+                  emptyIcon: Icons.business_center_outlined,
+                  cardW: twoColW,
+                  onTap: () => UzmanKosesPage.open(
+                    context,
+                    userEmail: widget.userEmail,
+                    isGuest: widget.isGuest,
+                    onRequireLogin: widget.onRequireLogin,
+                    viewMode: UzmanKosesViewMode.kurumOnly,
+                  ),
+                );
 
                 Widget pair(Widget left, Widget right) {
                   return Row(
@@ -216,65 +247,17 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
                   );
                 }
 
-                if (kShowEngelsizKariyerTile) {
-                  return Column(
-                    children: [
-                      pair(kariyer, gezi),
-                      const SizedBox(height: 12),
-                      pair(kampanya, etkinlik),
-                    ],
-                  );
-                }
-
-                const minCard = 88.0;
-                final threeW = (w - 2 * gap) / 3;
-                final useEven = threeW >= minCard;
-                final cardW = useEven
-                    ? threeW.floorToDouble()
-                    : ((w - 2 * gap) / 3.15)
-                        .floorToDouble()
-                        .clamp(minCard, 160.0);
-                final row = Row(
+                return Column(
                   children: [
-                    tile(
-                      title: 'Gezi Rehberi',
-                      tileKey: kGeziTileKey,
-                      cardW: cardW,
-                      onTap: () => GeziRehberiPage.open(
-                        context,
-                        userEmail: widget.userEmail,
-                      ),
-                    ),
-                    SizedBox(width: gap),
-                    tile(
-                      title: 'Kampanyalar',
-                      tileKey: kKampanyaTileKey,
-                      cardW: cardW,
-                      onTap: () => KampanyalarPage.open(
-                        context,
-                        userEmail: widget.userEmail,
-                        isGuest: widget.isGuest,
-                        onRequireLogin: widget.onRequireLogin,
-                      ),
-                    ),
-                    SizedBox(width: gap),
-                    tile(
-                      title: 'Etkinlikler',
-                      tileKey: kEtkinlikTileKey,
-                      cardW: cardW,
-                      onTap: () => EtkinliklerPage.open(
-                        context,
-                        userEmail: widget.userEmail,
-                        isGuest: widget.isGuest,
-                        onRequireLogin: widget.onRequireLogin,
-                      ),
-                    ),
+                    pair(uzman, etkinlik),
+                    const SizedBox(height: 12),
+                    pair(kampanya, gezi),
+                    const SizedBox(height: 12),
+                    if (kShowEngelsizKariyerTile)
+                      pair(kariyer, kurumIlan)
+                    else
+                      Row(children: [kurumIlan]),
                   ],
-                );
-                if (useEven) return row;
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: row,
                 );
               },
             ),

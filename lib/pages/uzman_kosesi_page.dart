@@ -23,6 +23,13 @@ import 'uzman_kosesi_cv_form_page.dart';
 import 'uzman_kosesi_kurum_ilan_detail_page.dart';
 import 'uzman_kosesi_kurum_ilan_form_page.dart';
 
+/// Uzman Köşesi içerik görünümü: tümü / yalnız uzman profilleri / yalnız kurum ilanları.
+enum UzmanKosesViewMode {
+  all,
+  uzmanOnly,
+  kurumOnly,
+}
+
 /// Ana sayfa kartından açılan ayrı Uzman Köşesi sayfası (Forum/Topluluk değil).
 class UzmanKosesPage extends StatefulWidget {
   const UzmanKosesPage({
@@ -30,17 +37,20 @@ class UzmanKosesPage extends StatefulWidget {
     required this.userEmail,
     this.isGuest = false,
     this.onRequireLogin,
+    this.viewMode = UzmanKosesViewMode.all,
   });
 
   final String userEmail;
   final bool isGuest;
   final VoidCallback? onRequireLogin;
+  final UzmanKosesViewMode viewMode;
 
   static Future<void> open(
     BuildContext context, {
     required String userEmail,
     bool isGuest = false,
     VoidCallback? onRequireLogin,
+    UzmanKosesViewMode viewMode = UzmanKosesViewMode.all,
   }) {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -48,6 +58,7 @@ class UzmanKosesPage extends StatefulWidget {
           userEmail: userEmail,
           isGuest: isGuest,
           onRequireLogin: onRequireLogin,
+          viewMode: viewMode,
         ),
       ),
     );
@@ -63,7 +74,7 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
   List<KurumIsIlani> _jobs = const [];
   List<MeslekGrubu> _gruplar = const [];
   bool _loadingProfiles = true;
-  String _bolumFilter = kUzmanKoseBolumSaglik;
+  late String _bolumFilter;
   String _meslekFilter = '';
   String _ilFilter = '';
   String _ilceFilter = '';
@@ -71,9 +82,13 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
   bool _bakiyeUyardi = false;
   bool _deletingMine = false;
 
+  bool get _uzmanOnly => widget.viewMode == UzmanKosesViewMode.uzmanOnly;
+  bool get _kurumOnly => widget.viewMode == UzmanKosesViewMode.kurumOnly;
+
   @override
   void initState() {
     super.initState();
+    _bolumFilter = _kurumOnly ? kUzmanKoseBolumKurum : kUzmanKoseBolumSaglik;
     final cached = cachedUzmanKoses;
     if (cached != null) _section = cached;
     final cachedProfiles = cachedUzmanKosesProfiles;
@@ -421,7 +436,9 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
   }
 
   Widget _ustYayinlaButonlari() {
-    final showProfil = _mine == null;
+    final showProfil = !_kurumOnly && _mine == null;
+    final showKurum = !_uzmanOnly;
+    if (!showProfil && !showKurum) return const SizedBox.shrink();
     return Row(
       children: [
         if (showProfil) ...[
@@ -432,15 +449,16 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
               onTap: _openForm,
             ),
           ),
-          const SizedBox(width: 10),
+          if (showKurum) const SizedBox(width: 10),
         ],
-        Expanded(
-          child: _ilanYayinlaKutusu(
-            label: 'Kurum iş ilanı yayınla',
-            icon: Icons.work_outline,
-            onTap: _openKurumForm,
+        if (showKurum)
+          Expanded(
+            child: _ilanYayinlaKutusu(
+              label: 'Kurum iş ilanı yayınla',
+              icon: Icons.work_outline,
+              onTap: _openKurumForm,
+            ),
           ),
-        ),
       ],
     );
   }
@@ -488,17 +506,22 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
   }
 
   Widget _bolumFiltreleri() {
+    if (_kurumOnly) return const SizedBox.shrink();
+    final bolumler = [
+      for (final b in kUzmanKoseBolumSirasi)
+        if (!_uzmanOnly || b != kUzmanKoseBolumKurum) b,
+    ];
     return Column(
       children: [
-        for (var r = 0; r < kUzmanKoseBolumSirasi.length; r += 2) ...[
+        for (var r = 0; r < bolumler.length; r += 2) ...[
           if (r > 0) const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(child: _bolumKutusu(kUzmanKoseBolumSirasi[r])),
+              Expanded(child: _bolumKutusu(bolumler[r])),
               const SizedBox(width: 8),
               Expanded(
-                child: r + 1 < kUzmanKoseBolumSirasi.length
-                    ? _bolumKutusu(kUzmanKoseBolumSirasi[r + 1])
+                child: r + 1 < bolumler.length
+                    ? _bolumKutusu(bolumler[r + 1])
                     : const SizedBox.shrink(),
               ),
             ],
@@ -548,10 +571,20 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
 
   @override
   Widget build(BuildContext context) {
-    var title = _section.title.trim().isEmpty
-        ? kDefaultUzmanKosesTitle
-        : _section.title.trim();
-    if (title == 'Uzman Köşesi') title = kDefaultUzmanKosesTitle;
+    final String title;
+    if (_uzmanOnly) {
+      title = 'Uzman Bul';
+    } else if (_kurumOnly) {
+      title = 'Kurum İş İlanları';
+    } else {
+      var t = _section.title.trim().isEmpty
+          ? kDefaultUzmanKosesTitle
+          : _section.title.trim();
+      if (t == 'Uzman Köşesi') t = kDefaultUzmanKosesTitle;
+      title = t;
+    }
+    final showKurumList = _kurumOnly ||
+        (!_uzmanOnly && _bolumFilter == kUzmanKoseBolumKurum);
     return Scaffold(
       backgroundColor: MetoColors.background,
       appBar: AppBar(
@@ -563,7 +596,7 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
           style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
         ),
         actions: [
-          if (_mine != null)
+          if (!_kurumOnly && _mine != null)
             TextButton.icon(
               onPressed: _deletingMine ? null : _deleteMine,
               icon: const Icon(
@@ -591,8 +624,10 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
           else ...[
             _ustYayinlaButonlari(),
             const SizedBox(height: 14),
-            _bolumFiltreleri(),
-            const SizedBox(height: 12),
+            if (!_kurumOnly) ...[
+              _bolumFiltreleri(),
+              const SizedBox(height: 12),
+            ],
             _YerDropdown(
               value: _meslekSecenekleri.contains(_meslekFilter)
                   ? _meslekFilter
@@ -642,7 +677,7 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
               )
             else
               const SizedBox(height: 10),
-            if (_mine != null) ...[
+            if (!_kurumOnly && _mine != null) ...[
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -664,7 +699,7 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
               ),
               const SizedBox(height: 12),
             ],
-            if (_bolumFilter == kUzmanKoseBolumKurum) ...[
+            if (showKurumList) ...[
               const Padding(
                 padding: EdgeInsets.only(bottom: 8),
                 child: L10nText(
