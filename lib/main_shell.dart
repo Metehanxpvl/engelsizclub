@@ -787,7 +787,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                             return ListTile(
                               leading: CircleAvatar(
                                 backgroundColor: item.link == 'aile_kocu'
-                                    ? const Color(0xFFE8F5E9)
+                                    ? MetoColors.selectedBg
                                     : MetoColors.primary
                                         .withValues(alpha: 0.12),
                                 child: _moreMenuLeading(item),
@@ -1783,7 +1783,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                                     child: Material(
                                       color: b.read
                                           ? MetoColors.background
-                                          : const Color(0xFFFFF7ED),
+                                          : (MetoColors.geceModu
+                                              ? const Color(0xFF3A2A1A)
+                                              : const Color(0xFFFFF7ED)),
                                       borderRadius: BorderRadius.circular(14),
                                       child: ListTile(
                                         onTap: () async {
@@ -1796,7 +1798,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                                           side: BorderSide(
                                             color: b.read
                                                 ? MetoColors.border
-                                                : const Color(0xFFFDBA74),
+                                                : (MetoColors.geceModu
+                                                    ? const Color(0xFF7F4A2A)
+                                                    : const Color(0xFFFDBA74)),
                                           ),
                                         ),
                                         leading: CircleAvatar(
@@ -2393,7 +2397,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                         confirmDismiss: (_) => _confirmDeleteSohbet(o),
                         child: Material(
                           color: o.hasUnread
-                              ? const Color(0xFFE8F5EF)
+                              ? MetoColors.selectedBg
                               : MetoColors.card,
                           borderRadius: BorderRadius.circular(14),
                           child: InkWell(
@@ -3717,8 +3721,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               secondaryBackground: _bildirimSwipeDeleteBg(alignStart: false),
               confirmDismiss: (_) => _confirmDeleteBildirim(b),
               child: Material(
-                color:
-                    b.read ? MetoColors.background : const Color(0xFFFFF7ED),
+                color: b.read
+                    ? MetoColors.background
+                    : (MetoColors.geceModu
+                        ? const Color(0xFF3A2A1A)
+                        : const Color(0xFFFFF7ED)),
                 borderRadius: BorderRadius.circular(14),
                 child: ListTile(
                   dense: true,
@@ -3735,7 +3742,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     side: BorderSide(
                       color: b.read
                           ? MetoColors.border
-                          : const Color(0xFFFDBA74),
+                          : (MetoColors.geceModu
+                              ? const Color(0xFF7F4A2A)
+                              : const Color(0xFFFDBA74)),
                     ),
                   ),
                   leading: CircleAvatar(
@@ -3862,12 +3871,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: yeniTeklif > 0
-                    ? const Color(0xFFFFF7ED)
+                    ? (MetoColors.geceModu
+                        ? const Color(0xFF3A2A1A)
+                        : const Color(0xFFFFF7ED))
                     : MetoColors.background,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: yeniTeklif > 0
-                      ? const Color(0xFFFDBA74)
+                      ? (MetoColors.geceModu
+                          ? const Color(0xFF7F4A2A)
+                          : const Color(0xFFFDBA74))
                       : MetoColors.border,
                 ),
               ),
@@ -3917,7 +3930,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                             const SizedBox(width: 6),
                             _chip(
                               'Aktif',
-                              const Color(0xFFF0FDF4),
+                              MetoColors.selectedBg,
                               const Color(0xFF15803D),
                             ),
                             if (yeniTeklif > 0) ...[
@@ -4493,7 +4506,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                         const SizedBox(width: 6),
                         _chip(
                           S.t('profile_verified'),
-                          const Color(0xFFF0FDF4),
+                          MetoColors.selectedBg,
                           const Color(0xFF15803D),
                         ),
                       ],
@@ -7320,7 +7333,7 @@ class _BrandBar extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: const Color(0xFFEF4444),
                   borderRadius: BorderRadius.circular(99),
-                  border: Border.all(color: const Color(0xFF1A6B4A), width: 1.5),
+                  border: Border.all(color: MetoColors.primary, width: 1.5),
                 ),
                 child: Text(
                   badge > 9 ? '9+' : '$badge',

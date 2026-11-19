@@ -706,10 +706,13 @@ class _KidsEventCoverPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
     final bg = Paint()
-      ..shader = const LinearGradient(
+      ..shader = LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xFF1A6B4A), Color(0xFF0D2B1F)],
+        colors: [
+          MetoColors.primary,
+          Color.alphaBlend(const Color(0x99000000), MetoColors.primary),
+        ],
       ).createShader(rect);
     canvas.drawRect(rect, bg);
 

@@ -306,12 +306,12 @@ class _KartlarPageState extends State<KartlarPage> {
                           return _AddCardTile(
                             onTap: () {
                               _openEdit(
-                                const NeedCard(
+                                NeedCard(
                                   id: 0,
                                   label: '',
                                   emoji: '⭐',
-                                  color: Color(0xFF1A6B4A),
-                                  bg: Color(0xFFE8F5EE),
+                                  color: MetoColors.primary,
+                                  bg: MetoColors.selectedBg,
                                   category: 'ozel',
                                   isCustom: true,
                                 ),
@@ -651,7 +651,7 @@ class _AddCardTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFFF0F9F4),
+      color: MetoColors.selectedBg,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,

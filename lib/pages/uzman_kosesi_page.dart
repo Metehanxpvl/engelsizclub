@@ -1488,7 +1488,7 @@ class _ProfileTile extends StatelessWidget {
             right: 6,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: MetoColors.card,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Padding(
@@ -1700,7 +1700,7 @@ class _ProfileTile extends StatelessWidget {
                           right: 6,
                           child: DecoratedBox(
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: MetoColors.card,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Padding(

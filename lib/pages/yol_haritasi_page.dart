@@ -916,7 +916,7 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
                   width: secili ? 1.5 : 1,
                 ),
               ),
-              child: Icon(icon, size: 20, color: secili ? renk : Colors.black38),
+              child: Icon(icon, size: 20, color: secili ? renk : MetoColors.mutedFg),
             ),
           ),
         ),

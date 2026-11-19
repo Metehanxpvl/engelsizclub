@@ -1764,7 +1764,7 @@ class _BesinAnalizLoadingState extends State<_BesinAnalizLoading>
                       width: 92,
                       height: 92,
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: MetoColors.card,
                         shape: BoxShape.circle,
                         border: Border.all(color: MetoColors.border),
                         boxShadow: [
@@ -1863,7 +1863,7 @@ class _OrbitChip extends StatelessWidget {
       width: 36,
       height: 36,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: MetoColors.card,
         shape: BoxShape.circle,
         border: Border.all(color: MetoColors.border),
         boxShadow: [

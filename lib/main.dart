@@ -2672,10 +2672,10 @@ class _SignInStep extends StatelessWidget {
             onPressed: kayitSozlesme && !kayitLoading ? onCreateAccount : null,
             style: ElevatedButton.styleFrom(
               backgroundColor:
-                  kayitSozlesme ? MetoColors.primary : const Color(0xFFDCEEE4),
+                  kayitSozlesme ? MetoColors.primary : MetoColors.muted,
               foregroundColor:
                   kayitSozlesme ? Colors.white : MetoColors.mutedFg,
-              disabledBackgroundColor: const Color(0xFFDCEEE4),
+              disabledBackgroundColor: MetoColors.muted,
               disabledForegroundColor: MetoColors.mutedFg,
               elevation: 3,
               shape: RoundedRectangleBorder(

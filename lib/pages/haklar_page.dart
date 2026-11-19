@@ -205,11 +205,14 @@ class _WizardBanner extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: DecoratedBox(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF1A6B4A), Color(0xFF1A5C51)],
+            colors: [
+              MetoColors.primary,
+              Color.alphaBlend(const Color(0x40000000), MetoColors.primary),
+            ],
           ),
         ),
         child: Column(

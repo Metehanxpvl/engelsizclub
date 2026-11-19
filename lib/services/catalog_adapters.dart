@@ -7,6 +7,7 @@ import '../data/cards_data.dart';
 import '../data/diseases_data.dart';
 import '../data/ilanlar_data.dart';
 import '../data/rights_data.dart';
+import '../meto_theme.dart';
 import '../services/app_catalog_service.dart';
 
 int? catalogInt(dynamic v) {
@@ -295,8 +296,12 @@ class CatalogAdapters {
       amount: r['amount']?.toString() ?? '',
       category: r['category']?.toString() ?? 'maddi',
       icon: r['icon']?.toString() ?? '',
-      color: Color((r['color'] as num?)?.toInt() ?? 0xFF1A6B4A),
-      bg: Color((r['bg'] as num?)?.toInt() ?? 0xFFE8F5EE),
+      color: (r['color'] as num?) != null
+          ? Color((r['color'] as num).toInt())
+          : MetoColors.primary,
+      bg: (r['bg'] as num?) != null
+          ? Color((r['bg'] as num).toInt())
+          : MetoColors.selectedBg,
       minRate: (r['min_rate'] as num?)?.toInt() ?? 0,
       maxAge: (r['max_age'] as num?)?.toInt() ?? 99,
       incomeLimit: r['income_limit'] == true,
@@ -361,8 +366,12 @@ class CatalogAdapters {
       id: r['id']?.toString() ?? '',
       name: r['name']?.toString() ?? '',
       icon: r['icon']?.toString() ?? '',
-      color: Color((r['color'] as num?)?.toInt() ?? 0xFF1A6B4A),
-      bg: Color((r['bg'] as num?)?.toInt() ?? 0xFFE8F5EE),
+      color: (r['color'] as num?) != null
+          ? Color((r['color'] as num).toInt())
+          : MetoColors.primary,
+      bg: (r['bg'] as num?) != null
+          ? Color((r['bg'] as num).toInt())
+          : MetoColors.selectedBg,
       photo: (photo == null || photo.isEmpty) ? null : photo,
       desc: r['description']?.toString() ?? '',
       symptoms: symptoms,
@@ -383,8 +392,8 @@ class CatalogAdapters {
         0;
     final colorVal = m['color'];
     final bgVal = m['bg'];
-    Color color = const Color(0xFF1A6B4A);
-    Color bg = const Color(0xFFE8F5EE);
+    Color color = MetoColors.primary;
+    Color bg = MetoColors.selectedBg;
     if (colorVal is num) {
       color = Color(colorVal.toInt());
     } else if (colorVal is String && colorVal.isNotEmpty) {

@@ -92,7 +92,7 @@ class _IyilikMarketKonfetiState extends State<IyilikMarketKonfeti>
                       margin: const EdgeInsets.symmetric(horizontal: 28),
                       padding: const EdgeInsets.fromLTRB(22, 18, 22, 16),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: MetoColors.card,
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(

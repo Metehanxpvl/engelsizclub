@@ -67,8 +67,12 @@ class _AdminRightsManageSheetState extends State<AdminRightsManageSheet>
         amount: r['amount']?.toString() ?? '',
         category: r['category']?.toString() ?? 'maddi',
         icon: r['icon']?.toString() ?? '📋',
-        color: Color((r['color'] as num?)?.toInt() ?? 0xFF1A6B4A),
-        bg: Color((r['bg'] as num?)?.toInt() ?? 0xFFE8F5EE),
+        color: (r['color'] as num?) != null
+            ? Color((r['color'] as num).toInt())
+            : MetoColors.primary,
+        bg: (r['bg'] as num?) != null
+            ? Color((r['bg'] as num).toInt())
+            : MetoColors.selectedBg,
         minRate: (r['min_rate'] as num?)?.toInt() ?? 0,
         maxAge: (r['max_age'] as num?)?.toInt() ?? 99,
         incomeLimit: r['income_limit'] == true,

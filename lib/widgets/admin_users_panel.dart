@@ -414,9 +414,9 @@ class _OnlinePeopleCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFECFDF5),
+        color: MetoColors.selectedBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF86EFAC)),
+        border: Border.all(color: MetoColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -434,19 +434,19 @@ class _OnlinePeopleCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'Şu an uygulamada ($n)',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF166534),
+                  color: MetoColors.foreground,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           if (users.isEmpty)
-            const Text(
+            Text(
               'Şu an kimse çevrimiçi görünmüyor. (Uygulama açık olanlar 90 sn içinde burada listelenir.)',
-              style: TextStyle(fontSize: 12, color: Color(0xFF15803D), height: 1.35),
+              style: TextStyle(fontSize: 12, color: MetoColors.mutedFg, height: 1.35),
             )
           else
             for (final u in users)
@@ -456,14 +456,14 @@ class _OnlinePeopleCard extends StatelessWidget {
                   children: [
                     CircleAvatar(
                       radius: 16,
-                      backgroundColor: Colors.white,
+                      backgroundColor: MetoColors.card,
                       child: Text(
                         u.displayName.isEmpty
                             ? '?'
                             : u.displayName[0].toUpperCase(),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF166534),
+                          color: MetoColors.foreground,
                           fontSize: 13,
                         ),
                       ),
@@ -477,10 +477,10 @@ class _OnlinePeopleCard extends StatelessWidget {
                             u.displayName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 13,
-                              color: Color(0xFF14532D),
+                              color: MetoColors.foreground,
                             ),
                           ),
                           Text(
@@ -491,9 +491,9 @@ class _OnlinePeopleCard extends StatelessWidget {
                             ].join(' · '),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
-                              color: Color(0xFF15803D),
+                              color: MetoColors.mutedFg,
                             ),
                           ),
                         ],
@@ -692,7 +692,7 @@ class _UserTile extends StatelessWidget {
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         color: user.isOnline
-                            ? const Color(0xFF15803D)
+                            ? MetoColors.primary
                             : MetoColors.mutedFg,
                       ),
                     ),

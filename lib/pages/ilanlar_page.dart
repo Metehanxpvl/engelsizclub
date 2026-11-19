@@ -2492,9 +2492,9 @@ class IlanlarPageState extends State<IlanlarPage> {
             fallbackTitle: 'Uzman Ara',
             meta: const {'hubKey': 'uzman'},
             icon: Icons.medical_services_rounded,
-            iconColor: const Color(0xFF1A6B4A),
-            background: const Color(0xFFE5F4EC),
-            blob: const Color(0xFFC8E6D4),
+            iconColor: MetoColors.primary,
+            background: MetoColors.selectedBg,
+            blob: MetoColors.muted,
             defaultOrder: 10,
             onTap: () => _openHubCard(
               kategori: IlanKategori.uzmanlar,
@@ -2559,9 +2559,9 @@ class IlanlarPageState extends State<IlanlarPage> {
             fallbackTitle: 'İş Arıyorum',
             meta: const {'hubKey': 'is'},
             icon: Icons.work_rounded,
-            iconColor: const Color(0xFF1A6B4A),
-            background: const Color(0xFFE8F4EA),
-            blob: const Color(0xFFCDE6D2),
+            iconColor: MetoColors.primary,
+            background: MetoColors.selectedBg,
+            blob: MetoColors.muted,
             defaultOrder: 50,
             onTap: () => _openHubCard(
               kategori: IlanKategori.uzmanlar,
@@ -2587,9 +2587,9 @@ class IlanlarPageState extends State<IlanlarPage> {
             fallbackTitle: kIkincielAltOrganik,
             meta: const {'hubKey': 'organik'},
             icon: Icons.eco_rounded,
-            iconColor: const Color(0xFF15803D),
-            background: const Color(0xFFE4F3E6),
-            blob: const Color(0xFFC5E6CB),
+            iconColor: MetoColors.primary,
+            background: MetoColors.selectedBg,
+            blob: MetoColors.muted,
             defaultOrder: 70,
             onTap: () => _openHubCard(
               kategori: IlanKategori.ikinciel,
@@ -3187,7 +3187,7 @@ class IlanlarPageState extends State<IlanlarPage> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Material(
-        color: const Color(0xFFE8F5EE),
+        color: MetoColors.selectedBg,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: EdgeInsets.all(12),
@@ -4516,23 +4516,23 @@ class _OwnerViewsBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFECFDF5),
+        color: MetoColors.selectedBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFA7F3D0)),
+        border: Border.all(color: MetoColors.border),
       ),
       child: Row(
         children: [
-          const Icon(Icons.visibility_outlined, size: 18, color: Color(0xFF047857)),
+          Icon(Icons.visibility_outlined, size: 18, color: MetoColors.primary),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               count <= 0
                   ? 'İlanını henüz kimse görüntülemedi'
                   : 'İlanını ${ilanViewLabel(count).toLowerCase()}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF047857),
+                color: MetoColors.primary,
               ),
             ),
           ),

@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_config.dart';
 import 'data/rights_data.dart';
+import 'meto_theme.dart';
 import 'services/app_catalog_service.dart';
 
 String rightsSlugFromTitle(String title) {
@@ -233,8 +233,8 @@ RightItem emptyRightItem({String category = 'maddi'}) {
     amount: '',
     category: category,
     icon: '📋',
-    color: const Color(0xFF1A6B4A),
-    bg: const Color(0xFFE8F5EE),
+    color: MetoColors.primary,
+    bg: MetoColors.selectedBg,
     minRate: 0,
     maxAge: 99,
     incomeLimit: false,

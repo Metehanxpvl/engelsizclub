@@ -1632,7 +1632,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                           width: 44,
                           height: 44,
                           child: ColoredBox(
-                            color: Color(0xFFF1F5F9),
+                            color: MetoColors.muted,
                             child: Icon(
                               Icons.medication_outlined,
                               color: MetoColors.mutedFg,
@@ -1988,7 +1988,7 @@ class _NameHitThumb extends StatelessWidget {
     final src = (url ?? '').trim();
     const size = 44.0;
     Widget child = ColoredBox(
-      color: Color(0xFFF1F5F9),
+      color: MetoColors.muted,
       child: Icon(Icons.inventory_2_outlined, color: MetoColors.mutedFg, size: 22),
     );
     if (src.startsWith('http')) {
@@ -1998,7 +1998,7 @@ class _NameHitThumb extends StatelessWidget {
         height: size,
         fit: BoxFit.contain,
         errorBuilder: (_, __, ___) => ColoredBox(
-          color: Color(0xFFF1F5F9),
+          color: MetoColors.muted,
           child: Icon(
             Icons.inventory_2_outlined,
             color: MetoColors.mutedFg,
@@ -2564,7 +2564,7 @@ class _MedicineProspectusSections extends StatelessWidget {
           title: 'Nasıl kullanılır',
           icon: Icons.menu_book_outlined,
           accent: MetoColors.primaryDark,
-          tint: const Color(0xFFE8F5EE),
+          tint: MetoColors.selectedBg,
           child: _ProspectusBodyText(
             usage.isNotEmpty ? usage : _missing,
             muted: usage.isEmpty,
@@ -2849,7 +2849,7 @@ class _ProductResultCard extends StatelessWidget {
               fit: BoxFit.contain,
             );
       return Material(
-        color: const Color(0xFFF8FAFC),
+        color: MetoColors.muted,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
@@ -2895,7 +2895,7 @@ class _ProductResultCard extends StatelessWidget {
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
+                          color: MetoColors.muted,
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
@@ -2904,7 +2904,7 @@ class _ProductResultCard extends StatelessWidget {
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.6,
-                            color: const Color(0xFF64748B),
+                            color: MetoColors.mutedFg,
                           ),
                         ),
                       ),

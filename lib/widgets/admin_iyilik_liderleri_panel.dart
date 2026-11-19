@@ -199,10 +199,13 @@ class _AdminIyilikLiderleriPanelState extends State<AdminIyilikLiderleriPanel> {
         // Screenshot alanı
         Container(
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF0F3D2E), Color(0xFF1A6B4A)],
+              colors: [
+                Color.alphaBlend(const Color(0x99000000), MetoColors.primary),
+                MetoColors.primary,
+              ],
             ),
             borderRadius: BorderRadius.circular(20),
             boxShadow: const [

@@ -1237,7 +1237,7 @@ class _MerkezlerPageState extends State<MerkezlerPage> {
                     child: Container(
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.55),
+                        color: MetoColors.card.withValues(alpha: 0.55),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(

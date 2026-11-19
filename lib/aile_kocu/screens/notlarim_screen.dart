@@ -15,9 +15,9 @@ const _tags = ['Acil', 'Market', 'Aranacak', 'Not'];
 
 Color _tagColor(String tag) => switch (tag) {
       'Acil' => Colors.red.shade100,
-      'Market' => Colors.green.shade100,
+      'Market' => MetoColors.selectedBg,
       'Aranacak' => Colors.blue.shade100,
-      _ => Colors.grey.shade200,
+      _ => MetoColors.muted,
     };
 
 class NotlarimScreen extends StatefulWidget {

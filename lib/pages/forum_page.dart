@@ -1502,7 +1502,7 @@ class ForumPageState extends State<ForumPage> {
                               ),
                               decoration: BoxDecoration(
                                 color: active
-                                    ? const Color(0xFFECFDF5)
+                                    ? MetoColors.selectedBg
                                     : MetoColors.card,
                                 borderRadius: BorderRadius.circular(999),
                                 border: Border.all(
@@ -1949,16 +1949,16 @@ class ForumPageState extends State<ForumPage> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFECFDF5),
+                        color: MetoColors.selectedBg,
                         borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: const Color(0xFFA7F3D0)),
+                        border: Border.all(color: MetoColors.border),
                       ),
                       child: Text(
                         tag,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF065F46),
+                          color: MetoColors.primary,
                         ),
                       ),
                     ),
@@ -2429,15 +2429,15 @@ class ForumPageState extends State<ForumPage> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFECFDF5),
+                color: MetoColors.selectedBg,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFA7F3D0)),
+                border: Border.all(color: MetoColors.border),
               ),
-              child: const L10nText(
+              child: L10nText(
                 'Köşe yazısı: Meslektaş olarak deneyim, rehberlik veya bilgilendirici yazı paylaşın. Klinik tavsiye niteliğinde öneri vermeyin.',
                 style: TextStyle(
                   fontSize: 12,
-                  color: Color(0xFF065F46),
+                  color: MetoColors.foreground,
                   height: 1.45,
                 ),
               ),
@@ -2589,10 +2589,10 @@ class ForumPageState extends State<ForumPage> {
                   InputChip(
                     label: Text(tag, style: const TextStyle(fontSize: 12)),
                     onDeleted: () => _toggleFormTag(tag),
-                    backgroundColor: const Color(0xFFECFDF5),
-                    side: const BorderSide(color: Color(0xFFA7F3D0)),
-                    labelStyle: const TextStyle(
-                      color: Color(0xFF065F46),
+                    backgroundColor: MetoColors.selectedBg,
+                    side: BorderSide(color: MetoColors.border),
+                    labelStyle: TextStyle(
+                      color: MetoColors.primary,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -2961,17 +2961,17 @@ class _PostCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFECFDF5),
+                          color: MetoColors.selectedBg,
                           borderRadius: BorderRadius.circular(999),
                           border:
-                              Border.all(color: const Color(0xFFA7F3D0)),
+                              Border.all(color: MetoColors.border),
                         ),
                         child: Text(
                           tag,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFF065F46),
+                            color: MetoColors.primary,
                           ),
                         ),
                       ),

@@ -558,7 +558,7 @@ class _GelisimCardState extends State<_GelisimCard> {
   Widget _chip(String t) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: const Color(0xFFE8F5EE),
+          color: MetoColors.selectedBg,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: MetoColors.border),
         ),

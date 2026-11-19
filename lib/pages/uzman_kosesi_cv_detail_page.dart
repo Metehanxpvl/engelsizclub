@@ -12,22 +12,23 @@ import '../uzman_kosesi/expert_cv_store.dart';
 import '../uzman_kosesi/expert_profile_views_store.dart';
 import '../uzman_kosesi/expert_reviews_store.dart';
 import '../uzman_kosesi_profiles_store.dart';
+import '../meto_theme.dart';
 import '../widgets/catalog_media.dart';
 import '../widgets/guest_gate.dart';
 import 'ilanlar_page.dart';
 import 'uzman_kosesi_cv_form_page.dart';
 
 class _Tp {
-  static const bg = Color(0xFFF2F6F3);
-  static const hero = Color(0xFF0F3D2E);
-  static const accent = Color(0xFF0F6B4B);
-  static const mint = Color(0xFFE3F1EA);
-  static const card = Color(0xFFFFFFFF);
-  static const muted = Color(0xFF4A6A5B);
-  static const ink = Color(0xFF0F2A20);
-  static const line = Color(0xFFDCE7E0);
+  static Color get bg => MetoColors.background;
+  static Color get hero => MetoColors.primaryDark;
+  static Color get accent => MetoColors.primary;
+  static Color get mint => MetoColors.selectedBg;
+  static Color get card => MetoColors.card;
+  static Color get muted => MetoColors.mutedFg;
+  static Color get ink => MetoColors.foreground;
+  static Color get line => MetoColors.muted;
   static const star = Color(0xFFE2A318);
-  static const starOff = Color(0xFFD5E4DB);
+  static Color get starOff => MetoColors.muted;
 }
 
 class UzmanKosesCvDetailPage extends StatefulWidget {
@@ -501,13 +502,13 @@ class _UzmanKosesCvDetailPageState extends State<UzmanKosesCvDetailPage> {
   TextStyle _inter({
     double size = 14,
     FontWeight weight = FontWeight.w400,
-    Color color = _Tp.ink,
+    Color? color,
     double? height,
   }) {
     return GoogleFonts.inter(
       fontSize: size,
       fontWeight: weight,
-      color: color,
+      color: color ?? _Tp.ink,
       height: height,
     );
   }
@@ -518,7 +519,7 @@ class _UzmanKosesCvDetailPageState extends State<UzmanKosesCvDetailPage> {
     return Scaffold(
       backgroundColor: _Tp.bg,
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: _Tp.accent))
+          ? Center(child: CircularProgressIndicator(color: _Tp.accent))
           : p == null
               ? const Center(child: L10nText('Özgeçmiş bulunamadı'))
               : Column(
@@ -618,9 +619,9 @@ class _UzmanKosesCvDetailPageState extends State<UzmanKosesCvDetailPage> {
           (icon: _musaitIcon(s), label: s.trim()),
     ];
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: _Tp.hero,
-        borderRadius: BorderRadius.only(
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(32),
           bottomRight: Radius.circular(32),
         ),
@@ -935,7 +936,7 @@ class _UzmanKosesCvDetailPageState extends State<UzmanKosesCvDetailPage> {
           Container(
             width: 36,
             height: 36,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: _Tp.mint,
               shape: BoxShape.circle,
             ),
@@ -1152,7 +1153,7 @@ class _UzmanKosesCvDetailPageState extends State<UzmanKosesCvDetailPage> {
                       color: _Tp.mint,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.workspace_premium_outlined,
                       size: 20,
                       color: _Tp.accent,
@@ -1370,7 +1371,7 @@ class _UzmanKosesCvDetailPageState extends State<UzmanKosesCvDetailPage> {
                         ),
                         visualDensity: VisualDensity.compact,
                         onPressed: () => _deleteReview(r),
-                        icon: const Icon(Icons.close, size: 18, color: _Tp.muted),
+                        icon: Icon(Icons.close, size: 18, color: _Tp.muted),
                       ),
                   ],
                 ),
@@ -1473,7 +1474,7 @@ class _UzmanKosesCvDetailPageState extends State<UzmanKosesCvDetailPage> {
     return Material(
       color: _Tp.card,
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           border: Border(top: BorderSide(color: _Tp.line)),
         ),
         child: SafeArea(
@@ -1493,7 +1494,7 @@ class _UzmanKosesCvDetailPageState extends State<UzmanKosesCvDetailPage> {
                           onPressed: _editMine,
                           style: OutlinedButton.styleFrom(
                             foregroundColor: _Tp.accent,
-                            side: const BorderSide(color: _Tp.accent, width: 1.5),
+                            side: BorderSide(color: _Tp.accent, width: 1.5),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
@@ -1534,7 +1535,7 @@ class _UzmanKosesCvDetailPageState extends State<UzmanKosesCvDetailPage> {
     return Material(
       color: _Tp.card,
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           border: Border(top: BorderSide(color: _Tp.line)),
         ),
         child: SafeArea(
@@ -1555,7 +1556,7 @@ class _UzmanKosesCvDetailPageState extends State<UzmanKosesCvDetailPage> {
                           onPressed: _openMesaj,
                           style: OutlinedButton.styleFrom(
                             foregroundColor: _Tp.accent,
-                            side: const BorderSide(color: _Tp.accent, width: 1.5),
+                            side: BorderSide(color: _Tp.accent, width: 1.5),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
