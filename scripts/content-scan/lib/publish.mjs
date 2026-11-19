@@ -2,6 +2,7 @@ import { deadlineFlags } from './dates.mjs';
 import { newsCategoryLabel, routeRecord, usefulRowCategory } from './route.mjs';
 import { isTrustedHost } from './config.mjs';
 import { hostOf } from './normalize.mjs';
+import { isFreshForTable } from './freshness.mjs';
 
 export function supabaseConfig() {
   const url = String(process.env.SUPABASE_URL || '')
@@ -58,6 +59,13 @@ const OPTIONAL = [
   'published_at',
 ];
 
+/** PGRST204 mesajından eksik kolonu çıkarır: "Could not find the 'x' column of 't'". */
+export function missingOptionalColumn(msg) {
+  const m = String(msg || '').match(/find the '([a-z_]+)' column/i);
+  const col = m ? m[1] : null;
+  return col && OPTIONAL.includes(col) ? col : null;
+}
+
 async function insertWithOptional(url, key, table, row) {
   const payload = { ...row };
   try {
@@ -67,6 +75,21 @@ async function insertWithOptional(url, key, table, row) {
     const msg = String(e.message || e);
     if (/duplicate|unique|23505|409/i.test(msg)) return false;
     if (/PGRST204/i.test(msg) || OPTIONAL.some((c) => msg.includes(c))) {
+      // Önce sadece tabloda olmayan kolonu at (published_at gibi var olanlar kalsın).
+      let lastMsg = msg;
+      for (let i = 0; i < OPTIONAL.length; i += 1) {
+        const missing = missingOptionalColumn(lastMsg);
+        if (!missing || !(missing in payload)) break;
+        delete payload[missing];
+        try {
+          await sb(url, key, table, { method: 'POST', body: payload });
+          return true;
+        } catch (eCol) {
+          lastMsg = String(eCol.message || eCol);
+          if (/duplicate|unique|23505|409/i.test(lastMsg)) return false;
+          if (!/PGRST204/i.test(lastMsg)) throw eCol;
+        }
+      }
       for (const col of OPTIONAL) delete payload[col];
       try {
         await sb(url, key, table, { method: 'POST', body: payload });
@@ -212,6 +235,7 @@ export function buildPayload(item, sources, autoOn) {
 export async function publishItem(url, key, item, sources, autoOn) {
   const built = buildPayload(item, sources, autoOn);
   if (built.skip) return { ok: false, skipped: 'expired' };
+  if (!isFreshForTable(built.table, item)) return { ok: false, skipped: 'stale' };
   const ok = await insertWithOptional(url, key, built.table, built.row);
   return { ok, table: built.table, skipped: ok ? '' : 'duplicate' };
 }

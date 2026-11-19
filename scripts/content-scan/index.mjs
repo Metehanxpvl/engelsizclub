@@ -5,6 +5,7 @@ import { autoApproveEnabled, loadScanConfig } from './lib/config.mjs';
 import { addOrMerge, emptyIndex, isSeen } from './lib/dedupe.mjs';
 import { enrichItem, normalizeEnrichment } from './lib/enrich.mjs';
 import { passesKeywordFilter } from './lib/filter.mjs';
+import { isFreshForScan } from './lib/freshness.mjs';
 import { collectAll } from './lib/fetch_sources.mjs';
 import { contentHash } from './lib/normalize.mjs';
 import {
@@ -59,14 +60,20 @@ export async function runContentScan({ mode = 'news' } = {}) {
   });
 
   let droppedFilter = 0;
+  let droppedStale = 0;
   const filtered = [];
   for (const item of items) {
     if (!passesKeywordFilter(item, conditions)) {
       droppedFilter += 1;
       continue;
     }
+    if (mode === 'news' && !isFreshForScan(item)) {
+      droppedStale += 1;
+      continue;
+    }
     filtered.push(item);
   }
+  if (mode === 'news') log(`eski/tarihsiz_atılan=${droppedStale}`);
 
   const index = emptyIndex();
   let merged = 0;

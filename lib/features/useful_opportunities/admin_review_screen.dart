@@ -9,6 +9,7 @@ import '../../admin_config.dart';
 import '../../data/duyuru_data.dart';
 import '../../l10n/l10n_text.dart';
 import '../../meto_theme.dart';
+import '../../widgets/queue_filter_bar.dart';
 import '../../services/image_optimize_service.dart';
 import '../../services/r2_storage_service.dart';
 import 'useful_content_model.dart';
@@ -32,6 +33,23 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
   late final UsefulContentRepository _repo =
       widget.repository ?? UsefulContentRepository();
   List<UsefulContentItem> _items = const [];
+  var _queueFilter = const QueueFilterState();
+
+  String? _queueCategoryOf(UsefulContentItem e) => e.category;
+
+  List<UsefulContentItem> get _view => applyQueueFilter<UsefulContentItem>(
+        _items,
+        _queueFilter,
+        createdAt: (e) => e.createdAt,
+        category: _queueCategoryOf,
+      );
+
+  Widget _queueFilterBar() => QueueFilterBar(
+        state: _queueFilter,
+        categories: queueCategories(_items, _queueCategoryOf),
+        showScoreSort: false,
+        onChanged: (v) => setState(() => _queueFilter = v),
+      );
   var _loading = true;
   String? _error;
   String? _busyId;
@@ -246,11 +264,25 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
                         )
                       : ListView.separated(
                           padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-                          itemCount: _items.length,
+                          itemCount: _view.length + 1,
                           separatorBuilder: (_, __) =>
                               const SizedBox(height: 8),
                           itemBuilder: (context, i) {
-                            final item = _items[i];
+                            if (i == 0) {
+                              return _view.isEmpty
+                                  ? Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        _queueFilterBar(),
+                                        const Padding(
+                                          padding: EdgeInsets.all(16),
+                                          child: Text('Bu filtreye uyan kayıt yok.'),
+                                        ),
+                                      ],
+                                    )
+                                  : _queueFilterBar();
+                            }
+                            final item = _view[i - 1];
                             return _PendingReviewCard(
                               item: item,
                               busy: _busyId == item.id,

@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../admin_config.dart';
 import '../../l10n/l10n_text.dart';
 import '../../meto_theme.dart';
+import '../../widgets/queue_filter_bar.dart';
 import '../../services/image_optimize_service.dart';
 import '../../services/r2_storage_service.dart';
 import 'daily_news_model.dart';
@@ -42,6 +43,24 @@ class _AdminDailyNewsScreenState extends State<AdminDailyNewsScreen> {
   late final DailyNewsRepository _repo =
       widget.repository ?? DailyNewsRepository();
   List<DailyNewsCandidate> _items = const [];
+  var _queueFilter = const QueueFilterState();
+
+  String? _queueCategoryOf(DailyNewsCandidate e) => e.category;
+
+  List<DailyNewsCandidate> get _view => applyQueueFilter<DailyNewsCandidate>(
+        _items,
+        _queueFilter,
+        createdAt: (e) => e.createdAt,
+        category: _queueCategoryOf,
+        score: (e) => e.relevanceScore,
+      );
+
+  Widget _queueFilterBar() => QueueFilterBar(
+        state: _queueFilter,
+        categories: queueCategories(_items, _queueCategoryOf),
+        showScoreSort: true,
+        onChanged: (v) => setState(() => _queueFilter = v),
+      );
   var _loading = true;
   String? _error;
   String? _busyId;
@@ -216,10 +235,24 @@ class _AdminDailyNewsScreenState extends State<AdminDailyNewsScreen> {
                         )
                       : ListView.separated(
                           padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                          itemCount: _items.length,
+                          itemCount: _view.length + 1,
                           separatorBuilder: (_, __) => const SizedBox(height: 8),
                           itemBuilder: (context, i) {
-                            final item = _items[i];
+                            if (i == 0) {
+                              return _view.isEmpty
+                                  ? Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        _queueFilterBar(),
+                                        const Padding(
+                                          padding: EdgeInsets.all(16),
+                                          child: Text('Bu filtreye uyan kayıt yok.'),
+                                        ),
+                                      ],
+                                    )
+                                  : _queueFilterBar();
+                            }
+                            final item = _view[i - 1];
                             return _NewsCandidateCard(
                               item: item,
                               busy: _busyId == item.id,

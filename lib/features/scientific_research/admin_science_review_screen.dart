@@ -6,6 +6,7 @@ import '../../admin_config.dart';
 import '../../l10n/app_strings.dart';
 import '../../l10n/l10n_text.dart';
 import '../../meto_theme.dart';
+import '../../widgets/queue_filter_bar.dart';
 import 'scientific_research_model.dart';
 import 'scientific_research_repository.dart';
 
@@ -39,6 +40,24 @@ class _AdminScienceReviewScreenState extends State<AdminScienceReviewScreen> {
   late final ScientificResearchRepository _repo =
       widget.repository ?? ScientificResearchRepository();
   List<ScientificResearch> _items = const [];
+  var _queueFilter = const QueueFilterState();
+
+  String? _queueCategoryOf(ScientificResearch e) => (e.conditions.isEmpty ? null : e.conditions.first);
+
+  List<ScientificResearch> get _view => applyQueueFilter<ScientificResearch>(
+        _items,
+        _queueFilter,
+        createdAt: (e) => e.createdAt,
+        category: _queueCategoryOf,
+        score: (e) => e.relevanceScore,
+      );
+
+  Widget _queueFilterBar() => QueueFilterBar(
+        state: _queueFilter,
+        categories: queueCategories(_items, _queueCategoryOf),
+        showScoreSort: true,
+        onChanged: (v) => setState(() => _queueFilter = v),
+      );
   var _loading = true;
   String? _error;
   String? _busyId;
@@ -345,11 +364,25 @@ class _AdminScienceReviewScreenState extends State<AdminScienceReviewScreen> {
                               : ListView.separated(
                                   padding:
                                       const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                                  itemCount: _items.length,
+                                  itemCount: _view.length + 1,
                                   separatorBuilder: (_, __) =>
                                       const SizedBox(height: 8),
                                   itemBuilder: (context, i) {
-                                    final item = _items[i];
+                                    if (i == 0) {
+                                      return _view.isEmpty
+                                          ? Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                _queueFilterBar(),
+                                                const Padding(
+                                                  padding: EdgeInsets.all(16),
+                                                  child: Text('Bu filtreye uyan kayıt yok.'),
+                                                ),
+                                              ],
+                                            )
+                                          : _queueFilterBar();
+                                    }
+                                    final item = _view[i - 1];
                                     return _ScienceReviewCard(
                                       item: item,
                                       busy: _busyId == item.id,

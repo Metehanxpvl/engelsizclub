@@ -15,18 +15,18 @@ describe('useful-content recency window', () => {
     assert.equal(recentCutoffYmd(NOW, 15), '2026-08-31');
   });
 
-  it('10-day news KEEP', () => {
+  it('5-day news KEEP', () => {
     const d = evaluateFreshness(
       {
         title: 'Engelli rampası yenilendi',
-        publishedAt: '2026-09-05T08:00:00.000Z',
+        publishedAt: '2026-09-10T08:00:00.000Z',
       },
       { now: NOW },
     );
     assert.equal(d.action, 'keep');
     assert.equal(d.contentKind, 'recent');
     assert.equal(d.dateStatus, 'recent');
-    assert.equal(d.publishedAt.slice(0, 10), '2026-09-05');
+    assert.equal(d.publishedAt.slice(0, 10), '2026-09-10');
   });
 
   it('40-day news no deadline REJECT', () => {
@@ -38,7 +38,7 @@ describe('useful-content recency window', () => {
       { now: NOW },
     );
     assert.equal(d.action, 'reject');
-    assert.equal(d.reason, 'older_than_15_days');
+    assert.equal(d.reason, 'older_than_7_days');
     assert.equal(d.contentKind, null);
   });
 

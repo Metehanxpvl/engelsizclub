@@ -1,7 +1,7 @@
 import { foldTr, isOpenOpportunitySignal, stripHtml } from './hash.mjs';
 
-/** Inclusive lookback: today minus 15 calendar days (2026-09-15 → 2026-08-31). */
-export const RECENT_DAYS = 15;
+/** Inclusive lookback: today minus 7 calendar days (2026-09-15 → 2026-09-08). */
+export const RECENT_DAYS = 7;
 
 const TR_MONTHS = {
   ocak: '01',
@@ -446,7 +446,7 @@ export function evaluateFreshness(item = {}, { now = new Date(), html = '' } = {
     return {
       ...base,
       action: 'reject',
-      reason: 'older_than_15_days',
+      reason: 'older_than_7_days',
       contentKind: null,
       isActiveOpportunity: false,
     };
