@@ -251,12 +251,12 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
                   children: [
                     pair(uzman, etkinlik),
                     const SizedBox(height: 12),
-                    pair(kampanya, gezi),
-                    const SizedBox(height: 12),
                     if (kShowEngelsizKariyerTile)
                       pair(kariyer, kurumIlan)
                     else
                       Row(children: [kurumIlan]),
+                    const SizedBox(height: 12),
+                    pair(kampanya, gezi),
                   ],
                 );
               },
