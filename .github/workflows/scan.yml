@@ -76,7 +76,7 @@ jobs:
   science:
     if: ${{ github.event_name == 'schedule' || inputs.mode == 'science' || inputs.mode == 'all' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     concurrency:
       group: content-scan-science
       cancel-in-progress: true
