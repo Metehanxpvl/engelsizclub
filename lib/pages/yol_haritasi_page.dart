@@ -91,8 +91,25 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
 
   // Sihirbaz taslağı
   String? _taslakTani;
+  String _taniArama = '';
   final Map<String, bool> _taslakCevaplar = {};
   String? _hata;
+
+  String _taniAramaNorm(String s) => s
+      .toLowerCase()
+      .replaceAll('İ', 'i')
+      .replaceAll('I', 'i')
+      .replaceAll('ı', 'i')
+      .replaceAll('Ş', 's')
+      .replaceAll('ş', 's')
+      .replaceAll('Ğ', 'g')
+      .replaceAll('ğ', 'g')
+      .replaceAll('Ü', 'u')
+      .replaceAll('ü', 'u')
+      .replaceAll('Ö', 'o')
+      .replaceAll('ö', 'o')
+      .replaceAll('Ç', 'c')
+      .replaceAll('ç', 'c');
 
   @override
   void initState() {
@@ -223,6 +240,12 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
 
   Widget _buildSihirbaz() {
     final tani = yolTaniBul(_taslakTani);
+    final q = _taniAramaNorm(_taniArama.trim());
+    final filtreli = q.isEmpty
+        ? yolTanilari
+        : yolTanilari
+            .where((t) => _taniAramaNorm(t.ad).contains(q))
+            .toList();
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       children: [
@@ -243,28 +266,85 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
         const SizedBox(height: 20),
         _adimBasligi('Adım 1 / 2 · Tanı'),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final t in yolTanilari)
-              ChoiceChip(
-                label: Text(t.ad),
-                selected: _taslakTani == t.id,
-                selectedColor: MetoColors.selectedBg,
-                labelStyle: GoogleFonts.nunito(
-                  fontWeight: FontWeight.w700,
-                  color: _taslakTani == t.id
-                      ? MetoColors.primary
-                      : MetoColors.foreground,
-                ),
-                onSelected: (_) => setState(() {
-                  if (_taslakTani != t.id) _taslakCevaplar.clear();
-                  _taslakTani = t.id;
-                  _hata = null;
-                }),
+        TextField(
+          decoration: InputDecoration(
+            hintText: 'Tanı ara',
+            hintStyle: GoogleFonts.nunito(color: MetoColors.mutedFg),
+            prefixIcon: const Icon(Icons.search, color: MetoColors.mutedFg),
+            filled: true,
+            fillColor: MetoColors.card,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: MetoColors.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: MetoColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: MetoColors.primary),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+          style: GoogleFonts.nunito(
+            fontWeight: FontWeight.w600,
+            color: MetoColors.foreground,
+          ),
+          onChanged: (v) => setState(() => _taniArama = v),
+        ),
+        const SizedBox(height: 8),
+        for (final t in filtreli)
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+            selected: _taslakTani == t.id,
+            selectedTileColor: MetoColors.selectedBg,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            title: Text(
+              t.ad,
+              style: GoogleFonts.nunito(
+                fontWeight: FontWeight.w700,
+                color: _taslakTani == t.id
+                    ? MetoColors.primary
+                    : MetoColors.foreground,
               ),
-          ],
+            ),
+            trailing: _taslakTani == t.id
+                ? const Icon(Icons.check, color: MetoColors.primary)
+                : null,
+            onTap: () => setState(() {
+              if (_taslakTani != t.id) _taslakCevaplar.clear();
+              _taslakTani = t.id;
+              _hata = null;
+            }),
+          ),
+        ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+          selected: _taslakTani == 'genetik',
+          selectedTileColor: MetoColors.selectedBg,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          title: Text(
+            'Tanım listede yok',
+            style: GoogleFonts.nunito(
+              fontWeight: FontWeight.w700,
+              color: _taslakTani == 'genetik'
+                  ? MetoColors.primary
+                  : MetoColors.foreground,
+            ),
+          ),
+          trailing: _taslakTani == 'genetik'
+              ? const Icon(Icons.check, color: MetoColors.primary)
+              : null,
+          onTap: () => setState(() {
+            if (_taslakTani != 'genetik') _taslakCevaplar.clear();
+            _taslakTani = 'genetik';
+            _hata = null;
+          }),
         ),
         if (tani != null) ...[
           const SizedBox(height: 24),
