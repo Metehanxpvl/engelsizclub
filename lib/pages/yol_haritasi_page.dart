@@ -259,8 +259,7 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
         ),
         const SizedBox(height: 6),
         Text(
-          'Birkaç soruyu cevaplayın, çocuğunuza özel yol haritasını '
-          'oluşturalım.',
+          'Tanıyı seçin; çocuğunuz için sorulabilecek doktor ve terapileri hatırlatalım.',
           style: GoogleFonts.nunito(fontSize: 14, color: MetoColors.mutedFg),
         ),
         const SizedBox(height: 20),
@@ -475,6 +474,12 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
             color: MetoColors.foreground,
           ),
         ),
+        const SizedBox(height: 6),
+        Text(
+          'Bu liste teşhis veya tedavi önerisi değildir; gözden kaçabilecek '
+          'bölümleri hatırlatır. Kararları doktorunuzla birlikte verin.',
+          style: GoogleFonts.nunito(fontSize: 12, color: MetoColors.mutedFg),
+        ),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(14),
@@ -520,8 +525,8 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
               const SizedBox(height: 8),
               Text(
                 eksikler.isEmpty
-                    ? 'Tüm dallar tamam'
-                    : 'Eksik: ${eksikler.join(', ')}',
+                    ? 'Tüm maddeler tamam'
+                    : 'Henüz sorulmayan: ${eksikler.join(', ')}',
                 style: GoogleFonts.nunito(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -536,12 +541,12 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
         const SizedBox(height: 10),
         Row(
           children: [
-            _lejant(Icons.check, 'Yapıldı'),
+            _lejant(Icons.check, 'Gittik / alıyoruz'),
             const SizedBox(width: 14),
-            _lejant(Icons.remove, 'Gerek yok'),
+            _lejant(Icons.remove, 'Gerek görülmedi'),
             const SizedBox(width: 14),
             Text(
-              'Boş = eksik',
+              'Boş = henüz sormadık',
               style:
                   GoogleFonts.nunito(fontSize: 12, color: MetoColors.mutedFg),
             ),
@@ -615,7 +620,7 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              a == 0 ? 'Gerek yok' : '$y / $a',
+              a == 0 ? 'Gerek görülmedi' : '$y / $a',
               style: GoogleFonts.nunito(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
@@ -668,14 +673,14 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
           const SizedBox(width: 8),
           _durumButonu(
             icon: Icons.check,
-            tooltip: 'Yapıldı',
+            tooltip: 'Gittik / alıyoruz',
             secili: s == YolDurum.yapildi,
             onTap: () => _durumDegistir(m.id, YolDurum.yapildi),
           ),
           const SizedBox(width: 6),
           _durumButonu(
             icon: Icons.remove,
-            tooltip: 'Gerek yok',
+            tooltip: 'Doktorumuz gerek görmedi',
             secili: gerekYok,
             onTap: () => _durumDegistir(m.id, YolDurum.gerekYok),
           ),

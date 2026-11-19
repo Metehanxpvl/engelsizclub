@@ -94,19 +94,7 @@ const List<YolTani> yolTanilari = [
     id: 'otizm',
     ad: 'Otizm',
     kaynak: 'NICE CG128 / CG170',
-    sorular: [
-      YolSoru(
-        id: 'yemek',
-        metin: 'Yemek seçme veya kabızlık sorunu var mı?',
-        hayirIseGerekYok: ['d5'],
-      ),
-      YolSoru(
-        id: 'nobet',
-        metin: 'Nöbet veya beceri kaybı oldu mu?',
-        hayirIseGerekYok: ['d4'],
-      ),
-      _okulSorusu,
-    ],
+    sorular: [_okulSorusu],
     dallar: [
       YolDal(
         baslik: 'Doktorlar',
@@ -143,11 +131,6 @@ const List<YolTani> yolTanilari = [
         id: 'yurume',
         metin: 'Destek almadan yürüyebiliyor mu?',
         evetIseGerekYok: ['e2', 'e3', 'e4'],
-      ),
-      YolSoru(
-        id: 'beslenme',
-        metin: 'Ağızdan rahat beslenebiliyor mu?',
-        evetIseGerekYok: ['d6'],
       ),
       _okulSorusu,
     ],
@@ -255,19 +238,7 @@ const List<YolTani> yolTanilari = [
     id: 'gelisim',
     ad: 'Gelişim Geriliği / Zihinsel Yetersizlik',
     kaynak: 'AAP klinik raporları',
-    sorular: [
-      YolSoru(
-        id: 'motor',
-        metin: 'Oturma veya yürümede gecikme var mı?',
-        hayirIseGerekYok: ['t2'],
-      ),
-      YolSoru(
-        id: 'konusma',
-        metin: 'Konuşmada gecikme var mı?',
-        hayirIseGerekYok: ['t4'],
-      ),
-      _okulSorusu,
-    ],
+    sorular: [_okulSorusu],
     dallar: [
       YolDal(
         baslik: 'Doktorlar',
@@ -363,11 +334,6 @@ const List<YolTani> yolTanilari = [
         id: 'yurume',
         metin: 'Destek almadan yürüyebiliyor mu?',
         evetIseGerekYok: ['e2', 'e3'],
-      ),
-      YolSoru(
-        id: 'yutma',
-        metin: 'Yutma veya beslenme sorunu var mı?',
-        hayirIseGerekYok: ['d4'],
       ),
       _okulSorusu,
     ],
@@ -575,14 +541,7 @@ const List<YolTani> yolTanilari = [
     id: 'epilepsi',
     ad: 'Epilepsi',
     kaynak: 'NICE NG217',
-    sorular: [
-      YolSoru(
-        id: 'ogrenme',
-        metin: 'Gelişim veya öğrenmede güçlük var mı?',
-        hayirIseGerekYok: ['t1'],
-      ),
-      _okulSorusu,
-    ],
+    sorular: [_okulSorusu],
     dallar: [
       YolDal(
         baslik: 'Doktorlar',
@@ -625,14 +584,7 @@ const List<YolTani> yolTanilari = [
     id: 'genetik',
     ad: 'Diğer / Genetik / nadir hastalık',
     kaynak: 'Genel klinik yaklaşım; tanıya göre uzman onayı gerekir',
-    sorular: [
-      YolSoru(
-        id: 'metabolik',
-        metin: 'Doktorunuz metabolik hastalık dedi mi?',
-        hayirIseGerekYok: ['d2'],
-      ),
-      _okulSorusu,
-    ],
+    sorular: [_okulSorusu],
     dallar: [
       YolDal(
         baslik: 'Doktorlar',
