@@ -7261,7 +7261,7 @@ class _BrandBar extends StatelessWidget {
           IconButton(
             onPressed: onMenuTap,
             tooltip: S.auto('Menü'),
-            icon: const Icon(Icons.menu, color: Colors.white, size: 26),
+            icon: const Icon(Icons.person, color: Colors.white, size: 30),
             visualDensity: VisualDensity.compact,
           ),
         ],
@@ -7436,7 +7436,7 @@ class _BottomNav extends StatelessWidget {
               description: S.t('tour_more'),
               child: _NavItem(
                 label: S.t('nav_more'),
-                icon: Icons.more_horiz,
+                icon: Icons.menu,
                 iconSize: 30,
                 active: moreActive,
                 onTap: onMoreTap,
