@@ -7,7 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// pubspec `+build` ile aynı tutulur (PackageInfo boş dönerse yedek).
-const kAppBuildNumber = 201207;
+const kAppBuildNumber = 201208;
 
 /// Otomatik güncelleme — ilk kareden sonra, asla boot kilidi yok.
 ///
