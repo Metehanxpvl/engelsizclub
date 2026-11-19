@@ -16,7 +16,6 @@ import '../meto_theme.dart';
 import '../services/image_optimize_service.dart';
 import '../services/r2_storage_service.dart';
 import 'instagram_embed.dart';
-import 'story_marquee.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n_text.dart';
 import '../l10n/locale_controller.dart';
@@ -451,13 +450,21 @@ class _DuyurularSectionState extends State<DuyurularSection> {
             ),
           ),
           if (_loading)
-            const SizedBox(
-              height: 108,
-              child: Center(
-                child: SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+            SizedBox(
+              height: 180,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: 3,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (_, __) => Container(
+                  width: 110,
+                  height: 180,
+                  decoration: BoxDecoration(
+                    color: MetoColors.muted,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
               ),
             )
@@ -486,36 +493,31 @@ class _DuyurularSectionState extends State<DuyurularSection> {
               ),
             )
           else
-            StoryMarquee(
-              height: 112,
-              itemWidth: 90,
-              pixelsPerSecond: 30,
-              itemCount: _visibleForStrip.length,
-              contentVersion: _stripVersion,
-              onItemTap: (i) {
-                if (i < 0 || i >= _visibleForStrip.length) return;
-                _openViewer(_visibleForStrip[i]);
-              },
-              onItemLongPress: _isAdmin
-                  ? (i) {
-                      if (i < 0 || i >= _visibleForStrip.length) return;
-                      final item = _visibleForStrip[i];
-                      if (item.id <= 0) return;
-                      _openAdminForm(edit: item);
-                    }
-                  : null,
-              itemBuilder: (context, i) {
-                final item = _visibleForStrip[i];
-                final seen = _seen.contains(item.id);
-                return RepaintBoundary(
-                  child: _StoryCircle(
+            SizedBox(
+              height: 180,
+              child: ListView.separated(
+                key: ValueKey(_stripVersion),
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _visibleForStrip.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (context, i) {
+                  final item = _visibleForStrip[i];
+                  final seen = _seen.contains(item.id);
+                  return _StoryKart(
                     key: ValueKey('story_${item.id}'),
                     item: item,
                     seen: seen,
-                    isAdmin: false,
-                  ),
-                );
-              },
+                    onTap: () => _openViewer(item),
+                    onLongPress: _isAdmin
+                        ? () {
+                            if (item.id <= 0) return;
+                            _openAdminForm(edit: item);
+                          }
+                        : null,
+                  );
+                },
+              ),
             ),
         ],
       ),
@@ -572,11 +574,141 @@ Future<void> _showDuyuruStoryViewer({
   );
 }
 
-class _StoryCircle extends StatelessWidget {
-  const _StoryCircle({
+class _StoryKart extends StatelessWidget {
+  const _StoryKart({
     super.key,
     required this.item,
     required this.seen,
+    required this.onTap,
+    this.onLongPress,
+  });
+
+  final DuyuruItem item;
+  final bool seen;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = item.title.trim();
+    final borderW = seen ? 1.0 : 2.5;
+    final semanticsLabel =
+        seen ? 'Duyuru: $title' : 'Duyuru: $title, yeni';
+
+    return Semantics(
+      button: true,
+      label: semanticsLabel,
+      child: GestureDetector(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Container(
+          width: 110,
+          height: 180,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              width: borderW,
+              color: seen ? MetoColors.border : MetoColors.primary,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14 - borderW),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                _cover(),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: double.infinity,
+                    color: const Color(0xD104342C),
+                    padding: const EdgeInsets.all(8),
+                    child: Text(
+                      title,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.nunito(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        height: 1.25,
+                      ),
+                    ),
+                  ),
+                ),
+                if (!seen)
+                  Positioned(
+                    top: 6,
+                    left: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: MetoColors.primary,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'Yeni',
+                        style: GoogleFonts.nunito(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _cover() {
+    if (item.isInstagramEmbed) {
+      return const FittedBox(
+        fit: BoxFit.cover,
+        clipBehavior: Clip.hardEdge,
+        child: _InstagramStoryThumb(size: 180),
+      );
+    }
+    final src = item.imageUrl.trim();
+    if (src.isEmpty) {
+      return const ColoredBox(
+        color: MetoColors.muted,
+        child: Center(
+          child: Icon(
+            Icons.campaign_outlined,
+            color: MetoColors.primary,
+            size: 30,
+          ),
+        ),
+      );
+    }
+    return _DuyuruImage(
+      source: item.imageUrl,
+      width: 110,
+      height: 180,
+      fit: BoxFit.cover,
+    );
+  }
+}
+
+// Kept intentionally (strip uses _StoryKart); do not delete.
+// ignore: unused_element
+class _StoryCircle extends StatelessWidget {
+  // ignore: unused_element_parameter
+  const _StoryCircle({
+    // ignore: unused_element_parameter
+    super.key,
+    required this.item,
+    required this.seen,
+    // ignore: unused_element_parameter
     this.isAdmin = false,
   });
 
