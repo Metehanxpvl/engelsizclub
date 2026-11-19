@@ -43,7 +43,7 @@ class HizliErisimHomeSection extends StatelessWidget {
             children: [
               Expanded(
                 child: _HizliTile(
-                  label: 'Tarama',
+                  label: 'Ürün Tarama',
                   icon: Icons.qr_code_2,
                   onTap: onOpenTarama,
                 ),

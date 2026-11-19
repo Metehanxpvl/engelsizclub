@@ -23,12 +23,12 @@ void main() {
     );
 
     expect(find.text('Hızlı Erişim'), findsOneWidget);
-    expect(find.text('Tarama'), findsOneWidget);
+    expect(find.text('Ürün Tarama'), findsOneWidget);
     expect(find.text('Destek Sorgulama'), findsOneWidget);
     expect(find.text('Hak Sorgulama'), findsOneWidget);
     expect(find.text('Engelsiz Haritalar'), findsOneWidget);
 
-    await tester.tap(find.text('Tarama'));
+    await tester.tap(find.text('Ürün Tarama'));
     await tester.tap(find.text('Destek Sorgulama'));
     await tester.tap(find.text('Hak Sorgulama'));
     await tester.tap(find.text('Engelsiz Haritalar'));
