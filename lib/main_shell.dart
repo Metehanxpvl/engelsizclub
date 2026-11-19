@@ -5994,7 +5994,10 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [MetoColors.primary, const Color(0xFF1A5C51)],
+              colors: [
+                MetoColors.primary,
+                Color.alphaBlend(const Color(0x40000000), MetoColors.primary),
+              ],
             ),
             borderRadius: BorderRadius.circular(16),
           ),
@@ -6179,17 +6182,21 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   }) {
     return Material(
       color: danger
-          ? const Color(0xFFFEF2F2)
+          ? (MetoColors.geceModu
+              ? const Color(0xFF3A1F1F)
+              : const Color(0xFFFEF2F2))
           : highlight
-              ? const Color(0xFFF0FAF5)
+              ? MetoColors.selectedBg
               : MetoColors.background,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
           color: danger
-              ? const Color(0xFFFEE2E2)
+              ? (MetoColors.geceModu
+                  ? const Color(0xFF7F2A2A)
+                  : const Color(0xFFFEE2E2))
               : highlight
-                  ? const Color(0x551A6B4A)
+                  ? MetoColors.primary.withAlpha(0x55)
                   : MetoColors.border,
           width: highlight ? 2 : 1,
         ),
@@ -7345,11 +7352,14 @@ class _BrandBar extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(16, topInset + 10, 12, 12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF0D2B1F), Color(0xFF1A6B4A)],
+          colors: [
+            Color.alphaBlend(const Color(0x99000000), MetoColors.primary),
+            MetoColors.primary,
+          ],
         ),
       ),
       child: Row(

@@ -653,6 +653,14 @@ class _MetoCareAppState extends State<MetoCareApp> {
                     surface: MetoColors.card,
                     onSurface: MetoColors.foreground,
                   ),
+                  bottomSheetTheme: BottomSheetThemeData(
+                    backgroundColor: MetoColors.card,
+                    surfaceTintColor: Colors.transparent,
+                  ),
+                  dialogTheme: DialogThemeData(
+                    backgroundColor: MetoColors.card,
+                    surfaceTintColor: Colors.transparent,
+                  ),
                 )
               : ThemeData(
                   useMaterial3: true,
