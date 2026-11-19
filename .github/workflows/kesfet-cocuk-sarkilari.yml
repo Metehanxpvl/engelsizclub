@@ -19,6 +19,8 @@ jobs:
         with:
           node-version: '22'
       - run: node tools/kesfet_cocuk_sarkilari_fetch.mjs
+      - name: Print rows
+        run: node -e "for (const r of require('./tools/_cocuk_sarkilari.json')) console.log('ROW ' + JSON.stringify(r))"
       - uses: actions/upload-artifact@v7
         with:
           name: cocuk-sarkilari
