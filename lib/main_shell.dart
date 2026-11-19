@@ -5149,8 +5149,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                             )
                           : null,
                       onTap: () async {
+                        // Önce sheet kapanmalı; aksi halde renkTemasiSurumu /
+                        // MaterialApp ValueKey rebuild açık route üzerinde
+                        // MainShell'i dispose eder → gri ekran.
+                        Navigator.pop(ctx);
+                        await Future<void>.delayed(
+                          const Duration(milliseconds: 350),
+                        );
                         await saveAndApplyRenkTemasi(p);
-                        if (ctx.mounted) Navigator.pop(ctx);
                       },
                     ),
                   ),
