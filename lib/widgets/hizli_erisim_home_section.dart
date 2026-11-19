@@ -44,7 +44,7 @@ class HizliErisimHomeSection extends StatelessWidget {
               Expanded(
                 child: _HizliTile(
                   label: 'Tarama',
-                  icon: Icons.qr_code_scanner,
+                  icon: Icons.qr_code_2,
                   onTap: onOpenTarama,
                 ),
               ),
@@ -52,7 +52,7 @@ class HizliErisimHomeSection extends StatelessWidget {
               Expanded(
                 child: _HizliTile(
                   label: 'Destek Sorgulama',
-                  icon: Icons.favorite_outline,
+                  icon: Icons.favorite,
                   onTap: onOpenDestek,
                 ),
               ),
@@ -60,7 +60,7 @@ class HizliErisimHomeSection extends StatelessWidget {
               Expanded(
                 child: _HizliTile(
                   label: 'Hak Sorgulama',
-                  icon: Icons.verified_user_outlined,
+                  icon: Icons.verified_user,
                   onTap: onOpenHaklar,
                 ),
               ),
@@ -68,7 +68,7 @@ class HizliErisimHomeSection extends StatelessWidget {
               Expanded(
                 child: _HizliTile(
                   label: 'Engelsiz Haritalar',
-                  icon: Icons.place_outlined,
+                  icon: Icons.place,
                   onTap: onOpenHarita,
                 ),
               ),
@@ -108,7 +108,7 @@ class _YolHaritasiTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(Icons.account_tree_outlined,
+              const Icon(Icons.account_tree,
                   size: 28, color: MetoColors.primary),
               const SizedBox(width: 12),
               Expanded(
