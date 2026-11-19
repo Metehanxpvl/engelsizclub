@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../admin_config.dart';
 import '../utils/async_timeout.dart';
 import 'kesfet_models.dart';
+import 'kesfet_queue.dart';
 import 'kesfet_scoring.dart';
 
 final _kesfetShuffleRng = Random();
@@ -158,6 +159,74 @@ class KesfetStore {
       if (_isMissingRelation(e)) return const [];
       rethrow;
     }
+  }
+
+  String? get currentUserId => _c.auth.currentUser?.id;
+
+  /// Tüm onaylı videoların hafif listesi (id + şarkı mı). 1000 satır sınırı için sayfalı.
+  Future<List<KesfetQueueEntry>> fetchApprovedQueueEntries() async {
+    const page = 1000;
+    final out = <KesfetQueueEntry>[];
+    for (var from = 0; from < 20000; from += page) {
+      final rows = await withNetworkTimeout(
+        _c
+            .from('kesfet_videos')
+            .select('id, tags, youtube_video_id')
+            .eq('status', 'approved')
+            .order('id')
+            .range(from, from + page - 1),
+      );
+      final list = (rows as List).whereType<Map>().toList();
+      for (final e in list) {
+        final id = e['id']?.toString() ?? '';
+        final yt = e['youtube_video_id']?.toString() ?? '';
+        if (id.isEmpty || yt.isEmpty) continue;
+        final tags = e['tags'];
+        final isSong = tags is List && tags.map((t) => '$t').contains(kKesfetSongTag);
+        out.add(KesfetQueueEntry(id, isSong: isSong));
+      }
+      if (list.length < page) break;
+    }
+    return out;
+  }
+
+  /// Giriş yapmış kullanıcının [since] sonrası izlediği video id'leri.
+  Future<Set<String>> fetchMyViewedIds({DateTime? since}) async {
+    final user = _c.auth.currentUser;
+    if (user == null) return <String>{};
+    const page = 1000;
+    final out = <String>{};
+    try {
+      for (var from = 0; from < 50000; from += page) {
+        var q = _c.from('kesfet_views').select('video_id').eq('owner_id', user.id);
+        if (since != null) q = q.gte('created_at', since.toUtc().toIso8601String());
+        final rows = await withNetworkTimeout(
+          q.order('id').range(from, from + page - 1),
+        );
+        final list = (rows as List).whereType<Map>().toList();
+        for (final e in list) {
+          final id = e['video_id']?.toString() ?? '';
+          if (id.isNotEmpty) out.add(id);
+        }
+        if (list.length < page) break;
+      }
+    } catch (_) {}
+    return out;
+  }
+
+  /// Verilen sırayı koruyarak videoları getirir.
+  Future<List<KesfetVideo>> fetchByIds(List<String> ids) async {
+    if (ids.isEmpty) return const [];
+    final rows = await withNetworkTimeout(
+      _c.from('kesfet_videos').select().inFilter('id', ids),
+    );
+    final byId = <String, KesfetVideo>{};
+    for (final e in (rows as List).whereType<Map>()) {
+      final v = KesfetVideo.fromRow(Map<String, dynamic>.from(e));
+      if (v.youtubeVideoId.isNotEmpty && v.status == 'approved') byId[v.id] = v;
+    }
+    final ordered = [for (final id in ids) if (byId[id] != null) byId[id]!];
+    return _withMine(ordered);
   }
 
   Future<List<KesfetVideo>> _withMine(List<KesfetVideo> list) async {

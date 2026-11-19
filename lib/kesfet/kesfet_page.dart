@@ -14,6 +14,7 @@ import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
 import 'kesfet_models.dart';
 import 'kesfet_player.dart';
+import 'kesfet_queue.dart';
 import 'kesfet_related.dart';
 import 'kesfet_store.dart';
 import 'kesfet_web_pointers.dart';
@@ -52,6 +53,12 @@ class _KesfetPageState extends State<KesfetPage> with WidgetsBindingObserver {
   DateTime? _lastWheel;
   final _viewed = <String>{};
   bool _wrapping = false;
+  // Karışık sıra: tüm onaylı videolar, bu turda izlenenler hariç.
+  static const _pageSize = 30;
+  List<KesfetQueueEntry> _entries = const [];
+  List<String> _queue = const [];
+  int _queuePos = 0;
+  bool _fetchingMore = false;
   Timer? _guestTimer;
   DateTime? _guestSegmentStart;
   bool _quotaExhausted = false;
@@ -215,7 +222,7 @@ class _KesfetPageState extends State<KesfetPage> with WidgetsBindingObserver {
       _error = null;
     });
     try {
-      final list = await _store.fetchApproved();
+      final list = await _buildFeed(excludeViewed: true);
       if (!mounted) return;
       setState(() {
         _videos = list;
@@ -249,35 +256,98 @@ class _KesfetPageState extends State<KesfetPage> with WidgetsBindingObserver {
     await _store.recordView(id);
   }
 
-  /// New permutation when the feed loops. Current clip is not first in the
-  /// next pass so the same sequence does not restart.
-  void _wrapWithNewShuffle() {
-    if (_quotaExhausted || _wrapping || _videos.length < 2) return;
+  /// Sırayı kurar ve ilk sayfayı getirir. Bu turda izlenmeyen kalmadıysa
+  /// yeni tur başlatır.
+  Future<List<KesfetVideo>> _buildFeed({
+    required bool excludeViewed,
+    Set<String> alsoExclude = const {},
+  }) async {
+    final entries = await _store.fetchApprovedQueueEntries();
+    final uid = _store.currentUserId;
+    var viewed = <String>{...alsoExclude};
+    if (excludeViewed) {
+      viewed.addAll(_viewed);
+      if (uid != null) {
+        final since = await kesfetCycleStart(uid);
+        viewed.addAll(await _store.fetchMyViewedIds(since: since));
+      }
+    }
+    var queue = buildKesfetQueue(entries, viewed);
+    if (queue.isEmpty && entries.isNotEmpty) {
+      if (uid != null) await startNewKesfetCycle(uid);
+      _viewed.clear();
+      queue = buildKesfetQueue(entries, alsoExclude);
+      if (queue.isEmpty) queue = buildKesfetQueue(entries, const {});
+    }
+    _entries = entries;
+    _queue = queue;
+    final first = await _store.fetchByIds(queue.take(_pageSize).toList());
+    _queuePos = queue.length < _pageSize ? queue.length : _pageSize;
+    return first;
+  }
+
+  /// Sonraki 30 videoyu sıranın sonuna ekler.
+  Future<void> _loadMore() async {
+    if (_fetchingMore || _queuePos >= _queue.length) return;
+    _fetchingMore = true;
+    try {
+      final end = (_queuePos + _pageSize).clamp(0, _queue.length);
+      final more = await _store.fetchByIds(_queue.sublist(_queuePos, end));
+      _queuePos = end;
+      if (!mounted || more.isEmpty) return;
+      setState(() => _videos = [..._videos, ...more]);
+      _syncWebPointers();
+    } catch (_) {
+    } finally {
+      _fetchingMore = false;
+    }
+  }
+
+  /// Listenin sonuna gelindi: sırada video varsa yükle, yoksa yeni tur başlat
+  /// (yeni karışık sıra, şu anki video ilk gelmez).
+  Future<void> _wrapWithNewShuffle() async {
+    if (_quotaExhausted || _wrapping || _videos.isEmpty) return;
     _wrapping = true;
-    final currentId = _videos[_index].id;
-    final mixed = shuffleKesfetVideos(_videos);
-    if (mixed.first.id == currentId) {
-      final tmp = mixed[0];
-      mixed[0] = mixed[1];
-      mixed[1] = tmp;
+    try {
+      if (_queuePos < _queue.length) {
+        final before = _videos.length;
+        await _loadMore();
+        if (mounted && _videos.length > before && _pageCtrl.hasClients) {
+          _pageCtrl.jumpToPage(_index + 1);
+        }
+        return;
+      }
+      if (_entries.length < 2) return;
+      final uid = _store.currentUserId;
+      if (uid != null) await startNewKesfetCycle(uid);
+      _viewed.clear();
+      final currentId = _videos[_index].id;
+      final fresh = await _buildFeed(
+        excludeViewed: false,
+        alsoExclude: {currentId},
+      );
+      if (!mounted || fresh.isEmpty) return;
+      setState(() {
+        _videos = fresh;
+        _index = 0;
+      });
+      if (_pageCtrl.hasClients) {
+        _pageCtrl.jumpToPage(0);
+      }
+      _syncWebPointers();
+      unawaited(_maybeRecordView(0));
+    } catch (_) {
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _wrapping = false;
+      });
     }
-    setState(() {
-      _videos = mixed;
-      _index = 0;
-    });
-    if (_pageCtrl.hasClients) {
-      _pageCtrl.jumpToPage(0);
-    }
-    unawaited(_maybeRecordView(0));
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _wrapping = false;
-    });
   }
 
   void _goPage(int delta) {
     if (_quotaExhausted || !_pageCtrl.hasClients || _videos.isEmpty) return;
     if (delta > 0 && _index >= _videos.length - 1) {
-      _wrapWithNewShuffle();
+      unawaited(_wrapWithNewShuffle());
       return;
     }
     final next = (_index + delta).clamp(0, _videos.length - 1);
@@ -372,6 +442,7 @@ class _KesfetPageState extends State<KesfetPage> with WidgetsBindingObserver {
       onPageChanged: (i) {
         setState(() => _index = i);
         unawaited(_maybeRecordView(i));
+        if (i >= _videos.length - 5) unawaited(_loadMore());
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _syncWebPointers();
         });
@@ -406,7 +477,7 @@ class _KesfetPageState extends State<KesfetPage> with WidgetsBindingObserver {
       pages = NotificationListener<OverscrollNotification>(
         onNotification: (n) {
           if (n.overscroll > 20 && _index >= _videos.length - 1) {
-            _wrapWithNewShuffle();
+            unawaited(_wrapWithNewShuffle());
           }
           return false;
         },
