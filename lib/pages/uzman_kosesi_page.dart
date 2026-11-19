@@ -492,7 +492,7 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
   }
 
   Widget _ustYayinlaButonlari() {
-    final showProfil = !_kurumOnly && _mine == null;
+    final showProfil = !_kurumOnly && _mine == null && _canCreate;
     final showKurum = !_uzmanOnly && _canCreate;
     if (!showProfil && !showKurum) return const SizedBox.shrink();
     return Row(
