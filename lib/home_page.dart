@@ -72,10 +72,8 @@ class _HomePageState extends State<HomePage> {
 
   bool get _isAdmin => isAppAdmin(widget.userEmail);
 
-  List<HomeHeroSlide> get _visibleHeroSlides {
-    final active = _heroSlides.where((s) => s.isActive).toList();
-    return active.isEmpty ? kDefaultHomeHeroSlides : active;
-  }
+  List<HomeHeroSlide> get _visibleHeroSlides =>
+      _heroSlides.where((s) => s.isActive).toList();
 
   @override
   void initState() {

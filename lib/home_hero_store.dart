@@ -108,7 +108,7 @@ Future<List<HomeHeroSlide>> loadHomeHeroSlides({
         .where((s) => s.imageUrl.trim().isNotEmpty)
         .toList();
     if (list.isEmpty) {
-      _cache = List.unmodifiable(kDefaultHomeHeroSlides);
+      _cache = List.unmodifiable(const <HomeHeroSlide>[]);
     } else {
       _cache = List.unmodifiable(list);
     }
