@@ -172,6 +172,10 @@ class IlanlarPageState extends State<IlanlarPage> {
       });
       return true;
     }
+    if (_seciliHubKart != null) {
+      setState(_clearHubSelection);
+      return true;
+    }
     if (!_showCategoryHub) {
       setState(() => _showCategoryHub = true);
       return true;
@@ -179,10 +183,12 @@ class IlanlarPageState extends State<IlanlarPage> {
     return false;
   }
 
-  static const _pageSize = 10;
+  static const _pageSize = 20;
 
   IlanKategori _kategori = IlanKategori.uzmanlar;
   bool _showCategoryHub = true;
+  /// Seçili hub kutucuğu (`hubId`); null = tüm ilanlar.
+  String? _seciliHubKart;
   bool _movingHub = false;
   bool _hidingHub = false;
   /// 2. El Eşyalar kartı: El Emeği / Organik ayrı kartlarda kalsın.
@@ -190,7 +196,7 @@ class IlanlarPageState extends State<IlanlarPage> {
   bool _showVerForm = false;
 
   String? get _suggestedFormKategori {
-    if (_showCategoryHub) return null;
+    if (_seciliHubKart == null) return null;
     if (_kategori == IlanKategori.uzmanlar) {
       if (_uzmanTipFilter == kIlanCatIsAriyorum) return kIlanCatIsAriyorum;
       if (_uzmanTipFilter != 'Tümü') return _uzmanTipFilter;
@@ -1190,11 +1196,10 @@ class IlanlarPageState extends State<IlanlarPage> {
           if (!_canViewSeekListing(id)) return;
           setState(() {
             _showVerForm = false;
-            _showCategoryHub = false;
-            _kategori = IlanKategori.uzmanlar;
-            _uzmanTipFilter = 'Tümü';
-            _ikincielAltFilter = 'Tümü';
-            _hubIkincielGeneralOnly = false;
+            _applyHubSelection(
+              hubId: kIlanHubUzman,
+              kategori: IlanKategori.uzmanlar,
+            );
             _selectedBakici = null;
             _selectedIkinciel = null;
             _selectedPoster = null;
@@ -1215,11 +1220,10 @@ class IlanlarPageState extends State<IlanlarPage> {
           if (!_canViewSeekListing(id)) return;
           setState(() {
             _showVerForm = false;
-            _showCategoryHub = false;
-            _kategori = IlanKategori.bakici;
-            _uzmanTipFilter = 'Tümü';
-            _ikincielAltFilter = 'Tümü';
-            _hubIkincielGeneralOnly = false;
+            _applyHubSelection(
+              hubId: kIlanHubBakici,
+              kategori: IlanKategori.bakici,
+            );
             _selectedUzman = null;
             _selectedIkinciel = null;
             _selectedPoster = null;
@@ -1239,11 +1243,11 @@ class IlanlarPageState extends State<IlanlarPage> {
           if (found == null) return;
           setState(() {
             _showVerForm = false;
-            _showCategoryHub = false;
-            _kategori = IlanKategori.ikinciel;
-            _uzmanTipFilter = 'Tümü';
-            _ikincielAltFilter = 'Tümü';
-            _hubIkincielGeneralOnly = false;
+            _applyHubSelection(
+              hubId: kIlanHubIkinciel,
+              kategori: IlanKategori.ikinciel,
+              ikincielGeneralOnly: true,
+            );
             _selectedUzman = null;
             _selectedBakici = null;
             _selectedPoster = null;
@@ -1476,22 +1480,110 @@ class IlanlarPageState extends State<IlanlarPage> {
         _ikincielAltFilter;
   }
 
+  void _clearHubSelection() {
+    _seciliHubKart = null;
+    _uzmanTipFilter = 'Tümü';
+    _ikincielAltFilter = 'Tümü';
+    _hubIkincielGeneralOnly = false;
+    _uzmanlikFilter = 'Tümü';
+    _ikincielDurumFilter = 'Tümü';
+    _listPage = 0;
+  }
+
+  String _hubIdForFilters({
+    required IlanKategori kategori,
+    String uzmanTip = 'Tümü',
+    String ikincielAlt = 'Tümü',
+    bool ikincielGeneralOnly = false,
+  }) {
+    if (kategori == IlanKategori.uzmanlar) {
+      if (uzmanTip == kIlanCatIsAriyorum) return kIlanHubIs;
+      if (uzmanTip == kIlanCatUzmanAriyorum || uzmanTip == 'Tümü') {
+        return kIlanHubUzman;
+      }
+      return ilanHubExtraId(uzmanTip);
+    }
+    if (kategori == IlanKategori.bakici) return kIlanHubBakici;
+    if (ikincielGeneralOnly) return kIlanHubIkinciel;
+    if (ikincielAlt == kIkincielAltElEmegi) return kIlanHubElEmegi;
+    if (ikincielAlt == kIkincielAltOrganik) return kIlanHubOrganik;
+    if (ikincielAlt == kIkincielAltOtomobil) return kIlanHubOtomobil;
+    if (ikincielAlt == kIkincielAltMedikal) return kIlanHubMedikal;
+    if (ikincielAlt != 'Tümü') return ilanHubExtraId(ikincielAlt);
+    return kIlanHubIkinciel;
+  }
+
+  void _applyHubSelection({
+    required String hubId,
+    required IlanKategori kategori,
+    String uzmanTip = 'Tümü',
+    String ikincielAlt = 'Tümü',
+    bool ikincielGeneralOnly = false,
+  }) {
+    _seciliHubKart = hubId;
+    _kategori = kategori;
+    _uzmanTipFilter = uzmanTip;
+    _ikincielAltFilter = ikincielAlt;
+    _hubIkincielGeneralOnly = ikincielGeneralOnly;
+    _uzmanlikFilter = 'Tümü';
+    _ikincielDurumFilter = 'Tümü';
+    _listPage = 0;
+  }
+
   void _openHubCard({
+    required String hubId,
     required IlanKategori kategori,
     String uzmanTip = 'Tümü',
     String ikincielAlt = 'Tümü',
     bool ikincielGeneralOnly = false,
   }) {
     setState(() {
-      _showCategoryHub = false;
-      _kategori = kategori;
-      _uzmanTipFilter = uzmanTip;
-      _ikincielAltFilter = ikincielAlt;
-      _hubIkincielGeneralOnly = ikincielGeneralOnly;
-      _uzmanlikFilter = 'Tümü';
-      _ikincielDurumFilter = 'Tümü';
-      _listPage = 0;
+      if (_seciliHubKart == hubId) {
+        _clearHubSelection();
+        return;
+      }
+      _applyHubSelection(
+        hubId: hubId,
+        kategori: kategori,
+        uzmanTip: uzmanTip,
+        ikincielAlt: ikincielAlt,
+        ikincielGeneralOnly: ikincielGeneralOnly,
+      );
     });
+  }
+
+  /// Tüm kategoriler birleşik; id azalan ≈ en yeni önce.
+  List<({String kind, int id, Object ilan})> get _mergedAllIlans {
+    final items = <({String kind, int id, Object ilan})>[];
+    final uzmanDemo =
+        CatalogAdapters.showDemoIlanlar() ? uzmanIlanlar : const <UzmanIlani>[];
+    for (final u in [...runtimeUzmanIlanlar, ...uzmanDemo]) {
+      if (!_canViewSeekListing(u.id)) continue;
+      items.add((kind: 'uzman', id: u.id, ilan: u));
+    }
+    final bakiciDemo = CatalogAdapters.showDemoIlanlar()
+        ? bakiciIlanlar
+        : const <BakiciIlani>[];
+    for (final b in [...runtimeBakiciIlanlar, ...bakiciDemo]) {
+      if (!_canViewSeekListing(b.id)) continue;
+      items.add((kind: 'bakici', id: b.id, ilan: b));
+    }
+    final ikincielDemo = CatalogAdapters.showDemoIlanlar()
+        ? ikincielIlanlar
+        : const <IkincielIlani>[];
+    for (final i in [...runtimeIkincielIlanlar, ...ikincielDemo]) {
+      items.add((kind: 'ikinciel', id: i.id, ilan: i));
+    }
+    items.sort((a, b) => b.id.compareTo(a.id));
+    return items;
+  }
+
+  Widget _buildMergedIlanCard(({String kind, int id, Object ilan}) item) {
+    return switch (item.kind) {
+      'uzman' => _buildUzmanCard(item.ilan as UzmanIlani),
+      'bakici' => _buildBakiciCard(item.ilan as BakiciIlani),
+      _ => _buildIkincielCard(item.ilan as IkincielIlani),
+    };
   }
 
   String get _hubListTitle {
@@ -1638,17 +1730,23 @@ class IlanlarPageState extends State<IlanlarPage> {
       blob: MetoColors.muted,
       defaultOrder: defaultOrder,
       onTap: () {
+        final hubId = ilanHubExtraId(label);
         final effective = isIkincielProductHubAlt(label) ? 'ikinciel' : kind;
         switch (effective) {
           case 'uzman':
             _openHubCard(
+              hubId: hubId,
               kategori: IlanKategori.uzmanlar,
               uzmanTip: label,
             );
           case 'bakici':
-            _openHubCard(kategori: IlanKategori.bakici);
+            _openHubCard(
+              hubId: hubId,
+              kategori: IlanKategori.bakici,
+            );
           default:
             _openHubCard(
+              hubId: hubId,
               kategori: IlanKategori.ikinciel,
               ikincielAlt: label,
             );
@@ -2043,12 +2141,18 @@ class IlanlarPageState extends State<IlanlarPage> {
           setState(() {
             _showVerForm = false;
             _editDraft = null;
-            _showCategoryHub = false;
-            _kategori = result.kategori;
-            _uzmanTipFilter = result.uzmanTip ?? 'Tümü';
-            _ikincielAltFilter = result.ikincielAlt ?? 'Tümü';
-            _hubIkincielGeneralOnly = result.ikincielGeneralOnly;
-            _listPage = 0;
+            _applyHubSelection(
+              hubId: _hubIdForFilters(
+                kategori: result.kategori,
+                uzmanTip: result.uzmanTip ?? 'Tümü',
+                ikincielAlt: result.ikincielAlt ?? 'Tümü',
+                ikincielGeneralOnly: result.ikincielGeneralOnly,
+              ),
+              kategori: result.kategori,
+              uzmanTip: result.uzmanTip ?? 'Tümü',
+              ikincielAlt: result.ikincielAlt ?? 'Tümü',
+              ikincielGeneralOnly: result.ikincielGeneralOnly,
+            );
           });
           final messenger = ScaffoldMessenger.of(context);
           await _refreshFeed();
@@ -2140,9 +2244,8 @@ class IlanlarPageState extends State<IlanlarPage> {
                     ),
                   ),
                 ),
-              if (_showCategoryHub)
-                _buildCategoryHub()
-              else ...[
+              _buildCategoryHub(),
+              if (_seciliHubKart != null) ...[
                 if (_normalizedRole == 'uzman' || _normalizedRole == 'bakici')
                   _buildCreditBar(),
                 if (_seekListingsOwnerOnly &&
@@ -2161,28 +2264,56 @@ class IlanlarPageState extends State<IlanlarPage> {
                   if (_ikincielAltFilter != kIkincielAltOtomobil)
                     _buildIkincielDurumFilter(),
                 ],
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                  child: Column(
-                    children: [
-                      if (_loadingFeed && !_feedHasRuntimeIlanlar)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 48),
-                          child: LoadingErrorView(
-                            loading: true,
-                            loadingMessage: _feedRetrying
-                                ? 'Yeniden deneniyor…'
-                                : 'İlanlar yükleniyor…',
+              ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: L10nText(
+                              _seciliHubKart == null
+                                  ? 'Tüm ilanlar'
+                                  : _hubListTitle,
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: MetoColors.foreground,
+                              ),
+                            ),
                           ),
-                        )
-                      else if (_feedError != null && !_feedHasRuntimeIlanlar)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 24),
-                          child: LoadingErrorView(
-                            error: _feedError,
-                            onRetry: _refreshFeed,
-                          ),
-                        )
+                          if (_seciliHubKart != null)
+                            TextButton(
+                              onPressed: () => setState(_clearHubSelection),
+                              child: const L10nText('Tümü'),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (_loadingFeed && !_feedHasRuntimeIlanlar)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 48),
+                        child: LoadingErrorView(
+                          loading: true,
+                          loadingMessage: _feedRetrying
+                              ? 'Yeniden deneniyor…'
+                              : 'İlanlar yükleniyor…',
+                        ),
+                      )
+                    else if (_feedError != null && !_feedHasRuntimeIlanlar)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: LoadingErrorView(
+                          error: _feedError,
+                          onRetry: _refreshFeed,
+                        ),
+                      )
+                    else ...[
+                      if (_seciliHubKart == null)
+                        ..._pageSlice(_mergedAllIlans).map(_buildMergedIlanCard)
                       else ...[
                         if (_kategori == IlanKategori.uzmanlar)
                           ..._pageSlice(_filteredUzman).map(_buildUzmanCard),
@@ -2190,26 +2321,26 @@ class IlanlarPageState extends State<IlanlarPage> {
                           ..._pageSlice(_filteredBakici).map(_buildBakiciCard),
                         if (_kategori == IlanKategori.ikinciel)
                           ..._pageSlice(_allIkinciel).map(_buildIkincielCard),
-                        const SizedBox(height: 8),
-                        _buildListPager(_currentListLength),
-                        if (ilanlarHasMore)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: (_loadingFeed || _loadingMore)
-                                ? const L10nText(
-                                    'Kalan ilanlar yükleniyor…',
-                                    textAlign: TextAlign.center,
-                                  )
-                                : TextButton(
-                                    onPressed: _loadMoreFeed,
-                                    child: const L10nText('Daha fazla ilan'),
-                                  ),
-                          ),
                       ],
+                      const SizedBox(height: 8),
+                      _buildListPager(_currentListLength),
+                      if (ilanlarHasMore)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: (_loadingFeed || _loadingMore)
+                              ? const L10nText(
+                                  'Kalan ilanlar yükleniyor…',
+                                  textAlign: TextAlign.center,
+                                )
+                              : TextButton(
+                                  onPressed: _loadMoreFeed,
+                                  child: const L10nText('Daha fazla ilan'),
+                                ),
+                        ),
                     ],
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ],
           ),
         ),
@@ -2497,6 +2628,7 @@ class IlanlarPageState extends State<IlanlarPage> {
             blob: MetoColors.muted,
             defaultOrder: 10,
             onTap: () => _openHubCard(
+              hubId: kIlanHubUzman,
               kategori: IlanKategori.uzmanlar,
               uzmanTip: kIlanCatUzmanAriyorum,
             ),
@@ -2510,7 +2642,10 @@ class IlanlarPageState extends State<IlanlarPage> {
             background: const Color(0xFFF8EDE0),
             blob: const Color(0xFFF0D9C0),
             defaultOrder: 20,
-            onTap: () => _openHubCard(kategori: IlanKategori.bakici),
+            onTap: () => _openHubCard(
+              hubId: kIlanHubBakici,
+              kategori: IlanKategori.bakici,
+            ),
           ),
           _IlanHubSpec(
             hubId: kIlanHubOtomobil,
@@ -2522,6 +2657,7 @@ class IlanlarPageState extends State<IlanlarPage> {
             blob: const Color(0xFFC5D4F0),
             defaultOrder: 30,
             onTap: () => _openHubCard(
+              hubId: kIlanHubOtomobil,
               kategori: IlanKategori.ikinciel,
               ikincielAlt: kIkincielAltOtomobil,
             ),
@@ -2536,6 +2672,7 @@ class IlanlarPageState extends State<IlanlarPage> {
             blob: const Color(0xFFC5E4DE),
             defaultOrder: 35,
             onTap: () => _openHubCard(
+              hubId: kIlanHubMedikal,
               kategori: IlanKategori.ikinciel,
               ikincielAlt: kIkincielAltMedikal,
             ),
@@ -2550,6 +2687,7 @@ class IlanlarPageState extends State<IlanlarPage> {
             blob: const Color(0xFFE8DCC4),
             defaultOrder: 40,
             onTap: () => _openHubCard(
+              hubId: kIlanHubIkinciel,
               kategori: IlanKategori.ikinciel,
               ikincielGeneralOnly: true,
             ),
@@ -2564,6 +2702,7 @@ class IlanlarPageState extends State<IlanlarPage> {
             blob: MetoColors.muted,
             defaultOrder: 50,
             onTap: () => _openHubCard(
+              hubId: kIlanHubIs,
               kategori: IlanKategori.uzmanlar,
               uzmanTip: kIlanCatIsAriyorum,
             ),
@@ -2578,6 +2717,7 @@ class IlanlarPageState extends State<IlanlarPage> {
             blob: const Color(0xFFEEDCC4),
             defaultOrder: 60,
             onTap: () => _openHubCard(
+              hubId: kIlanHubElEmegi,
               kategori: IlanKategori.ikinciel,
               ikincielAlt: kIkincielAltElEmegi,
             ),
@@ -2592,6 +2732,7 @@ class IlanlarPageState extends State<IlanlarPage> {
             blob: MetoColors.muted,
             defaultOrder: 70,
             onTap: () => _openHubCard(
+              hubId: kIlanHubOrganik,
               kategori: IlanKategori.ikinciel,
               ikincielAlt: kIkincielAltOrganik,
             ),
@@ -2681,6 +2822,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                         iconColor: visible[i].iconColor,
                         background: visible[i].background,
                         blob: visible[i].blob,
+                        selected: _seciliHubKart == visible[i].hubId,
                         onTap: visible[i].onTap,
                         onMoveLeft: _isAdmin && i > 0
                             ? () => _moveHubCard(i, -1, visible)
@@ -2806,6 +2948,7 @@ class IlanlarPageState extends State<IlanlarPage> {
     required Color background,
     required Color blob,
     required VoidCallback onTap,
+    bool selected = false,
     Map<String, dynamic>? meta,
     VoidCallback? onMoveLeft,
     VoidCallback? onMoveRight,
@@ -2816,75 +2959,78 @@ class IlanlarPageState extends State<IlanlarPage> {
     final style = CatalogAdapters.ilanHubStyle(hubId, fallbackTitle);
     final hasImage = style.imageUrl.isNotEmpty;
     final titleColor = hasImage ? Colors.white : MetoColors.foreground;
-    return Material(
-      color: background,
-      borderRadius: BorderRadius.circular(16),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (hasImage)
-              Positioned.fill(
-                child: CatalogImage(
-                  source: style.imageUrl,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                ),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 10, 8, 36),
-                child: Center(
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                        width: 58,
-                        height: 58,
-                        decoration: BoxDecoration(
-                          color: blob.withValues(alpha: 0.7),
-                          shape: BoxShape.circle,
-                        ),
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Material(
+          color: background,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (hasImage)
+                  Positioned.fill(
+                    child: CatalogImage(
+                      source: style.imageUrl,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 10, 8, 36),
+                    child: Center(
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            width: 58,
+                            height: 58,
+                            decoration: BoxDecoration(
+                              color: blob.withValues(alpha: 0.7),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          Icon(icon, size: 32, color: iconColor),
+                        ],
                       ),
-                      Icon(icon, size: 32, color: iconColor),
-                    ],
+                    ),
+                  ),
+                if (hasImage)
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0x00000000),
+                          Color(0xA6000000),
+                        ],
+                        stops: [0.42, 1],
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  left: 8,
+                  right: 8,
+                  bottom: 8,
+                  child: L10nText(
+                    style.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: titleColor,
+                      height: 1.2,
+                    ),
                   ),
                 ),
-              ),
-            if (hasImage)
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x00000000),
-                      Color(0xA6000000),
-                    ],
-                    stops: [0.42, 1],
-                  ),
-                ),
-              ),
-            Positioned(
-              left: 8,
-              right: 8,
-              bottom: 8,
-              child: L10nText(
-                style.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: titleColor,
-                  height: 1.2,
-                ),
-              ),
-            ),
-            if (_isAdmin)
+                if (_isAdmin)
               Positioned(
                 top: 6,
                 left: 6,
@@ -3023,9 +3169,25 @@ class IlanlarPageState extends State<IlanlarPage> {
                   ),
                 ),
               ),
-          ],
+              ],
+            ),
+          ),
         ),
-      ),
+        if (selected)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: MetoColors.primary,
+                    width: 2.5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -3034,10 +3196,10 @@ class IlanlarPageState extends State<IlanlarPage> {
       padding: const EdgeInsets.fromLTRB(8, 12, 16, 8),
       child: Row(
         children: [
-          if (!_showCategoryHub)
+          if (_seciliHubKart != null)
             IconButton(
-              tooltip: 'Kategoriler',
-              onPressed: () => setState(() => _showCategoryHub = true),
+              tooltip: 'Tüm ilanlar',
+              onPressed: () => setState(_clearHubSelection),
               icon: Icon(
                 Icons.arrow_back,
                 color: MetoColors.foreground,
@@ -3057,7 +3219,7 @@ class IlanlarPageState extends State<IlanlarPage> {
                     color: MetoColors.foreground,
                   ),
                 ),
-                if (!_showCategoryHub)
+                if (_seciliHubKart != null)
                   L10nText(
                     _hubListTitle,
                     style: TextStyle(
@@ -3092,7 +3254,7 @@ class IlanlarPageState extends State<IlanlarPage> {
               ),
             ),
           ],
-          if (!_showCategoryHub &&
+          if (_seciliHubKart != null &&
               (_canPostListing || _profNeedsRoleSwitchToPost))
             FilledButton.icon(
               onPressed: () async {
@@ -3237,6 +3399,7 @@ class IlanlarPageState extends State<IlanlarPage> {
   }
 
   int get _currentListLength {
+    if (_seciliHubKart == null) return _mergedAllIlans.length;
     return switch (_kategori) {
       IlanKategori.uzmanlar => _filteredUzman.length,
       IlanKategori.bakici => _filteredBakici.length,
@@ -3256,15 +3419,18 @@ class IlanlarPageState extends State<IlanlarPage> {
   Widget _buildListPager(int total) {
     if (total <= _pageSize) {
       if (total == 0) {
-        final ownSeekEmpty = _seekListingsOwnerOnly &&
+        final ownSeekEmpty = _seciliHubKart != null &&
+            _seekListingsOwnerOnly &&
             (_kategori == IlanKategori.uzmanlar ||
                 _kategori == IlanKategori.bakici);
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),
           child: L10nText(
-            ownSeekEmpty
-                ? 'Bu kategoride yalnızca kendi ilanlarınız görünür. Tüm ilanları görmek için Destek Arayan rolünden Destek Veren rolüne geçin. Henüz ilanınız yoksa İlan Ver ile paylaşabilirsiniz.'
-                : 'Bu filtrede ilan yok',
+            _seciliHubKart == null
+                ? 'Henüz ilan yok.'
+                : ownSeekEmpty
+                    ? 'Bu kategoride yalnızca kendi ilanlarınız görünür. Tüm ilanları görmek için Destek Arayan rolünden Destek Veren rolüne geçin. Henüz ilanınız yoksa İlan Ver ile paylaşabilirsiniz.'
+                    : 'Bu filtrede ilan yok',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, color: MetoColors.mutedFg),
           ),
