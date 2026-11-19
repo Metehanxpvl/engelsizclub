@@ -1,0 +1,25 @@
+# GEÇİCİ: Keşfet çocuk şarkıları adaylarını toplar (sadece bu dalda, push ile çalışır).
+# Veritabanına yazmaz; sonucu artifact olarak yükler. İş bitince dal silinecek.
+name: Kesfet cocuk sarkilari (gecici)
+
+on:
+  push:
+    branches: [claude/kesfet-cocuk-sarkilari]
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: node tools/kesfet_cocuk_sarkilari_fetch.mjs
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cocuk-sarkilari
+          path: tools/_cocuk_sarkilari.json
