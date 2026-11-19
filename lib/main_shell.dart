@@ -90,14 +90,13 @@ import 'package:showcaseview/showcaseview.dart';
 import 'l10n/l10n_text.dart';
 import 'utils/web_session_tab.dart';
 
-/// Kaydırılan sekmeler önce: Ana · İlanlar · Tarama · Keşfet · Forum.
-/// merkezler / haklar / kartlar Daha Fazlası üzerinden açılan overlay sayfalar.
+/// Kaydırılan sekmeler önce: Ana · İlanlar · Keşfet · Forum.
+/// tarama Hızlı Erişim / Daha Fazlası üzerinden; merkezler / haklar / kartlar overlay.
 enum MetoTab { home, ilanlar, tarama, kesfet, forum, merkezler, haklar, kartlar }
 
 const _swipeTabs = <MetoTab>[
   MetoTab.home,
   MetoTab.ilanlar,
-  MetoTab.tarama,
   MetoTab.kesfet,
   MetoTab.forum,
 ];
@@ -568,7 +567,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     ShowcaseView.get().startShowCase([
       _navTourKeys[MetoTab.home]!,
       _navTourKeys[MetoTab.ilanlar]!,
-      _navTourKeys[MetoTab.tarama]!,
       _navTourKeys[MetoTab.kesfet]!,
       _navTourKeys[MetoTab.forum]!,
       _moreNavTourKey,
@@ -2903,8 +2901,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   }
 
   Widget get _body {
-    // Kaydırma: Ana · İlanlar · Tarama · Keşfet · Forum.
-    // Harita / Haklar / Kartlar PageView dışında; Daha Fazlası’ndan overlay.
+    // Kaydırma: Ana · İlanlar · Keşfet · Forum.
+    // Tarama / Harita / Haklar / Kartlar PageView dışında; overlay.
     final swipe = PageView(
       controller: _tabPageController,
       physics: const BouncingScrollPhysics(
@@ -2956,13 +2954,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           openEditIlanId: _openEditIlanId,
           openEditIlanToken: _openEditIlanToken,
         ),
-        _KeepAliveTab(
-          child: BarcodeScannerScreen(
-            isGuest: _isGuest,
-            embedded: true,
-            isTabActive: _activeTab == MetoTab.tarama && !_showMesajlar,
-          ),
-        ),
         KesfetPage(
           userEmail: widget.user.email,
           userName: _publicDisplayName,
@@ -2992,7 +2983,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     );
 
     Widget? overlay;
-    if (_activeTab == MetoTab.merkezler) {
+    if (_activeTab == MetoTab.tarama) {
+      overlay = _KeepAliveTab(
+        child: BarcodeScannerScreen(
+          isGuest: _isGuest,
+          embedded: true,
+          isTabActive: _activeTab == MetoTab.tarama && !_showMesajlar,
+        ),
+      );
+    } else if (_activeTab == MetoTab.merkezler) {
       overlay = _KeepAliveTab(
         child: MerkezlerPage(
           userEmail: widget.user.email,
@@ -7313,11 +7312,10 @@ class _BottomNav extends StatelessWidget {
   final int ilanlarNewCount;
   final int forumNewCount;
 
-  /// Görünen sıra = kaydırma sırası: Ana · İlanlar · Tarama · Keşfet · Forum.
+  /// Görünen sıra = kaydırma sırası: Ana · İlanlar · Keşfet · Forum.
   static List<(MetoTab, String, String)> get _primaryItems => [
     (MetoTab.home, S.t('nav_home'), S.t('tour_home')),
     (MetoTab.ilanlar, S.t('nav_listings'), S.t('tour_listings')),
-    (MetoTab.tarama, S.t('nav_scan'), S.t('tour_scan')),
     (MetoTab.kesfet, S.t('nav_kesfet'), S.t('tour_kesfet')),
     (MetoTab.forum, S.t('nav_forum'), S.t('tour_forum')),
   ];
