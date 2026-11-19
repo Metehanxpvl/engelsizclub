@@ -12,12 +12,16 @@ class HizliErisimHomeSection extends StatelessWidget {
     this.onOpenDestek,
     this.onOpenHaklar,
     this.onOpenHarita,
+    this.onOpenYolHaritasi,
   });
 
   final VoidCallback? onOpenTarama;
   final VoidCallback? onOpenDestek;
   final VoidCallback? onOpenHaklar;
   final VoidCallback? onOpenHarita;
+
+  /// Verilirse 4 kutucuğun altında "Yol Haritam" kartı gösterilir.
+  final VoidCallback? onOpenYolHaritasi;
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +74,71 @@ class HizliErisimHomeSection extends StatelessWidget {
               ),
             ],
           ),
+          if (onOpenYolHaritasi != null) ...[
+            const SizedBox(height: 10),
+            _YolHaritasiTile(onTap: onOpenYolHaritasi),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _YolHaritasiTile extends StatelessWidget {
+  const _YolHaritasiTile({this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: MetoColors.card,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: MetoColors.primary.withValues(alpha: 0.45),
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.account_tree_outlined,
+                  size: 28, color: MetoColors.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    L10nText(
+                      'Yol Haritam',
+                      style: GoogleFonts.nunito(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: MetoColors.foreground,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    L10nText(
+                      'Tanı aldık, şimdi ne yapmalı?',
+                      style: GoogleFonts.nunito(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: MetoColors.mutedFg,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: MetoColors.primary),
+            ],
+          ),
+        ),
       ),
     );
   }

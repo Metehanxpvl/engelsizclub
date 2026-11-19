@@ -38,5 +38,24 @@ void main() {
     expect(destek, 1);
     expect(haklar, 1);
     expect(harita, 1);
+    expect(find.text('Yol Haritam'), findsNothing);
+  });
+
+  testWidgets('Hızlı Erişim shows Yol Haritam card when callback given',
+      (tester) async {
+    var yol = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HizliErisimHomeSection(onOpenYolHaritasi: () => yol++),
+        ),
+      ),
+    );
+
+    expect(find.text('Yol Haritam'), findsOneWidget);
+    await tester.tap(find.text('Yol Haritam'));
+    await tester.pump();
+    expect(yol, 1);
   });
 }
