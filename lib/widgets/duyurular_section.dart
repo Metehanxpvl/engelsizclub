@@ -16,7 +16,6 @@ import '../meto_theme.dart';
 import '../services/image_optimize_service.dart';
 import '../services/r2_storage_service.dart';
 import 'instagram_embed.dart';
-import 'story_marquee.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n_text.dart';
 import '../l10n/locale_controller.dart';
@@ -392,7 +391,7 @@ class _DuyurularSectionState extends State<DuyurularSection> {
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          S.t('duyuru_section_title'),
+                          'Duyurular ve Haberler',
                           maxLines: 1,
                           softWrap: false,
                           overflow: TextOverflow.ellipsis,
@@ -405,45 +404,55 @@ class _DuyurularSectionState extends State<DuyurularSection> {
                         ),
                       ),
                     ),
-                    TextButton(
-                        onPressed: _openAll,
-                        style: TextButton.styleFrom(
-                          foregroundColor: MetoColors.primary,
-                          visualDensity: VisualDensity.compact,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          minimumSize: Size.zero,
+                    GestureDetector(
+                      onTap: _openAll,
+                      behavior: HitTestBehavior.opaque,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 4,
                         ),
-                        child: Text(
-                          S.t('duyuru_view'),
-                          maxLines: 1,
-                          softWrap: false,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.nunito(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Tümü',
+                              style: GoogleFonts.nunito(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: MetoColors.primary,
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right,
+                              size: 18,
+                              color: MetoColors.primary,
+                            ),
+                          ],
                         ),
                       ),
+                    ),
                     if (_isAdmin) ...[
-                  IconButton(
-                    tooltip: S.auto('Story yönetimi'),
-                    onPressed: _openAdminManage,
-                    style: IconButton.styleFrom(
-                      backgroundColor: MetoColors.primary.withValues(alpha: 0.1),
-                      foregroundColor: MetoColors.primary,
-                    ),
-                    icon: const Icon(Icons.tune, size: 20),
-                  ),
-                  IconButton(
-                    tooltip: S.auto('Duyuru ekle'),
-                    onPressed: () => _openAdminForm(),
-                    style: IconButton.styleFrom(
-                      backgroundColor: MetoColors.primary.withValues(alpha: 0.1),
-                      foregroundColor: MetoColors.primary,
-                    ),
-                    icon: const Icon(Icons.add_circle_outline, size: 22),
-                  ),
+                      IconButton(
+                        tooltip: S.auto('Story yönetimi'),
+                        onPressed: _openAdminManage,
+                        style: IconButton.styleFrom(
+                          backgroundColor:
+                              MetoColors.primary.withValues(alpha: 0.1),
+                          foregroundColor: MetoColors.primary,
+                        ),
+                        icon: const Icon(Icons.tune, size: 20),
+                      ),
+                      IconButton(
+                        tooltip: S.auto('Duyuru ekle'),
+                        onPressed: () => _openAdminForm(),
+                        style: IconButton.styleFrom(
+                          backgroundColor:
+                              MetoColors.primary.withValues(alpha: 0.1),
+                          foregroundColor: MetoColors.primary,
+                        ),
+                        icon: const Icon(Icons.add_circle_outline, size: 22),
+                      ),
                     ],
                   ],
                 );
@@ -452,72 +461,217 @@ class _DuyurularSectionState extends State<DuyurularSection> {
           ),
           if (_loading)
             const SizedBox(
-              height: 108,
-              child: Center(
-                child: SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
+              height: 250,
+              child: _DuyuruCardSkeletonList(),
             )
           else if (_visibleForStrip.isEmpty)
             _hasAllScreenItems
                 ? const SizedBox.shrink()
                 : Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: MetoColors.card,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: MetoColors.border),
-                ),
-                child: Text(
-                  _isAdmin
-                      ? 'Henüz aktif story yok. + veya Yönet ile ekleyin.'
-                      : 'Şu an görüntülenecek duyuru yok.',
-                  style: GoogleFonts.nunito(
-                    fontSize: 13,
-                    color: MetoColors.mutedFg,
-                  ),
-                ),
-              ),
-            )
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: MetoColors.card,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: MetoColors.border),
+                      ),
+                      child: Text(
+                        _isAdmin
+                            ? 'Henüz aktif story yok. + veya Yönet ile ekleyin.'
+                            : 'Şu an görüntülenecek duyuru yok.',
+                        style: GoogleFonts.nunito(
+                          fontSize: 13,
+                          color: MetoColors.mutedFg,
+                        ),
+                      ),
+                    ),
+                  )
           else
-            StoryMarquee(
-              height: 112,
-              itemWidth: 90,
-              pixelsPerSecond: 30,
-              itemCount: _visibleForStrip.length,
-              contentVersion: _stripVersion,
-              onItemTap: (i) {
-                if (i < 0 || i >= _visibleForStrip.length) return;
-                _openViewer(_visibleForStrip[i]);
-              },
-              onItemLongPress: _isAdmin
-                  ? (i) {
-                      if (i < 0 || i >= _visibleForStrip.length) return;
-                      final item = _visibleForStrip[i];
-                      if (item.id <= 0) return;
-                      _openAdminForm(edit: item);
-                    }
-                  : null,
-              itemBuilder: (context, i) {
-                final item = _visibleForStrip[i];
-                final seen = _seen.contains(item.id);
-                return RepaintBoundary(
-                  child: _StoryCircle(
-                    key: ValueKey('story_${item.id}'),
+            SizedBox(
+              height: 250,
+              child: ListView.separated(
+                key: ValueKey(_stripVersion),
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _visibleForStrip.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (context, i) {
+                  final item = _visibleForStrip[i];
+                  final seen = _seen.contains(item.id);
+                  return _DuyuruHomeCard(
+                    key: ValueKey('duyuru_card_${item.id}'),
                     item: item,
-                    seen: seen,
-                    isAdmin: false,
-                  ),
-                );
-              },
+                    unseen: !seen,
+                    onTap: () => _openViewer(item),
+                    onLongPress: _isAdmin && item.id > 0
+                        ? () => _openAdminForm(edit: item)
+                        : null,
+                  );
+                },
+              ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+const _trShortMonths = <String>[
+  'Oca',
+  'Şub',
+  'Mar',
+  'Nis',
+  'May',
+  'Haz',
+  'Tem',
+  'Ağu',
+  'Eyl',
+  'Eki',
+  'Kas',
+  'Ara',
+];
+
+String _formatDuyuruCardDate(DateTime dt) {
+  return '${dt.day} ${_trShortMonths[dt.month - 1]} ${dt.year}';
+}
+
+class _DuyuruCardSkeletonList extends StatelessWidget {
+  const _DuyuruCardSkeletonList();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: 2,
+      separatorBuilder: (_, __) => const SizedBox(width: 12),
+      itemBuilder: (_, __) => Container(
+        width: 240,
+        decoration: BoxDecoration(
+          color: MetoColors.muted,
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+    );
+  }
+}
+
+class _DuyuruHomeCard extends StatelessWidget {
+  const _DuyuruHomeCard({
+    super.key,
+    required this.item,
+    required this.unseen,
+    required this.onTap,
+    this.onLongPress,
+  });
+
+  final DuyuruItem item;
+  final bool unseen;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final date = item.publishAt ?? item.createdAt;
+    final dateText = _formatDuyuruCardDate(date);
+    final hasSource = (item.sourceUrl ?? '').trim().isNotEmpty;
+    final meta = hasSource ? '$dateText · Kaynak' : dateText;
+
+    return Semantics(
+      label: 'Duyuru: ${item.title}, $dateText',
+      button: true,
+      child: GestureDetector(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Container(
+          width: 240,
+          decoration: BoxDecoration(
+            color: MetoColors.card,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: MetoColors.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: item.isInstagramEmbed
+                        ? const SizedBox.expand(
+                            child: FittedBox(
+                              fit: BoxFit.cover,
+                              child: _InstagramStoryThumb(size: 240),
+                            ),
+                          )
+                        : _DuyuruImage(
+                            source: item.imageUrl,
+                            width: 240,
+                            height: 240 * 9 / 16,
+                            fit: BoxFit.cover,
+                          ),
+                  ),
+                  if (unseen)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: MetoColors.primary,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Yeni',
+                          style: GoogleFonts.nunito(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.nunito(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: MetoColors.foreground,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      meta,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.nunito(
+                        fontSize: 12,
+                        color: MetoColors.mutedFg,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -572,11 +726,16 @@ Future<void> _showDuyuruStoryViewer({
   );
 }
 
+// Home strip now uses cards; keep circle widget for other surfaces.
+// ignore: unused_element
 class _StoryCircle extends StatelessWidget {
+  // ignore: unused_element_parameter
   const _StoryCircle({
+    // ignore: unused_element_parameter
     super.key,
     required this.item,
     required this.seen,
+    // ignore: unused_element_parameter
     this.isAdmin = false,
   });
 
