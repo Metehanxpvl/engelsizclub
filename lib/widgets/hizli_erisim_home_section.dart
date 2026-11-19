@@ -102,8 +102,8 @@ class _YolHaritasiTile extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: MetoColors.primary.withValues(alpha: 0.45),
-              width: 1.5,
+              color: MetoColors.primary,
+              width: 2.5,
             ),
           ),
           child: Row(
@@ -169,8 +169,8 @@ class _HizliTile extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: MetoColors.primary.withValues(alpha: 0.45),
-              width: 1.5,
+              color: MetoColors.primary,
+              width: 2.5,
             ),
           ),
           child: Column(
