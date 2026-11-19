@@ -66,8 +66,6 @@ class _HomePageState extends State<HomePage> {
   String? _activeNadirId;
   List<NadirItem> _nadirItems = List<NadirItem>.from(kDefaultNadirItems);
   int? _expandedFaq;
-  int _heroIdx = 0;
-  Timer? _heroTimer;
   List<HomeHeroSlide> _heroSlides = List<HomeHeroSlide>.from(kDefaultHomeHeroSlides);
 
   List<DiseaseInfo> get _diseases => CatalogAdapters.diseases();
@@ -90,12 +88,6 @@ class _HomePageState extends State<HomePage> {
     }
     _loadNadir();
     _loadHeroSlides();
-    _heroTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (!mounted || _activeDisease != null) return;
-      final slides = _visibleHeroSlides;
-      if (slides.isEmpty) return;
-      setState(() => _heroIdx = (_heroIdx + 1) % slides.length);
-    });
   }
 
   Future<void> _loadHeroSlides() async {
@@ -106,8 +98,6 @@ class _HomePageState extends State<HomePage> {
     if (!mounted) return;
     setState(() {
       _heroSlides = items;
-      final n = _visibleHeroSlides.length;
-      if (n > 0) _heroIdx = _heroIdx % n;
     });
   }
 
@@ -131,8 +121,6 @@ class _HomePageState extends State<HomePage> {
     if (result != null) {
       setState(() {
         _heroSlides = result;
-        final n = _visibleHeroSlides.length;
-        if (n > 0) _heroIdx = _heroIdx % n;
       });
     } else {
       await _loadHeroSlides();
@@ -143,12 +131,6 @@ class _HomePageState extends State<HomePage> {
     final items = await loadNadirItems(forceRefresh: !hasFreshNadirCache);
     if (!mounted) return;
     setState(() => _nadirItems = items);
-  }
-
-  @override
-  void dispose() {
-    _heroTimer?.cancel();
-    super.dispose();
   }
 
   DiseaseInfo? get _selected {
@@ -194,6 +176,61 @@ class _HomePageState extends State<HomePage> {
       );
     }
     return fallback();
+  }
+
+  Widget _buildHeroSlideContent(HomeHeroSlide slide) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _buildHeroImage(slide),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0x2E0D2B1F),
+                Color(0xB80D2B1F),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: 16,
+          right: 16,
+          bottom: 16,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  L10nText('👋', style: GoogleFonts.nunito(fontSize: 16)),
+                  const SizedBox(width: 6),
+                  L10nText(
+                    'Hoş geldiniz',
+                    style: GoogleFonts.nunito(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xCCFFFFFF),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              L10nText(
+                'Destek, bilgi ve\ntopluluk bir arada',
+                style: GoogleFonts.nunito(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  height: 1.375,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   bool _isYas02Guide(DiseaseInfo d) {
@@ -272,126 +309,13 @@ class _HomePageState extends State<HomePage> {
         primary: false,
         padding: EdgeInsets.zero,
         children: [
-          // Hero photo slider
-          SizedBox(
-            height: 260,
-            width: double.infinity,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                for (var i = 0; i < _visibleHeroSlides.length; i++)
-                  AnimatedOpacity(
-                    opacity: i == _heroIdx ? 1 : 0,
-                    duration: const Duration(milliseconds: 700),
-                    child: _buildHeroImage(_visibleHeroSlides[i]),
-                  ),
-                const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0x2E0D2B1F),
-                        Color(0xB80D2B1F),
-                      ],
-                    ),
-                  ),
-                ),
-                if (_isAdmin)
-                  Positioned(
-                    top: 12,
-                    right: 12,
-                    child: Material(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(12),
-                      child: InkWell(
-                        onTap: _openHeroAdmin,
-                        borderRadius: BorderRadius.circular(12),
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.photo_library_outlined,
-                                  size: 16, color: Colors.white),
-                              SizedBox(width: 6),
-                              L10nText(
-                                'Görselleri yönet',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                Positioned(
-                  left: 16,
-                  right: 16,
-                  bottom: 16,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          L10nText('👋', style: GoogleFonts.nunito(fontSize: 16)),
-                          const SizedBox(width: 6),
-                          L10nText(
-                            'Hoş geldiniz',
-                            style: GoogleFonts.nunito(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xCCFFFFFF),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      L10nText(
-                        'Destek, bilgi ve\ntopluluk bir arada',
-                        style: GoogleFonts.nunito(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          height: 1.375,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Positioned(
-                  right: 16,
-                  bottom: 12,
-                  child: Row(
-                    children: List.generate(_visibleHeroSlides.length, (i) {
-                      final active = i == _heroIdx;
-                      return GestureDetector(
-                        onTap: () => setState(() => _heroIdx = i),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          margin: const EdgeInsets.only(left: 6),
-                          width: active ? 16 : 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: active
-                                ? Colors.white
-                                : Colors.white.withValues(alpha: 0.45),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-                ),
-              ],
-            ),
+          DuyurularSection(
+            key: ValueKey('manset_${widget.userEmail}'),
+            userEmail: widget.userEmail,
+            mansetModu: true,
+            heroSlides: _visibleHeroSlides,
+            heroSlideBuilder: _buildHeroSlideContent,
+            onManageHeroSlides: _isAdmin ? _openHeroAdmin : null,
           ),
 
           Padding(
@@ -413,11 +337,6 @@ class _HomePageState extends State<HomePage> {
           ),
 
           const DisclaimerBanner(),
-
-          DuyurularSection(
-            key: ValueKey('duyurular_${widget.userEmail}'),
-            userEmail: widget.userEmail,
-          ),
 
           GeziKampanyaHomeSection(
             userEmail: widget.userEmail,

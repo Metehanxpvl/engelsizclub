@@ -219,6 +219,7 @@ Future<DuyuruItem> addDuyuru({
   bool isPopup = false,
   DateTime? publishAt,
   DateTime? expiresAt,
+  bool bildirimGonder = false,
 }) async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
@@ -275,7 +276,7 @@ Future<DuyuruItem> addDuyuru({
   _setDuyuruCache([item, ...prev.where((d) => d.id != item.id)]);
 
   // Görselli push (yalnız https görseller; data URL atlanır)
-  if (item.isActive) {
+  if (item.isActive && bildirimGonder) {
     unawaited(
       BroadcastPushService.instance.duyuru(
         title: item.title.trim().isEmpty ? 'Yeni duyuru' : item.title.trim(),
@@ -288,6 +289,19 @@ Future<DuyuruItem> addDuyuru({
     );
   }
   return item;
+}
+
+/// Yayınlanmış duyuruyu tüm kullanıcılara bildirim olarak gönder.
+Future<void> duyuruBildirimiGonder(DuyuruItem item) async {
+  final ok = await BroadcastPushService.instance.duyuru(
+    title: item.title.trim().isEmpty ? 'Yeni duyuru' : item.title.trim(),
+    body: item.body.trim().isEmpty
+        ? 'Güncel haber ve duyurulara göz atın'
+        : item.body.trim(),
+    imageUrl: item.imageUrl,
+    duyuruId: '${item.id}',
+  );
+  if (!ok) throw StateError('Bildirim gönderilemedi.');
 }
 
 /// Instagram: DB'ye yalnızca permalink metni + kısa marker. Medya/CDN URL yazılmaz.

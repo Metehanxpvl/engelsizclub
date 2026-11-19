@@ -11,6 +11,7 @@ import '../data/duyuru_data.dart';
 import '../duyuru_store.dart';
 import '../features/global_news/global_news_model.dart';
 import '../features/global_news/global_news_repository.dart';
+import '../home_hero_store.dart';
 import '../section_editors.dart';
 import '../meto_theme.dart';
 import '../services/image_optimize_service.dart';
@@ -55,13 +56,22 @@ List<DuyuruItem> newsStoriesFromGlobalNews(
 }
 
 /// Ana sayfa: disclaimer altı / hastalıklar üstü — story tarzı duyurular.
+/// [mansetModu] true ise üst hero yerine haber manşeti gösterir.
 class DuyurularSection extends StatefulWidget {
   const DuyurularSection({
     super.key,
     required this.userEmail,
+    this.mansetModu = false,
+    this.heroSlides = const [],
+    this.heroSlideBuilder,
+    this.onManageHeroSlides,
   });
 
   final String userEmail;
+  final bool mansetModu;
+  final List<HomeHeroSlide> heroSlides;
+  final Widget Function(HomeHeroSlide slide)? heroSlideBuilder;
+  final VoidCallback? onManageHeroSlides;
 
   @override
   State<DuyurularSection> createState() => _DuyurularSectionState();
@@ -371,8 +381,36 @@ class _DuyurularSectionState extends State<DuyurularSection> {
     if (mounted) setState(() {});
   }
 
+  List<DuyuruItem> get _mansetNewsItems {
+    final withImage = _visibleForStrip.where((d) {
+      if (d.isInstagramEmbed) return true;
+      return d.imageUrl.trim().isNotEmpty;
+    }).take(6);
+    return withImage.toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (widget.mansetModu) {
+      return _HaberManseti(
+        heroSlides: widget.heroSlides,
+        heroSlideBuilder: widget.heroSlideBuilder,
+        onManageHeroSlides: widget.onManageHeroSlides,
+        newsItems: _mansetNewsItems,
+        seenIds: _seen,
+        isAdmin: _isAdmin,
+        onOpenNews: _openViewer,
+        onEditNews: _isAdmin
+            ? (item) {
+                if (item.id <= 0) return;
+                _openAdminForm(edit: item);
+              }
+            : null,
+        onOpenAll: _openAll,
+        onAddDuyuru: _isAdmin ? () => _openAdminForm() : null,
+        onManageStories: _isAdmin ? _openAdminManage : null,
+      );
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 20),
       child: Column(
@@ -519,6 +557,473 @@ class _DuyurularSectionState extends State<DuyurularSection> {
                 },
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+String _mansetDateLabel(DateTime dt) {
+  const months = [
+    'Oca',
+    'Şub',
+    'Mar',
+    'Nis',
+    'May',
+    'Haz',
+    'Tem',
+    'Ağu',
+    'Eyl',
+    'Eki',
+    'Kas',
+    'Ara',
+  ];
+  return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+}
+
+class _MansetEntry {
+  const _MansetEntry.hero(this.hero)
+      : news = null,
+        isHero = true;
+  const _MansetEntry.news(this.news)
+      : hero = null,
+        isHero = false;
+
+  final HomeHeroSlide? hero;
+  final DuyuruItem? news;
+  final bool isHero;
+}
+
+class _HaberManseti extends StatefulWidget {
+  const _HaberManseti({
+    required this.heroSlides,
+    required this.heroSlideBuilder,
+    required this.onManageHeroSlides,
+    required this.newsItems,
+    required this.seenIds,
+    required this.isAdmin,
+    required this.onOpenNews,
+    required this.onEditNews,
+    required this.onOpenAll,
+    required this.onAddDuyuru,
+    required this.onManageStories,
+  });
+
+  final List<HomeHeroSlide> heroSlides;
+  final Widget Function(HomeHeroSlide slide)? heroSlideBuilder;
+  final VoidCallback? onManageHeroSlides;
+  final List<DuyuruItem> newsItems;
+  final Set<int> seenIds;
+  final bool isAdmin;
+  final ValueChanged<DuyuruItem> onOpenNews;
+  final ValueChanged<DuyuruItem>? onEditNews;
+  final VoidCallback onOpenAll;
+  final VoidCallback? onAddDuyuru;
+  final VoidCallback? onManageStories;
+
+  @override
+  State<_HaberManseti> createState() => _HaberMansetiState();
+}
+
+class _HaberMansetiState extends State<_HaberManseti> {
+  late final PageController _pageController;
+  Timer? _autoTimer;
+  int _page = 0;
+  bool _paused = false;
+  bool _autoAnimating = false;
+  DateTime? _manualCooldownUntil;
+  int _lastSlideCount = 0;
+
+  List<_MansetEntry> get _slides {
+    final news = widget.newsItems;
+    final heroes = (widget.heroSlides.isEmpty && news.isEmpty)
+        ? kDefaultHomeHeroSlides
+        : widget.heroSlides;
+    return [
+      for (final h in heroes) _MansetEntry.hero(h),
+      for (final n in news) _MansetEntry.news(n),
+    ];
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final reduce = MediaQuery.disableAnimationsOf(context);
+      if (reduce) {
+        setState(() => _paused = true);
+      } else {
+        _restartAutoTimer();
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _HaberManseti oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final n = _slides.length;
+    if (n != _lastSlideCount) {
+      _lastSlideCount = n;
+      if (n == 0) return;
+      if (_page >= n) {
+        _page = n - 1;
+        if (_pageController.hasClients) {
+          _pageController.jumpToPage(_page);
+        }
+      }
+      _restartAutoTimer();
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoTimer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _restartAutoTimer() {
+    _autoTimer?.cancel();
+    if (!mounted || _paused) return;
+    if (MediaQuery.disableAnimationsOf(context)) return;
+    final slides = _slides;
+    if (slides.length <= 1) return;
+
+    Duration delay = const Duration(seconds: 6);
+    final until = _manualCooldownUntil;
+    if (until != null) {
+      final left = until.difference(DateTime.now());
+      if (left > Duration.zero) {
+        delay = left;
+      } else {
+        _manualCooldownUntil = null;
+      }
+    }
+
+    _autoTimer = Timer(delay, () {
+      if (!mounted || _paused) return;
+      _manualCooldownUntil = null;
+      _advance();
+      _restartAutoTimer();
+    });
+  }
+
+  void _advance() {
+    final slides = _slides;
+    if (slides.isEmpty || !_pageController.hasClients) return;
+    final next = (_page + 1) % slides.length;
+    _autoAnimating = true;
+    _pageController.animateToPage(
+      next,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  void _onPageChanged(int i) {
+    setState(() => _page = i);
+    if (_autoAnimating) {
+      _autoAnimating = false;
+      return;
+    }
+    _manualCooldownUntil = DateTime.now().add(const Duration(seconds: 10));
+    _restartAutoTimer();
+  }
+
+  void _togglePause() {
+    setState(() => _paused = !_paused);
+    if (_paused) {
+      _autoTimer?.cancel();
+    } else {
+      _manualCooldownUntil = null;
+      _restartAutoTimer();
+    }
+  }
+
+  Widget _adminChip({
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.black54,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: Colors.white),
+              const SizedBox(width: 6),
+              L10nText(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _newsSlide(DuyuruItem item) {
+    final title = item.title.trim().isEmpty ? 'Duyuru' : item.title;
+    final dt = item.publishAt ?? item.createdAt;
+    final dateLabel = _mansetDateLabel(dt);
+    final unseen = !widget.seenIds.contains(item.id);
+    final semantics =
+        'Duyuru: $title, $dateLabel${unseen ? ', yeni' : ''}';
+
+    return Semantics(
+      button: true,
+      label: semantics,
+      child: GestureDetector(
+        onTap: () => widget.onOpenNews(item),
+        onLongPress: widget.onEditNews == null
+            ? null
+            : () {
+                if (item.id <= 0) return;
+                widget.onEditNews!(item);
+              },
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (item.isInstagramEmbed)
+              const FittedBox(
+                fit: BoxFit.cover,
+                clipBehavior: Clip.hardEdge,
+                child: _InstagramStoryThumb(size: 260),
+              )
+            else
+              _DuyuruImage(
+                source: item.imageUrl,
+                fit: BoxFit.cover,
+              ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                width: double.infinity,
+                color: const Color(0xD104342C),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 34),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Duyuru',
+                      style: GoogleFonts.nunito(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      title,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.nunito(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      dateLabel,
+                      style: GoogleFonts.nunito(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (unseen)
+              Positioned(
+                top: 12,
+                left: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: MetoColors.primary,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Yeni',
+                    style: GoogleFonts.nunito(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _heroSlide(HomeHeroSlide slide) {
+    final builder = widget.heroSlideBuilder;
+    final child = builder != null
+        ? builder(slide)
+        : ColoredBox(color: MetoColors.primaryDark);
+    return Semantics(
+      label: slide.altText,
+      child: child,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final slides = _slides;
+    _lastSlideCount = slides.length;
+    if (_page >= slides.length && slides.isNotEmpty) {
+      _page = slides.length - 1;
+    }
+
+    return SizedBox(
+      height: 260,
+      width: double.infinity,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (slides.isEmpty)
+            ColoredBox(color: MetoColors.primaryDark)
+          else
+            PageView.builder(
+              controller: _pageController,
+              onPageChanged: _onPageChanged,
+              itemCount: slides.length,
+              itemBuilder: (context, i) {
+                final entry = slides[i];
+                if (entry.isHero) {
+                  return _heroSlide(entry.hero!);
+                }
+                return _newsSlide(entry.news!);
+              },
+            ),
+          if (widget.isAdmin)
+            Positioned(
+              top: 12,
+              right: 12,
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                alignment: WrapAlignment.end,
+                children: [
+                  if (widget.onManageHeroSlides != null)
+                    _adminChip(
+                      label: 'Görselleri yönet',
+                      icon: Icons.photo_library_outlined,
+                      onTap: widget.onManageHeroSlides!,
+                    ),
+                  if (widget.onAddDuyuru != null)
+                    _adminChip(
+                      label: 'Duyuru ekle',
+                      icon: Icons.add_circle_outline,
+                      onTap: widget.onAddDuyuru!,
+                    ),
+                  if (widget.onManageStories != null)
+                    _adminChip(
+                      label: 'Story yönetimi',
+                      icon: Icons.tune,
+                      onTap: widget.onManageStories!,
+                    ),
+                ],
+              ),
+            ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 10,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Semantics(
+                      label: slides.isEmpty
+                          ? 'Slayt 0 / 0'
+                          : 'Slayt ${_page + 1} / ${slides.length}',
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(slides.length, (i) {
+                          final active = i == _page;
+                          return Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 3),
+                            width: active ? 16 : 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: active
+                                  ? Colors.white
+                                  : Colors.white.withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        tooltip: _paused ? 'Oynat' : 'Duraklat',
+                        onPressed: _togglePause,
+                        icon: Icon(
+                          _paused ? Icons.play_arrow : Icons.pause,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Positioned(
+                  right: 12,
+                  child: Material(
+                    color: const Color(0x99000000),
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      onTap: widget.onOpenAll,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        child: Text(
+                          'Tümünü gör →',
+                          style: GoogleFonts.nunito(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -983,6 +1488,68 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
     return () => cb(item);
   }
 
+  bool get _canSendBildirim {
+    if (!isAdmin || item.id <= 0 || !item.isActive) return false;
+    final pub = item.publishAt;
+    if (pub != null && pub.isAfter(DateTime.now())) return false;
+    return true;
+  }
+
+  Future<void> _sendBildirim() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: L10nText(
+          'Bildirim gönderilsin mi?',
+          style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+        ),
+        content: L10nText(
+          'Bu duyuru tüm kullanıcılara bildirim olarak gönderilecek.',
+          style: GoogleFonts.nunito(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const L10nText('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const L10nText('Gönder'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await duyuruBildirimiGonder(item);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: L10nText('Bildirim gönderildi.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: L10nText('Bildirim gönderilemedi.')),
+      );
+    }
+  }
+
+  Widget _bildirimButton({Color bg = Colors.black54}) {
+    return Material(
+      color: bg,
+      shape: const CircleBorder(),
+      child: IconButton(
+        tooltip: S.auto('Bildirim gönder'),
+        onPressed: _sendBildirim,
+        icon: const Icon(
+          Icons.notifications_active_outlined,
+          color: Colors.white,
+          size: 22,
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1184,6 +1751,10 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
                 ],
               ),
             ),
+            if (_canSendBildirim) ...[
+              _bildirimButton(bg: btnBg),
+              const SizedBox(width: 8),
+            ],
             if (isAdmin && onDelete != null) ...[
               Material(
                 color: const Color(0xCCDC2626),
@@ -1400,6 +1971,10 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (_canSendBildirim) ...[
+                _bildirimButton(),
+                const SizedBox(width: 8),
+              ],
               if (isAdmin && onDelete != null) ...[
                 Material(
                   color: const Color(0xCCDC2626),
@@ -1646,10 +2221,13 @@ class _AdminDuyuruSheetState extends State<_AdminDuyuruSheet> {
   bool _isPopup = false;
   bool _isInstagram = false;
   bool _saving = false;
+  bool _bildirimGonder = false;
   late DateTime _publishAt;
   DateTime? _expiresAt;
 
   bool get _isEdit => widget.edit != null;
+
+  bool get _isPublishFuture => _publishAt.isAfter(DateTime.now());
 
   @override
   void initState() {
@@ -1727,6 +2305,9 @@ class _AdminDuyuruSheetState extends State<_AdminDuyuruSheet> {
         time?.hour ?? _publishAt.hour,
         time?.minute ?? _publishAt.minute,
       );
+      if (_publishAt.isAfter(DateTime.now())) {
+        _bildirimGonder = false;
+      }
     });
   }
 
@@ -1801,16 +2382,7 @@ class _AdminDuyuruSheetState extends State<_AdminDuyuruSheet> {
     setState(() => _saving = true);
     try {
       final DuyuruItem item;
-      if (_isInstagram && !_isEdit) {
-        item = await addInstagramStoryLink(
-          instagramUrl: src!,
-          title: title,
-          adminEmail: widget.adminEmail,
-          isActive: _isActive,
-          publishAt: _publishAt,
-          expiresAt: _expiresAt,
-        );
-      } else if (_isEdit) {
+      if (_isEdit) {
         item = await updateDuyuru(
           id: widget.edit!.id,
           title: title.isEmpty && _isInstagram ? 'Instagram' : title,
@@ -1822,17 +2394,31 @@ class _AdminDuyuruSheetState extends State<_AdminDuyuruSheet> {
           publishAt: _publishAt,
           expiresAt: _expiresAt,
         );
+      } else if (_isInstagram) {
+        item = await addDuyuru(
+          title: title.trim().isEmpty ? 'Instagram' : title,
+          body: '',
+          imageUrl: kInstagramEmbedMarker,
+          sourceUrl: normalizeInstagramUrl(src),
+          adminEmail: widget.adminEmail,
+          isActive: _isActive,
+          isPopup: false,
+          publishAt: _publishAt,
+          expiresAt: _expiresAt,
+          bildirimGonder: _bildirimGonder && !_isPublishFuture,
+        );
       } else {
         item = await addDuyuru(
-          title: title.isEmpty && _isInstagram ? 'Instagram' : title,
-          body: _isInstagram ? '' : body,
+          title: title,
+          body: body,
           imageUrl: image,
           sourceUrl: src,
           adminEmail: widget.adminEmail,
           isActive: _isActive,
-          isPopup: _isInstagram ? false : _isPopup,
+          isPopup: _isPopup,
           publishAt: _publishAt,
           expiresAt: _expiresAt,
+          bildirimGonder: _bildirimGonder && !_isPublishFuture,
         );
       }
       if (!mounted) return;
@@ -2177,6 +2763,32 @@ class _AdminDuyuruSheetState extends State<_AdminDuyuruSheet> {
                     ? null
                     : (v) => setState(() => _isActive = v),
               ),
+              if (!_isEdit) ...[
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: L10nText(
+                    'Kullanıcılara bildirim gönder',
+                    style: GoogleFonts.nunito(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  subtitle: L10nText(
+                    _isPublishFuture
+                        ? 'Zamanlanmış duyurularda bildirim, yayınlandıktan sonra tam ekran görünümdeki \'Bildirim gönder\' ile gönderilir.'
+                        : 'Kapalıysa duyuru sessizce yayınlanır.',
+                    style: GoogleFonts.nunito(
+                      fontSize: 12,
+                      color: MetoColors.mutedFg,
+                    ),
+                  ),
+                  value: _isPublishFuture ? false : _bildirimGonder,
+                  activeThumbColor: MetoColors.primary,
+                  onChanged: (_saving || _isPublishFuture)
+                      ? null
+                      : (v) => setState(() => _bildirimGonder = v),
+                ),
+              ],
               const SizedBox(height: 12),
               FilledButton(
                 onPressed: _saving ? null : _save,

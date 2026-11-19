@@ -138,6 +138,178 @@ class _DuyurularAllScreenState extends State<DuyurularAllScreen> {
     return '${two(dt.day)}.${two(dt.month)}.${dt.year}';
   }
 
+  Widget _thumb(DuyuruItem item, {required double width, required double height, required double radius}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: item.isInstagramEmbed
+            ? const FittedBox(
+                fit: BoxFit.cover,
+                clipBehavior: Clip.hardEdge,
+                child: _InstagramStoryThumb(size: 104),
+              )
+            : item.imageUrl.trim().isEmpty
+                ? ColoredBox(
+                    color: MetoColors.muted,
+                    child: Center(
+                      child: Icon(
+                        Icons.campaign_outlined,
+                        color: MetoColors.primary,
+                        size: 28,
+                      ),
+                    ),
+                  )
+                : _DuyuruImage(
+                    source: item.imageUrl,
+                    width: width,
+                    height: height,
+                    fit: BoxFit.cover,
+                  ),
+      ),
+    );
+  }
+
+  Widget _yeniBadge() {
+    return Container(
+      margin: const EdgeInsets.only(right: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: MetoColors.primary,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        'Yeni',
+        style: GoogleFonts.nunito(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  Widget _mansetItem(DuyuruItem item, String dateLabel, bool seen) {
+    final title = item.title.trim().isEmpty ? 'Duyuru' : item.title;
+    final body = item.body.trim();
+    return Semantics(
+      button: true,
+      label: 'Duyuru: $title, $dateLabel',
+      child: InkWell(
+        onTap: () => _openViewer(item),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: _thumb(item, width: 800, height: 450, radius: 16),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!seen) _yeniBadge(),
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.nunito(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: MetoColors.foreground,
+                        height: 1.25,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                dateLabel,
+                style: GoogleFonts.nunito(
+                  fontSize: 12,
+                  color: MetoColors.mutedFg,
+                ),
+              ),
+              if (body.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  body,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.nunito(
+                    fontSize: 14,
+                    color: MetoColors.mutedFg,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _rowItem(DuyuruItem item, String dateLabel, bool seen) {
+    final title = item.title.trim().isEmpty ? 'Duyuru' : item.title;
+    return Semantics(
+      button: true,
+      label: 'Duyuru: $title, $dateLabel',
+      child: InkWell(
+        onTap: () => _openViewer(item),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _thumb(item, width: 104, height: 78, radius: 10),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (!seen) _yeniBadge(),
+                        Expanded(
+                          child: Text(
+                            title,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.nunito(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: MetoColors.foreground,
+                              height: 1.25,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      dateLabel,
+                      style: GoogleFonts.nunito(
+                        fontSize: 12,
+                        color: MetoColors.mutedFg,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final items = _catalog;
@@ -218,37 +390,22 @@ class _DuyurularAllScreenState extends State<DuyurularAllScreen> {
                               ),
                             ),
                           )
-                        : LayoutBuilder(
-                            builder: (context, constraints) {
-                              // Kullanıcı satırda 4 kart istedi. Dar telefonda
-                              // 4 sütun okunmaz: <500px → 2, aksi halde 4.
-                              final columns =
-                                  constraints.maxWidth < 500 ? 2 : 4;
-                              return GridView.builder(
-                                padding: const EdgeInsets.fromLTRB(
-                                  12,
-                                  0,
-                                  12,
-                                  24,
-                                ),
-                                gridDelegate:
-                                    SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: columns,
-                                  mainAxisSpacing: 10,
-                                  crossAxisSpacing: 10,
-                                  childAspectRatio: 0.78,
-                                ),
-                                itemCount: items.length,
-                                itemBuilder: (context, i) {
-                                  final item = items[i];
-                                  return _DuyuruAllTile(
-                                    item: item,
-                                    seen: _seen.contains(item.id),
-                                    dateLabel: _shortDate(item),
-                                    onTap: () => _openViewer(item),
-                                  );
-                                },
-                              );
+                        : ListView.separated(
+                            padding: const EdgeInsets.only(bottom: 24),
+                            itemCount: items.length,
+                            separatorBuilder: (_, __) => Divider(
+                              height: 1,
+                              thickness: 1,
+                              color: MetoColors.border,
+                            ),
+                            itemBuilder: (context, i) {
+                              final item = items[i];
+                              final seen = _seen.contains(item.id);
+                              final dateLabel = _shortDate(item);
+                              if (i == 0) {
+                                return _mansetItem(item, dateLabel, seen);
+                              }
+                              return _rowItem(item, dateLabel, seen);
                             },
                           ),
               ),
@@ -256,143 +413,6 @@ class _DuyurularAllScreenState extends State<DuyurularAllScreen> {
           ),
         );
       },
-    );
-  }
-}
-
-class _DuyuruAllTile extends StatelessWidget {
-  const _DuyuruAllTile({
-    required this.item,
-    required this.seen,
-    required this.dateLabel,
-    required this.onTap,
-  });
-
-  final DuyuruItem item;
-  final bool seen;
-  final String dateLabel;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: MetoColors.card,
-      borderRadius: BorderRadius.circular(14),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Ink(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: MetoColors.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(5, 5, 5, 0),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      gradient: seen
-                          ? null
-                          : LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                MetoColors.primary,
-                                const Color(0xFF2F9B6A),
-                                MetoColors.accentGold,
-                              ],
-                            ),
-                      color: seen ? const Color(0xFFCBD5E1) : null,
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(2.5),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            Positioned.fill(
-                              child: item.isInstagramEmbed
-                                  ? const DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topRight,
-                                          end: Alignment.bottomLeft,
-                                          colors: [
-                                            Color(0xFFF58529),
-                                            Color(0xFFDD2A7B),
-                                            Color(0xFF8134AF),
-                                            Color(0xFF515BD4),
-                                          ],
-                                        ),
-                                      ),
-                                      child: Center(
-                                        child: Icon(
-                                          Icons.camera_alt_outlined,
-                                          color: Colors.white,
-                                          size: 32,
-                                        ),
-                                      ),
-                                    )
-                                  : SizedBox.expand(
-                                      child: _DuyuruImage(
-                                        source: item.imageUrl,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                            ),
-                            Positioned(
-                              left: 6,
-                              bottom: 6,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.black54,
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  dateLabel,
-                                  style: GoogleFonts.nunito(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-                child: Text(
-                  item.title.trim().isEmpty ? 'Duyuru' : item.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.nunito(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    height: 1.2,
-                    color: seen ? MetoColors.mutedFg : MetoColors.foreground,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
