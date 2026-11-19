@@ -297,6 +297,18 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
       );
       return;
     }
+    if (!_canCreate) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Kurum iş ilanı Destek Veren rolünde yayınlanır. '
+            'Menü → Hesap rolü bölümünden Destek Veren’e geçin.',
+          ),
+        ),
+      );
+      return;
+    }
     final saved = await UzmanKosesKurumIlanFormPage.open(
       context,
       userEmail: widget.userEmail,
@@ -437,7 +449,7 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
 
   Widget _ustYayinlaButonlari() {
     final showProfil = !_kurumOnly && _mine == null;
-    final showKurum = !_uzmanOnly;
+    final showKurum = !_uzmanOnly && _canCreate;
     if (!showProfil && !showKurum) return const SizedBox.shrink();
     return Row(
       children: [
