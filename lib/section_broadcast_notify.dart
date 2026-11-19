@@ -7,7 +7,14 @@ import 'admin_config.dart';
 import 'l10n/l10n_text.dart';
 import 'services/broadcast_push_service.dart';
 
-const kSectionBroadcastTypes = {'gezi', 'kampanya', 'etkinlik', 'kariyer'};
+const kSectionBroadcastTypes = {
+  'gezi',
+  'kampanya',
+  'etkinlik',
+  'kariyer',
+  'uzman',
+  'kurum_ilan',
+};
 
 String sectionBroadcastTitle({
   required String type,
@@ -23,6 +30,10 @@ String sectionBroadcastTitle({
       return t.isEmpty ? 'Yeni etkinlik yayınlandı' : 'Etkinlik: $t';
     case 'kariyer':
       return t.isEmpty ? 'Yeni iş ilanı yayınlandı' : 'Engelsiz Kariyer: $t';
+    case 'uzman':
+      return t.isEmpty ? 'Yeni uzman profilleri' : 'Uzman Bul: $t';
+    case 'kurum_ilan':
+      return t.isEmpty ? 'Yeni kurum iş ilanları' : 'Kurum İş İlanı: $t';
     default:
       return t.isEmpty ? 'Yeni içerik yayınlandı' : t;
   }
@@ -52,6 +63,14 @@ String sectionBroadcastBody({
     case 'kariyer':
       return desc.isEmpty
           ? 'Engelsiz Kariyer’de yeni bir ilan$where yayınlandı. İncelemek için tıklayın.'
+          : desc;
+    case 'uzman':
+      return desc.isEmpty
+          ? 'Uzman Bul’da yeni uzman profilleri var. İncelemek için tıklayın.'
+          : desc;
+    case 'kurum_ilan':
+      return desc.isEmpty
+          ? 'Kurum İş İlanları’nda yeni ilanlar var. İncelemek için tıklayın.'
           : desc;
     default:
       return desc.isEmpty ? 'İncelemek için tıklayın.' : desc;

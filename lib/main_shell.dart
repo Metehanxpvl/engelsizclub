@@ -60,6 +60,7 @@ import 'widgets/admin_more_menu_sheet.dart';
 import 'widgets/taramalar_group_sheet.dart';
 import 'pages/admin_uzman_cv_page.dart';
 import 'pages/uzman_kosesi_cv_detail_page.dart';
+import 'pages/uzman_kosesi_page.dart';
 import 'pages/forum_page.dart';
 import 'pages/haklar_page.dart';
 import 'pages/ilanlar_page.dart';
@@ -2004,6 +2005,26 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       );
       return;
     }
+    if (type == 'uzman') {
+      unawaited(
+        UzmanKosesPage.open(
+          context,
+          userEmail: widget.user.email,
+          viewMode: UzmanKosesViewMode.uzmanOnly,
+        ),
+      );
+      return;
+    }
+    if (type == 'kurum_ilan') {
+      unawaited(
+        UzmanKosesPage.open(
+          context,
+          userEmail: widget.user.email,
+          viewMode: UzmanKosesViewMode.kurumOnly,
+        ),
+      );
+      return;
+    }
 
     if (type.startsWith('forum')) {
       if (id != null && id > 0) {
@@ -2146,6 +2167,24 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     if (b.type == 'kariyer') {
       if (!mounted) return;
       await EngelsizKariyerPage.open(context, userEmail: widget.user.email);
+      return;
+    }
+    if (b.type == 'uzman') {
+      if (!mounted) return;
+      await UzmanKosesPage.open(
+        context,
+        userEmail: widget.user.email,
+        viewMode: UzmanKosesViewMode.uzmanOnly,
+      );
+      return;
+    }
+    if (b.type == 'kurum_ilan') {
+      if (!mounted) return;
+      await UzmanKosesPage.open(
+        context,
+        userEmail: widget.user.email,
+        viewMode: UzmanKosesViewMode.kurumOnly,
+      );
       return;
     }
 

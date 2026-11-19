@@ -8,6 +8,7 @@ import '../data/turkish_cities_data.dart';
 import '../kredi_store.dart';
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
+import '../section_broadcast_notify.dart';
 import '../uzman_kosesi/expert_billing_store.dart';
 import '../uzman_kosesi/expert_cv_models.dart';
 import '../uzman_kosesi/expert_cv_store.dart';
@@ -79,11 +80,14 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
   String _ilFilter = '';
   String _ilceFilter = '';
   int? _notifyBusyId;
+  bool _sectionNotifyBusy = false;
   bool _bakiyeUyardi = false;
   bool _deletingMine = false;
 
   bool get _uzmanOnly => widget.viewMode == UzmanKosesViewMode.uzmanOnly;
   bool get _kurumOnly => widget.viewMode == UzmanKosesViewMode.kurumOnly;
+
+  bool get _showSectionNotify => _isAdmin && (_uzmanOnly || _kurumOnly);
 
   @override
   void initState() {
@@ -357,8 +361,48 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
     }
   }
 
+  Future<void> _notifySection() async {
+    if (!_showSectionNotify || _sectionNotifyBusy || _notifyBusyId != null) {
+      return;
+    }
+    final type = _kurumOnly ? 'kurum_ilan' : 'uzman';
+    final title = sectionBroadcastTitle(type: type, title: '');
+    final body = sectionBroadcastBody(type: type);
+    final ok = await confirmKullanicilaraBildir(
+      context,
+      title: title,
+      body: body,
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _sectionNotifyBusy = true);
+    try {
+      final n = await notifySectionItemToMembers(
+        type: type,
+        title: title,
+        body: body,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            n > 0
+                ? 'Bildirim gönderildi ($n kullanıcı).'
+                : 'Push bildirimi gönderildi.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Bildirim gönderilemedi: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _sectionNotifyBusy = false);
+    }
+  }
+
   Future<void> _notifyProfile(UzmanKosesProfil p) async {
-    if (!_isAdmin || _notifyBusyId != null) return;
+    if (!_isAdmin || _notifyBusyId != null || _sectionNotifyBusy) return;
     final title = uzmanProfilYayinBildirimBaslik(p);
     final body = uzmanProfilYayinBildirimMetni(p);
     final ok = await showDialog<bool>(
@@ -608,6 +652,23 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
           style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
         ),
         actions: [
+          if (_showSectionNotify)
+            _sectionNotifyBusy
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  )
+                : IconButton(
+                    tooltip: 'Kullanıcılara bildir',
+                    onPressed: _notifySection,
+                    icon: const Icon(Icons.campaign_outlined),
+                  ),
           if (!_kurumOnly && _mine != null)
             TextButton.icon(
               onPressed: _deletingMine ? null : _deleteMine,

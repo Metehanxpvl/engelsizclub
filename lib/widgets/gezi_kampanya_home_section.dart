@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../admin_config.dart';
 import '../gezi_kampanya_store.dart';
 import '../section_editors.dart';
 import '../l10n/app_strings.dart';
@@ -48,6 +49,9 @@ class _GeziKampanyaHomeSectionState extends State<GeziKampanyaHomeSection> {
   };
 
   bool _canEditTile(String tileKey) {
+    if (tileKey == kUzmanTileKey || tileKey == kKurumIlanTileKey) {
+      return isAppAdmin(widget.userEmail);
+    }
     final key = sectionKeyForTile(tileKey);
     if (key == null) return false;
     return canEditSection(widget.userEmail, key);

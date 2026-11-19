@@ -966,11 +966,17 @@ Future<void> upsertTileCover({
   required String adminEmail,
 }) async {
   final key = _normalizeTileKey(tileKey);
-  final section = sectionKeyForTile(key);
-  if (section == null) {
-    throw StateError('Geçersiz kutucuk.');
+  if (key == kUzmanTileKey || key == kKurumIlanTileKey) {
+    if (!isAppAdmin(adminEmail)) {
+      throw StateError('Bu bölümü yönetme yetkiniz yok.');
+    }
+  } else {
+    final section = sectionKeyForTile(key);
+    if (section == null) {
+      throw StateError('Geçersiz kutucuk.');
+    }
+    await _requireSection(adminEmail, section);
   }
-  await _requireSection(adminEmail, section);
   await Supabase.instance.client.from('gezi_kampanya_tiles').upsert({
     'tile_key': key,
     'image_url': imageUrl.trim(),
