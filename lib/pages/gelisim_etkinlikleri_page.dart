@@ -712,7 +712,7 @@ class _GelisimEditorSheetState extends State<_GelisimEditorSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: MetoColors.card,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),

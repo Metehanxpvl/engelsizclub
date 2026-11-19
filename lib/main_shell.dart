@@ -1700,7 +1700,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               maxChildSize: 0.94,
               builder: (context, scrollController) {
                 return Container(
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: MetoColors.card,
                     borderRadius:
                         BorderRadius.vertical(top: Radius.circular(20)),
@@ -3346,7 +3346,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     maxHeight: screenH * 0.9,
                     maxWidth: isTablet ? 560 : double.infinity,
                   ),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: MetoColors.card,
                     borderRadius:
                         BorderRadius.vertical(top: Radius.circular(28)),
@@ -4936,7 +4936,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           child: _menuTile(
             emoji: '🎨',
             label: 'Uygulama rengi',
-            sub: MetoColors.aktif.name,
+            sub: MetoColors.geceModu
+                ? '${MetoColors.aktif.name} · Gece'
+                : MetoColors.aktif.name,
             onTap: _openRenkTemasiSheet,
           ),
         ),
@@ -5103,7 +5105,42 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     color: MetoColors.mutedFg,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  secondary: Icon(
+                    Icons.dark_mode_outlined,
+                    color: MetoColors.primary,
+                  ),
+                  title: Text(
+                    'Gece modu',
+                    style: GoogleFonts.nunito(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: MetoColors.foreground,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Koyu arka plan, göz yormaz',
+                    style: GoogleFonts.nunito(
+                      fontSize: 12,
+                      color: MetoColors.mutedFg,
+                    ),
+                  ),
+                  value: MetoColors.geceModu,
+                  activeThumbColor: MetoColors.primary,
+                  onChanged: (v) async {
+                    // Önce sheet kapanmalı; aksi halde renkTemasiSurumu /
+                    // MaterialApp ValueKey rebuild açık route üzerinde
+                    // MainShell'i dispose eder → gri ekran.
+                    Navigator.pop(ctx);
+                    await Future<void>.delayed(
+                      const Duration(milliseconds: 350),
+                    );
+                    await saveAndApplyGeceModu(v);
+                  },
+                ),
+                const SizedBox(height: 8),
                 for (final p in kMetoPalettes) ...[
                   Material(
                     color: p.id == aktifId
@@ -6827,7 +6864,7 @@ class _IletisimSheetState extends State<_IletisimSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: MetoColors.card,
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),

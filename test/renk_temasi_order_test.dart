@@ -11,6 +11,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     renkTemasiSurumu.value = 0;
     MetoColors.uygula(metoPaletteById('yesil'));
+    MetoColors.geceModuUygula(false);
   });
 
   testWidgets(

@@ -353,7 +353,7 @@ class _AdminMoreMenuSheetState extends State<AdminMoreMenuSheet> {
     final tree = _tree;
     return Container(
       height: h,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: MetoColors.card,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),

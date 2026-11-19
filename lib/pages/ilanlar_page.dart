@@ -5024,7 +5024,7 @@ class _SheetShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: MetoColors.card,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -5102,7 +5102,7 @@ class _DrawerShellState extends State<_DrawerShell> {
                   onVerticalDragEnd: _onVerticalDragEnd,
                   child: Container(
                     constraints: BoxConstraints(maxHeight: maxH),
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: MetoColors.card,
                       borderRadius:
                           BorderRadius.vertical(top: Radius.circular(24)),

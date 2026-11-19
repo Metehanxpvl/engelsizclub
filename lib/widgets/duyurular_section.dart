@@ -2494,7 +2494,7 @@ class _AdminDuyuruSheetState extends State<_AdminDuyuruSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: MetoColors.card,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
@@ -2976,7 +2976,7 @@ class _AdminManageSheetState extends State<_AdminManageSheet> {
     final h = MediaQuery.sizeOf(context).height * 0.72;
     return Container(
       height: h,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: MetoColors.card,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),

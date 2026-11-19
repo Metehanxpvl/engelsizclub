@@ -192,7 +192,7 @@ class _AdminDiseaseEditSheetState extends State<AdminDiseaseEditSheet> {
         constraints: BoxConstraints(
           maxHeight: MediaQuery.sizeOf(context).height * 0.92,
         ),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: MetoColors.card,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),

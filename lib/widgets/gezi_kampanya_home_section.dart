@@ -316,7 +316,7 @@ class _Box extends StatelessWidget {
                     fit: BoxFit.cover,
                     width: double.infinity,
                     height: double.infinity,
-                    errorBuilder: (_, __, ___) => const ColoredBox(
+                    errorBuilder: (_, __, ___) => ColoredBox(
                       color: MetoColors.card,
                     ),
                   ),
@@ -519,7 +519,7 @@ class _TileCoverSheetState extends State<_TileCoverSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: MetoColors.card,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),

@@ -640,18 +640,32 @@ class _MetoCareAppState extends State<MetoCareApp> {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          theme: ThemeData(
-            useMaterial3: true,
-            scaffoldBackgroundColor: MetoColors.background,
-            textTheme: GoogleFonts.nunitoTextTheme(),
-            primaryTextTheme: GoogleFonts.nunitoTextTheme(),
-            colorScheme: ColorScheme.light(
-              primary: MetoColors.primary,
-              onPrimary: Colors.white,
-              surface: MetoColors.card,
-              onSurface: MetoColors.foreground,
-            ),
-          ),
+          theme: MetoColors.geceModu
+              ? ThemeData(
+                  useMaterial3: true,
+                  brightness: Brightness.dark,
+                  scaffoldBackgroundColor: MetoColors.background,
+                  textTheme: GoogleFonts.nunitoTextTheme(),
+                  primaryTextTheme: GoogleFonts.nunitoTextTheme(),
+                  colorScheme: ColorScheme.dark(
+                    primary: MetoColors.primary,
+                    onPrimary: Colors.white,
+                    surface: MetoColors.card,
+                    onSurface: MetoColors.foreground,
+                  ),
+                )
+              : ThemeData(
+                  useMaterial3: true,
+                  scaffoldBackgroundColor: MetoColors.background,
+                  textTheme: GoogleFonts.nunitoTextTheme(),
+                  primaryTextTheme: GoogleFonts.nunitoTextTheme(),
+                  colorScheme: ColorScheme.light(
+                    primary: MetoColors.primary,
+                    onPrimary: Colors.white,
+                    surface: MetoColors.card,
+                    onSurface: MetoColors.foreground,
+                  ),
+                ),
           builder: (context, child) {
             return Directionality(
               textDirection:

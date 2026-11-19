@@ -895,7 +895,7 @@ class _AdminConditionSheetState extends State<_AdminConditionSheet> {
         constraints: BoxConstraints(
           maxHeight: MediaQuery.sizeOf(context).height * 0.92,
         ),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: MetoColors.card,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
@@ -1276,7 +1276,7 @@ class _AdminConditionManageSheetState extends State<_AdminConditionManageSheet> 
     final h = MediaQuery.sizeOf(context).height * 0.72;
     return Container(
       height: h,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: MetoColors.card,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),

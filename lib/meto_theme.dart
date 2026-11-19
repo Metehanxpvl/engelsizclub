@@ -118,6 +118,7 @@ const List<MetoPalette> kMetoPalettes = <MetoPalette>[
 /// Figma Make theme tokens — aktif [MetoPalette] üzerinden.
 abstract final class MetoColors {
   static MetoPalette _aktif = kMetoPalettes.first;
+  static bool geceModu = false;
 
   static MetoPalette get aktif => _aktif;
 
@@ -125,17 +126,52 @@ abstract final class MetoColors {
     _aktif = palette;
   }
 
-  static Color get background => _aktif.background;
-  static Color get foreground => _aktif.foreground;
-  static const Color card = Color(0xFFFFFFFF);
-  static Color get primary => _aktif.primary;
-  static Color get primaryDark => _aktif.primaryDark;
+  static void geceModuUygula(bool v) {
+    geceModu = v;
+  }
+
+  /// Gece modunda palette id → primary (EXACT).
+  static Color get _gecePrimary {
+    switch (_aktif.id) {
+      case 'yesil':
+        return const Color(0xFF20845B);
+      case 'mavi':
+        return const Color(0xFF2475CF);
+      case 'down':
+        return const Color(0xFF2475CF);
+      case 'mor':
+        return const Color(0xFF8B60C0);
+      case 'turuncu':
+        return const Color(0xFFC6500C);
+      case 'sari':
+        return const Color(0xFFA26900);
+      case 'fistik':
+        return const Color(0xFF598012);
+      default:
+        return const Color(0xFF20845B);
+    }
+  }
+
+  static Color get background =>
+      geceModu ? const Color(0xFF111614) : _aktif.background;
+  static Color get foreground =>
+      geceModu ? const Color(0xFFE6EEEA) : _aktif.foreground;
+  static Color get card =>
+      geceModu ? const Color(0xFF1B2220) : const Color(0xFFFFFFFF);
+  static Color get primary => geceModu ? _gecePrimary : _aktif.primary;
+  /// Gece: paletin GÜNDÜZ primary değeri.
+  static Color get primaryDark =>
+      geceModu ? _aktif.primary : _aktif.primaryDark;
   static const Color accentGold = Color(0xFFF4A832);
-  static Color get muted => _aktif.muted;
-  static Color get mutedFg => _aktif.mutedFg;
-  static Color get border =>
-      _aktif.primary.withValues(alpha: 0x2E / 255.0); // rgba(primary,0.18)
-  static Color get selectedBg => _aktif.selectedBg;
+  static Color get muted =>
+      geceModu ? const Color(0xFF1E2723) : _aktif.muted;
+  static Color get mutedFg =>
+      geceModu ? const Color(0xFFA3B5AC) : _aktif.mutedFg;
+  static Color get border => geceModu
+      ? _gecePrimary.withValues(alpha: 0x59 / 255.0)
+      : _aktif.primary.withValues(alpha: 0x2E / 255.0); // rgba(primary,0.18)
+  static Color get selectedBg =>
+      geceModu ? const Color(0xFF22302A) : _aktif.selectedBg;
   static const Color googleBorder = Color(0xFFDADCE0);
   static const Color googleText = Color(0xFF3C4043);
 }

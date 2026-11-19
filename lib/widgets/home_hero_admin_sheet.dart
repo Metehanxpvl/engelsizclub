@@ -316,7 +316,7 @@ class _HomeHeroAdminSheetState extends State<HomeHeroAdminSheet> {
       },
       child: Container(
         height: h,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: MetoColors.card,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
