@@ -386,8 +386,8 @@ class _DuyurularSectionState extends State<DuyurularSection> {
     final withImage = _visibleForStrip.where((d) {
       if (d.isInstagramEmbed) return true;
       return d.imageUrl.trim().isNotEmpty;
-    }).take(6);
-    return withImage.toList();
+    });
+    return sortDuyurularByDate(withImage, newestFirst: true).take(6).toList();
   }
 
   @override
