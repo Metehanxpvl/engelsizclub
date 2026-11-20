@@ -124,6 +124,7 @@ final List<YolTani> yolTanilari = [
           YolMadde('d4', 'Çocuk Nörolojisi', 'Nöbet veya beceri kaybı varsa'),
           YolMadde('d5', 'Beslenme / Gastroenteroloji', 'Seçici yeme, kabızlık'),
           YolMadde('d6', 'Çocuk Diş Hekimi', 'Düzenli diş kontrolü'),
+          YolMadde('dgp', 'Gelişimsel Pediatri', 'Gelişimin bütüncül takibi (çoğunlukla üniversite hastanelerinde)'),
         ],
       ),
       YolDal(
@@ -170,6 +171,8 @@ final List<YolTani> yolTanilari = [
           YolMadde('d5', 'KBB / Odyoloji', 'İşitme testi'),
           YolMadde('d6', 'Beslenme / Gastroenteroloji', 'Yutma, reflü, kilo alımı'),
           YolMadde('d7', 'Çocuk Diş Hekimi', 'Düzenli diş kontrolü'),
+          YolMadde('dgp', 'Gelişimsel Pediatri', 'Gelişimin bütüncül takibi (çoğunlukla üniversite hastanelerinde)'),
+          YolMadde('dcp', 'Çocuk ve Ergen Psikiyatrisi', 'Davranış, dikkat, uyku ve duygusal sorunlar için'),
         ],
       ),
       YolDal(
@@ -221,6 +224,8 @@ final List<YolTani> yolTanilari = [
           YolMadde('d5', 'Göz', 'Katarakt, şaşılık, gözlük ihtiyacı'),
           YolMadde('d6', 'Pediatri / Hematoloji', 'Tam kan sayımı'),
           YolMadde('d7', 'Uyku değerlendirmesi', 'Uyku apnesi taraması'),
+          YolMadde('dgp', 'Gelişimsel Pediatri', 'Gelişimin bütüncül takibi (çoğunlukla üniversite hastanelerinde)'),
+          YolMadde('dcp', 'Çocuk ve Ergen Psikiyatrisi', 'Davranış, dikkat, uyku ve duygusal sorunlar için'),
         ],
       ),
       YolDal(
@@ -257,6 +262,7 @@ final List<YolTani> yolTanilari = [
           YolMadde('d1', 'Çocuk ve Ergen Psikiyatrisi', 'Tanı ve tedavi planı'),
           YolMadde('d2', 'Pediatri', 'Genel sağlık, uyku, büyüme takibi'),
           YolMadde('d3', 'KBB / Odyoloji ve Göz', 'İşitme ve görme sorununu dışlamak için'),
+          YolMadde('dgp', 'Gelişimsel Pediatri', 'Gelişimin bütüncül takibi (çoğunlukla üniversite hastanelerinde)'),
         ],
       ),
       YolDal(
@@ -295,6 +301,7 @@ final List<YolTani> yolTanilari = [
           YolMadde('d4', 'KBB / Odyoloji', 'İşitme testi'),
           YolMadde('d5', 'Göz', 'Görme kontrolü'),
           YolMadde('d6', 'Çocuk Metabolizma', 'Doktorunuz gerek görürse'),
+          YolMadde('dcp', 'Çocuk ve Ergen Psikiyatrisi', 'Davranış, dikkat, uyku ve duygusal sorunlar için'),
         ],
       ),
       YolDal(
@@ -331,6 +338,7 @@ final List<YolTani> yolTanilari = [
           YolMadde('d2', 'Pediatri / Çocuk Gelişim', 'Genel gelişim değerlendirmesi'),
           YolMadde('d3', 'Çocuk ve Ergen Psikiyatrisi', 'Doktorunuz gerek görürse'),
           YolMadde('d4', 'Çocuk Nörolojisi', 'Doktorunuz gerek görürse'),
+          YolMadde('dgp', 'Gelişimsel Pediatri', 'Gelişimin bütüncül takibi (çoğunlukla üniversite hastanelerinde)'),
         ],
       ),
       YolDal(
@@ -368,6 +376,8 @@ final List<YolTani> yolTanilari = [
             'Eşlik eden durumların (otizm, DEHB) değerlendirilmesi',
           ),
           YolMadde('d2', 'KBB / Odyoloji ve Göz', 'İşitme ve görme kontrolü'),
+          YolMadde('dgp', 'Gelişimsel Pediatri', 'Gelişimin bütüncül takibi (çoğunlukla üniversite hastanelerinde)'),
+          YolMadde('dcp', 'Çocuk ve Ergen Psikiyatrisi', 'Davranış, dikkat, uyku ve duygusal sorunlar için'),
         ],
       ),
       YolDal(
@@ -513,6 +523,7 @@ final List<YolTani> yolTanilari = [
           YolMadde('d3', 'KBB / Odyoloji', 'İşitme taraması'),
           YolMadde('d4', 'Çocuk Nörolojisi', 'Doktorunuz gerek görürse'),
           YolMadde('d5', 'Beslenme', 'Büyüme ve beslenme takibi'),
+          YolMadde('dgp', 'Gelişimsel Pediatri', 'Gelişimin bütüncül takibi (çoğunlukla üniversite hastanelerinde)'),
         ],
       ),
       YolDal(
@@ -648,6 +659,7 @@ final List<YolTani> yolTanilari = [
             'Çocuk ve Ergen Psikiyatrisi',
             'Dikkat, davranış veya duygu sorunlarında',
           ),
+          YolMadde('dcp', 'Çocuk ve Ergen Psikiyatrisi', 'Davranış, dikkat, uyku ve duygusal sorunlar için'),
         ],
       ),
       YolDal(
@@ -694,6 +706,8 @@ final List<YolTani> yolTanilari = [
           YolMadde('d2', 'Çocuk Metabolizma', 'Metabolik hastalık varsa'),
           YolMadde('d3', 'Çocuk Nörolojisi', 'Gelişim ve nöbet takibi'),
           YolMadde('d4', 'Tanıya özel branşlar', 'Kalp, göz, böbrek vb. etkilenen organa göre'),
+          YolMadde('dgp', 'Gelişimsel Pediatri', 'Gelişimin bütüncül takibi (çoğunlukla üniversite hastanelerinde)'),
+          YolMadde('dcp', 'Çocuk ve Ergen Psikiyatrisi', 'Davranış, dikkat, uyku ve duygusal sorunlar için'),
         ],
       ),
       YolDal(
