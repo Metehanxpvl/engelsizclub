@@ -223,7 +223,9 @@ class _UzmanKosesKurumIlanDetailPageState
     }
   }
 
-  bool get _showVisitorCallActions => !_isOwner && !_isAdmin;
+  // Sticky call bar for every non-owner visitor — including admins.
+  // (Admin-only body actions stay separate; do not hide this bar for isAppAdmin.)
+  bool get _showVisitorCallActions => !_isOwner;
 
   Widget _visitorCallActionsBar() {
     return Material(
@@ -310,116 +312,124 @@ class _UzmanKosesKurumIlanDetailPageState
             ),
         ],
       ),
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          16,
-          16,
-          _showVisitorCallActions ? 16 : 32,
-        ),
+      body: Column(
         children: [
-          if (_ilan.photoUrl.trim().isNotEmpty) ...[
-            GestureDetector(
-              onTap: () => openFillPhotoOverlay(
-                context,
-                source: _ilan.photoUrl,
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                _showVisitorCallActions ? 16 : 32,
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: CatalogImage(
-                  source: _ilan.photoUrl,
-                  height: 220,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-          ],
-          Text(
-            _ilan.arananMeslek,
-            style: GoogleFonts.nunito(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: MetoColors.foreground,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _ilan.kurumAdi,
-            style: GoogleFonts.nunito(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: MetoColors.primary,
-            ),
-          ),
-          if (_ilan.yerLabel.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                _ilan.yerLabel,
-                style: TextStyle(color: MetoColors.mutedFg),
-              ),
-            ),
-          if (_ilan.adres.trim().isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.place_outlined,
-                    size: 18,
-                    color: MetoColors.mutedFg,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      _ilan.adres.trim(),
-                      style: TextStyle(
-                        color: MetoColors.foreground,
-                        height: 1.35,
+              children: [
+                if (_ilan.photoUrl.trim().isNotEmpty) ...[
+                  GestureDetector(
+                    onTap: () => openFillPhotoOverlay(
+                      context,
+                      source: _ilan.photoUrl,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: CatalogImage(
+                        source: _ilan.photoUrl,
+                        height: 220,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ),
+                  const SizedBox(height: 14),
                 ],
-              ),
-            ),
-          if (_ilan.calismaSekli.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final s in _ilan.calismaSekli)
-                  Chip(label: Text(s), visualDensity: VisualDensity.compact),
+                Text(
+                  _ilan.arananMeslek,
+                  style: GoogleFonts.nunito(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: MetoColors.foreground,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _ilan.kurumAdi,
+                  style: GoogleFonts.nunito(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: MetoColors.primary,
+                  ),
+                ),
+                if (_ilan.yerLabel.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      _ilan.yerLabel,
+                      style: TextStyle(color: MetoColors.mutedFg),
+                    ),
+                  ),
+                if (_ilan.adres.trim().isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.place_outlined,
+                          size: 18,
+                          color: MetoColors.mutedFg,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            _ilan.adres.trim(),
+                            style: TextStyle(
+                              color: MetoColors.foreground,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (_ilan.calismaSekli.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final s in _ilan.calismaSekli)
+                        Chip(
+                          label: Text(s),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Text(_ilan.aciklama, style: const TextStyle(height: 1.45)),
+                if (_isAdmin && !_isOwner) ...[
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: _busy ? null : _openMesaj,
+                    icon: const Icon(Icons.chat_bubble_outline),
+                    label: const L10nText('İlan sahibine mesaj'),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : _delete,
+                    icon: const Icon(Icons.delete_outline),
+                    label: const L10nText('İlanı kaldır'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFB42318),
+                      side: const BorderSide(color: Color(0xFFB42318)),
+                    ),
+                  ),
+                ],
               ],
             ),
-          ],
-          const SizedBox(height: 16),
-          Text(_ilan.aciklama, style: const TextStyle(height: 1.45)),
-          if (_isAdmin && !_isOwner) ...[
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _busy ? null : _openMesaj,
-              icon: const Icon(Icons.chat_bubble_outline),
-              label: const L10nText('İlan sahibine mesaj'),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: _busy ? null : _delete,
-              icon: const Icon(Icons.delete_outline),
-              label: const L10nText('İlanı kaldır'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFFB42318),
-                side: const BorderSide(color: Color(0xFFB42318)),
-              ),
-            ),
-          ],
+          ),
+          if (_showVisitorCallActions) _visitorCallActionsBar(),
         ],
       ),
-      bottomNavigationBar:
-          _showVisitorCallActions ? _visitorCallActionsBar() : null,
     );
   }
 }
