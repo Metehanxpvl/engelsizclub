@@ -2092,8 +2092,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       return;
     }
 
-    if (type == 'ilan' && id != null && id > 0) {
-      _openIlanDetay(kind: (data['kind'] ?? 'uzman').trim(), id: id);
+    if ((type == 'ilan' || type == 'ilan_destek') && id != null && id > 0) {
+      var kind = (data['kind'] ?? '').trim();
+      if (kind.isEmpty && sohbetKey.contains(':')) {
+        kind = sohbetKey.split(':').first.trim();
+      }
+      _openIlanDetay(kind: kind.isEmpty ? 'uzman' : kind, id: id);
     }
   }
 
@@ -2123,6 +2127,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           ];
         });
       }
+    }
+
+    if (b.type == 'ilan_destek' && (b.ilanId ?? 0) > 0) {
+      if (!mounted) return;
+      final key = (b.sohbetKey ?? '').trim();
+      final kind = key.contains(':') ? key.split(':').first.trim() : '';
+      _openIlanDetay(kind: kind.isEmpty ? 'uzman' : kind, id: b.ilanId!);
+      return;
     }
 
     if (b.isEtkinlikOneri) {
