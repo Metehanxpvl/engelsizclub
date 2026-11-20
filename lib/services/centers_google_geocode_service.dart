@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'google_places_config.dart';
+import 'harita_google_kota.dart';
 
 /// İl/ilçe koordinatı — Places API (New) textSearch ile (ayrı Geocoding API yok).
 /// Böylece Cloud Console'da Geocoding API hataları oluşmaz.
@@ -33,6 +34,8 @@ class CentersGoogleGeocodeService {
             !ilce.toLowerCase().contains('tümü'))
         ? '$ilce, $city, Türkiye'
         : '$city, Türkiye';
+
+    if (!await HaritaGoogleKota.izinAl()) return null;
 
     try {
       final res = await http
