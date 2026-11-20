@@ -1,0 +1,21 @@
+[
+  {"city": "Türkiye", "avm_name": "Devlet Opera ve Balesi", "events_url": "https://www.operabale.gov.tr/", "source_type": "belediye"},
+  {"city": "Türkiye", "avm_name": "Özel Olimpiyatlar Türkiye", "events_url": "https://soturkiye.org.tr/", "source_type": "dernek"},
+  {"city": "Ankara", "avm_name": "Ankara Büyükşehir Belediyesi", "events_url": "https://www.ankara.bel.tr/etkinlikler", "source_type": "belediye"},
+  {"city": "Ankara", "avm_name": "Ankara Kültür Sanat", "events_url": "https://kultursanat.ankara.bel.tr/", "source_type": "belediye"},
+  {"city": "Ankara", "avm_name": "Çankaya Belediyesi", "events_url": "https://www.cankaya.bel.tr/", "source_type": "belediye"},
+  {"city": "Ankara", "avm_name": "Keçiören Belediyesi", "events_url": "https://www.kecioren.bel.tr/", "source_type": "belediye"},
+  {"city": "Ankara", "avm_name": "Millet Kütüphanesi", "events_url": "https://www.milletkutuphanesi.gov.tr/", "source_type": "belediye"},
+  {"city": "Antalya", "avm_name": "Antalya Büyükşehir Belediyesi", "events_url": "https://www.antalya.bel.tr/tr/etkinlikler", "source_type": "belediye", "force_js": true},
+  {"city": "Bursa", "avm_name": "Nilüfer Belediyesi", "events_url": "https://www.nilufer.bel.tr/etkinlikler", "source_type": "belediye"},
+  {"city": "Gaziantep", "avm_name": "Gaziantep Büyükşehir Belediyesi", "events_url": "https://www.gaziantep.bel.tr/", "source_type": "belediye"},
+  {"city": "İstanbul", "avm_name": "İBB Kültür", "events_url": "https://kultur.istanbul/etkinlikler", "source_type": "belediye", "force_js": true},
+  {"city": "İstanbul", "avm_name": "Ataşehir Belediyesi", "events_url": "https://www.atasehir.bel.tr/etkinlikler", "source_type": "belediye"},
+  {"city": "İstanbul", "avm_name": "Beşiktaş Belediyesi", "events_url": "https://www.besiktas.bel.tr/", "source_type": "belediye", "force_js": true},
+  {"city": "İstanbul", "avm_name": "İstanbul Modern", "events_url": "https://www.istanbulmodern.org/etkinlikler", "source_type": "muze", "force_js": true},
+  {"city": "İstanbul", "avm_name": "Pera Müzesi", "events_url": "https://www.peramuzesi.org.tr/", "source_type": "muze"},
+  {"city": "İstanbul", "avm_name": "Sakıp Sabancı Müzesi", "events_url": "https://www.sakipsabancimuzesi.org/", "source_type": "muze"},
+  {"city": "İzmir", "avm_name": "İzmir Kültürsanat", "events_url": "https://kultursanat.izmir.bel.tr/", "source_type": "belediye", "force_js": true},
+  {"city": "İzmir", "avm_name": "Bornova Belediyesi", "events_url": "https://www.bornova.bel.tr/etkinlikler", "source_type": "belediye", "force_js": true},
+  {"city": "İzmir", "avm_name": "Karşıyaka Belediyesi", "events_url": "https://www.karsiyaka.bel.tr/etkinlikler", "source_type": "belediye"}
+]
