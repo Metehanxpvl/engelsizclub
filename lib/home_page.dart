@@ -18,6 +18,7 @@ import 'services/app_catalog_service.dart';
 import 'services/catalog_adapters.dart';
 import 'widgets/catalog_media.dart';
 import 'widgets/dernekler_home_section.dart';
+import 'widgets/did_you_know_corner.dart';
 import 'widgets/duyurular_section.dart';
 import 'widgets/gezi_kampanya_home_section.dart';
 import 'widgets/hastaliklar_section.dart';
@@ -339,6 +340,11 @@ class _HomePageState extends State<HomePage> {
           ),
 
           const DisclaimerBanner(),
+
+          DidYouKnowCorner(
+            key: ValueKey('did_you_know_${widget.userEmail}'),
+            userEmail: widget.userEmail,
+          ),
 
           GeziKampanyaHomeSection(
             userEmail: widget.userEmail,

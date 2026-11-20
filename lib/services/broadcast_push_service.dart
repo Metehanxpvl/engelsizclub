@@ -3,6 +3,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../admin_config.dart';
 
+const kDidYouKnowTitle = 'Bunu biliyor musunuz?';
+const kDidYouKnowType = 'biliyor_muydunuz';
+const kDidYouKnowSource = 'did_you_know';
+const kDidYouKnowMaxChars = 800;
+
+String didYouKnowPushBody(String message) => message.trim();
+
 /// Supabase Edge Function `broadcast-push` — FCM topic bildirimi.
 /// Secrets: `FCM_SERVER_KEY` (Firebase Cloud Messaging legacy server key)
 class BroadcastPushService {
@@ -52,6 +59,43 @@ class BroadcastPushService {
       debugPrint('broadcast-push hata: $e');
       return false;
     }
+  }
+
+  /// Admin serbest mesaj: başlık «Bunu biliyor musunuz?», gövde admin metni.
+  /// Kayıt `admin_send_did_you_know` ile duyurulara eklenir (ana sayfa köşesi),
+  /// bildirim `duyurular` topic'ine gider.
+  Future<bool> biliyorMuydunuz({
+    required String message,
+    String? adminEmail,
+  }) async {
+    final body = didYouKnowPushBody(message);
+    if (body.isEmpty) return false;
+    final clipped = body.length > kDidYouKnowMaxChars
+        ? body.substring(0, kDidYouKnowMaxChars).trim()
+        : body;
+
+    var saved = false;
+    try {
+      await Supabase.instance.client.rpc(
+        'admin_send_did_you_know',
+        params: {'p_body': clipped},
+      );
+      saved = true;
+    } catch (e) {
+      debugPrint('did-you-know rpc: $e');
+    }
+
+    final pushed = await sendToTopic(
+      topic: 'duyurular',
+      title: kDidYouKnowTitle,
+      body: clipped,
+      data: {
+        'type': kDidYouKnowType,
+        'text': clipped,
+      },
+      requireAdmin: !isAppAdmin(adminEmail),
+    );
+    return saved || pushed;
   }
 
   Future<bool> duyuru({
