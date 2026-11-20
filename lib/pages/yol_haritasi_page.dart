@@ -210,7 +210,7 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
         foregroundColor: MetoColors.foreground,
         elevation: 0,
         title: Text(
-          'Yol Haritam',
+          'Tanıdan Sonra',
           style: GoogleFonts.nunito(fontWeight: FontWeight.w900),
         ),
         actions: [

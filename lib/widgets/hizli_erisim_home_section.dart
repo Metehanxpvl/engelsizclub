@@ -116,7 +116,7 @@ class _YolHaritasiTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     L10nText(
-                      'Yol Haritam',
+                      'Tanıdan Sonra',
                       style: GoogleFonts.nunito(
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
