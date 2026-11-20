@@ -1207,6 +1207,67 @@ def fetch_html(
     return FetchedPage(text=text, html=html, final_url=final_url, cover=cover)
 
 
+_DETAIL_HINT = re.compile(r"etkinlik|event|duyuru|haber|aktivite|atolye|atölye", re.I)
+_DETAIL_SKIP = re.compile(
+    r"kampanya|campaign|indirim|magaza|mağaza|store|kategori|category|page=|sayfa=|"
+    r"iletisim|contact|kurumsal|about|kvkk|cerez|cookie|login|giris|#",
+    re.I,
+)
+MAX_DETAIL_PAGES = 5
+
+
+def collect_detail_links(html: str, listing_url: str) -> list[str]:
+    """Etkinlik listesindeki 'Detaylı bilgi' sayfaları (aynı site, daha derin yol)."""
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:  # noqa: BLE001
+        return []
+    base = urlparse(listing_url)
+    host = base.netloc.lower().removeprefix("www.")
+    base_path = base.path.rstrip("/")
+    out: list[str] = []
+    for a in soup.find_all("a", href=True):
+        href = urljoin(listing_url, str(a["href"]).strip())
+        u = urlparse(href)
+        if u.scheme not in ("http", "https"):
+            continue
+        if u.netloc.lower().removeprefix("www.") != host:
+            continue
+        path = u.path.rstrip("/")
+        if not path or path == base_path or len(path) <= len(base_path):
+            continue
+        if not _DETAIL_HINT.search(path) or _DETAIL_SKIP.search(href):
+            continue
+        clean = f"{u.scheme}://{u.netloc}{u.path}"
+        if clean not in out:
+            out.append(clean)
+        if len(out) >= MAX_DETAIL_PAGES:
+            break
+    return out
+
+
+def append_detail_pages(
+    http: httpx.Client, page: FetchedPage
+) -> FetchedPage:
+    """Liste sayfası yalnız başlık/tarih gösteriyorsa detay sayfalarını da ekle."""
+    links = collect_detail_links(page.html, page.final_url)
+    if not links:
+        return page
+    parts = [page.text]
+    added = 0
+    for link in links:
+        detail = fetch_html(http, link, require_text=False, use_playwright=False)
+        polite_sleep()
+        if not detail or len(detail.text) < 120:
+            continue
+        parts.append(f"\n\n--- Etkinlik detay sayfası: {link} ---\n{detail.text[:4000]}")
+        added += 1
+    if not added:
+        return page
+    print(f"  + {added} detay sayfası eklendi", file=sys.stderr)
+    return page._replace(text="".join(parts))
+
+
 def fetch_page(
     http: httpx.Client,
     url: str,
@@ -1927,6 +1988,10 @@ def main() -> int:
             if not fetched:
                 stats_fail.append(label)
                 continue
+            try:
+                fetched = append_detail_pages(http, fetched)
+            except Exception as exc:  # noqa: BLE001 — detay opsiyonel
+                print(f"  detay sayfaları atlandı: {_redact_error(str(exc))}", file=sys.stderr)
             mall_cover = fetched.cover or src.get("image") or ""
             if mall_cover:
                 covers[(city, avm)] = mall_cover

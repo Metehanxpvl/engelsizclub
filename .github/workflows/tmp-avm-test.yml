@@ -18,6 +18,5 @@ jobs:
           PYTHONUNBUFFERED: '1'
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           AVM_DEBUG: '1'
-          AVM_ONLY_NAMES: 'Mall of İstanbul,Kent Meydanı,MarkAntalya,Acity,Cevahir,Tepe Nautilus,Ankamall,Next Level'
-          AVM_DEBUG_TEXT: '1'
+          AVM_ONLY_CITIES: 'İstanbul,Ankara,İzmir,Bursa,Antalya'
         run: python scripts/avm_scraper.py --dry-run
