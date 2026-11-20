@@ -762,15 +762,32 @@ class GeminiClient:
         live_on = today_date or today_istanbul()
         merged: dict[str, dict[str, Any]] = {}
         chunks = chunk_text(page_text)
+        debug = bool(_env("AVM_DEBUG"))
+        if _env("AVM_DEBUG_TEXT"):
+            print(f"  [metin] {page_text[:3500]}", file=sys.stderr)
         for i, chunk in enumerate(chunks):
             prompt = gemini_prompt(city, avm_name, today, chunk)
             rows = self._generate_array(prompt)
+            if debug:
+                print(f"  [debug] parça {i + 1}/{len(chunks)}: Gemini {len(rows)} satır", file=sys.stderr)
             for row in rows:
                 event = coerce_event(row, city, avm_name)
                 if not event:
+                    if debug:
+                        print(f"  [debug] geçersiz satır: {str(row)[:160]}", file=sys.stderr)
                     continue
                 if not event_is_live(event["event_date"], live_on):
+                    if debug:
+                        print(
+                            f"  [debug] tarih eledi: {event['event_name'][:60]} | {event['event_date']}",
+                            file=sys.stderr,
+                        )
                     continue
+                if debug:
+                    print(
+                        f"  [debug] + {event['event_name'][:60]} | {event['event_date']}",
+                        file=sys.stderr,
+                    )
                 key = (
                     event["city"],
                     event["avm_name"],
@@ -792,45 +809,49 @@ class GeminiClient:
             },
             {"temperature": 0.2},
         ]
-        for model in self._models:
-            for gen_cfg in configs:
-                try:
-                    body = {
-                        "contents": [
-                            {"role": "user", "parts": [{"text": prompt}]}
-                        ],
-                        "generationConfig": gen_cfg,
-                    }
-                    url = (
-                        "https://generativelanguage.googleapis.com/v1beta/"
-                        f"models/{model}:generateContent"
-                    )
-                    res = self._http.post(
-                        url,
-                        headers={
-                            "x-goog-api-key": self._key,
-                            "Content-Type": "application/json",
-                        },
-                        json=body,
-                        timeout=GEMINI_TIMEOUT,
-                    )
-                    if res.status_code in (404, 400):
-                        last_err = f"{model} HTTP {res.status_code}"
+        for round_no in range(3):
+            if round_no:
+                # Gemini 503/zaman aşımı geçicidir; kısa bekleyip tekrar dene.
+                time.sleep(6 * round_no)
+            for model in self._models:
+                for gen_cfg in configs:
+                    try:
+                        body = {
+                            "contents": [
+                                {"role": "user", "parts": [{"text": prompt}]}
+                            ],
+                            "generationConfig": gen_cfg,
+                        }
+                        url = (
+                            "https://generativelanguage.googleapis.com/v1beta/"
+                            f"models/{model}:generateContent"
+                        )
+                        res = self._http.post(
+                            url,
+                            headers={
+                                "x-goog-api-key": self._key,
+                                "Content-Type": "application/json",
+                            },
+                            json=body,
+                            timeout=GEMINI_TIMEOUT,
+                        )
+                        if res.status_code in (404, 400):
+                            last_err = f"{model} HTTP {res.status_code}"
+                            continue
+                        if res.status_code >= 400:
+                            last_err = f"{model} HTTP {res.status_code}"
+                            continue
+                        data = res.json()
+                        text = extract_gemini_text(data)
+                        if not text.strip():
+                            last_err = f"{model} empty"
+                            continue
+                        parsed = parse_json_array(text)
+                        if parsed or text.strip() == "[]":
+                            return parsed
+                    except (httpx.HTTPError, ValueError, json.JSONDecodeError) as exc:
+                        last_err = _redact_error(str(exc))
                         continue
-                    if res.status_code >= 400:
-                        last_err = f"{model} HTTP {res.status_code}"
-                        continue
-                    data = res.json()
-                    text = extract_gemini_text(data)
-                    if not text.strip():
-                        last_err = f"{model} empty"
-                        continue
-                    parsed = parse_json_array(text)
-                    if parsed or text.strip() == "[]":
-                        return parsed
-                except (httpx.HTTPError, ValueError, json.JSONDecodeError) as exc:
-                    last_err = _redact_error(str(exc))
-                    continue
         if last_err:
             print(f"  Gemini atlandı: {last_err}", file=sys.stderr)
         return []
@@ -931,6 +952,7 @@ def _playwright_context_kwargs() -> dict[str, Any]:
     return {
         "user_agent": USER_AGENT,
         "locale": "tr-TR",
+        "ignore_https_errors": True,
         "viewport": {"width": 1280, "height": 900},
         "extra_http_headers": {
             "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
@@ -1041,6 +1063,17 @@ _BROWSER_HEADERS = {
 }
 
 
+_INSECURE_HTTP: httpx.Client | None = None
+
+
+def _insecure_http() -> httpx.Client:
+    """Sertifikası bozuk AVM siteleri için (yalnız herkese açık sayfa okuma)."""
+    global _INSECURE_HTTP
+    if _INSECURE_HTTP is None:
+        _INSECURE_HTTP = httpx.Client(http2=False, follow_redirects=True, verify=False)
+    return _INSECURE_HTTP
+
+
 def _http_get_html(
     http: httpx.Client, url: str
 ) -> tuple[str | None, str]:
@@ -1080,6 +1113,12 @@ def _http_get_html(
             httpx.RemoteProtocolError,
         ) as exc:
             last_err = _redact_error(str(exc))
+            if "CERTIFICATE_VERIFY_FAILED" in str(exc) and http is not _INSECURE_HTTP:
+                print(
+                    "  sertifika hatası; sayfa doğrulamasız okunuyor",
+                    file=sys.stderr,
+                )
+                return _http_get_html(_insecure_http(), url)
             if attempt < FETCH_RETRIES:
                 wait = min(1.5 * attempt, 6.0)
                 print(
@@ -1166,6 +1205,67 @@ def fetch_html(
     if not cover:
         cover = extract_mall_cover(html, final_url)
     return FetchedPage(text=text, html=html, final_url=final_url, cover=cover)
+
+
+_DETAIL_HINT = re.compile(r"etkinlik|event|duyuru|haber|aktivite|atolye|atölye", re.I)
+_DETAIL_SKIP = re.compile(
+    r"kampanya|campaign|indirim|magaza|mağaza|store|kategori|category|page=|sayfa=|"
+    r"iletisim|contact|kurumsal|about|kvkk|cerez|cookie|login|giris|#",
+    re.I,
+)
+MAX_DETAIL_PAGES = 5
+
+
+def collect_detail_links(html: str, listing_url: str) -> list[str]:
+    """Etkinlik listesindeki 'Detaylı bilgi' sayfaları (aynı site, daha derin yol)."""
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception:  # noqa: BLE001
+        return []
+    base = urlparse(listing_url)
+    host = base.netloc.lower().removeprefix("www.")
+    base_path = base.path.rstrip("/")
+    out: list[str] = []
+    for a in soup.find_all("a", href=True):
+        href = urljoin(listing_url, str(a["href"]).strip())
+        u = urlparse(href)
+        if u.scheme not in ("http", "https"):
+            continue
+        if u.netloc.lower().removeprefix("www.") != host:
+            continue
+        path = u.path.rstrip("/")
+        if not path or path == base_path or len(path) <= len(base_path):
+            continue
+        if not _DETAIL_HINT.search(path) or _DETAIL_SKIP.search(href):
+            continue
+        clean = f"{u.scheme}://{u.netloc}{u.path}"
+        if clean not in out:
+            out.append(clean)
+        if len(out) >= MAX_DETAIL_PAGES:
+            break
+    return out
+
+
+def append_detail_pages(
+    http: httpx.Client, page: FetchedPage
+) -> FetchedPage:
+    """Liste sayfası yalnız başlık/tarih gösteriyorsa detay sayfalarını da ekle."""
+    links = collect_detail_links(page.html, page.final_url)
+    if not links:
+        return page
+    parts = [page.text]
+    added = 0
+    for link in links:
+        detail = fetch_html(http, link, require_text=False, use_playwright=False)
+        polite_sleep()
+        if not detail or len(detail.text) < 120:
+            continue
+        parts.append(f"\n\n--- Etkinlik detay sayfası: {link} ---\n{detail.text[:4000]}")
+        added += 1
+    if not added:
+        return page
+    print(f"  + {added} detay sayfası eklendi", file=sys.stderr)
+    return page._replace(text="".join(parts))
 
 
 def fetch_page(
@@ -1292,6 +1392,38 @@ class Supabase:
             dropped.append(col)
         raise RuntimeError(f"{label}: eksik kolonlar giderilemedi")
 
+    def _post_rows_tolerant(
+        self,
+        label: str,
+        path: str,
+        rows: list[dict[str, Any]],
+        *,
+        params: dict[str, str],
+        prefer: str,
+    ) -> int:
+        """Toplu yazma çakışmayla düşerse satır satır dener; tek hatalı satır
+        bütün partiyi kaybettirmez."""
+        try:
+            return self._post_rows(label, path, rows, params=params, prefer=prefer)
+        except RuntimeError as exc:
+            print(
+                f"  {label}: toplu yazma başarısız, satır satır deneniyor "
+                f"({len(rows)} satır): {exc}",
+                file=sys.stderr,
+            )
+        ok = 0
+        fail = 0
+        for row in rows:
+            try:
+                ok += self._post_rows(label, path, [row], params=params, prefer=prefer)
+            except RuntimeError as exc:
+                fail += 1
+                if fail <= 5:
+                    print(f"  {label}: satır atlandı: {exc}", file=sys.stderr)
+        if fail:
+            print(f"  {label}: {ok} yazıldı, {fail} atlandı", file=sys.stderr)
+        return ok
+
     def upsert_events(self, rows: list[dict[str, Any]]) -> int:
         if not rows:
             return 0
@@ -1301,22 +1433,13 @@ class Supabase:
             chunk = [r for r in chunk if r.get("event_name") and r.get("event_date")]
             if not chunk:
                 continue
-            try:
-                total += self._post_rows(
-                    "events upsert",
-                    "/rest/v1/events",
-                    chunk,
-                    params={"on_conflict": "dedupe_key"},
-                    prefer="resolution=merge-duplicates,return=minimal",
-                )
-            except RuntimeError:
-                total += self._post_rows(
-                    "events upsert",
-                    "/rest/v1/events",
-                    chunk,
-                    params={"on_conflict": "city,avm_name,event_name,event_date"},
-                    prefer="resolution=merge-duplicates,return=minimal",
-                )
+            total += self._post_rows_tolerant(
+                "events upsert",
+                "/rest/v1/events",
+                chunk,
+                params={"on_conflict": "dedupe_key"},
+                prefer="resolution=merge-duplicates,return=minimal",
+            )
         return total
 
     def deleted_ids(self) -> set[str]:
@@ -1443,7 +1566,7 @@ class Supabase:
     def insert_etkinlikler(self, rows: list[dict[str, Any]]) -> int:
         if not rows:
             return 0
-        return self._post_rows(
+        return self._post_rows_tolerant(
             "etkinlikler insert",
             "/rest/v1/etkinlikler",
             rows,
@@ -1713,6 +1836,12 @@ def load_sources() -> list[dict[str, str]]:
         key = (city, avm, url)
         if key in seen:
             continue
+        only = [c.strip() for c in _env("AVM_ONLY_CITIES").split(",") if c.strip()]
+        if only and city not in only:
+            continue
+        only_names = [c.strip() for c in _env("AVM_ONLY_NAMES").split(",") if c.strip()]
+        if only_names and avm not in only_names:
+            continue
         seen.add(key)
         image = normalize_ws(str(item.get("image") or ""))
         if image and not image.startswith(("http://", "https://")):
@@ -1859,6 +1988,10 @@ def main() -> int:
             if not fetched:
                 stats_fail.append(label)
                 continue
+            try:
+                fetched = append_detail_pages(http, fetched)
+            except Exception as exc:  # noqa: BLE001 — detay opsiyonel
+                print(f"  detay sayfaları atlandı: {_redact_error(str(exc))}", file=sys.stderr)
             mall_cover = fetched.cover or src.get("image") or ""
             if mall_cover:
                 covers[(city, avm)] = mall_cover
