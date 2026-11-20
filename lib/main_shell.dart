@@ -49,6 +49,7 @@ import 'features/daily_news/admin_daily_news_screen.dart';
 import 'features/scientific_research/admin_science_review_screen.dart';
 import 'features/useful_opportunities/opportunities_screen.dart';
 import 'features/city_posters/admin_city_posters_screen.dart';
+import 'features/harita_kontrol/harita_kontrol_screen.dart';
 import 'remote/app_screen_config.dart';
 import 'pages/gelisim_etkinlikleri_page.dart';
 import 'pages/barcode_scanner_screen.dart';
@@ -4633,6 +4634,23 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               sub: 'Kurum iş ilanını görselden doldur',
               highlight: true,
               onTap: () => unawaited(_openIlanGorselOlustur()),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '🗺️',
+              label: 'Harita kontrol',
+              sub: 'Google sorgu sayacı · aç / kapa',
+              highlight: true,
+              onTap: () {
+                unawaited(
+                  HaritaKontrolScreen.open(
+                    context,
+                    adminEmail: widget.user.email,
+                  ),
+                );
+              },
             ),
           ),
           Padding(

@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../data/centers_data.dart';
 import '../utils/tr_norm.dart';
 import 'google_places_config.dart';
+import 'harita_google_kota.dart';
 
 /// Google Places API (New) — searchText / searchNearby.
 ///
@@ -21,7 +22,8 @@ class CentersGooglePlacesService {
       'https://places.googleapis.com/v1/places:searchNearby';
 
   static const _fieldMask =
-      'places.id,places.displayName,places.formattedAddress,places.shortFormattedAddress,places.location,places.types,places.rating,places.userRatingCount,places.nationalPhoneNumber,places.regularOpeningHours';
+      // Sadece ad + konum (Pro kademe). Puan/telefon/saat istenmez → Enterprise ücreti yok.
+      'places.id,places.displayName,places.formattedAddress,places.shortFormattedAddress,places.location,places.types';
 
   static const _textQueries = <String>[
     'özel eğitim ve rehabilitasyon merkezi',
@@ -333,6 +335,9 @@ class CentersGooglePlacesService {
     String url,
     Map<String, dynamic> body,
   ) async {
+    if (!await HaritaGoogleKota.izinAl()) {
+      throw StateError('Google harita araması kapalı veya aylık sınır doldu.');
+    }
     final res = await http
         .post(
           Uri.parse(url),
