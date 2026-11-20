@@ -1,6 +1,6 @@
 """Geçici teşhis: büyükşehir AVM etkinlik sayfaları. Sonuç: diag_out.json"""
 import json, re, sys, time, urllib.parse
-import httpx, urllib3
+import httpx
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
@@ -48,7 +48,7 @@ DATE_RE = re.compile(r"\b\d{1,2}(\s*[-–]\s*\d{1,2})?\s+" + MONTH + r"|\b\d{1,2
 EV_RE = re.compile(r"etkinlik|event|aktivite|atolye|atölye|program|kampanya", re.I)
 PATHS = ["", "etkinlikler", "etkinlik", "tr/etkinlikler", "etkinlikler-ve-kampanyalar", "events", "tr/etkinlik", "etkinlik-ve-kampanyalar", "duyurular"]
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-urllib3.disable_warnings()
+
 http = httpx.Client(verify=False, timeout=20, follow_redirects=True, headers={"User-Agent": UA, "Accept-Language": "tr-TR,tr;q=0.9"})
 
 def text_of(html):
