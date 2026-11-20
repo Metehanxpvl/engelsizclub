@@ -4,45 +4,39 @@ import httpx
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
-BIG = {"İstanbul", "Ankara", "İzmir", "Bursa", "Antalya", "Adana", "Konya", "Gaziantep", "Kocaeli", "Mersin", "Kayseri", "Eskişehir", "Samsun", "Diyarbakır"}
-src = [s for s in json.load(open("scripts/avm_sources.json")) if s["city"] in BIG]
-NEW = [
- ("İstanbul","Marmara Park","https://www.marmarapark.com/"),
- ("İstanbul","Viaport Asia","https://www.viaportasia.com/"),
- ("İstanbul","Optimum İstanbul","https://www.optimumistanbul.com.tr/"),
- ("İstanbul","Venezia Mega Outlet","https://www.veneziamegaoutlet.com/"),
- ("İstanbul","Torium","https://www.torium.com.tr/"),
- ("İstanbul","Aqua Florya","https://www.aquaflorya.com/"),
- ("İstanbul","Starcity","https://www.starcity.com.tr/"),
- ("İstanbul","Marmara Forum","https://www.marmaraforum.com.tr/"),
- ("İstanbul","Buyaka","https://www.buyaka.com.tr/"),
- ("İstanbul","Watergarden","https://www.watergardenistanbul.com/"),
- ("İstanbul","Axis İstanbul","https://www.axisistanbul.com/"),
- ("İstanbul","Brandium","https://www.brandium.com.tr/"),
- ("İstanbul","Galleria Ataköy","https://www.galleria.com.tr/"),
- ("İstanbul","Meydan İstanbul","https://www.meydanistanbul.com.tr/"),
- ("İstanbul","212 İstanbul","https://www.212istanbul.com/"),
- ("İstanbul","Neomarin","https://www.neomarin.com.tr/"),
- ("Ankara","Atlantis","https://www.atlantisavm.com.tr/"),
- ("Ankara","Taurus","https://www.taurusavm.com.tr/"),
- ("Ankara","Optimum Ankara","https://www.optimumankara.com.tr/"),
- ("Ankara","Acity","https://www.acity.com.tr/"),
- ("Ankara","Podium Ankara","https://www.podiumankara.com/"),
- ("Ankara","Antares","https://www.antaresavm.com.tr/"),
- ("Ankara","Nata Vega","https://www.natavega.com.tr/"),
- ("İzmir","Mavibahçe","https://www.mavibahce.com.tr/"),
- ("İzmir","Westpark","https://www.westparkizmir.com/"),
- ("İzmir","Selway","https://www.selway.com.tr/"),
- ("İzmir","Ege Park Balçova","https://www.egeparkbalcova.com/"),
- ("İzmir","Park Bornova","https://www.parkbornova.com/"),
- ("Bursa","Podyum Park","https://www.podyumpark.com/"),
- ("Bursa","Sur Yapı Marka","https://www.suryapimarka.com/"),
- ("Antalya","Migros AVM Antalya","https://www.antalyamigrosavm.com/"),
- ("Antalya","Özdilek Park Antalya","https://www.ozdilekpark.com/"),
- ("Antalya","Deepo Outlet","https://www.deepo.com.tr/"),
+T = [
+ ("Türkiye","Kültür Portalı",["https://www.kulturportali.gov.tr/etkinlikler","https://www.kulturportali.gov.tr/turkiye/etkinlikler","https://www.kulturportali.gov.tr/etkinlik"]),
+ ("İstanbul","İBB Kültür",["https://kultur.istanbul/etkinlikler","https://kultur.istanbul/","https://kultursanat.istanbul/"]),
+ ("İstanbul","İBB Şehir Tiyatroları",["https://sehirtiyatrolari.ibb.istanbul/","https://sehirtiyatrolari.ibb.istanbul/oyunlar","https://sehirtiyatrolari.ibb.istanbul/cocuk-oyunlari"]),
+ ("Türkiye","Devlet Tiyatroları",["https://www.devtiyatro.gov.tr/DevletTiyatro/tr/oyunlar","https://www.devtiyatro.gov.tr/DevletTiyatro/tr/takvim","https://www.devtiyatro.gov.tr/"]),
+ ("Türkiye","Devlet Opera ve Balesi",["https://www.operabale.gov.tr/tr-TR/Sayfalar/Takvim.aspx","https://www.operabale.gov.tr/tr-TR/Sayfalar/default.aspx","https://www.operabale.gov.tr/"]),
+ ("Ankara","Ankara Büyükşehir",["https://www.ankara.bel.tr/etkinlikler","https://kultursanat.ankara.bel.tr/","https://www.ankara.bel.tr/kultur-sanat"]),
+ ("İzmir","İzmir Büyükşehir",["https://kultursanat.izmir.bel.tr/tr/Etkinlikler","https://www.izmir.bel.tr/tr/Etkinlikler","https://kultursanat.izmir.bel.tr/"]),
+ ("Bursa","Bursa Büyükşehir",["https://www.bursa.bel.tr/etkinlikler","https://www.bursa.bel.tr/kultur-sanat","https://kultur.bursa.bel.tr/"]),
+ ("Antalya","Antalya Büyükşehir",["https://www.antalya.bel.tr/tr/etkinlikler","https://www.antalya.bel.tr/etkinlikler"]),
+ ("Konya","Konya Bilim Merkezi",["https://www.konyabilimmerkezi.com/etkinlikler","https://www.konyabilimmerkezi.com/"]),
+ ("Ankara","Millet Kütüphanesi",["https://www.milletkutuphanesi.gov.tr/etkinlikler","https://www.milletkutuphanesi.gov.tr/"]),
+ ("İstanbul","Rahmi Koç Müzesi",["https://www.rmk-museum.org.tr/","https://www.rmk-museum.org.tr/tr/etkinlikler"]),
+ ("İstanbul","İstanbul Modern",["https://www.istanbulmodern.org/etkinlikler","https://www.istanbulmodern.org/tr/etkinlikler"]),
+ ("İstanbul","Pera Müzesi",["https://www.peramuzesi.org.tr/etkinlikler","https://www.peramuzesi.org.tr/"]),
+ ("İstanbul","Sabancı Müzesi",["https://www.sakipsabancimuzesi.org/etkinlikler","https://www.sakipsabancimuzesi.org/"]),
+ ("Türkiye","Özel Olimpiyatlar",["https://www.ozelolimpiyatlar.org.tr/","https://www.specialolympicsturkey.org/"]),
+ ("Türkiye","TOHAD",["https://www.tohad.org.tr/","https://tohad.org/"]),
+ ("İstanbul","Kadıköy Belediyesi",["https://www.kadikoy.bel.tr/etkinlikler","https://kultur.kadikoy.bel.tr/"]),
+ ("İstanbul","Beşiktaş Belediyesi",["https://www.besiktas.bel.tr/etkinlikler","https://www.besiktas.bel.tr/"]),
+ ("Ankara","Çankaya Belediyesi",["https://www.cankaya.bel.tr/etkinlikler","https://www.cankaya.bel.tr/"]),
+ ("Bursa","Nilüfer Belediyesi",["https://www.nilufer.bel.tr/etkinlikler","https://www.nilufer.bel.tr/"]),
+ ("İzmir","Bornova Belediyesi",["https://www.bornova.bel.tr/etkinlikler","https://www.bornova.bel.tr/"]),
+ ("İzmir","Karşıyaka Belediyesi",["https://www.karsiyaka.bel.tr/etkinlikler","https://www.karsiyaka.bel.tr/"]),
+ ("Türkiye","TÜBİTAK Bilim Merkezleri",["https://bilimmerkezleri.tubitak.gov.tr/","https://bilimmerkezleri.tubitak.gov.tr/etkinlikler"]),
+ ("İstanbul","Üsküdar Belediyesi",["https://www.uskudar.bel.tr/tr/etkinlikler","https://www.uskudar.bel.tr/"]),
+ ("İstanbul","Ataşehir Belediyesi",["https://www.atasehir.bel.tr/etkinlikler","https://www.atasehir.bel.tr/"]),
+ ("Ankara","Keçiören Belediyesi",["https://www.kecioren.bel.tr/etkinlikler","https://www.kecioren.bel.tr/"]),
+ ("Gaziantep","Gaziantep Büyükşehir",["https://www.gaziantep.bel.tr/tr/etkinlikler","https://www.gaziantep.bel.tr/"]),
+ ("Kocaeli","Kocaeli Büyükşehir",["https://www.kocaeli.bel.tr/tr/main/etkinlikler","https://www.kocaeli.bel.tr/"]),
+ ("Eskişehir","Eskişehir Büyükşehir",["https://www.eskisehir.bel.tr/etkinlikler","https://www.eskisehir.bel.tr/"]),
 ]
-targets = [(s["city"], s["avm_name"], s["events_url"], False) for s in src] + [(c, n, u, True) for c, n, u in NEW]
-
+targets = [(c,n,u,False) for c,n,u in T]
 MONTH = r"(ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)"
 DATE_RE = re.compile(r"\b\d{1,2}(\s*[-–]\s*\d{1,2})?\s+" + MONTH + r"|\b\d{1,2}[./]\d{1,2}[./]20\d\d", re.I)
 EV_RE = re.compile(r"etkinlik|event|aktivite|atolye|atölye|program|kampanya", re.I)
@@ -83,11 +77,8 @@ def render(url):
 
 results = []
 for city, name, url, is_new in targets:
-    r = {"city": city, "name": name, "given": url, "new": is_new, "tries": []}
-    parsed = urllib.parse.urlparse(url)
-    hosts = [parsed.netloc]
-    hosts.append(parsed.netloc[4:] if parsed.netloc.startswith("www.") else "www." + parsed.netloc)
-    cand = [url] + [f"https://{h}/{p}" for h in hosts for p in PATHS]
+    r = {"city": city, "name": name, "given": url[0], "new": is_new, "tries": []}
+    cand = list(url)
     seen = set(); best = None
     for u in cand:
         if u in seen: continue
@@ -105,13 +96,18 @@ for city, name, url, is_new in targets:
                     r["tries"].append([u, "pw:" + str(e)[:80]])
             r["tries"].append([u, a["mode"], a["text_len"], a["dates"]])
             if best is None or (a["dates"], a["text_len"]) > (best["dates"], best["text_len"]): best = a
-            if best["dates"] >= 3 and u != url: break
+            pass
         except Exception as e:
             r["tries"].append([u, str(e)[:100]])
         if len(r["tries"]) > 12: break
     r["best"] = best
     results.append(r)
     b = best or {}
-    print(f"{city:10} {name:24} {'YENİ' if is_new else '    '} best={b.get('url','-')} mode={b.get('mode','-')} len={b.get('text_len',0)} tarih={b.get('dates',0)} link={len(b.get('links',[]))}", flush=True)
+    print(f"{city:10} {name:24} best={b.get('url','-')} mode={b.get('mode','-')} len={b.get('text_len',0)} tarih={b.get('dates',0)} link={len(b.get('links',[]))}", flush=True)
+    for t in r["tries"]: print("    try:", t, flush=True)
+    txt = b.get("text","")
+    m = DATE_RE.search(txt)
+    if m:
+        i = max(0, m.start()-150); print("    örnek:", txt[i:i+500].replace("\n"," "), flush=True)
 json.dump(results, open("diag_out.json", "w"), ensure_ascii=False)
 br.close(); pw.stop()
