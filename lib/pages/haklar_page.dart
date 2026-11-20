@@ -661,7 +661,7 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
 
   bool _uygunCollapsed = true;
 
-  int get _stepCount => 4;
+  int get _stepCount => 3;
 
   int get _stepIndex {
     switch (_step) {
@@ -678,7 +678,7 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
       case _WizardStep.income:
         return 2;
       case _WizardStep.detay:
-        return 3;
+        return 2;
       case _WizardStep.results:
         return _stepCount - 1;
     }
@@ -769,9 +769,6 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
       _savedProfil = profil;
       _takip = takip;
       _booting = false;
-      if (profil.cevaplar.isNotEmpty) {
-        _step = _WizardStep.kayitli;
-      }
     });
   }
 
@@ -1521,11 +1518,11 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
         _ContinueButton(
           enabled: _age.isNotEmpty,
           label: 'Devam',
-          onPressed: () => setState(() {
+          onPressed: () {
             final g = findCozgerGrup(_cozgerGrup);
             if (g?.agir == true && _agirAns == 0) _agirAns = 1;
-            _step = _WizardStep.detay;
-          }),
+            _saveAndShowResults();
+          },
         ),
       ],
     );
@@ -1571,7 +1568,7 @@ class _RightsSihirbaziState extends State<RightsSihirbazi> {
         _ContinueButton(
           enabled: _income.isNotEmpty,
           label: 'Devam',
-          onPressed: () => setState(() => _step = _WizardStep.detay),
+          onPressed: _saveAndShowResults,
         ),
       ],
     );
