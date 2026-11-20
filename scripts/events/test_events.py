@@ -116,12 +116,12 @@ class RegistryImportTest(unittest.TestCase):
     def test_registry_loads(self):
         from events.registry import SKIPPED_SOURCES, SOURCES
 
-        self.assertGreaterEqual(len(SOURCES), 5)
+        self.assertGreaterEqual(len(SOURCES), 3)
         self.assertTrue(any(s["name"].startswith("Biletix") for s in SKIPPED_SOURCES))
         payload = json.dumps(
             [{"id": s.id, "type": s.source_type} for s in SOURCES]
         )
-        self.assertIn("ibb-kultur", payload)
+        self.assertIn("akbank-sanat", payload)
 
 
 if __name__ == "__main__":

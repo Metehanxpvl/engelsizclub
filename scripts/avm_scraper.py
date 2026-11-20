@@ -65,6 +65,8 @@ except ImportError:
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent
 SOURCES_PATH = SCRIPT_DIR / "avm_sources.json"
+# AVM dışı (belediye, devlet tiyatrosu, müze, bilim merkezi…) — aynı Gemini akışı.
+EXTRA_SOURCES_PATH = SCRIPT_DIR / "kultur_sources.json"
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -649,10 +651,20 @@ def chunk_text(text: str) -> list[str]:
     return chunks
 
 
-def gemini_prompt(city: str, avm_name: str, today: str, page_text: str) -> str:
-    return f"""Sen Engelsiz Club için AVM etkinlik ayrıştırıcısısın.
+def gemini_prompt(
+    city: str, avm_name: str, today: str, page_text: str, *, source_type: str = "avm"
+) -> str:
+    kaynak = "AVM" if source_type == "avm" else "Kurum"
+    if city == "Türkiye":
+        city_rule = (
+            "Bu kaynak ülke genelidir: her etkinlik için city alanına etkinliğin "
+            "yapıldığı ili yaz (bilinmiyorsa \"Türkiye\")."
+        )
+    else:
+        city_rule = "city ve avm_name her zaman verilen değerler olsun."
+    return f"""Sen Engelsiz Club için etkinlik ayrıştırıcısısın.
 Bugünün tarihi: {today} (Europe/Istanbul).
-Kaynak AVM: {avm_name}, şehir: {city}.
+Kaynak {kaynak}: {avm_name}, şehir: {city}.
 
 Görevin: Aşağıdaki sayfa metninden çocuklara, ailelere veya genel ziyaretçilere
 yönelik TÜM etkinlikleri çıkar.
@@ -688,7 +700,7 @@ Her öğe tam olarak bu anahtarlar:
   "event_date": "insan okur Türkçe tarih (ör. 5 Eylül 2026 veya 5-6 Eylül 2026, 14:00)",
   "description": "1-3 cümle Türkçe özet"
 }}
-city ve avm_name her zaman verilen değerler olsun.
+{city_rule}
 Uygun etkinlik yoksa boş dizi: []
 
 Sayfa metni:
@@ -758,6 +770,7 @@ class GeminiClient:
         page_text: str,
         *,
         today_date=None,
+        source_type: str = "avm",
     ) -> list[dict[str, Any]]:
         live_on = today_date or today_istanbul()
         merged: dict[str, dict[str, Any]] = {}
@@ -766,12 +779,12 @@ class GeminiClient:
         if _env("AVM_DEBUG_TEXT"):
             print(f"  [metin] {page_text[:3500]}", file=sys.stderr)
         for i, chunk in enumerate(chunks):
-            prompt = gemini_prompt(city, avm_name, today, chunk)
+            prompt = gemini_prompt(city, avm_name, today, chunk, source_type=source_type)
             rows = self._generate_array(prompt)
             if debug:
                 print(f"  [debug] parça {i + 1}/{len(chunks)}: Gemini {len(rows)} satır", file=sys.stderr)
             for row in rows:
-                event = coerce_event(row, city, avm_name)
+                event = coerce_event(row, city, avm_name, source_type=source_type)
                 if not event:
                     if debug:
                         print(f"  [debug] geçersiz satır: {str(row)[:160]}", file=sys.stderr)
@@ -858,7 +871,7 @@ class GeminiClient:
 
 
 def coerce_event(
-    row: dict[str, Any], city: str, avm_name: str
+    row: dict[str, Any], city: str, avm_name: str, source_type: str = "avm"
 ) -> dict[str, Any] | None:
     name = normalize_ws(str(row.get("event_name") or row.get("title") or ""))
     event_date = normalize_ws(
@@ -872,6 +885,11 @@ def coerce_event(
     )
     if image_url and not image_url.startswith(("http://", "https://")):
         image_url = ""
+    # Ülke geneli kaynak (Devlet Tiyatroları, Kültür Portalı…): ili Gemini'den al.
+    if normalize_ws(city) == "Türkiye":
+        row_city = normalize_ws(str(row.get("city") or ""))
+        if row_city and row_city != "Türkiye":
+            city = row_city
     return enrich_event(
         {
             "city": normalize_ws(city)[:120],
@@ -880,7 +898,8 @@ def coerce_event(
             "event_date": event_date[:160],
             "description": desc[:2000],
             "image_url": image_url[:500],
-        }
+        },
+        source_type=source_type,
     )
 
 
@@ -1823,6 +1842,8 @@ def sync_etkinlikler(
 
 def load_sources() -> list[dict[str, str]]:
     raw = json.loads(SOURCES_PATH.read_text(encoding="utf-8"))
+    if EXTRA_SOURCES_PATH.exists():
+        raw = raw + json.loads(EXTRA_SOURCES_PATH.read_text(encoding="utf-8"))
     out: list[dict[str, str]] = []
     seen: set[tuple[str, str, str]] = set()
     for item in raw:
@@ -1852,6 +1873,7 @@ def load_sources() -> list[dict[str, str]]:
                 "avm_name": avm,
                 "events_url": url,
                 "image": image,
+                "source_type": normalize_ws(str(item.get("source_type") or "avm")) or "avm",
             }
         )
     return out
@@ -2006,6 +2028,7 @@ def main() -> int:
                     today_label,
                     fetched.text,
                     today_date=today_date,
+                    source_type=src.get("source_type") or "avm",
                 )
             except Exception as exc:  # noqa: BLE001 — skip mall, keep going
                 print(f"  parse atlandı: {_redact_error(str(exc))}", file=sys.stderr)

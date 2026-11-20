@@ -1,0 +1,23 @@
+name: tmp avm test
+on:
+  push:
+    branches: [feat/kultur-kaynaklari]
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: |
+          pip install -r scripts/requirements-avm.txt
+          python -m playwright install --with-deps chromium
+      - run: python scripts/events/test_events.py
+      - env:
+          PYTHONUNBUFFERED: '1'
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AVM_DEBUG: '1'
+          AVM_ONLY_NAMES: 'Devlet Opera ve Balesi,Özel Olimpiyatlar Türkiye,Ankara Büyükşehir Belediyesi,Ankara Kültür Sanat,Çankaya Belediyesi,Keçiören Belediyesi,Millet Kütüphanesi,Antalya Büyükşehir Belediyesi,Nilüfer Belediyesi,Gaziantep Büyükşehir Belediyesi,İBB Kültür,Ataşehir Belediyesi,Beşiktaş Belediyesi,İstanbul Modern,Pera Müzesi,Sakıp Sabancı Müzesi,İzmir Kültürsanat,Bornova Belediyesi,Karşıyaka Belediyesi'
+        run: python scripts/avm_scraper.py --dry-run
