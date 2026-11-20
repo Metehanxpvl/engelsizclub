@@ -506,8 +506,6 @@ class _HakDosyasiPageState extends State<HakDosyasiPage> {
                     children: [
                       _buildHeader(item),
                       const SizedBox(height: 16),
-                      _buildTrackingBar(),
-                      const SizedBox(height: 16),
                       if (_dosya.bos) ...[
                         _fallbackBody(item),
                       ] else ...[
