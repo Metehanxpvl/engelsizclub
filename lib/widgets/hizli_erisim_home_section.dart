@@ -13,6 +13,7 @@ class HizliErisimHomeSection extends StatelessWidget {
     this.onOpenHaklar,
     this.onOpenHarita,
     this.onOpenYolHaritasi,
+    this.onOpenKartlar,
   });
 
   final VoidCallback? onOpenTarama;
@@ -22,6 +23,9 @@ class HizliErisimHomeSection extends StatelessWidget {
 
   /// Verilirse 4 kutucuğun altında "Yol Haritam" kartı gösterilir.
   final VoidCallback? onOpenYolHaritasi;
+
+  /// Verilirse "Tanıdan Sonra" kartının yanında "İletişim Kartları" gösterilir.
+  final VoidCallback? onOpenKartlar;
 
   @override
   Widget build(BuildContext context) {
@@ -74,9 +78,35 @@ class HizliErisimHomeSection extends StatelessWidget {
               ),
             ],
           ),
-          if (onOpenYolHaritasi != null) ...[
+          if (onOpenYolHaritasi != null || onOpenKartlar != null) ...[
             const SizedBox(height: 10),
-            _YolHaritasiTile(onTap: onOpenYolHaritasi),
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (onOpenYolHaritasi != null)
+                    Expanded(
+                      child: _GenisTile(
+                        title: 'Tanıdan Sonra',
+                        subtitle: 'Tanı aldık, şimdi ne yapmalı?',
+                        icon: Icons.account_tree,
+                        onTap: onOpenYolHaritasi,
+                      ),
+                    ),
+                  if (onOpenYolHaritasi != null && onOpenKartlar != null)
+                    const SizedBox(width: 10),
+                  if (onOpenKartlar != null)
+                    Expanded(
+                      child: _GenisTile(
+                        title: 'İletişim Kartları',
+                        subtitle: 'Görsel destek kartları',
+                        icon: Icons.grid_view_rounded,
+                        onTap: onOpenKartlar,
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ],
         ],
       ),
@@ -84,9 +114,17 @@ class HizliErisimHomeSection extends StatelessWidget {
   }
 }
 
-class _YolHaritasiTile extends StatelessWidget {
-  const _YolHaritasiTile({this.onTap});
+class _GenisTile extends StatelessWidget {
+  const _GenisTile({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    this.onTap,
+  });
 
+  final String title;
+  final String subtitle;
+  final IconData icon;
   final VoidCallback? onTap;
 
   @override
@@ -98,7 +136,7 @@ class _YolHaritasiTile extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
@@ -108,15 +146,14 @@ class _YolHaritasiTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(Icons.account_tree,
-                  size: 28, color: MetoColors.primary),
-              const SizedBox(width: 12),
+              Icon(icon, size: 26, color: MetoColors.primary),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     L10nText(
-                      'Tanıdan Sonra',
+                      title,
                       style: GoogleFonts.nunito(
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
@@ -125,7 +162,9 @@ class _YolHaritasiTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     L10nText(
-                      'Tanı aldık, şimdi ne yapmalı?',
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.nunito(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -135,7 +174,7 @@ class _YolHaritasiTile extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: MetoColors.primary),
+              Icon(Icons.chevron_right, size: 20, color: MetoColors.primary),
             ],
           ),
         ),

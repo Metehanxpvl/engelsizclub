@@ -46,6 +46,7 @@ class HomePage extends StatefulWidget {
     this.onOpenDestek,
     this.onOpenHaklar,
     this.onOpenHarita,
+    this.onOpenKartlar,
   });
 
   final String userEmail;
@@ -55,6 +56,7 @@ class HomePage extends StatefulWidget {
   final VoidCallback? onOpenDestek;
   final VoidCallback? onOpenHaklar;
   final VoidCallback? onOpenHarita;
+  final VoidCallback? onOpenKartlar;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -332,6 +334,7 @@ class _HomePageState extends State<HomePage> {
             onOpenHaklar: widget.onOpenHaklar,
             onOpenHarita: widget.onOpenHarita,
             onOpenYolHaritasi: () => YolHaritasiPage.open(context),
+            onOpenKartlar: widget.onOpenKartlar,
           ),
 
           const DisclaimerBanner(),
