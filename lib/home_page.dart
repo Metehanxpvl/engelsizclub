@@ -22,6 +22,7 @@ import 'widgets/duyurular_section.dart';
 import 'widgets/gezi_kampanya_home_section.dart';
 import 'widgets/hastaliklar_section.dart';
 import 'widgets/hizli_erisim_home_section.dart';
+import 'widgets/tani_video_seridi.dart';
 import 'widgets/home_social_footer.dart';
 import 'widgets/store_download_prompt.dart';
 import 'pages/premature_gelisim_rehberi_page.dart';
@@ -472,6 +473,15 @@ class _HomePageState extends State<HomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const DisclaimerBanner(margin: EdgeInsets.only(bottom: 16)),
+                if (_kTaniYolEsleme[d.id] != null) ...[
+                  _TaniSonraButon(
+                    onTap: () => YolHaritasiPage.open(
+                      context,
+                      taniId: _kTaniYolEsleme[d.id],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 if (d.symptoms.isNotEmpty) ...[
                   _DetailCard(
                     child: Column(
@@ -699,6 +709,12 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 const SizedBox(height: 20),
+                TaniVideoSeridi(
+                  key: ValueKey('tani_video_${d.id}'),
+                  category: d.id,
+                  anahtarKelimeler: _kTaniVideoKelimeleri[d.id] ?? const [],
+                  viewerEmail: widget.userEmail,
+                ),
                 InfoLibraryMoreCard(
                   category: d.id,
                   title: 'Daha fazla içerik',
@@ -2723,4 +2739,80 @@ class _TrialItem {
   final String conditions;
   final String sponsor;
   final String titleEn;
+}
+
+/// Ana sayfa tanı id → "Tanıdan Sonra" tanı id.
+const Map<String, String> _kTaniYolEsleme = {
+  'otizm': 'otizm',
+  'serebral': 'sp',
+  'down': 'down',
+  'sma': 'sma',
+  'dehb': 'dehb',
+  'gelisim': 'gelisim',
+  'duyu': 'duyu',
+  'iletisim': 'konusma',
+};
+
+/// Tanı sayfası video şeridi: Keşfet başlığında aranacak kelimeler.
+const Map<String, List<String>> _kTaniVideoKelimeleri = {
+  'otizm': ['otizm'],
+  'serebral': ['serebral'],
+  'down': ['down sendrom'],
+  'sma': ['spinal müsküler', 'sma '],
+  'dehb': ['dehb'],
+  'gelisim': ['gelişim gerili'],
+  'duyu': ['duyu bütünleme'],
+  'iletisim': ['konuşma'],
+};
+
+class _TaniSonraButon extends StatelessWidget {
+  const _TaniSonraButon({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: MetoColors.primary,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              const Icon(Icons.checklist_rounded, color: Colors.white, size: 26),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    L10nText(
+                      'Tanı aldınız mı? Ne yapmalı?',
+                      style: GoogleFonts.nunito(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    L10nText(
+                      'Gidilecek doktorlar, terapiler, haklar',
+                      style: GoogleFonts.nunito(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xE6FFFFFF),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.white),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
