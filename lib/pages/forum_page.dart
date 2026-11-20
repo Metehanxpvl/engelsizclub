@@ -105,6 +105,8 @@ class ForumPageState extends State<ForumPage> {
   _ForumSort _sort = _ForumSort.newest;
   int _listPage = 0;
   bool _anon = false;
+  /// Admin: true → "Engelsiz Club (Admin)" olarak paylaş.
+  bool _postAsAdmin = false;
   String _newPostCategory = 'Genel Konular';
   String _uzmanMeslek = uzmanMeslekler.first;
   bool _koseYazisi = false;
@@ -220,9 +222,33 @@ class ForumPageState extends State<ForumPage> {
   String _displayName(String name) {
     final n = name.trim();
     if (n.isEmpty || n.toLowerCase() == 'anonim') return n;
+    if (n == kForumAdminDisplayName) return n;
     if (!_isGuest) return n;
     return maskPersonDisplayName(n);
   }
+
+  bool _showForumAdminBadge(ForumPost post) =>
+      post.author.trim() == kForumAdminDisplayName &&
+      isAppAdmin(post.ownerEmail);
+
+  Widget _forumAdminBadge() => Padding(
+        padding: const EdgeInsets.only(left: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.verified, size: 14, color: MetoColors.primary),
+            const SizedBox(width: 2),
+            Text(
+              'Admin',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: MetoColors.primary,
+              ),
+            ),
+          ],
+        ),
+      );
 
   Future<bool> _requireMember([String? msg]) async {
     return ensureMemberAccess(
@@ -248,6 +274,7 @@ class ForumPageState extends State<ForumPage> {
         ..clear()
         ..addAll(normalizeForumTags(post.tags));
       _anon = false;
+      _postAsAdmin = false;
       if (post.expert) {
         _newPostCategory = 'Uzman';
         _koseYazisi = true;
@@ -273,6 +300,7 @@ class ForumPageState extends State<ForumPage> {
       _formPhotos.clear();
       _formTags.clear();
       _anon = false;
+      _postAsAdmin = false;
       _koseYazisi = _isProfUser;
       if (_isProfUser) {
         _newPostCategory = 'Uzman';
@@ -1135,12 +1163,15 @@ class ForumPageState extends State<ForumPage> {
           category: category,
           authorName: widget.userName,
           authorEmail: widget.userEmail,
-          anon: isExpert ? false : _anon,
+          anon: isExpert || _postAsAdmin ? false : _anon,
+          asAdmin: _isAdmin && _postAsAdmin,
           expert: isExpert,
           meslek: meslek,
           photos: _formPhotos,
           tags: tags,
-          avatarPhoto: (isExpert || !_anon) ? widget.profilFoto : null,
+          avatarPhoto: (isExpert || _postAsAdmin || !_anon)
+              ? widget.profilFoto
+              : null,
         );
         unawaited(ForumFollowStore.notifyFollowersOfPost(
           category: isExpert ? 'Köşe Yazısı' : category,
@@ -1180,6 +1211,7 @@ class ForumPageState extends State<ForumPage> {
         _newPost = false;
         _editingPost = null;
         _anon = false;
+        _postAsAdmin = false;
         _koseYazisi = _isProfUser;
         _activeCategory = isExpert ? 'Köşe Yazısı' : 'Tümü';
         _filterTag = null;
@@ -1601,6 +1633,7 @@ class ForumPageState extends State<ForumPage> {
                     post: post,
                     authorLabel:
                         post.isAnonymous ? 'Anonim' : _displayName(post.author),
+                    showAdminBadge: _showForumAdminBadge(post),
                     onTap: () => _openPost(post),
                     onLike: () => _toggleLike(post),
                     onEdit:
@@ -1792,7 +1825,7 @@ class ForumPageState extends State<ForumPage> {
                   children: [
                     Row(
                       children: [
-                        Expanded(
+                        Flexible(
                           child: Text(
                             _displayName(post.author),
                             maxLines: 1,
@@ -1804,6 +1837,7 @@ class ForumPageState extends State<ForumPage> {
                             ),
                           ),
                         ),
+                        if (_showForumAdminBadge(post)) _forumAdminBadge(),
                         if (post.expert) ...[
                           const SizedBox(width: 8),
                           Container(
@@ -2600,27 +2634,80 @@ class ForumPageState extends State<ForumPage> {
             ),
           ],
           if (!expertMode) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: MetoColors.muted,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
+            if (_isAdmin) ...[
+              const SizedBox(height: 16),
+              _fieldLabel('Paylaşan olarak görünsün'),
+              const SizedBox(height: 8),
+              Row(
                 children: [
-                  Checkbox(
-                    value: _anon,
-                    onChanged: (v) => setState(() => _anon = v ?? false),
-                    activeColor: MetoColors.primary,
+                  Expanded(
+                    child: ChoiceChip(
+                      label: Text(
+                        'Kendi adım (${widget.userName.trim().isEmpty ? 'Üye' : widget.userName.trim()})',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      selected: !_postAsAdmin,
+                      onSelected: (_) => setState(() {
+                        _postAsAdmin = false;
+                      }),
+                      selectedColor: MetoColors.primary.withValues(alpha: 0.2),
+                      labelStyle: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: !_postAsAdmin
+                            ? MetoColors.primary
+                            : MetoColors.mutedFg,
+                      ),
+                    ),
                   ),
-                  L10nText(
-                    'Anonim paylaş',
-                    style: TextStyle(fontSize: 14, color: MetoColors.foreground),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ChoiceChip(
+                      label: const Text('Engelsiz Club (Admin)'),
+                      selected: _postAsAdmin,
+                      onSelected: (_) => setState(() {
+                        _postAsAdmin = true;
+                        _anon = false;
+                      }),
+                      selectedColor: MetoColors.primary.withValues(alpha: 0.2),
+                      labelStyle: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _postAsAdmin
+                            ? MetoColors.primary
+                            : MetoColors.mutedFg,
+                      ),
+                    ),
                   ),
                 ],
               ),
-            ),
+            ],
+            if (!_postAsAdmin) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: MetoColors.muted,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: _anon,
+                      onChanged: (v) => setState(() => _anon = v ?? false),
+                      activeColor: MetoColors.primary,
+                    ),
+                    L10nText(
+                      'Anonim paylaş',
+                      style: TextStyle(
+                          fontSize: 14, color: MetoColors.foreground),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
           const SizedBox(height: 16),
           _fieldLabel('Fotoğraflar (en fazla 2)'),
@@ -2789,6 +2876,7 @@ class _PostCard extends StatelessWidget {
     required this.authorLabel,
     required this.onTap,
     required this.onLike,
+    this.showAdminBadge = false,
     this.onEdit,
     this.onDelete,
     this.onReport,
@@ -2796,6 +2884,7 @@ class _PostCard extends StatelessWidget {
 
   final ForumPost post;
   final String authorLabel;
+  final bool showAdminBadge;
   final VoidCallback onTap;
   final VoidCallback onLike;
   final VoidCallback? onEdit;
@@ -2859,7 +2948,7 @@ class _PostCard extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Expanded(
+                            Flexible(
                               child: Text(
                                 authorLabel,
                                 maxLines: 1,
@@ -2871,6 +2960,29 @@ class _PostCard extends StatelessWidget {
                                 ),
                               ),
                             ),
+                            if (showAdminBadge)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 6),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.verified,
+                                      size: 12,
+                                      color: MetoColors.primary,
+                                    ),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      'Admin',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: MetoColors.primary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             if (post.expert && post.meslek.isEmpty) ...[
                               const SizedBox(width: 6),
                               Container(

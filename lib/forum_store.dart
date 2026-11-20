@@ -8,6 +8,9 @@ import 'forum_post_follow_store.dart';
 import 'meto_theme.dart';
 import 'utils/async_timeout.dart';
 
+/// Admin paylaşımında görünen yazar adı (badge ile birlikte).
+const kForumAdminDisplayName = 'Engelsiz Club';
+
 String forumRelativeTime(DateTime createdAt) {
   final diff = DateTime.now().difference(createdAt.toLocal());
   if (diff.inMinutes < 1) return 'Az önce';
@@ -139,6 +142,7 @@ Future<ForumPost> publishForumPost({
   required String authorName,
   required String authorEmail,
   bool anon = false,
+  bool asAdmin = false,
   bool expert = false,
   String meslek = '',
   List<String> photos = const [],
@@ -150,17 +154,23 @@ Future<ForumPost> publishForumPost({
   if (user == null) {
     throw StateError('Forum paylaşımı için giriş yapın.');
   }
-  final name = authorName.trim().isEmpty
-      ? (user.email ?? 'Üye').split('@').first
-      : authorName.trim();
-  final author = anon ? 'Anonim' : name;
+  final adminDisplay = asAdmin && isAppAdmin(user.email);
+  final effectiveAnon = adminDisplay ? false : anon;
+  final name = adminDisplay
+      ? kForumAdminDisplayName
+      : (authorName.trim().isEmpty
+          ? (user.email ?? 'Üye').split('@').first
+          : authorName.trim());
+  final author = effectiveAnon ? 'Anonim' : name;
   final photo = (avatarPhoto ?? '').trim();
   // DB şişmesin: avatar’da sadece http(s) URL veya baş harf (base64 yok).
-  final avatar = anon
-      ? 'A'
-      : (photo.startsWith('http://') || photo.startsWith('https://'))
-          ? photo
-          : (name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '?');
+  final avatar = adminDisplay
+      ? 'E'
+      : effectiveAnon
+          ? 'A'
+          : (photo.startsWith('http://') || photo.startsWith('https://'))
+              ? photo
+              : (name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '?');
 
   final payload = <String, dynamic>{
     'author': author,
@@ -173,7 +183,7 @@ Future<ForumPost> publishForumPost({
     'comments': 0,
     'pinned': false,
     'expert': expert,
-    'anon': anon,
+    'anon': effectiveAnon,
     'owner_email': authorEmail.trim().toLowerCase(),
     'owner_id': user.id,
   };
