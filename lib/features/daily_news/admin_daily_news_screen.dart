@@ -46,6 +46,39 @@ class _AdminDailyNewsScreenState extends State<AdminDailyNewsScreen> {
   String? _error;
   String? _busyId;
   String _kategori = _kTumu;
+  bool _topluRet = false;
+
+  /// Benzer başlıklı haberler tek kartta: ilk eleman gösterilen haberdir.
+  List<List<DailyNewsCandidate>> get _gruplar => benzerHaberGruplari(_gorunen);
+
+  Future<void> _benzerleriReddet(List<DailyNewsCandidate> liste) async {
+    if (_topluRet || liste.isEmpty) return;
+    setState(() => _topluRet = true);
+    var hata = 0;
+    final silinen = <String>{};
+    for (final e in liste) {
+      try {
+        await _repo.reject(e.id);
+        silinen.add(e.id);
+      } catch (_) {
+        hata++;
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _items = [for (final e in _items) if (!silinen.contains(e.id)) e];
+      _topluRet = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          hata == 0
+              ? '${silinen.length} benzer haber reddedildi.'
+              : '${silinen.length} reddedildi, $hata reddedilemedi.',
+        ),
+      ),
+    );
+  }
 
   List<DailyNewsCandidate> get _gorunen => _kategori == _kTumu
       ? _items
@@ -229,16 +262,30 @@ class _AdminDailyNewsScreenState extends State<AdminDailyNewsScreen> {
                             Expanded(
                               child: ListView.separated(
                           padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                          itemCount: _gorunen.length,
+                          itemCount: _gruplar.length,
                           separatorBuilder: (_, __) => const SizedBox(height: 8),
                           itemBuilder: (context, i) {
-                            final item = _gorunen[i];
-                            return _NewsCandidateCard(
+                            final grup = _gruplar[i];
+                            final item = grup.first;
+                            final kart = _NewsCandidateCard(
                               item: item,
                               busy: _busyId == item.id,
                               onEdit: () => _edit(item),
                               onApprove: () => _approve(item),
                               onReject: () => _reject(item),
+                            );
+                            if (grup.length == 1) return kart;
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                kart,
+                                _BenzerHaberler(
+                                  benzerler: grup.sublist(1),
+                                  busy: _topluRet,
+                                  onHepsiniReddet: () =>
+                                      _benzerleriReddet(grup.sublist(1)),
+                                ),
+                              ],
                             );
                           },
                         ),
@@ -715,6 +762,157 @@ class _KategoriSeridi extends StatelessWidget {
             onSelected: (_) => onSec(k),
           );
         },
+      ),
+    );
+  }
+}
+
+const Set<String> _kBenzerDurak = {
+  'engel', 'birey', 'için', 'olan', 'haber', 'gazet', 'ajans', 'ihlas',
+  'dakik', 'günde', 'yeni', 'büyük', 'önemli', 'anlam',
+};
+
+/// Başlığı karşılaştırma için kelime köklerine (ilk 5 harf) çevirir.
+Set<String> _baslikKokleri(String title) {
+  var t = title;
+  final tire = t.lastIndexOf(' - ');
+  if (tire > 20) t = t.substring(0, tire);
+  t = _trKucuk(t).replaceAll(RegExp(r"[^a-zçğıöşü\s]"), ' ');
+  final out = <String>{};
+  for (final w in t.split(RegExp(r'\s+'))) {
+    if (w.length < 3) continue;
+    final kok = w.length > 5 ? w.substring(0, 5) : w;
+    if (_kBenzerDurak.contains(kok)) continue;
+    out.add(kok);
+  }
+  return out;
+}
+
+bool _benzerMi(Set<String> a, Set<String> b) {
+  if (a.length < 3 || b.length < 3) return false;
+  final ortak = a.intersection(b).length;
+  if (ortak < 3) return false;
+  final kucuk = a.length < b.length ? a.length : b.length;
+  return ortak / kucuk >= 0.6;
+}
+
+/// Benzer başlıklı haberleri gruplar. Her grubun ilk elemanı en yüksek
+/// puanlı (eşitse en yeni) haberdir; sıra ilk görülme sırasına göredir.
+List<List<DailyNewsCandidate>> benzerHaberGruplari(
+  List<DailyNewsCandidate> items,
+) {
+  final gruplar = <List<DailyNewsCandidate>>[];
+  final kokler = <Set<String>>[];
+  for (final e in items) {
+    final k = _baslikKokleri(e.title);
+    var eklendi = false;
+    for (var i = 0; i < gruplar.length; i++) {
+      if (_benzerMi(k, kokler[i])) {
+        gruplar[i].add(e);
+        eklendi = true;
+        break;
+      }
+    }
+    if (!eklendi) {
+      gruplar.add([e]);
+      kokler.add(k);
+    }
+  }
+  for (final g in gruplar) {
+    g.sort((a, b) {
+      final p = b.relevanceScore.compareTo(a.relevanceScore);
+      if (p != 0) return p;
+      final ad = a.publishedAt ?? DateTime(2000);
+      final bd = b.publishedAt ?? DateTime(2000);
+      return bd.compareTo(ad);
+    });
+  }
+  return gruplar;
+}
+
+class _BenzerHaberler extends StatelessWidget {
+  const _BenzerHaberler({
+    required this.benzerler,
+    required this.busy,
+    required this.onHepsiniReddet,
+  });
+
+  final List<DailyNewsCandidate> benzerler;
+  final bool busy;
+  final VoidCallback onHepsiniReddet;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 4),
+      decoration: BoxDecoration(
+        color: MetoColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: MetoColors.border),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+          title: Text(
+            '+${benzerler.length} benzer haber (başka kaynaklar)',
+            style: GoogleFonts.nunito(
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+              color: MetoColors.primary,
+            ),
+          ),
+          children: [
+            for (final b in benzerler)
+              InkWell(
+                onTap: b.articleUrl.trim().isEmpty
+                    ? null
+                    : () => launchUrl(
+                          Uri.parse(b.articleUrl.trim()),
+                          mode: LaunchMode.externalApplication,
+                        ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(top: 2),
+                        child: Icon(Icons.article_outlined, size: 16),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${b.title}  ·  ${b.sourceName}',
+                          style: GoogleFonts.nunito(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: MetoColors.foreground,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: busy ? null : onHepsiniReddet,
+                icon: busy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.close, size: 18),
+                label: Text('Benzerlerini reddet (${benzerler.length})'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
