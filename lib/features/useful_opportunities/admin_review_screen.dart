@@ -35,6 +35,11 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
   var _loading = true;
   String? _error;
   String? _busyId;
+  String _kategori = 'tumu';
+
+  List<UsefulContentItem> get _gorunen => _kategori == 'tumu'
+      ? _items
+      : [for (final e in _items) if (e.category == _kategori) e];
 
   bool get _isAdmin => isAppAdmin(widget.adminEmail);
 
@@ -244,13 +249,21 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
                             ),
                           ),
                         )
-                      : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-                          itemCount: _items.length,
+                      : Column(
+                          children: [
+                            _FirsatKategoriSeridi(
+                              items: _items,
+                              secili: _kategori,
+                              onSec: (k) => setState(() => _kategori = k),
+                            ),
+                            Expanded(
+                              child: ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+                          itemCount: _gorunen.length,
                           separatorBuilder: (_, __) =>
                               const SizedBox(height: 8),
                           itemBuilder: (context, i) {
-                            final item = _items[i];
+                            final item = _gorunen[i];
                             return _PendingReviewCard(
                               item: item,
                               busy: _busyId == item.id,
@@ -260,6 +273,9 @@ class _AdminReviewScreenState extends State<AdminReviewScreen> {
                               onApprove: (url) => _approve(item, url),
                             );
                           },
+                        ),
+                            ),
+                          ],
                         ),
     );
   }
@@ -639,6 +655,67 @@ class _PendingReviewCardState extends State<_PendingReviewCard> {
           fontWeight: FontWeight.w800,
           color: color,
         ),
+      ),
+    );
+  }
+}
+
+class _FirsatKategoriSeridi extends StatelessWidget {
+  const _FirsatKategoriSeridi({
+    required this.items,
+    required this.secili,
+    required this.onSec,
+  });
+
+  final List<UsefulContentItem> items;
+  final String secili;
+  final ValueChanged<String> onSec;
+
+  @override
+  Widget build(BuildContext context) {
+    final sayilar = <String, int>{};
+    for (final e in items) {
+      sayilar[e.category] = (sayilar[e.category] ?? 0) + 1;
+    }
+    final sira = <String>[
+      'tumu',
+      for (final k in kUsefulContentCategories.keys)
+        if (k != 'tumu' && (sayilar[k] ?? 0) > 0) k,
+      for (final k in sayilar.keys)
+        if (!kUsefulContentCategories.containsKey(k)) k,
+    ];
+    if (!sira.contains(secili)) sira.add(secili);
+    return SizedBox(
+      height: 52,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+        itemCount: sira.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final k = sira[i];
+          final n = k == 'tumu' ? items.length : (sayilar[k] ?? 0);
+          final aktif = k == secili;
+          final ad = kUsefulContentCategories[k] ?? k;
+          return ChoiceChip(
+            label: Text(
+              '$ad ($n)',
+              style: GoogleFonts.nunito(
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+                color: aktif ? Colors.white : MetoColors.foreground,
+              ),
+            ),
+            selected: aktif,
+            showCheckmark: false,
+            selectedColor: MetoColors.primary,
+            backgroundColor: MetoColors.card,
+            side: BorderSide(
+              color: aktif ? MetoColors.primary : MetoColors.border,
+            ),
+            onSelected: (_) => onSec(k),
+          );
+        },
       ),
     );
   }
