@@ -763,6 +763,8 @@ class GeminiClient:
         merged: dict[str, dict[str, Any]] = {}
         chunks = chunk_text(page_text)
         debug = bool(_env("AVM_DEBUG"))
+        if _env("AVM_DEBUG_TEXT"):
+            print(f"  [metin] {page_text[:3500]}", file=sys.stderr)
         for i, chunk in enumerate(chunks):
             prompt = gemini_prompt(city, avm_name, today, chunk)
             rows = self._generate_array(prompt)
@@ -1775,6 +1777,9 @@ def load_sources() -> list[dict[str, str]]:
             continue
         only = [c.strip() for c in _env("AVM_ONLY_CITIES").split(",") if c.strip()]
         if only and city not in only:
+            continue
+        only_names = [c.strip() for c in _env("AVM_ONLY_NAMES").split(",") if c.strip()]
+        if only_names and avm not in only_names:
             continue
         seen.add(key)
         image = normalize_ws(str(item.get("image") or ""))
