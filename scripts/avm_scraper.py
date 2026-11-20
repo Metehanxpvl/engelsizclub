@@ -762,15 +762,30 @@ class GeminiClient:
         live_on = today_date or today_istanbul()
         merged: dict[str, dict[str, Any]] = {}
         chunks = chunk_text(page_text)
+        debug = bool(_env("AVM_DEBUG"))
         for i, chunk in enumerate(chunks):
             prompt = gemini_prompt(city, avm_name, today, chunk)
             rows = self._generate_array(prompt)
+            if debug:
+                print(f"  [debug] parça {i + 1}/{len(chunks)}: Gemini {len(rows)} satır", file=sys.stderr)
             for row in rows:
                 event = coerce_event(row, city, avm_name)
                 if not event:
+                    if debug:
+                        print(f"  [debug] geçersiz satır: {str(row)[:160]}", file=sys.stderr)
                     continue
                 if not event_is_live(event["event_date"], live_on):
+                    if debug:
+                        print(
+                            f"  [debug] tarih eledi: {event['event_name'][:60]} | {event['event_date']}",
+                            file=sys.stderr,
+                        )
                     continue
+                if debug:
+                    print(
+                        f"  [debug] + {event['event_name'][:60]} | {event['event_date']}",
+                        file=sys.stderr,
+                    )
                 key = (
                     event["city"],
                     event["avm_name"],
@@ -1757,6 +1772,9 @@ def load_sources() -> list[dict[str, str]]:
             continue
         key = (city, avm, url)
         if key in seen:
+            continue
+        only = [c.strip() for c in _env("AVM_ONLY_CITIES").split(",") if c.strip()]
+        if only and city not in only:
             continue
         seen.add(key)
         image = normalize_ws(str(item.get("image") or ""))

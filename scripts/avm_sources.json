@@ -28,8 +28,13 @@
   },
   {
     "city": "Ankara",
+    "avm_name": "Acity",
+    "events_url": "https://www.acity.com.tr/etkinlikler"
+  },
+  {
+    "city": "Ankara",
     "avm_name": "Ankamall",
-    "events_url": "https://www.ankamall.com.tr/",
+    "events_url": "https://www.ankamall.com.tr/etkinlikler",
     "image": "https://www.ankamall.com.tr/ankamall/assets/img/slider/ankamall_slider.jpg"
   },
   {
@@ -45,7 +50,7 @@
   {
     "city": "Ankara",
     "avm_name": "Forum Ankara Outlet",
-    "events_url": "https://www.forum-ankara.com/"
+    "events_url": "https://forum-ankara.com/"
   },
   {
     "city": "Ankara",
@@ -61,12 +66,17 @@
   {
     "city": "Ankara",
     "avm_name": "Next Level",
-    "events_url": "https://www.nextlevelavm.com.tr/tr"
+    "events_url": "https://www.nextlevelavm.com.tr/tr/etkinlikler"
   },
   {
     "city": "Ankara",
     "avm_name": "Panora",
     "events_url": "https://www.panora.com.tr/"
+  },
+  {
+    "city": "Antalya",
+    "avm_name": "Deepo Outlet",
+    "events_url": "https://www.deepo.com.tr/duyurular"
   },
   {
     "city": "Antalya",
@@ -76,7 +86,7 @@
   {
     "city": "Antalya",
     "avm_name": "MarkAntalya",
-    "events_url": "https://www.markantalya.com/",
+    "events_url": "https://markantalya.com/etkinlik-kampanya/",
     "image": "https://markantalya.com/wp-content/uploads/2026/02/markantalya-2.jpg"
   },
   {
@@ -120,42 +130,25 @@
   {
     "city": "Bursa",
     "avm_name": "Anatolium",
-    "events_url": "https://anatolium-bursa.com/tr",
+    "events_url": "https://anatolium-bursa.com/tr/etkinlikler",
     "image": "https://klepierre.s3.eu-central-1.amazonaws.com/images/webslider/web_slider_image/main/0f4a4327-4768-4328-9a6e-49b9daad0301.jpeg?1788431141914?1788431141914"
   },
   {
     "city": "Bursa",
     "avm_name": "Kent Meydanı",
-    "events_url": "https://www.kentmeydani.com.tr/",
+    "events_url": "https://www.kentmeydani.com.tr/etkinlikler/",
     "image": "https://kentmeydani.com/wp-content/uploads/2018/06/web-site-banner-860x480-1-1.jpg"
   },
   {
     "city": "Bursa",
     "avm_name": "Korupark",
-    "events_url": "https://www.korupark.com.tr/"
+    "events_url": "https://www.korupark.com.tr/etkinlikler"
   },
   {
     "city": "Bursa",
     "avm_name": "Zafer Plaza",
-    "events_url": "https://zaferplaza.com.tr/",
+    "events_url": "https://zaferplaza.com.tr/etkinlikler",
     "image": "https://zaferplaza.com.tr/assets/upload/images/37cfb7c4b1904c335c9521e2bc6ba3ba.jpeg"
-  },
-  {
-    "city": "Çanakkale",
-    "avm_name": "17 Burda",
-    "events_url": "https://www.17burda.com/",
-    "image": "https://cdn.esasgm.com.tr/Uploads/esasburda17/Page/bbbb_1.png"
-  },
-  {
-    "city": "Çankırı",
-    "avm_name": "Yunus AVM",
-    "events_url": "https://yunusavm.com/",
-    "image": "https://yunusavm.com/www/banner/5cbec6761ff45_12.jpg"
-  },
-  {
-    "city": "Çorum",
-    "avm_name": "AHL Park",
-    "events_url": "https://ahlpark.com.tr/"
   },
   {
     "city": "Denizli",
@@ -213,7 +206,7 @@
   {
     "city": "Gaziantep",
     "avm_name": "Sanko Park",
-    "events_url": "https://www.sankopark.com.tr/",
+    "events_url": "https://www.sankopark.com.tr/etkinlik",
     "image": "https://static.wixstatic.com/media/306a31_a2a0ee2a5a5c43e8aef758991f654c5b%7Emv2.png/v1/fit/w_2500,h_1330,al_c/306a31_a2a0ee2a5a5c43e8aef758991f654c5b%7Emv2.png"
   },
   {
@@ -232,127 +225,6 @@
     "avm_name": "Iyaşpark",
     "events_url": "https://iyasparkavm.com/",
     "image": "https://cdn-ildnpjb.nitrocdn.com/AtnlSOOyCnmCSeBvWYOodwEFZLzCXqxH/assets/images/optimized/rev-5df9031/iyasparkavm.com/wp-content/uploads/2025/07/park-pc.jpg"
-  },
-  {
-    "city": "İstanbul",
-    "avm_name": "Akasya",
-    "events_url": "https://www.ak-asya.com.tr/etkinlikler/"
-  },
-  {
-    "city": "İstanbul",
-    "avm_name": "Akbatı",
-    "events_url": "https://www.akbati.com.tr/etkinlikler/"
-  },
-  {
-    "city": "İstanbul",
-    "avm_name": "Akmerkez",
-    "events_url": "https://www.akmerkez.com.tr/",
-    "image": "https://akis-gyo.s3.eu-central-1.amazonaws.com/images/webslider/web_slider_desktop_image/main/1d5344eb-2bc8-4b53-9f17-e1c048e49e9f.jpeg?1788358112641?1788358112641"
-  },
-  {
-    "city": "İstanbul",
-    "avm_name": "Capitol",
-    "events_url": "https://www.capitol.com.tr/tr",
-    "image": "https://www.capitol.com.tr/media/q01frxan/konsept_aura-1440x800-1.jpg"
-  },
-  {
-    "city": "İstanbul",
-    "avm_name": "Cevahir",
-    "events_url": "https://istanbulcevahir.com/etkinlikler/",
-    "image": "https://istanbulcevahir.com/wp-content/uploads/2026/06/kucuk-adimlar-buyuk-fikirler-haziran-kucuk-tr.webp"
-  },
-  {
-    "city": "İstanbul",
-    "avm_name": "Emaar Square",
-    "events_url": "https://www.emaarsquaremall.com/tr"
-  },
-  {
-    "city": "İstanbul",
-    "avm_name": "Forum İstanbul",
-    "events_url": "https://forumistanbul.com.tr/etkinlik-firsat"
-  },
-  {
-    "city": "İstanbul",
-    "avm_name": "Hilltown Küçükyalı",
-    "events_url": "https://www.hilltownkucukyali.com/"
-  },
-  {
-    "city": "İstanbul",
-    "avm_name": "İstinyePark",
-    "events_url": "https://www.istinyepark.com/tr"
-  },
-  {
-    "city": "İstanbul",
-    "avm_name": "Kanyon",
-    "events_url": "https://www.kanyon.com.tr/tr",
-    "image": "https://www.kanyon.com.tr/assets/images/kanyon-og.webp"
-  },
-  {
-    "city": "İstanbul",
-    "avm_name": "Mall of İstanbul",
-    "events_url": "https://www.mallofistanbul.com.tr/tr",
-    "image": "https://mall-of-istanbul.s3.eu-central-1.amazonaws.com/images/webslider/web_slider_desktop_image/main/0edcc6a8-5b63-40ce-a66e-6e7c407f1aae.jpeg?1787320712788?1787320712788"
-  },
-  {
-    "city": "İstanbul",
-    "avm_name": "Metropol İstanbul",
-    "events_url": "https://www.metropolistanbul.com/",
-    "image": "https://citypartners.fra1.digitaloceanspaces.com/images/webslider/web_slider_desktop_image/main/f8827447-ce5f-4fdd-b96a-7c244ddfc38b.jpeg?1788263956889?1788263956889"
-  },
-  {
-    "city": "İstanbul",
-    "avm_name": "Vadistanbul",
-    "events_url": "https://www.vadistanbul.com.tr/"
-  },
-  {
-    "city": "İstanbul",
-    "avm_name": "Zorlu Center",
-    "events_url": "https://www.zorlucenter.com/tr/etkinlikler"
-  },
-  {
-    "city": "İstanbul",
-    "avm_name": "Palladium Ataşehir",
-    "events_url": "https://www.palladiumats.com.tr/"
-  },
-  {
-    "city": "İstanbul",
-    "avm_name": "Capacity",
-    "events_url": "https://www.capacity.com.tr/"
-  },
-  {
-    "city": "İstanbul",
-    "avm_name": "Tepe Nautilus",
-    "events_url": "https://www.tepenautilus.com/"
-  },
-  {
-    "city": "İzmir",
-    "avm_name": "Forum Bornova",
-    "events_url": "https://forumbornova.com.tr/etkinlik-firsat"
-  },
-  {
-    "city": "İzmir",
-    "avm_name": "Hilltown Karşıyaka",
-    "events_url": "https://www.hilltownkarsiyaka.com/"
-  },
-  {
-    "city": "İzmir",
-    "avm_name": "İstinyePark İzmir",
-    "events_url": "https://www.istinyeparkizmir.com/"
-  },
-  {
-    "city": "İzmir",
-    "avm_name": "İzmir Optimum",
-    "events_url": "https://www.izmiroptimum.com.tr/"
-  },
-  {
-    "city": "İzmir",
-    "avm_name": "Point Bornova",
-    "events_url": "https://www.pointbornova.com/"
-  },
-  {
-    "city": "İzmir",
-    "avm_name": "Agora İzmir",
-    "events_url": "https://www.agoraizmir.com/"
   },
   {
     "city": "Kahramanmaraş",
@@ -376,18 +248,6 @@
     "events_url": "https://forumkayseri.com.tr/etkinlik-firsat"
   },
   {
-    "city": "Kırıkkale",
-    "avm_name": "Podium",
-    "events_url": "https://www.podiumkirikkale.com.tr/",
-    "image": "https://www.podiumkirikkale.com.tr/assets/images/ankarapodium.jpg"
-  },
-  {
-    "city": "Kırklareli",
-    "avm_name": "MiniMALL",
-    "events_url": "https://minimall.com.tr/tr",
-    "image": "https://minimall.com.tr/uploads/Slider_1_a8961bc593.webp"
-  },
-  {
     "city": "Kocaeli",
     "avm_name": "41 Burda",
     "events_url": "https://www.41burda.com/",
@@ -407,7 +267,7 @@
   {
     "city": "Konya",
     "avm_name": "KuleSite",
-    "events_url": "https://www.kulesite.com/",
+    "events_url": "https://www.kulesite.com/events",
     "image": "https://admin.kulesite.com/Files/Etkinlikler/Events_27072026_00001.jpeg"
   },
   {
@@ -415,6 +275,18 @@
     "avm_name": "Sera Kütahya",
     "events_url": "https://www.serakutahyaavm.com.tr/",
     "image": "https://www.serakutahyaavm.com.tr/uploads/4d12b54c80854517b2b8d9b884492b2c.png"
+  },
+  {
+    "city": "Kırklareli",
+    "avm_name": "MiniMALL",
+    "events_url": "https://minimall.com.tr/tr",
+    "image": "https://minimall.com.tr/uploads/Slider_1_a8961bc593.webp"
+  },
+  {
+    "city": "Kırıkkale",
+    "avm_name": "Podium",
+    "events_url": "https://www.podiumkirikkale.com.tr/",
+    "image": "https://www.podiumkirikkale.com.tr/assets/images/ankarapodium.jpg"
   },
   {
     "city": "Malatya",
@@ -500,7 +372,7 @@
   {
     "city": "Samsun",
     "avm_name": "Yeşilyurt",
-    "events_url": "https://www.yesilyurtavm.com/"
+    "events_url": "https://www.yesilyurtavm.com/etkinlikler"
   },
   {
     "city": "Siirt",
@@ -512,17 +384,6 @@
     "city": "Sivas",
     "avm_name": "İva Park",
     "events_url": "https://ivaparkavm.com.tr/etkinlikler/"
-  },
-  {
-    "city": "Şanlıurfa",
-    "avm_name": "Novada Park Şanlıurfa",
-    "events_url": "https://www.novadasanliurfa.com/",
-    "image": "https://www.novadasanliurfa.com/uploads/sliders/01JSS1N19GG6EV2148B87WTR9H.png"
-  },
-  {
-    "city": "Şanlıurfa",
-    "avm_name": "Piazza Şanlıurfa",
-    "events_url": "https://sanliurfapiazza.com/tr"
   },
   {
     "city": "Tekirdağ",
@@ -572,5 +433,184 @@
     "avm_name": "67 Burda",
     "events_url": "https://www.esas67burda.com/",
     "image": "https://cdn.esasgm.com.tr/Uploads/esasburda67/Page/046_67-burda-el-fani-kampanyasi_1417x620_2.png"
+  },
+  {
+    "city": "Çanakkale",
+    "avm_name": "17 Burda",
+    "events_url": "https://www.17burda.com/",
+    "image": "https://cdn.esasgm.com.tr/Uploads/esasburda17/Page/bbbb_1.png"
+  },
+  {
+    "city": "Çankırı",
+    "avm_name": "Yunus AVM",
+    "events_url": "https://yunusavm.com/",
+    "image": "https://yunusavm.com/www/banner/5cbec6761ff45_12.jpg"
+  },
+  {
+    "city": "Çorum",
+    "avm_name": "AHL Park",
+    "events_url": "https://ahlpark.com.tr/"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "212 İstanbul",
+    "events_url": "https://www.212istanbul.com/etkinlikler/"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Akasya",
+    "events_url": "https://www.ak-asya.com.tr/etkinlikler/"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Akbatı",
+    "events_url": "https://akbati.com/"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Akmerkez",
+    "events_url": "https://www.akmerkez.com.tr/",
+    "image": "https://akis-gyo.s3.eu-central-1.amazonaws.com/images/webslider/web_slider_desktop_image/main/1d5344eb-2bc8-4b53-9f17-e1c048e49e9f.jpeg?1788358112641?1788358112641"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Aqua Florya",
+    "events_url": "https://www.aquaflorya.com/"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Capacity",
+    "events_url": "https://www.capacity.com.tr/etkinlikler"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Capitol",
+    "events_url": "https://www.capitol.com.tr/tr",
+    "image": "https://www.capitol.com.tr/media/q01frxan/konsept_aura-1440x800-1.jpg"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Cevahir",
+    "events_url": "https://istanbulcevahir.com/etkinlikler/",
+    "image": "https://istanbulcevahir.com/wp-content/uploads/2026/06/kucuk-adimlar-buyuk-fikirler-haziran-kucuk-tr.webp"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Emaar Square",
+    "events_url": "https://www.emaarsquaremall.com/tr"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Forum İstanbul",
+    "events_url": "https://forumistanbul.com.tr/etkinlik-firsat"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Galleria Ataköy",
+    "events_url": "https://www.galleria.com.tr/"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Hilltown Küçükyalı",
+    "events_url": "https://www.hilltownkucukyali.com/"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Kanyon",
+    "events_url": "https://www.kanyon.com.tr/tr",
+    "image": "https://www.kanyon.com.tr/assets/images/kanyon-og.webp"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Mall of İstanbul",
+    "events_url": "https://www.mallofistanbul.com.tr/etkinlikler",
+    "image": "https://mall-of-istanbul.s3.eu-central-1.amazonaws.com/images/webslider/web_slider_desktop_image/main/0edcc6a8-5b63-40ce-a66e-6e7c407f1aae.jpeg?1787320712788?1787320712788"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Metropol İstanbul",
+    "events_url": "https://www.metropolistanbul.com/",
+    "image": "https://citypartners.fra1.digitaloceanspaces.com/images/webslider/web_slider_desktop_image/main/f8827447-ce5f-4fdd-b96a-7c244ddfc38b.jpeg?1788263956889?1788263956889"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Neomarin",
+    "events_url": "https://www.neomarin.com.tr/"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Palladium Ataşehir",
+    "events_url": "https://www.palladiumats.com.tr/"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Starcity",
+    "events_url": "https://www.starcity.com.tr/"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Tepe Nautilus",
+    "events_url": "https://www.tepenautilus.com/etkinlikler"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Vadistanbul",
+    "events_url": "https://www.vadistanbul.com.tr/"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Venezia Mega Outlet",
+    "events_url": "https://www.veneziamegaoutlet.com/events"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "Zorlu Center",
+    "events_url": "https://www.zorlucenter.com/tr/etkinlikler"
+  },
+  {
+    "city": "İstanbul",
+    "avm_name": "İstinyePark",
+    "events_url": "https://istinyepark.com.tr/events"
+  },
+  {
+    "city": "İzmir",
+    "avm_name": "Agora İzmir",
+    "events_url": "https://www.agoraizmir.com/"
+  },
+  {
+    "city": "İzmir",
+    "avm_name": "Forum Bornova",
+    "events_url": "https://forumbornova.com.tr/etkinlik-firsat"
+  },
+  {
+    "city": "İzmir",
+    "avm_name": "Hilltown Karşıyaka",
+    "events_url": "https://www.hilltownkarsiyaka.com/"
+  },
+  {
+    "city": "İzmir",
+    "avm_name": "Point Bornova",
+    "events_url": "https://www.pointbornova.com/"
+  },
+  {
+    "city": "İzmir",
+    "avm_name": "İstinyePark İzmir",
+    "events_url": "https://www.istinyeparkizmir.com/"
+  },
+  {
+    "city": "İzmir",
+    "avm_name": "İzmir Optimum",
+    "events_url": "https://www.izmiroptimum.com.tr/"
+  },
+  {
+    "city": "Şanlıurfa",
+    "avm_name": "Novada Park Şanlıurfa",
+    "events_url": "https://www.novadasanliurfa.com/",
+    "image": "https://www.novadasanliurfa.com/uploads/sliders/01JSS1N19GG6EV2148B87WTR9H.png"
+  },
+  {
+    "city": "Şanlıurfa",
+    "avm_name": "Piazza Şanlıurfa",
+    "events_url": "https://sanliurfapiazza.com/tr"
   }
 ]
