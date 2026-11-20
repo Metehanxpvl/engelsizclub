@@ -57,6 +57,7 @@ import 'pages/engelsiz_kariyer_page.dart';
 import 'pages/etkinlikler_page.dart';
 import 'pages/gezi_rehberi_page.dart';
 import 'pages/kampanyalar_page.dart';
+import 'widgets/admin_did_you_know_sheet.dart';
 import 'widgets/admin_more_menu_sheet.dart';
 import 'widgets/taramalar_group_sheet.dart';
 import 'pages/admin_uzman_cv_page.dart';
@@ -2053,6 +2054,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       return;
     }
 
+    if (type == kDidYouKnowType || type == 'did_you_know') {
+      final text = (data['text'] ?? data['body'] ?? '').trim();
+      if (text.isEmpty) return;
+      unawaited(_showDidYouKnow(text));
+      return;
+    }
+
     if (type.startsWith('forum')) {
       if (id != null && id > 0) {
         setState(() {
@@ -2119,6 +2127,25 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       }
       _openIlanDetay(kind: kind.isEmpty ? 'uzman' : kind, id: id);
     }
+  }
+
+  Future<void> _showDidYouKnow(String text) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const L10nText(kDidYouKnowTitle),
+        content: SingleChildScrollView(
+          child: Text(text),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const L10nText('Tamam'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _openBildirim(AppBildirim b) async {
@@ -4621,6 +4648,19 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               sub: 'Anlık aktif · üye listesi',
               highlight: true,
               onTap: () => setState(() => _showAdminUsers = true),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '💡',
+              label: kDidYouKnowTitle,
+              sub: 'Serbest mesaj · tüm üyelere bildirim',
+              highlight: true,
+              onTap: () => AdminDidYouKnowSheet.open(
+                context,
+                adminEmail: widget.user.email,
+              ),
             ),
           ),
           Padding(
