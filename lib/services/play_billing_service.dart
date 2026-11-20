@@ -398,6 +398,34 @@ class StoreBillingService {
     if (price != null && price.isNotEmpty) return price;
     return null;
   }
+
+  /// Mağaza fiyatından puan başı tutar (ör. "₺75,59"). Ürün yoksa null.
+  String? storeUnitPriceForAdet(int adet) {
+    final p = _productForAdet(adet);
+    if (p == null || adet <= 0 || p.rawPrice <= 0) return null;
+    final sym = p.currencySymbol.trim().isEmpty ? '₺' : p.currencySymbol.trim();
+    return '$sym${_trMoney(p.rawPrice / adet)}';
+  }
+
+  /// 1 puanlık ürüne göre indirim yüzdesi. Bilinmiyorsa null, indirim yoksa 0.
+  int? storeDiscountPctForAdet(int adet) {
+    if (adet <= 1) return null;
+    final one = _productForAdet(1);
+    final p = _productForAdet(adet);
+    if (one == null || p == null || one.rawPrice <= 0) return null;
+    final pct = ((1 - p.rawPrice / (adet * one.rawPrice)) * 100).round();
+    return pct > 0 ? pct : 0;
+  }
+
+  static String _trMoney(double v) {
+    final s = v.toStringAsFixed(2);
+    final parts = s.split('.');
+    final intPart = parts[0].replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => '.',
+    );
+    return '$intPart,${parts[1]}';
+  }
 }
 
 /// Eski ad — geriye uyumluluk.

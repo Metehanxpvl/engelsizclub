@@ -387,46 +387,47 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       .where((b) => b.isTeklif && b.ilanId == ilanId)
       .toList();
 
+  /// Yedek fiyatlar (mağaza fiyatı okunamazsa / web). Asıl fiyat Play / App Store'dan gelir.
   static const List<_KrediPaket> _krediPaketleri = [
     (
       adet: 1,
-      fiyat: '₺69,90',
-      birim: '₺69,90/puan',
+      fiyat: '₺83,99',
+      birim: '₺83,99/puan',
       desc: '1 teklif = 1 puan',
       popular: false,
     ),
     (
       adet: 5,
-      fiyat: '₺314,55',
-      birim: '₺62,91/puan',
+      fiyat: '₺377,96',
+      birim: '₺75,59/puan',
       desc: '%10 indirim',
       popular: true,
     ),
     (
       adet: 10,
-      fiyat: '₺594,15',
-      birim: '₺59,42/puan',
+      fiyat: '₺713,92',
+      birim: '₺71,39/puan',
       desc: '%15 indirim',
       popular: false,
     ),
     (
       adet: 30,
-      fiyat: '₺1.677,60',
-      birim: '₺55,92/puan',
+      fiyat: '₺2.015,76',
+      birim: '₺67,19/puan',
       desc: '%20 indirim',
       popular: false,
     ),
     (
       adet: 50,
-      fiyat: '₺2.621,25',
-      birim: '₺52,43/puan',
+      fiyat: '₺3.149,63',
+      birim: '₺62,99/puan',
       desc: '%25 indirim',
       popular: false,
     ),
     (
       adet: 100,
-      fiyat: '₺4.893,00',
-      birim: '₺48,93/puan',
+      fiyat: '₺5.879,30',
+      birim: '₺58,79/puan',
       desc: 'En avantajlı · %30 indirim',
       popular: false,
     ),
@@ -436,7 +437,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       (widget.user.userType ?? 'aile').trim().toLowerCase();
 
   bool get _isProf => _role == 'uzman' || _role == 'bakici';
-  /// Rol bazlı; admin aile rolündeyken ₺69 puan fiyatı / teklif metni gösterilmez.
+  /// Rol bazlı; admin aile rolündeyken puan fiyatı / teklif metni gösterilmez.
   bool get _isAileRole => !_isProf;
   bool get _canBuyKredi =>
       _isProf || _isAileRole || isAppAdmin(widget.user.email);
@@ -448,6 +449,25 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   String _paketFiyatLabel(_KrediPaket p) =>
       StoreBillingService.instance.storePriceForAdet(p.adet) ?? p.fiyat;
+
+  /// 1 puan fiyatı: mağazadan, yoksa yedek.
+  String get _birPuanFiyat => _paketFiyatLabel(_krediPaketleri.first);
+
+  String _paketBirimLabel(_KrediPaket p) {
+    final store = StoreBillingService.instance.storeUnitPriceForAdet(p.adet);
+    return store != null ? '$store/puan' : p.birim;
+  }
+
+  String _paketDescLabel(_KrediPaket p) {
+    final pct = StoreBillingService.instance.storeDiscountPctForAdet(p.adet);
+    if (pct == null) return p.desc;
+    if (pct == 0) {
+      return p.desc
+          .replaceAll(RegExp(r'\s*·?\s*%\d+ indirim'), '')
+          .trim();
+    }
+    return p.desc.replaceAll(RegExp(r'%\d+'), '%$pct');
+  }
 
   String get _krediPrefsKey =>
       krediPrefsKeyFor(widget.user.email, fallback: widget.user.name);
@@ -4850,7 +4870,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                       ),
                       const SizedBox(height: 4),
                       L10nText(
-                        '1 teklif = 1 puan = ₺69,90',
+                        '1 teklif = 1 puan = $_birPuanFiyat',
                         style: TextStyle(
                           fontSize: 10,
                           color: Colors.white.withValues(alpha: 0.7),
@@ -4927,7 +4947,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                       ),
                       if (_isAileRole)
                         L10nText(
-                          '1 iyilik puanı = ₺69,90 · paket fiyatları Destek Veren puanı ile aynı',
+                          '1 iyilik puanı = $_birPuanFiyat · paket fiyatları Destek Veren puanı ile aynı',
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.white.withValues(alpha: 0.6),
@@ -4935,7 +4955,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                         )
                       else
                         L10nText(
-                          '1 teklif = 1 puan = ₺69,90 · paket fiyatları iyilik puanı ile aynı',
+                          '1 teklif = 1 puan = $_birPuanFiyat · paket fiyatları iyilik puanı ile aynı',
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.white.withValues(alpha: 0.6),
@@ -6051,14 +6071,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                             ),
                             const SizedBox(height: 2),
                             L10nText(
-                              p.desc,
+                              _paketDescLabel(p),
                               style: TextStyle(
                                 fontSize: 12,
                                 color: MetoColors.mutedFg,
                               ),
                             ),
                             Text(
-                              p.birim.replaceAll(
+                              _paketBirimLabel(p).replaceAll(
                                 '/puan',
                                 _isAileRole ? '/iyilik puanı' : '/puan',
                               ),

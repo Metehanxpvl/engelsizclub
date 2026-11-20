@@ -1,0 +1,15 @@
+name: tmp-analyze
+on:
+  push:
+    branches: ['fix/puan-fiyat-magazadan']
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos lib/main_shell.dart lib/pages/ilanlar_page.dart lib/services/play_billing_service.dart

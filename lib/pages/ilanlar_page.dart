@@ -27,6 +27,7 @@ import '../presence_store.dart';
 import '../services/app_catalog_service.dart';
 import '../services/catalog_adapters.dart';
 import '../services/image_optimize_service.dart';
+import '../services/play_billing_service.dart';
 import '../services/r2_storage_service.dart';
 import '../sohbet_store.dart';
 import '../teklif_store.dart';
@@ -3318,9 +3319,9 @@ class IlanlarPageState extends State<IlanlarPage> {
                     color: Color(0xFF92400E),
                   ),
                 ),
-                const L10nText(
-                  '1 puan = 1 teklif = ₺69,90',
-                  style: TextStyle(fontSize: 12, color: Color(0xFFD97706)),
+                L10nText(
+                  '1 puan = 1 teklif = ${StoreBillingService.instance.storePriceForAdet(1) ?? '₺83,99'}',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFFD97706)),
                 ),
               ],
             ),
