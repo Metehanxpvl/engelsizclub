@@ -117,6 +117,7 @@ final List<YolTani> yolTanilari = [
         baslik: 'Doktorlar',
         icon: Icons.medical_services_outlined,
         maddeler: [
+          YolMadde('dp', 'Çocuk Sağlığı ve Hastalıkları (Pediatri)', 'Genel sağlık takibi, büyüme, aşılar; diğer bölümlere yönlendirme'),
           YolMadde('d1', 'Çocuk ve Ergen Psikiyatrisi', 'Tanı, takip ve ÇÖZGER süreci'),
           YolMadde('d2', 'KBB / Odyoloji', 'İşitme kaybını dışlamak için'),
           YolMadde('d3', 'Tıbbi Genetik', 'Genetik değerlendirme ve danışmanlık'),
@@ -161,6 +162,7 @@ final List<YolTani> yolTanilari = [
         baslik: 'Doktorlar',
         icon: Icons.medical_services_outlined,
         maddeler: [
+          YolMadde('dp', 'Çocuk Sağlığı ve Hastalıkları (Pediatri)', 'Genel sağlık takibi, büyüme, aşılar; diğer bölümlere yönlendirme'),
           YolMadde('d1', 'Çocuk Nörolojisi', 'Tanı, nöbet ve EEG takibi'),
           YolMadde('d2', 'Fiziksel Tıp ve Rehabilitasyon', 'Fizyoterapi planı, ortez, gerekirse botoks'),
           YolMadde('d3', 'Çocuk Ortopedisi', 'Kalça, omurga ve ayak takibi'),
@@ -211,6 +213,7 @@ final List<YolTani> yolTanilari = [
         baslik: 'Doktorlar',
         icon: Icons.medical_services_outlined,
         maddeler: [
+          YolMadde('dp', 'Çocuk Sağlığı ve Hastalıkları (Pediatri)', 'Genel sağlık takibi, büyüme, aşılar; diğer bölümlere yönlendirme'),
           YolMadde('d1', 'Tıbbi Genetik', 'Kromozom analizi, genetik danışmanlık'),
           YolMadde('d2', 'Çocuk Kardiyolojisi', 'Ekokardiyografi (kalp taraması)'),
           YolMadde('d3', 'Çocuk Endokrinolojisi', 'Tiroid testleri, düzenli takip'),
@@ -285,6 +288,7 @@ final List<YolTani> yolTanilari = [
         baslik: 'Doktorlar',
         icon: Icons.medical_services_outlined,
         maddeler: [
+          YolMadde('dp', 'Çocuk Sağlığı ve Hastalıkları (Pediatri)', 'Genel sağlık takibi, büyüme, aşılar; diğer bölümlere yönlendirme'),
           YolMadde('d1', 'Gelişimsel Pediatri / Çocuk Gelişim', 'Gelişim değerlendirmesi'),
           YolMadde('d2', 'Çocuk Nörolojisi', 'Nörolojik muayene'),
           YolMadde('d3', 'Tıbbi Genetik', 'Altta yatan neden için'),
@@ -357,6 +361,7 @@ final List<YolTani> yolTanilari = [
         baslik: 'Doktorlar',
         icon: Icons.medical_services_outlined,
         maddeler: [
+          YolMadde('dp', 'Çocuk Sağlığı ve Hastalıkları (Pediatri)', 'Genel sağlık takibi, büyüme, aşılar; diğer bölümlere yönlendirme'),
           YolMadde(
             'd1',
             'Gelişimsel Pediatri / Çocuk Psikiyatrisi',
@@ -399,6 +404,7 @@ final List<YolTani> yolTanilari = [
         baslik: 'Doktorlar',
         icon: Icons.medical_services_outlined,
         maddeler: [
+          YolMadde('dp', 'Çocuk Sağlığı ve Hastalıkları (Pediatri)', 'Genel sağlık takibi, büyüme, aşılar; diğer bölümlere yönlendirme'),
           YolMadde('d1', 'Çocuk Nörolojisi', 'Tanı ve ilaç tedavisi takibi'),
           YolMadde('d2', 'Tıbbi Genetik', 'Genetik doğrulama, aile danışmanlığı'),
           YolMadde('d3', 'Çocuk Göğüs Hastalıkları', 'Solunum takibi'),
@@ -453,6 +459,7 @@ final List<YolTani> yolTanilari = [
         baslik: 'Doktorlar',
         icon: Icons.medical_services_outlined,
         maddeler: [
+          YolMadde('dp', 'Çocuk Sağlığı ve Hastalıkları (Pediatri)', 'Genel sağlık takibi, büyüme, aşılar; diğer bölümlere yönlendirme'),
           YolMadde('d1', 'Çocuk Nörolojisi (Nöromüsküler)', 'Tanı ve tedavi takibi'),
           YolMadde('d2', 'Çocuk Kardiyolojisi', 'Düzenli kalp takibi'),
           YolMadde('d3', 'Çocuk Göğüs Hastalıkları', 'Solunum fonksiyon testleri'),
@@ -544,6 +551,7 @@ final List<YolTani> yolTanilari = [
         baslik: 'Doktorlar',
         icon: Icons.medical_services_outlined,
         maddeler: [
+          YolMadde('dp', 'Çocuk Sağlığı ve Hastalıkları (Pediatri)', 'Genel sağlık takibi, büyüme, aşılar; diğer bölümlere yönlendirme'),
           YolMadde('d1', 'KBB', 'Tanı ve tedavi'),
           YolMadde('d2', 'Odyoloji', 'Ayrıntılı işitme testleri, cihaz ayarı'),
           YolMadde('d3', 'Tıbbi Genetik', 'Nedeni araştırmak için'),
@@ -587,6 +595,7 @@ final List<YolTani> yolTanilari = [
         baslik: 'Doktorlar',
         icon: Icons.medical_services_outlined,
         maddeler: [
+          YolMadde('dp', 'Çocuk Sağlığı ve Hastalıkları (Pediatri)', 'Genel sağlık takibi, büyüme, aşılar; diğer bölümlere yönlendirme'),
           YolMadde('d1', 'Göz (Çocuk Oftalmolojisi)', 'Tanı ve takip'),
           YolMadde('d2', 'Çocuk Nörolojisi', 'Serebral görme bozukluğunda (CVI)'),
           YolMadde('d3', 'Az görme değerlendirmesi', 'Kalan görmeyi en iyi kullanmak için'),
@@ -680,6 +689,7 @@ final List<YolTani> yolTanilari = [
         baslik: 'Doktorlar',
         icon: Icons.medical_services_outlined,
         maddeler: [
+          YolMadde('dp', 'Çocuk Sağlığı ve Hastalıkları (Pediatri)', 'Genel sağlık takibi, büyüme, aşılar; diğer bölümlere yönlendirme'),
           YolMadde('d1', 'Tıbbi Genetik', 'Genetik test, aile için danışmanlık'),
           YolMadde('d2', 'Çocuk Metabolizma', 'Metabolik hastalık varsa'),
           YolMadde('d3', 'Çocuk Nörolojisi', 'Gelişim ve nöbet takibi'),
