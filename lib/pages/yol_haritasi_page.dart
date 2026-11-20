@@ -27,7 +27,8 @@ class YolHaritasiPage {
 
   static const routePath = '/yol-haritasi';
 
-  static Future<void> open(BuildContext context) async {
+  /// [taniId] verilirse sayfa o tanı seçili olarak açılır.
+  static Future<void> open(BuildContext context, {String? taniId}) async {
     final email =
         Supabase.instance.client.auth.currentUser?.email?.trim() ?? '';
 
@@ -70,7 +71,10 @@ class YolHaritasiPage {
     if (!context.mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => YolHaritasiScreen(userEmail: email),
+        builder: (_) => YolHaritasiScreen(
+          userEmail: email,
+          initialTaniId: taniId,
+        ),
         settings: const RouteSettings(name: routePath),
       ),
     );
@@ -78,9 +82,16 @@ class YolHaritasiPage {
 }
 
 class YolHaritasiScreen extends StatefulWidget {
-  const YolHaritasiScreen({super.key, required this.userEmail});
+  const YolHaritasiScreen({
+    super.key,
+    required this.userEmail,
+    this.initialTaniId,
+  });
 
   final String userEmail;
+
+  /// Tanı sayfasından gelindiyse önceden seçilecek tanı.
+  final String? initialTaniId;
 
   @override
   State<YolHaritasiScreen> createState() => _YolHaritasiScreenState();
@@ -128,6 +139,16 @@ class _YolHaritasiScreenState extends State<YolHaritasiScreen> {
       _taslakCevaplar
         ..clear()
         ..addAll(k.cevaplar);
+      final ilk = widget.initialTaniId;
+      if (ilk != null &&
+          yolTaniBul(ilk) != null &&
+          !(k.haritaHazir && k.taniId == ilk)) {
+        _sihirbaz = true;
+        if (k.taniId != ilk) {
+          _taslakTani = ilk;
+          _taslakCevaplar.clear();
+        }
+      }
     });
   }
 

@@ -1,0 +1,15 @@
+name: tmp analyze
+on:
+  push:
+    branches: [feat/tani-sayfasi-birlesik]
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos --no-fatal-warnings lib/home_page.dart lib/pages/yol_haritasi_page.dart lib/widgets/tani_video_seridi.dart lib/pages/haklar_page.dart lib/pages/hak_dosyasi_page.dart lib/widgets/hizli_erisim_home_section.dart lib/main_shell.dart lib/widgets/duyurular_section.dart lib/home_hero_store.dart lib/yol_haritasi/yol_haritasi_data.dart
