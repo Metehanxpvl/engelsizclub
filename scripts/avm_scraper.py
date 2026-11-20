@@ -1874,6 +1874,7 @@ def load_sources() -> list[dict[str, str]]:
                 "events_url": url,
                 "image": image,
                 "source_type": normalize_ws(str(item.get("source_type") or "avm")) or "avm",
+                "force_js": "1" if item.get("force_js") else "",
             }
         )
     return out
@@ -2005,7 +2006,21 @@ def main() -> int:
             city, avm, url = src["city"], src["avm_name"], src["events_url"]
             label = f"{city}/{avm}"
             print(f"[{i}/{len(sources)}] {label}")
-            fetched = fetch_page(http, url, pw_session=pw)
+            fetched = None
+            if src.get("force_js") and HAS_PLAYWRIGHT:
+                # İçeriği JavaScript ile yüklenen siteler: doğrudan tarayıcıyla oku.
+                rendered = pw.render(url)
+                if rendered:
+                    text = html_to_text(rendered)
+                    if len(text) >= _MIN_TEXT_LEN:
+                        fetched = FetchedPage(
+                            text=text,
+                            html=rendered,
+                            final_url=url,
+                            cover=extract_mall_cover(rendered, url),
+                        )
+            if fetched is None:
+                fetched = fetch_page(http, url, pw_session=pw)
             polite_sleep()
             if not fetched:
                 stats_fail.append(label)

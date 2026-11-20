@@ -19,5 +19,5 @@ jobs:
           PYTHONUNBUFFERED: '1'
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           AVM_DEBUG: '1'
-          AVM_ONLY_NAMES: 'Devlet Opera ve Balesi,Özel Olimpiyatlar Türkiye,Ankara Büyükşehir Belediyesi,Ankara Kültür Sanat,Çankaya Belediyesi,Keçiören Belediyesi,Millet Kütüphanesi,Antalya Büyükşehir Belediyesi,Nilüfer Belediyesi,Gaziantep Büyükşehir Belediyesi,İBB Kültür,Ataşehir Belediyesi,Beşiktaş Belediyesi,İstanbul Modern,Pera Müzesi,Sakıp Sabancı Müzesi,İzmir Kültürsanat,Bornova Belediyesi,Karşıyaka Belediyesi'
+          AVM_ONLY_NAMES: 'İzmir Kültürsanat,Antalya Büyükşehir Belediyesi,Bornova Belediyesi,İstanbul Modern,Beşiktaş Belediyesi,İBB Kültür'
         run: python scripts/avm_scraper.py --dry-run
