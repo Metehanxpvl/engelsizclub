@@ -14,8 +14,8 @@ name: Etkinlikler scrape
 
 on:
   schedule:
-    # Daily 09:00 Türkiye = 06:00 UTC
-    - cron: '0 6 * * *'
+    # Zamanlama: gece 00:xx Türkiye (aşağıdaki cron satırına bakın)
+    - cron: '53 21 * * *'  # 00:53 TR (gece; GitHub gecikmesine karşı)
   workflow_dispatch:
 
 concurrency:

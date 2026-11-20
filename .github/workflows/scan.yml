@@ -12,12 +12,12 @@
 #          ANTHROPIC_API_KEY (tercih) veya GEMINI_API_KEY / AI_API_KEY
 # İsteğe bağlı: CONTENT_SCAN_AUTO_APPROVE=true (varsayılan kapalı)
 #
-# Her gün 09:00 Türkiye = 06:00 UTC (haber + bilim).
+# Zamanlama: gece 00:xx Türkiye (aşağıdaki cron satırına bakın) (haber + bilim).
 name: Content scan
 
 on:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '27 21 * * *'  # 00:27 TR (gece; GitHub gecikmesine karşı)
   workflow_dispatch:
     inputs:
       mode:
@@ -76,7 +76,7 @@ jobs:
   science:
     if: ${{ github.event_name == 'schedule' || inputs.mode == 'science' || inputs.mode == 'all' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     concurrency:
       group: content-scan-science
       cancel-in-progress: true
