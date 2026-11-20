@@ -7,14 +7,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          for key in AIzaSyAHDu7hYJInYdPhrg8i0YdEzgfl0lL502o AIzaSyDbcRvVaEQSDQJ2y-0kHZUsxtW_O2Xb_bQ AIzaSyC_Vr-DwlmtH6Of_0SNo2gDpqyQJba9zF8 AIzaSyDvagrc9VhRQq2yxAxo5KA8x6-3WSDqGac; do
-            echo "== KEY ${key:0:12} NEW"
-            curl -sS -X POST 'https://places.googleapis.com/v1/places:searchText' \
-              -H 'Content-Type: application/json' -H "X-Goog-Api-Key: $key" \
-              -H 'X-Goog-FieldMask: places.displayName' -H 'Referer: https://engelsizclub.com/' \
-              -d '{"textQuery":"Süleymaniye Camii İstanbul","maxResultCount":1}' | tr -d '\n' | head -c 700; echo
-            echo "== KEY ${key:0:12} LEGACY"
-            curl -sS "https://maps.googleapis.com/maps/api/place/textsearch/json?query=Suleymaniye%20Camii&key=$key" -H 'Referer: https://engelsizclub.com/' | tr -d '\n' | head -c 300; echo
-            echo "== KEY ${key:0:12} GEOCODE"
-            curl -sS "https://maps.googleapis.com/maps/api/geocode/json?address=Istanbul&key=$key" -H 'Referer: https://engelsizclub.com/' | tr -d '\n' | head -c 200; echo
-          done
+          key=AIzaSyAHDu7hYJInYdPhrg8i0YdEzgfl0lL502o
+          echo "== AUTOCOMPLETE"
+          curl -sS -X POST 'https://places.googleapis.com/v1/places:autocomplete' -H 'Content-Type: application/json' -H "X-Goog-Api-Key: $key" -H 'Referer: https://engelsizclub.com/' -d '{"input":"Süleymaniye Camii","languageCode":"tr","includedRegionCodes":["tr"]}' | tr -d '\n' | head -c 500; echo
+          echo "== TEXTSEARCH"
+          curl -sS -X POST 'https://places.googleapis.com/v1/places:searchText' -H 'Content-Type: application/json' -H "X-Goog-Api-Key: $key" -H 'X-Goog-FieldMask: places.displayName' -H 'Referer: https://engelsizclub.com/' -d '{"textQuery":"Süleymaniye Camii","maxResultCount":1}' | tr -d '\n' | head -c 400; echo
