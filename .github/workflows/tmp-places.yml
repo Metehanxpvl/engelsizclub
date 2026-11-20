@@ -1,0 +1,18 @@
+name: tmp places test
+on:
+  push:
+    branches: [tmp/places-test]
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          for ref in "https://engelsizclub.com/" "https://www.engelsizclub.com/" ""; do
+            echo "== Referer: '$ref'"
+            curl -sS -X POST 'https://places.googleapis.com/v1/places:searchText' \
+              -H 'Content-Type: application/json' \
+              -H 'X-Goog-Api-Key: AIzaSyAHDu7hYJInYdPhrg8i0YdEzgfl0lL502o' \
+              -H 'X-Goog-FieldMask: places.displayName,places.formattedAddress' \
+              ${ref:+-H "Referer: $ref"} \
+              -d '{"textQuery":"Süleymaniye Camii İstanbul","languageCode":"tr","maxResultCount":2}' | head -c 600; echo
+          done
