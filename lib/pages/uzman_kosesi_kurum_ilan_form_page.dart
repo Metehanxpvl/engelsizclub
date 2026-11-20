@@ -8,6 +8,7 @@ import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
 import '../services/image_optimize_service.dart';
 import '../services/r2_storage_service.dart';
+import '../uzman_kosesi/ilan_gorsel_oku_service.dart';
 import '../uzman_kosesi/kurum_is_ilan_models.dart';
 import '../uzman_kosesi/kurum_is_ilan_store.dart';
 import '../uzman_kosesi_profiles_store.dart';
@@ -19,21 +20,30 @@ class UzmanKosesKurumIlanFormPage extends StatefulWidget {
     super.key,
     required this.userEmail,
     this.existing,
-  });
+    this.taslak,
+  }) : assert(
+          existing == null || taslak == null,
+          'existing ve taslak birlikte kullanılmaz',
+        );
 
   final String userEmail;
   final KurumIsIlani? existing;
+
+  /// Admin "Görsel oluştur" OCR taslağı — [existing] ile birlikte kullanılmaz.
+  final KurumIlanTaslak? taslak;
 
   static Future<bool> open(
     BuildContext context, {
     required String userEmail,
     KurumIsIlani? existing,
+    KurumIlanTaslak? taslak,
   }) async {
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
         builder: (_) => UzmanKosesKurumIlanFormPage(
           userEmail: userEmail,
           existing: existing,
+          taslak: taslak,
         ),
       ),
     );
@@ -65,20 +75,48 @@ class _UzmanKosesKurumIlanFormPageState
   void initState() {
     super.initState();
     final e = widget.existing;
-    if (e == null) return;
-    _kurum.text = e.kurumAdi;
-    _aciklama.text = e.aciklama;
-    _telefon.text = e.telefon;
-    _adres.text = e.adres;
-    _photoUrl = e.photoUrl;
-    _meslek = e.arananMeslek;
-    _calisma = List<String>.from(e.calismaSekli);
+    if (e != null) {
+      _kurum.text = e.kurumAdi;
+      _aciklama.text = e.aciklama;
+      _telefon.text = e.telefon;
+      _adres.text = e.adres;
+      _photoUrl = e.photoUrl;
+      _meslek = e.arananMeslek;
+      _calisma = List<String>.from(e.calismaSekli);
+      _loc = LocationData(
+        countryCode: 'TR',
+        state: e.il,
+        city: e.ilce,
+      );
+      _kvkk = true;
+      return;
+    }
+    final t = widget.taslak;
+    if (t == null) return;
+    _kurum.text = t.kurumAdi;
+    _aciklama.text = t.aciklama;
+    _telefon.text = t.telefon;
+    _photoUrl = t.photoUrl;
+    _meslek = t.arananMeslek;
+    _calisma = List<String>.from(t.calismaSekli);
     _loc = LocationData(
       countryCode: 'TR',
-      state: e.il,
-      city: e.ilce,
+      state: t.il,
+      city: t.ilce,
     );
-    _kvkk = true;
+    if (t.okunamayanAlanlar.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Okunamayan alanlar: ${t.okunamayanAlanlar.join(', ')}. '
+              'Lütfen elle doldurun.',
+            ),
+          ),
+        );
+      });
+    }
   }
 
   @override

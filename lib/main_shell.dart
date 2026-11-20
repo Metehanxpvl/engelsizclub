@@ -60,7 +60,9 @@ import 'widgets/admin_more_menu_sheet.dart';
 import 'widgets/taramalar_group_sheet.dart';
 import 'pages/admin_uzman_cv_page.dart';
 import 'pages/uzman_kosesi_cv_detail_page.dart';
+import 'pages/uzman_kosesi_kurum_ilan_form_page.dart';
 import 'pages/uzman_kosesi_page.dart';
+import 'uzman_kosesi/ilan_gorsel_oku_service.dart';
 import 'pages/forum_page.dart';
 import 'pages/haklar_page.dart';
 import 'pages/ilanlar_page.dart';
@@ -2722,6 +2724,102 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     }
   }
 
+  /// Admin: kurum iş ilanı görselinden OCR ile form taslağı açar.
+  Future<void> _openIlanGorselOlustur() async {
+    if (!isAppAdmin(widget.user.email)) return;
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: MetoColors.card,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: L10nText(
+                'Kurum görseli',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const L10nText('Fotoğraf çek'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const L10nText('Galeriden seç'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+
+    try {
+      final file = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 1600,
+        imageQuality: 86,
+      );
+      if (file == null || !mounted) return;
+      final raw = await file.readAsBytes();
+      final opt = await ImageOptimizeService.forCatalogCard(raw);
+      final uploadedUrl = await R2StorageService.uploadBytes(
+        bytes: opt.bytes,
+        fileName: 'kurum_ilan_ocr_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        contentType: opt.contentType,
+      );
+      if (!mounted) return;
+
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => const PopScope(
+          canPop: false,
+          child: AlertDialog(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+                SizedBox(width: 16),
+                Expanded(child: L10nText('Görsel okunuyor…')),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      KurumIlanTaslak taslak;
+      try {
+        taslak = await okuKurumIlanGorseli(imageUrl: uploadedUrl);
+      } catch (e) {
+        if (mounted) Navigator.of(context, rootNavigator: true).pop();
+        rethrow;
+      }
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+
+      await UzmanKosesKurumIlanFormPage.open(
+        context,
+        userEmail: widget.user.email,
+        taslak: taslak,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString().replaceFirst('Bad state: ', '').replaceFirst(
+            'StateError: ',
+            '',
+          );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
+  }
+
   Future<void> _removeProfilFoto() async {
     await upsertUserCloudProfile(
       email: widget.user.email,
@@ -4564,6 +4662,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   ),
                 );
               },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _menuTile(
+              emoji: '🖼️',
+              label: 'Görsel oluştur',
+              sub: 'Kurum iş ilanını görselden doldur',
+              highlight: true,
+              onTap: () => unawaited(_openIlanGorselOlustur()),
             ),
           ),
           Padding(
