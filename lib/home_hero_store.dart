@@ -116,7 +116,7 @@ Future<List<HomeHeroSlide>> loadHomeHeroSlides({
     return List<HomeHeroSlide>.from(_cache!);
   } catch (_) {
     if (_cache != null) return List<HomeHeroSlide>.from(_cache!);
-    return List<HomeHeroSlide>.from(kDefaultHomeHeroSlides);
+    return const <HomeHeroSlide>[];
   }
 }
 

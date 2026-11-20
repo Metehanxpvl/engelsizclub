@@ -637,9 +637,7 @@ class _HaberMansetiState extends State<_HaberManseti> {
 
   List<_MansetEntry> get _slides {
     final news = widget.newsItems;
-    final heroes = (widget.heroSlides.isEmpty && news.isEmpty)
-        ? kDefaultHomeHeroSlides
-        : widget.heroSlides;
+    final heroes = widget.heroSlides;
     return [
       for (final h in heroes) _MansetEntry.hero(h),
       for (final n in news) _MansetEntry.news(n),
