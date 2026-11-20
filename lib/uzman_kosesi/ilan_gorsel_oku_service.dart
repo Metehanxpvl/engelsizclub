@@ -1,5 +1,11 @@
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../l10n/l10n_text.dart';
+import '../meto_theme.dart';
+import '../services/image_optimize_service.dart';
+import '../services/r2_storage_service.dart';
 import '../uzman_kosesi_profiles_store.dart';
 import 'kurum_is_ilan_models.dart';
 
@@ -163,4 +169,64 @@ Future<KurumIlanTaslak> okuKurumIlanGorseli({
     throw StateError('Görsel okunamadı (HTTP ${res.status}).');
   }
   throw StateError('Görsel okuma yanıtı alınamadı.');
+}
+
+/// Ortak akış: kaynak seç → sıkıştır → R2 yükle → OCR.
+///
+/// Kullanıcı iptal ederse `null` döner. Yükleme / OCR hatalarında fırlatır.
+/// [onBeforeOcr] yükleme bittikten, OCR başlamadan hemen önce çağrılır
+/// (ör. yükleniyor diyaloğu / buton durumu).
+Future<KurumIlanTaslak?> pickUploadAndOkuKurumIlanGorseli(
+  BuildContext context, {
+  VoidCallback? onBeforeOcr,
+}) async {
+  final source = await showModalBottomSheet<ImageSource>(
+    context: context,
+    backgroundColor: MetoColors.card,
+    builder: (ctx) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: L10nText(
+              'Kurum görseli',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_camera_outlined),
+            title: const L10nText('Fotoğraf çek'),
+            onTap: () => Navigator.pop(ctx, ImageSource.camera),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: const L10nText('Galeriden seç'),
+            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    ),
+  );
+  if (source == null || !context.mounted) return null;
+
+  final file = await ImagePicker().pickImage(
+    source: source,
+    maxWidth: 1600,
+    imageQuality: 86,
+  );
+  if (file == null || !context.mounted) return null;
+
+  final raw = await file.readAsBytes();
+  final opt = await ImageOptimizeService.forCatalogCard(raw);
+  final uploadedUrl = await R2StorageService.uploadBytes(
+    bytes: opt.bytes,
+    fileName: 'kurum_ilan_ocr_${DateTime.now().millisecondsSinceEpoch}.jpg',
+    contentType: opt.contentType,
+  );
+  if (!context.mounted) return null;
+
+  onBeforeOcr?.call();
+  return okuKurumIlanGorseli(imageUrl: uploadedUrl);
 }

@@ -2727,83 +2727,41 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   /// Admin: kurum iş ilanı görselinden OCR ile form taslağı açar.
   Future<void> _openIlanGorselOlustur() async {
     if (!isAppAdmin(widget.user.email)) return;
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      backgroundColor: MetoColors.card,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: L10nText(
-                'Kurum görseli',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+    var dialogShown = false;
+    try {
+      final taslak = await pickUploadAndOkuKurumIlanGorseli(
+        context,
+        onBeforeOcr: () {
+          if (!mounted) return;
+          dialogShown = true;
+          showDialog<void>(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => const PopScope(
+              canPop: false,
+              child: AlertDialog(
+                content: Row(
+                  children: [
+                    SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    ),
+                    SizedBox(width: 16),
+                    Expanded(child: L10nText('Görsel okunuyor…')),
+                  ],
+                ),
               ),
             ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const L10nText('Fotoğraf çek'),
-              onTap: () => Navigator.pop(ctx, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const L10nText('Galeriden seç'),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-    if (source == null || !mounted) return;
-
-    try {
-      final file = await ImagePicker().pickImage(
-        source: source,
-        maxWidth: 1600,
-        imageQuality: 86,
-      );
-      if (file == null || !mounted) return;
-      final raw = await file.readAsBytes();
-      final opt = await ImageOptimizeService.forCatalogCard(raw);
-      final uploadedUrl = await R2StorageService.uploadBytes(
-        bytes: opt.bytes,
-        fileName: 'kurum_ilan_ocr_${DateTime.now().millisecondsSinceEpoch}.jpg',
-        contentType: opt.contentType,
+          );
+        },
       );
       if (!mounted) return;
-
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => const PopScope(
-          canPop: false,
-          child: AlertDialog(
-            content: Row(
-              children: [
-                SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
-                ),
-                SizedBox(width: 16),
-                Expanded(child: L10nText('Görsel okunuyor…')),
-              ],
-            ),
-          ),
-        ),
-      );
-
-      KurumIlanTaslak taslak;
-      try {
-        taslak = await okuKurumIlanGorseli(imageUrl: uploadedUrl);
-      } catch (e) {
-        if (mounted) Navigator.of(context, rootNavigator: true).pop();
-        rethrow;
+      if (dialogShown) {
+        Navigator.of(context, rootNavigator: true).pop();
+        dialogShown = false;
       }
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
+      if (taslak == null) return;
 
       await UzmanKosesKurumIlanFormPage.open(
         context,
@@ -2811,6 +2769,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         taslak: taslak,
       );
     } catch (e) {
+      if (mounted && dialogShown) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
       if (!mounted) return;
       final msg = e.toString().replaceFirst('Bad state: ', '').replaceFirst(
             'StateError: ',

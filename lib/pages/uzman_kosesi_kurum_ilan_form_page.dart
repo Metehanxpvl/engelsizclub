@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../admin_config.dart';
 import '../data/location_models.dart';
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
@@ -68,8 +69,12 @@ class _UzmanKosesKurumIlanFormPageState
   bool _kvkk = false;
   bool _saving = false;
   bool _picking = false;
+  bool _ocrReading = false;
 
   List<String> get _meslekler => uzmanKosesMeslekSecenekleri(extra: _meslek);
+
+  bool get _showGorseldenDoldur =>
+      widget.existing == null && isAppAdmin(widget.userEmail);
 
   @override
   void initState() {
@@ -128,8 +133,61 @@ class _UzmanKosesKurumIlanFormPageState
     super.dispose();
   }
 
+  /// Boş OCR alanları mevcut form değerlerini silmez.
+  void _applyTaslakInPlace(KurumIlanTaslak t) {
+    if (t.kurumAdi.isNotEmpty) _kurum.text = t.kurumAdi;
+    if (t.aciklama.isNotEmpty) _aciklama.text = t.aciklama;
+    if (t.telefon.isNotEmpty) _telefon.text = t.telefon;
+    if (t.photoUrl.isNotEmpty) _photoUrl = t.photoUrl;
+    if (t.arananMeslek.isNotEmpty) _meslek = t.arananMeslek;
+    if (t.calismaSekli.isNotEmpty) {
+      _calisma = List<String>.from(t.calismaSekli);
+    }
+    if (t.il.isNotEmpty || t.ilce.isNotEmpty) {
+      _loc = LocationData(
+        countryCode: 'TR',
+        state: t.il.isNotEmpty ? t.il : _loc.state,
+        city: t.ilce.isNotEmpty ? t.ilce : _loc.city,
+      );
+    }
+  }
+
+  Future<void> _fillFromGorsel() async {
+    if (!_showGorseldenDoldur || _saving || _picking || _ocrReading) return;
+    try {
+      final taslak = await pickUploadAndOkuKurumIlanGorseli(
+        context,
+        onBeforeOcr: () {
+          if (mounted) setState(() => _ocrReading = true);
+        },
+      );
+      if (!mounted) return;
+      if (taslak == null) return;
+      setState(() => _applyTaslakInPlace(taslak));
+      if (taslak.okunamayanAlanlar.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Okunamayan alanlar: ${taslak.okunamayanAlanlar.join(', ')}. '
+              'Lütfen elle doldurun.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString().replaceFirst('Bad state: ', '').replaceFirst(
+            'StateError: ',
+            '',
+          );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } finally {
+      if (mounted) setState(() => _ocrReading = false);
+    }
+  }
+
   Future<void> _pickPhoto() async {
-    if (_saving || _picking) return;
+    if (_saving || _picking || _ocrReading) return;
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: MetoColors.card,
@@ -197,7 +255,7 @@ class _UzmanKosesKurumIlanFormPageState
       );
 
   Future<void> _save() async {
-    if (_saving) return;
+    if (_saving || _ocrReading) return;
     setState(() => _saving = true);
     try {
       await saveKurumIsIlani(
@@ -243,6 +301,27 @@ class _UzmanKosesKurumIlanFormPageState
             'Klinik, merkez veya kurumunuzun aradığı uzmanı buradan yayınlayın.',
             style: TextStyle(color: MetoColors.mutedFg, height: 1.35),
           ),
+          if (_showGorseldenDoldur) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _saving || _picking || _ocrReading
+                    ? null
+                    : _fillFromGorsel,
+                icon: _ocrReading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.add_photo_alternate_outlined),
+                label: L10nText(
+                  _ocrReading ? 'Görsel okunuyor…' : 'Görselden Doldur',
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           L10nText(
             'Kurum adı',
@@ -261,6 +340,7 @@ class _UzmanKosesKurumIlanFormPageState
           ),
           const SizedBox(height: 6),
           DropdownButtonFormField<String>(
+            key: ValueKey('meslek_$_meslek'),
             initialValue: _meslekler.contains(_meslek) ? _meslek : null,
             decoration: _dec('Meslek seçin'),
             items: [
@@ -276,6 +356,7 @@ class _UzmanKosesKurumIlanFormPageState
           ),
           const SizedBox(height: 6),
           LocationCascadePicker(
+            key: ValueKey('loc_${_loc.state}_${_loc.city}'),
             value: _loc,
             onChanged: (v) => setState(() => _loc = v),
             requireFullSelection: false,
@@ -313,7 +394,7 @@ class _UzmanKosesKurumIlanFormPageState
               ),
             ),
           OutlinedButton.icon(
-            onPressed: _saving || _picking ? null : _pickPhoto,
+            onPressed: _saving || _picking || _ocrReading ? null : _pickPhoto,
             icon: _picking
                 ? const SizedBox(
                     width: 16,
@@ -391,7 +472,7 @@ class _UzmanKosesKurumIlanFormPageState
           ),
           const SizedBox(height: 12),
           FilledButton(
-            onPressed: _saving ? null : _save,
+            onPressed: _saving || _ocrReading ? null : _save,
             child: _saving
                 ? const SizedBox(
                     width: 18,
