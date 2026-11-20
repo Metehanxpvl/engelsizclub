@@ -2972,6 +2972,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             },
             onOpenHaklar: () => _goToTab(MetoTab.haklar),
             onOpenHarita: () => _goToTab(MetoTab.merkezler),
+            onOpenKartlar: () => _goToTab(MetoTab.kartlar),
           ),
         ),
         IlanlarPage(
