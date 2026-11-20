@@ -792,45 +792,49 @@ class GeminiClient:
             },
             {"temperature": 0.2},
         ]
-        for model in self._models:
-            for gen_cfg in configs:
-                try:
-                    body = {
-                        "contents": [
-                            {"role": "user", "parts": [{"text": prompt}]}
-                        ],
-                        "generationConfig": gen_cfg,
-                    }
-                    url = (
-                        "https://generativelanguage.googleapis.com/v1beta/"
-                        f"models/{model}:generateContent"
-                    )
-                    res = self._http.post(
-                        url,
-                        headers={
-                            "x-goog-api-key": self._key,
-                            "Content-Type": "application/json",
-                        },
-                        json=body,
-                        timeout=GEMINI_TIMEOUT,
-                    )
-                    if res.status_code in (404, 400):
-                        last_err = f"{model} HTTP {res.status_code}"
+        for round_no in range(3):
+            if round_no:
+                # Gemini 503/zaman aşımı geçicidir; kısa bekleyip tekrar dene.
+                time.sleep(6 * round_no)
+            for model in self._models:
+                for gen_cfg in configs:
+                    try:
+                        body = {
+                            "contents": [
+                                {"role": "user", "parts": [{"text": prompt}]}
+                            ],
+                            "generationConfig": gen_cfg,
+                        }
+                        url = (
+                            "https://generativelanguage.googleapis.com/v1beta/"
+                            f"models/{model}:generateContent"
+                        )
+                        res = self._http.post(
+                            url,
+                            headers={
+                                "x-goog-api-key": self._key,
+                                "Content-Type": "application/json",
+                            },
+                            json=body,
+                            timeout=GEMINI_TIMEOUT,
+                        )
+                        if res.status_code in (404, 400):
+                            last_err = f"{model} HTTP {res.status_code}"
+                            continue
+                        if res.status_code >= 400:
+                            last_err = f"{model} HTTP {res.status_code}"
+                            continue
+                        data = res.json()
+                        text = extract_gemini_text(data)
+                        if not text.strip():
+                            last_err = f"{model} empty"
+                            continue
+                        parsed = parse_json_array(text)
+                        if parsed or text.strip() == "[]":
+                            return parsed
+                    except (httpx.HTTPError, ValueError, json.JSONDecodeError) as exc:
+                        last_err = _redact_error(str(exc))
                         continue
-                    if res.status_code >= 400:
-                        last_err = f"{model} HTTP {res.status_code}"
-                        continue
-                    data = res.json()
-                    text = extract_gemini_text(data)
-                    if not text.strip():
-                        last_err = f"{model} empty"
-                        continue
-                    parsed = parse_json_array(text)
-                    if parsed or text.strip() == "[]":
-                        return parsed
-                except (httpx.HTTPError, ValueError, json.JSONDecodeError) as exc:
-                    last_err = _redact_error(str(exc))
-                    continue
         if last_err:
             print(f"  Gemini atlandı: {last_err}", file=sys.stderr)
         return []
@@ -931,6 +935,7 @@ def _playwright_context_kwargs() -> dict[str, Any]:
     return {
         "user_agent": USER_AGENT,
         "locale": "tr-TR",
+        "ignore_https_errors": True,
         "viewport": {"width": 1280, "height": 900},
         "extra_http_headers": {
             "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
@@ -1041,6 +1046,17 @@ _BROWSER_HEADERS = {
 }
 
 
+_INSECURE_HTTP: httpx.Client | None = None
+
+
+def _insecure_http() -> httpx.Client:
+    """Sertifikası bozuk AVM siteleri için (yalnız herkese açık sayfa okuma)."""
+    global _INSECURE_HTTP
+    if _INSECURE_HTTP is None:
+        _INSECURE_HTTP = httpx.Client(http2=False, follow_redirects=True, verify=False)
+    return _INSECURE_HTTP
+
+
 def _http_get_html(
     http: httpx.Client, url: str
 ) -> tuple[str | None, str]:
@@ -1080,6 +1096,12 @@ def _http_get_html(
             httpx.RemoteProtocolError,
         ) as exc:
             last_err = _redact_error(str(exc))
+            if "CERTIFICATE_VERIFY_FAILED" in str(exc) and http is not _INSECURE_HTTP:
+                print(
+                    "  sertifika hatası; sayfa doğrulamasız okunuyor",
+                    file=sys.stderr,
+                )
+                return _http_get_html(_insecure_http(), url)
             if attempt < FETCH_RETRIES:
                 wait = min(1.5 * attempt, 6.0)
                 print(
@@ -1292,6 +1314,38 @@ class Supabase:
             dropped.append(col)
         raise RuntimeError(f"{label}: eksik kolonlar giderilemedi")
 
+    def _post_rows_tolerant(
+        self,
+        label: str,
+        path: str,
+        rows: list[dict[str, Any]],
+        *,
+        params: dict[str, str],
+        prefer: str,
+    ) -> int:
+        """Toplu yazma çakışmayla düşerse satır satır dener; tek hatalı satır
+        bütün partiyi kaybettirmez."""
+        try:
+            return self._post_rows(label, path, rows, params=params, prefer=prefer)
+        except RuntimeError as exc:
+            print(
+                f"  {label}: toplu yazma başarısız, satır satır deneniyor "
+                f"({len(rows)} satır): {exc}",
+                file=sys.stderr,
+            )
+        ok = 0
+        fail = 0
+        for row in rows:
+            try:
+                ok += self._post_rows(label, path, [row], params=params, prefer=prefer)
+            except RuntimeError as exc:
+                fail += 1
+                if fail <= 5:
+                    print(f"  {label}: satır atlandı: {exc}", file=sys.stderr)
+        if fail:
+            print(f"  {label}: {ok} yazıldı, {fail} atlandı", file=sys.stderr)
+        return ok
+
     def upsert_events(self, rows: list[dict[str, Any]]) -> int:
         if not rows:
             return 0
@@ -1301,22 +1355,13 @@ class Supabase:
             chunk = [r for r in chunk if r.get("event_name") and r.get("event_date")]
             if not chunk:
                 continue
-            try:
-                total += self._post_rows(
-                    "events upsert",
-                    "/rest/v1/events",
-                    chunk,
-                    params={"on_conflict": "dedupe_key"},
-                    prefer="resolution=merge-duplicates,return=minimal",
-                )
-            except RuntimeError:
-                total += self._post_rows(
-                    "events upsert",
-                    "/rest/v1/events",
-                    chunk,
-                    params={"on_conflict": "city,avm_name,event_name,event_date"},
-                    prefer="resolution=merge-duplicates,return=minimal",
-                )
+            total += self._post_rows_tolerant(
+                "events upsert",
+                "/rest/v1/events",
+                chunk,
+                params={"on_conflict": "dedupe_key"},
+                prefer="resolution=merge-duplicates,return=minimal",
+            )
         return total
 
     def deleted_ids(self) -> set[str]:
@@ -1443,7 +1488,7 @@ class Supabase:
     def insert_etkinlikler(self, rows: list[dict[str, Any]]) -> int:
         if not rows:
             return 0
-        return self._post_rows(
+        return self._post_rows_tolerant(
             "etkinlikler insert",
             "/rest/v1/etkinlikler",
             rows,
