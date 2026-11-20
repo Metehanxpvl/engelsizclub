@@ -1224,27 +1224,6 @@ class _HakDosyasiPageState extends State<HakDosyasiPage> {
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
               ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _askMetoBot,
-                      child: const Text('Bu hak hakkında soru sor'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: _openUzman,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: MetoColors.primary,
-                      ),
-                      child: const Text('Uzmana danış'),
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
         ),
