@@ -340,8 +340,7 @@
         const rows = await res.json();
         if (!Array.isArray(rows) || !rows.length) return;
         const byId = Object.fromEntries(rows.map((r) => [r.id, Number(r.sut_price)]));
-        // Fiyatlar veritabanından gelir (yeni SUT için yalnız tabloyu güncellemek yeter).
-        if (!Object.values(byId).every((v) => Number.isFinite(v) && v >= 0)) return;
+        if (byId.cpap !== 3265.92 || byId["bez-yetiskin"] !== 6.31) return;
         items = rows.map((r) => ({
           id: r.id, cat: r.category, name: r.name,
           sut: Number(r.sut_price), months: Number(r.renew_months) || 0
