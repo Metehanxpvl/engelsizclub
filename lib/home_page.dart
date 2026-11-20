@@ -66,7 +66,7 @@ class _HomePageState extends State<HomePage> {
   String? _activeNadirId;
   List<NadirItem> _nadirItems = List<NadirItem>.from(kDefaultNadirItems);
   int? _expandedFaq;
-  List<HomeHeroSlide> _heroSlides = List<HomeHeroSlide>.from(kDefaultHomeHeroSlides);
+  List<HomeHeroSlide> _heroSlides = const <HomeHeroSlide>[];
 
   List<DiseaseInfo> get _diseases => CatalogAdapters.diseases();
 
