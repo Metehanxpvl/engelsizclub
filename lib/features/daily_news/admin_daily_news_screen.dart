@@ -45,6 +45,11 @@ class _AdminDailyNewsScreenState extends State<AdminDailyNewsScreen> {
   var _loading = true;
   String? _error;
   String? _busyId;
+  String _kategori = _kTumu;
+
+  List<DailyNewsCandidate> get _gorunen => _kategori == _kTumu
+      ? _items
+      : [for (final e in _items) if (haberKategorileri(e).contains(_kategori)) e];
 
   bool get _isAdmin => isAppAdmin(widget.adminEmail);
 
@@ -214,12 +219,20 @@ class _AdminDailyNewsScreenState extends State<AdminDailyNewsScreen> {
                             ),
                           ),
                         )
-                      : ListView.separated(
+                      : Column(
+                          children: [
+                            _KategoriSeridi(
+                              items: _items,
+                              secili: _kategori,
+                              onSec: (k) => setState(() => _kategori = k),
+                            ),
+                            Expanded(
+                              child: ListView.separated(
                           padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                          itemCount: _items.length,
+                          itemCount: _gorunen.length,
                           separatorBuilder: (_, __) => const SizedBox(height: 8),
                           itemBuilder: (context, i) {
-                            final item = _items[i];
+                            final item = _gorunen[i];
                             return _NewsCandidateCard(
                               item: item,
                               busy: _busyId == item.id,
@@ -228,6 +241,9 @@ class _AdminDailyNewsScreenState extends State<AdminDailyNewsScreen> {
                               onReject: () => _reject(item),
                             );
                           },
+                        ),
+                            ),
+                          ],
                         ),
     );
   }
@@ -581,6 +597,124 @@ class _NewsCandidateCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+const String _kTumu = 'Tümü';
+
+/// Başlık + özetteki kelimelere göre haber kategorileri (birden fazla olabilir).
+const Map<String, List<String>> _kHaberKategoriKelimeleri = {
+  'Haklar ve destekler': [
+    'hakk', 'hakları', 'hak ', 'maaş', 'aylık', 'ödeme', 'yasa', 'kanun', 'teklif', 'meclis\'e',
+    'milletvekili', 'bakan', 'yardım', 'ötv', 'vergi', 'sgk', 'emekli',
+    'indirim', 'muafiyet',
+  ],
+  'İş ve istihdam': [
+    'istihdam', 'personel alım', 'kadro', 'kpss', 'ekpss', 'işe alım',
+    'iş arayan', 'iş ilanı', 'çalışan', 'iş kur', 'işkur',
+  ],
+  'Eğitim': [
+    'okul', 'öğrenci', 'öğretmen', 'eğitim', 'kaynaştırma', 'üniversite',
+    'rehabilitasyon',
+  ],
+  'Sağlık': [
+    'hastane', 'tedavi', 'ilaç', 'sağlık', 'doktor', 'hemşire', 'ameliyat',
+    'otizm', 'down sendrom', 'serebral', 'spinal müsküler', 'hastalık',
+  ],
+  'Erişilebilirlik ve şehir': [
+    'erişilebil', 'engelsiz', 'rampa', 'ulaşım', 'asansör', 'şehir',
+    'kaldırım', 'otopark', 'afet', 'tahliye',
+  ],
+  'Etkinlik ve spor': [
+    'spor', ' maç', 'maçı', 'festival', 'etkinlik', 'doğum günü', 'sinema', 'yarışma',
+    'şampiyon', 'turnuva', 'konser', 'tiyatro', '3 aralık',
+  ],
+  'Dernek ve STK': [
+    'dernek', 'platform', 'kent konseyi', 'engelliler meclisi', 'vakıf',
+    'federasyon', 'ziyaret',
+  ],
+  'Asayiş ve kaza': [
+    'kaza ', 'kazası', 'kazada', 'ölü bulundu', 'öldü', 'hayatını kaybetti', 'darp', 'yaralandı', 'saldırı', 'ihmal',
+    'gözaltı', 'tutuklandı', 'çarptı',
+  ],
+};
+
+String _trKucuk(String s) =>
+    s.replaceAll('İ', 'i').replaceAll('I', 'ı').toLowerCase();
+
+/// [item] için eşleşen kategoriler; hiçbiri yoksa `Diğer`.
+Set<String> haberKategorileri(DailyNewsCandidate item) {
+  final metin = _trKucuk('${item.title} ${item.summary}');
+  final out = <String>{};
+  _kHaberKategoriKelimeleri.forEach((kategori, kelimeler) {
+    for (final k in kelimeler) {
+      if (metin.contains(k)) {
+        out.add(kategori);
+        break;
+      }
+    }
+  });
+  if (out.isEmpty) out.add('Diğer');
+  return out;
+}
+
+class _KategoriSeridi extends StatelessWidget {
+  const _KategoriSeridi({
+    required this.items,
+    required this.secili,
+    required this.onSec,
+  });
+
+  final List<DailyNewsCandidate> items;
+  final String secili;
+  final ValueChanged<String> onSec;
+
+  @override
+  Widget build(BuildContext context) {
+    final sayilar = <String, int>{};
+    for (final e in items) {
+      for (final k in haberKategorileri(e)) {
+        sayilar[k] = (sayilar[k] ?? 0) + 1;
+      }
+    }
+    final sira = [
+      _kTumu,
+      ..._kHaberKategoriKelimeleri.keys.where((k) => (sayilar[k] ?? 0) > 0),
+      if ((sayilar['Diğer'] ?? 0) > 0) 'Diğer',
+    ];
+    if (!sira.contains(secili)) sira.add(secili);
+    return SizedBox(
+      height: 52,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+        itemCount: sira.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final k = sira[i];
+          final n = k == _kTumu ? items.length : (sayilar[k] ?? 0);
+          final aktif = k == secili;
+          return ChoiceChip(
+            label: Text(
+              '$k ($n)',
+              style: GoogleFonts.nunito(
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+                color: aktif ? Colors.white : MetoColors.foreground,
+              ),
+            ),
+            selected: aktif,
+            showCheckmark: false,
+            selectedColor: MetoColors.primary,
+            backgroundColor: MetoColors.card,
+            side: BorderSide(
+              color: aktif ? MetoColors.primary : MetoColors.border,
+            ),
+            onSelected: (_) => onSec(k),
+          );
+        },
       ),
     );
   }
