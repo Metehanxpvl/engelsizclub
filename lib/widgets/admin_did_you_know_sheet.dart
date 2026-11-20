@@ -84,7 +84,7 @@ class _AdminDidYouKnowSheetState extends State<AdminDidYouKnowSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: MetoColors.card,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
@@ -136,15 +136,15 @@ class _AdminDidYouKnowSheetState extends State<AdminDidYouKnowSheet> {
                 fillColor: MetoColors.background,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: MetoColors.border),
+                  borderSide: BorderSide(color: MetoColors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: MetoColors.border),
+                  borderSide: BorderSide(color: MetoColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: MetoColors.primary),
+                  borderSide: BorderSide(color: MetoColors.primary),
                 ),
               ),
             ),
