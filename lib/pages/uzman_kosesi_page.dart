@@ -1094,6 +1094,26 @@ class _JobList extends StatelessWidget {
   }
 }
 
+String _kurumIlanYayinTarihi(DateTime? d) {
+  if (d == null) return '';
+  const months = [
+    'Oca',
+    'Şub',
+    'Mar',
+    'Nis',
+    'May',
+    'Haz',
+    'Tem',
+    'Ağu',
+    'Eyl',
+    'Eki',
+    'Kas',
+    'Ara',
+  ];
+  final local = d.toLocal();
+  return '${local.day} ${months[local.month - 1]} ${local.year}';
+}
+
 class _JobTile extends StatelessWidget {
   const _JobTile({required this.ilan, required this.onOpen});
 
@@ -1138,6 +1158,7 @@ class _JobTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const photoSize = _height - _inset * 2;
+    final yayinTarihi = _kurumIlanYayinTarihi(ilan.createdAt);
     return Material(
       color: MetoColors.card,
       borderRadius: BorderRadius.circular(16),
@@ -1153,71 +1174,94 @@ class _JobTile extends StatelessWidget {
           child: SizedBox(
             height: _height,
             width: double.infinity,
-            child: Row(
+            child: Stack(
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(_inset),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(_photoRadius),
-                    clipBehavior: Clip.antiAlias,
-                    child: SizedBox(
-                      width: photoSize,
-                      height: photoSize,
-                      child: _coverPhoto(size: photoSize),
+                Row(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(_inset),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(_photoRadius),
+                        clipBehavior: Clip.antiAlias,
+                        child: SizedBox(
+                          width: photoSize,
+                          height: photoSize,
+                          child: _coverPhoto(size: photoSize),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 10, 16, 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          ilan.kurumAdi,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.nunito(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            height: 1.15,
-                            color: MetoColors.foreground,
-                          ),
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          4,
+                          yayinTarihi.isEmpty ? 10 : 22,
+                          16,
+                          10,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          ilan.arananMeslek,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.nunito(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            height: 1.15,
-                            color: MetoColors.primary,
-                          ),
-                        ),
-                        if (ilan.yerLabel.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            ilan.yerLabel,
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.nunito(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              height: 1.15,
-                              color: MetoColors.mutedFg,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              ilan.kurumAdi,
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.nunito(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                height: 1.15,
+                                color: MetoColors.foreground,
+                              ),
                             ),
-                          ),
-                        ],
-                      ],
+                            const SizedBox(height: 4),
+                            Text(
+                              ilan.arananMeslek,
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.nunito(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                height: 1.15,
+                                color: MetoColors.primary,
+                              ),
+                            ),
+                            if (ilan.yerLabel.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                ilan.yerLabel,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.nunito(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.15,
+                                  color: MetoColors.mutedFg,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (yayinTarihi.isNotEmpty)
+                  Positioned(
+                    top: 8,
+                    right: 12,
+                    child: Text(
+                      yayinTarihi,
+                      style: GoogleFonts.nunito(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        height: 1.1,
+                        color: MetoColors.mutedFg,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),

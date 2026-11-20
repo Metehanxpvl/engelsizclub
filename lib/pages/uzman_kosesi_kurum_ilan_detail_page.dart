@@ -151,26 +151,29 @@ class _UzmanKosesKurumIlanDetailPageState
     );
   }
 
-  Future<void> _openRandevu() async {
+  Future<void> _callKurumPhone() async {
     final raw = _ilan.telefon.trim();
-    if (uzmanTelAranabilir(raw)) {
-      final uri = Uri.parse('tel:${uzmanTelDigits(raw)}');
-      try {
-        final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-        if (!ok && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: L10nText('Ara: $raw')),
-          );
-        }
-      } catch (_) {
-        if (!mounted) return;
+    if (!uzmanTelAranabilir(raw)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: L10nText('Telefon numarası yok.')),
+      );
+      return;
+    }
+    final uri = Uri.parse('tel:${uzmanTelDigits(raw)}');
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: L10nText('Ara: $raw')),
         );
       }
-      return;
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: L10nText('Ara: $raw')),
+      );
     }
-    await _openMesaj();
   }
 
   Future<void> _edit() async {
@@ -220,6 +223,68 @@ class _UzmanKosesKurumIlanDetailPageState
     }
   }
 
+  bool get _showVisitorCallActions => !_isOwner && !_isAdmin;
+
+  Widget _visitorCallActionsBar() {
+    return Material(
+      color: MetoColors.card,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: MetoColors.muted)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 5,
+                  child: SizedBox(
+                    height: 48,
+                    child: OutlinedButton(
+                      onPressed: _callKurumPhone,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: MetoColors.primary,
+                        backgroundColor: MetoColors.card,
+                        side: BorderSide(
+                          color: MetoColors.primary,
+                          width: 1.5,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                      ),
+                      child: const L10nText('Mesaj gönder'),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 6,
+                  child: SizedBox(
+                    height: 48,
+                    child: FilledButton(
+                      onPressed: _callKurumPhone,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: MetoColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                      ),
+                      child: const L10nText('Randevu talep et'),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -246,7 +311,12 @@ class _UzmanKosesKurumIlanDetailPageState
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          16,
+          16,
+          _showVisitorCallActions ? 16 : 32,
+        ),
         children: [
           if (_ilan.photoUrl.trim().isNotEmpty) ...[
             GestureDetector(
@@ -328,8 +398,8 @@ class _UzmanKosesKurumIlanDetailPageState
           ],
           const SizedBox(height: 16),
           Text(_ilan.aciklama, style: const TextStyle(height: 1.45)),
-          const SizedBox(height: 24),
           if (_isAdmin && !_isOwner) ...[
+            const SizedBox(height: 24),
             FilledButton.icon(
               onPressed: _busy ? null : _openMesaj,
               icon: const Icon(Icons.chat_bubble_outline),
@@ -345,52 +415,11 @@ class _UzmanKosesKurumIlanDetailPageState
                 side: const BorderSide(color: Color(0xFFB42318)),
               ),
             ),
-          ] else if (!_isOwner) ...[
-            Row(
-              children: [
-                Expanded(
-                  flex: 5,
-                  child: SizedBox(
-                    height: 48,
-                    child: OutlinedButton(
-                      onPressed: _openMesaj,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: MetoColors.primary,
-                        side: BorderSide(
-                          color: MetoColors.primary,
-                          width: 1.5,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: const L10nText('Mesaj gönder'),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 6,
-                  child: SizedBox(
-                    height: 48,
-                    child: FilledButton(
-                      onPressed: _openRandevu,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: MetoColors.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: const L10nText('Randevu talep et'),
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ],
         ],
       ),
+      bottomNavigationBar:
+          _showVisitorCallActions ? _visitorCallActionsBar() : null,
     );
   }
 }
