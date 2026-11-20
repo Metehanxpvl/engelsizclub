@@ -7,13 +7,13 @@
 #   SUPABASE_SERVICE_ROLE_KEY
 #   GEMINI_API_KEY   (yoksa AI_API_KEY)
 #
-# Cron 06:00 UTC = 09:00 Europe/Istanbul.
+# Zamanlama: gece 00:xx Türkiye (aşağıdaki cron satırına bakın).
 # Elle: Actions → Daily news scan → Run workflow (main).
 name: Daily news scan
 
 on:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '19 21 * * *'  # 00:19 TR (gece; GitHub gecikmesine karşı)
   workflow_dispatch:
 
 permissions:

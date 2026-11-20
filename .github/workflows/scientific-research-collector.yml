@@ -19,12 +19,12 @@
 #
 # Cron yalnız default branch’te çalışır.
 #   Actions → Scientific research collector → Run workflow → branch main
-# Cron 06:00 UTC = 09:00 Türkiye.
+# Zamanlama: gece 00:xx Türkiye (aşağıdaki cron satırına bakın).
 name: Scientific research collector
 
 on:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '43 21 * * *'  # 00:43 TR (gece; GitHub gecikmesine karşı)
   workflow_dispatch:
 
 permissions:
