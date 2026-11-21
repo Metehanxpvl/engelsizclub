@@ -1,6 +1,6 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-11-16T15:06:29Z",
+  "fetchedAt": "2026-11-21T03:07:10Z",
   "ok": true,
   "count": 180,
   "items": [
@@ -1153,6 +1153,20 @@
       "lang": "tr"
     },
     {
+      "id": "43785586842f96bc3c2ce9ca",
+      "title": "Trump Yönetimi Engellilik Tanımının Kapsamını Daraltıyor",
+      "title_original": "Trump Administration Narrows What Qualifies As A Disability",
+      "summary": "Federal yetkililer, sağlık hizmetlerinde engellilik temelli ayrımcılığı önlemeyi amaçlayan bir düzenlemeyi güncelleyerek yasal korumalardan yararlanabilecek kişilerin kapsamını daraltıyor.",
+      "summary_original": "Federal officials are updating a rule designed to bar disability discrimination in healthcare and limiting who qualifies for protections. The post Trump Administration Narrows What Qualifies As A Disability appeared first on Disability Scoop .",
+      "category": "haklar",
+      "source_name": "Disability Scoop",
+      "source_url": "https://www.disabilityscoop.com/2026/11/19/trump-administration-narrows-what-qualifies-as-a-disability/32272/",
+      "image_url": "",
+      "published_at": "Thu, 19 Nov 2026 02:01:14 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
       "id": "889e3c4bca819907fc1a5584",
       "title": "Aşırı Dindarlık: İnanç Ne Zaman Klinik Bir Belirti Haline Gelir?",
       "title_original": "Hyperreligiosity: When Faith Becomes a Clinical Sign",
@@ -2259,6 +2273,34 @@
       "lang": "tr"
     },
     {
+      "id": "2e3a55dd0e0252a6924be3b8",
+      "title": "Toplu Taşımada Erişilebilirlik Sorunları On Yıllar Sonra da Devam Ediyor",
+      "title_original": "Decades After ADA, Accessibility Issues Plague Public Transportation",
+      "summary": "ABD'deki toplu taşıma sistemlerine yönelik yeni bir analiz, engelli bireylerin ulaşımda yaygın erişim engelleriyle karşılaşmaya devam ettiğini gösteriyor. İnceleme, genel zorluklara rağmen bazı şehirlerde sunulan erişilebilirlik hizmetlerinin diğerlerine kıyasla daha gelişmiş olduğunu ortaya koyuyor.",
+      "summary_original": "A new analysis of the nation's public transit systems finds that people with disabilities continue to face widespread access barriers, but services in some cities are better than others. The post Decades After ADA, Accessibility Issues Plague Public Transportation appeared first on Disability Scoop .",
+      "category": "erisilebilirlik",
+      "source_name": "Disability Scoop",
+      "source_url": "https://www.disabilityscoop.com/2026/11/20/decades-after-ada-accessibility-issues-plague-public-transportation/32281/",
+      "image_url": "",
+      "published_at": "Fri, 20 Nov 2026 02:02:32 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "7723a3c13b9ef55031818d12",
+      "title": "Otizm Tespit Cihazı Klinik Araştırmaya Gidiyor",
+      "title_original": "Autism Detection Tool Headed To Clinical Trial",
+      "summary": "Çocukların bebek göz bebeklerindeki ışığa verilen atipik tepkileri algılayan cihazın, ülke genelindeki kliniklerde otizm teşhisini hızlandırması umuluyor.",
+      "summary_original": "The hope is that the device, which detects atypical reactions to light in a child's pupils, could speed up autism diagnosis in clinics across the country. The post Autism Detection Tool Headed To Clinical Trial appeared first on Disability Scoop .",
+      "category": "klinik",
+      "source_name": "Disability Scoop",
+      "source_url": "https://www.disabilityscoop.com/2026/11/20/autism-detection-tool-headed-to-clinical-trial/32282/",
+      "image_url": "",
+      "published_at": "Fri, 20 Nov 2026 02:01:11 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
       "id": "bf9898420107d41efba35789",
       "title": "Medicaid Değişiklikleri Yaklaşırken Engelli Bireylerin Sağlık Güvencesini Kaybetmesinden Endişe Ediliyor",
       "title_original": "As Medicaid Changes Near, Concerns Mount That People With Disabilities Will Lose Coverage",
@@ -2479,48 +2521,6 @@
       "source_url": "https://www.disabilityscoop.com/2026/10/09/trump-accounts-could-put-ssi-at-risk/32214/",
       "image_url": "",
       "published_at": "Fri, 09 Oct 2026 02:01:05 +0000",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "fd72bb9e6ec5aca79d1a5979",
-      "title": "Video Oyunu Yapımcıları Erişilepilirliğe Öncelik Veriyor",
-      "title_original": "Video Game Makers Increasingly Prioritizing Accessibility",
-      "summary": "Video oyunu sektörünün önde gelen isimleri, engelli oyuncuların ihtiyaçlarını daha iyi karşılamak için adımlar atıyor.",
-      "summary_original": "Some of the biggest names in video games are taking steps to better accommodate the needs of players with disabilities. The post Video Game Makers Increasingly Prioritizing Accessibility appeared first on Disability Scoop .",
-      "category": "erisilebilirlik",
-      "source_name": "Disability Scoop",
-      "source_url": "https://www.disabilityscoop.com/2026/11/06/video-game-makers-increasingly-prioritizing-accessibility/32256/",
-      "image_url": "",
-      "published_at": "Fri, 06 Nov 2026 02:02:47 +0000",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "c2e6ddf5706acb9b4fc0465e",
-      "title": "Sosyal Güvenlik Kağıt Çekleri Kaldırıyor: Hak Sahiplerinin Bilmesi Gerekenler",
-      "title_original": "Social Security Is Phasing Out Paper Checks. Here’s What Beneficiaries Need To Know",
-      "summary": "Sosyal Güvenlik veya Ek Güvenlik Geliri ödemelerini hâlâ posta yoluyla alan kişilerin, kağıt çeklerin yakında kaldırılacak olması nedeniyle elektronik ödemelere geçiş için hazırlık yapması gerekiyor.",
-      "summary_original": "People still receiving Social Security or Supplemental Security Income benefits in the mail need to prepare for electronic changes as paper checks are being phased out soon. The post Social Security Is Phasing Out Paper Checks. Here&#8217;s What Beneficiaries Need To Know appeared first on Disability Scoop .",
-      "category": "haklar",
-      "source_name": "Disability Scoop",
-      "source_url": "https://www.disabilityscoop.com/2026/11/06/social-security-is-phasing-out-paper-checks-heres-what-beneficiaries-need-to-know/32257/",
-      "image_url": "",
-      "published_at": "Fri, 06 Nov 2026 02:01:32 +0000",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "194b8923ba31522367c888b7",
-      "title": "Baskı Altındaki FEMA, Engelli Odaklı Acil Durum Müdahale Eğitimini Yeniden Başlatacak",
-      "title_original": "Under Pressure, FEMA To Restore Emergency Response Training Focused On Disabilities",
-      "summary": "Ülkenin en büyük acil durum müdahale ajansı, geçen yıl askıya alınan, afetlerde engelli bireylerin ihtiyaçlarının karşılanmasına yönelik eğitimin yeniden başlatılacağını duyurdu.",
-      "summary_original": "The country's top emergency response agency says it will bring back training on meeting the needs of people with disabilities in disasters after it was halted last year. The post Under Pressure, FEMA To Restore Emergency Response Training Focused On Disabilities appeared first on Disability Scoop .",
-      "category": "erisilebilirlik",
-      "source_name": "Disability Scoop",
-      "source_url": "https://www.disabilityscoop.com/2026/10/02/under-pressure-fema-to-restore-emergency-response-training-focused-on-disabilities/32206/",
-      "image_url": "",
-      "published_at": "Fri, 02 Oct 2026 02:02:22 +0000",
       "status": "pending_review",
       "lang": "tr"
     }
