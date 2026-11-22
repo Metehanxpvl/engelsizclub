@@ -43,6 +43,7 @@ String sectionBroadcastBody({
   required String type,
   String description = '',
   String location = '',
+  int? publishedCount,
 }) {
   final loc = location.trim();
   final where = loc.isEmpty ? '' : ' ($loc)';
@@ -70,7 +71,7 @@ String sectionBroadcastBody({
           : desc;
     case 'kurum_ilan':
       return desc.isEmpty
-          ? 'Kurum İş İlanları’nda yeni ilanlar var. İncelemek için tıklayın.'
+          ? 'Özel Eğitim ve Rehabilitasyon Merkezlerinde toplam ${publishedCount ?? 0} iş ilanı var'
           : desc;
     default:
       return desc.isEmpty ? 'İncelemek için tıklayın.' : desc;

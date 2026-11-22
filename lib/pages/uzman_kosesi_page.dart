@@ -367,7 +367,16 @@ class _UzmanKosesPageState extends State<UzmanKosesPage> {
     }
     final type = _kurumOnly ? 'kurum_ilan' : 'uzman';
     final title = sectionBroadcastTitle(type: type, title: '');
-    final body = sectionBroadcastBody(type: type);
+    int? publishedCount;
+    if (type == 'kurum_ilan') {
+      final ilanlar = await loadKurumIsIlanlari(forceRefresh: true);
+      if (!mounted) return;
+      publishedCount = ilanlar.length;
+    }
+    final body = sectionBroadcastBody(
+      type: type,
+      publishedCount: publishedCount,
+    );
     final ok = await confirmKullanicilaraBildir(
       context,
       title: title,
