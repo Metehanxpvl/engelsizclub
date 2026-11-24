@@ -49,7 +49,9 @@
           q.push(encodeURIComponent(k) + '=' + encodeURIComponent(String(params[k])));
         }
       });
-      window.location.href = APP_SCHEME + '#' + q.join('&');
+      // Query + fragment: eski uygulama sürümleri fragment, yenileri query okur.
+      var qs = q.join('&');
+      window.location.href = APP_SCHEME + '?' + qs + '#' + qs;
     }
 
     function finishWithIdToken(idToken) {

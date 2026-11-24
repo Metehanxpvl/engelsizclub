@@ -139,15 +139,13 @@ class PushNotificationService {
     final email = (user?.email ?? '').trim().toLowerCase();
     if (user == null || email.isEmpty) return;
     try {
-      await client.from('user_push_tokens').upsert(
-        {
-          'token': t,
-          'owner_email': email,
-          'owner_id': user.id,
-          'platform': defaultTargetPlatform.name,
-          'updated_at': DateTime.now().toUtc().toIso8601String(),
+      final platform = defaultTargetPlatform.name;
+      await client.rpc(
+        'register_push_token',
+        params: {
+          'p_token': t,
+          'p_platform': platform,
         },
-        onConflict: 'token',
       );
     } catch (e) {
       debugPrint('FCM token kaydı: $e');

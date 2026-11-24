@@ -87,8 +87,12 @@ class GoogleAuthService {
   /// One Tap/FedCM gri katmanı + loading üst üste biniyordu.
   static bool hidesAuthFormDuringPicker({required bool isWeb}) => !isWeb;
 
-  /// CanvasKit Google iframe sonrası gri kalıyor; yenileme oturumu gösterir.
-  static bool reloadsAfterSuccessfulWebSignIn({required bool isWeb}) => isWeb;
+  /// Başarılı web girişinde sayfa yenileme zorunlu değil;
+  /// oturum onAuthStateChange / signInWithIdToken ile açılır.
+  static bool reloadsAfterSuccessfulWebSignIn({required bool isWeb}) => false;
+
+  static const mobileGoogleFailMessage =
+      'Google ile giriş yapılamadı. Apple ile veya e-posta ile giriş yapabilirsiniz.';
 
   /// Başarılıysa Supabase [AuthResponse] döner.
   static Future<AuthResponse?> signIn() async {
@@ -173,7 +177,9 @@ class GoogleAuthService {
     try {
       return await wait.future.timeout(
         const Duration(minutes: 3),
-        onTimeout: () => null,
+        onTimeout: () {
+          throw StateError(mobileGoogleFailMessage);
+        },
       );
     } finally {
       if (identical(_mobileWait, wait)) {
@@ -182,11 +188,14 @@ class GoogleAuthService {
     }
   }
 
+  /// Deep link parametreleri: önce query (?), yoksa fragment (#).
+  /// Query varsa aynı anahtarda fragment’in üzerine yazar (geriye uyumlu).
   static Map<String, String> _paramsFromUri(Uri uri) {
-    final out = <String, String>{...uri.queryParameters};
+    final out = <String, String>{};
     if (uri.fragment.isNotEmpty) {
       out.addAll(Uri.splitQueryString(uri.fragment));
     }
+    out.addAll(uri.queryParameters);
     return out;
   }
 
@@ -242,7 +251,12 @@ class GoogleAuthService {
     }
 
     final idToken = params['id_token'];
-    if (idToken == null || idToken.isEmpty) return;
+    if (idToken == null || idToken.isEmpty) {
+      if (_mobileWait != null && !_mobileWait!.isCompleted) {
+        _mobileWait!.completeError(StateError(mobileGoogleFailMessage));
+      }
+      return;
+    }
 
     final accessToken = params['access_token'];
     try {

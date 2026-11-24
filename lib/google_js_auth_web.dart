@@ -66,13 +66,11 @@ void restoreFlutterAfterGoogleJs() {
   js_util.callMethod(js_util.globalThis, '__engelsizRestoreFlutter', []);
 }
 
-/// CanvasKit, Google iframe sonrası gri kalıyor; yenileme oturumu ayağa kaldırır.
+/// Başarılı Google girişinden sonra Flutter tuvalini geri getirir (sayfa yenilemez).
 void reloadAfterGoogleSignInJs() {
+  restoreFlutterAfterGoogleJs();
   final bridge =
       js_util.getProperty(js_util.globalThis, '__engelsizReloadAfterGoogle');
-  if (bridge == null) {
-    restoreFlutterAfterGoogleJs();
-    return;
-  }
+  if (bridge == null) return;
   js_util.callMethod(js_util.globalThis, '__engelsizReloadAfterGoogle', []);
 }

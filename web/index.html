@@ -344,13 +344,9 @@
     }
 
     window.__engelsizRestoreFlutter = __engelsizRestoreFlutter;
+    // Zorunlu location.reload kaldırıldı: oturum onAuthStateChange ile açılır.
     window.__engelsizReloadAfterGoogle = function () {
       __engelsizRestoreFlutter();
-      try {
-        window.location.reload();
-      } catch (_) {
-        window.location.href = window.location.href;
-      }
     };
 
     function __engelsizShowGoogleOverlay(onCancel) {
