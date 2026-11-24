@@ -1,6 +1,6 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-11-23T02:15:19Z",
+  "fetchedAt": "2026-11-24T05:31:49Z",
   "ok": true,
   "count": 180,
   "items": [
@@ -547,6 +547,20 @@
       "source_url": "https://www.sciencedaily.com/releases/2026/01/260127010149.htm",
       "image_url": "",
       "published_at": "Tue, 27 Jan 2026 09:48:33 EST",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "66d98f1cf7fad0b61e00c05a",
+      "title": "Ağır engelli bireyler için sosyal yardımlarda daha hızlı ödeme önerisi",
+      "title_original": "Benefits review to suggest quicker payment for some disabled people",
+      "summary": "Timms incelemesi, ağır sağlık sorunları olan kişilerin Kişisel Bağımsızlık Ödemesi (PIP) alabilmek için yeniden değerlendirmeye tabi tutulmamasını önerecek.",
+      "summary_original": "The Timms review will recommend those with severe conditions will not need to be reassessed to receive Pip.",
+      "category": "haklar",
+      "source_name": "BBC Disability",
+      "source_url": "https://www.bbc.co.uk/news/articles/cvx2xjed2r3ro?at_medium=RSS&at_campaign=rss",
+      "image_url": "",
+      "published_at": "Tue, 24 Nov 2026 00:53:31 GMT",
       "status": "pending_review",
       "lang": "tr"
     },
@@ -2161,6 +2175,20 @@
       "lang": "tr"
     },
     {
+      "id": "eef4cbb0a180b78d64d9312d",
+      "title": "Çocuk Çizgi Filmleri ve Engellilik: Otistik Bir Yaratıcının Gözünden",
+      "title_original": "Kids' Cartoons and Disability: An Autistic Creator's View",
+      "summary": "Otistik bir öğretmen, çocuk çizgi filmlerinin engellilik konusunda nerede yanlış yaptığını, yeni çocuk televizyonu karakterlerinin sadece yüzde 1'inin neden engelli olduğunu ve Dr. Apple'ın nasıl farklılaştığını açıklıyor.",
+      "summary_original": "An autistic teacher explains what kids' cartoons get wrong about disability, why only 1% of new children's TV characters are disabled, and how DR. APPLE differs",
+      "category": "erisilebilirlik",
+      "source_name": "Disabled World",
+      "source_url": "https://www.disabled-world.com/communication/broadcasts/dr-apple.php",
+      "image_url": "",
+      "published_at": "Mon, 23 Nov 2026 20:44:00 GMT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
       "id": "de976efb9bef0d34e5f060b7",
       "title": "İkinci Bakış Yasaları ve Engelli Dostu Ceza İncelemesi",
       "title_original": "Second Look Laws and Disability-Inclusive Sentence Review",
@@ -2493,34 +2521,6 @@
       "source_url": "https://www.bbc.co.uk/news/articles/cmx2qpjge5lyo?at_medium=RSS&at_campaign=rss",
       "image_url": "",
       "published_at": "Fri, 23 Oct 2026 05:17:18 GMT",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "348ae6570dd6b2f513e8391f",
-      "title": "Kuzey İrlanda'da Yetişkinler İçin Kamu Finansmanlı DEHB Hizmetinin Olmaması Eleştiriliyor",
-      "title_original": "'Wildly unfair that my husband and I pay £4k a year for ADHD treatment'",
-      "summary": "Kuzey İrlanda, Birleşik Krallık'ta resmi olarak görevlendirilen ve kamu tarafından finanse edilen yetişkinlere yönelik DEHB hizmetine sahip olmayan tek bölgedir. Bu durum, hastaların özel tedavi masraflarını kendilerinin karşılamasına yol açmaktadır.",
-      "summary_original": "Northern Ireland is the only part of the UK without a formally commissioned, publicly-funded adult service for ADHD.",
-      "category": "haklar",
-      "source_name": "BBC Disability",
-      "source_url": "https://www.bbc.co.uk/news/articles/cvze4wg10389o?at_medium=RSS&at_campaign=rss",
-      "image_url": "",
-      "published_at": "Fri, 23 Oct 2026 05:14:41 GMT",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "7ef59cf529e008b7b0aad9d5",
-      "title": "CDC: Gelişimsel Yetersizlik Yaygınlığı Belirgin Ölçüde Arttı",
-      "title_original": "CDC Finds Developmental Disability Prevalence Up ‘Significantly’",
-      "summary": "ABD Hastalık Kontrol ve Önleme Merkezleri (CDC) tarafından yürütülen araştırma, ülke genelinde daha fazla çocuğa otizm ve diğer gelişimsel yetersizlik tanısı konduğunu ve bu oranların kayda değer şekilde yükseldiğini ortaya koydu.",
-      "summary_original": "Research from the Centers for Disease Control and Prevention finds that more children across the nation are being diagnosed with autism and other developmental disabilities. The post CDC Finds Developmental Disability Prevalence Up &#8216;Significantly&#8217; appeared first on Disability Scoop .",
-      "category": "klinik",
-      "source_name": "Disability Scoop",
-      "source_url": "https://www.disabilityscoop.com/2026/10/23/cdc-finds-developmental-disability-prevalence-up-significantly/32232/",
-      "image_url": "",
-      "published_at": "Fri, 23 Oct 2026 02:02:02 +0000",
       "status": "pending_review",
       "lang": "tr"
     }
