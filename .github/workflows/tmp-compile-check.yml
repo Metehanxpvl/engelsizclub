@@ -24,4 +24,7 @@ jobs:
       - name: Analyze changed files
         run: flutter analyze --no-fatal-infos --no-fatal-warnings lib || true
       - name: Build debug APK
-        run: flutter build apk --debug --android-skip-build-dependency-validation
+        run: |
+          sed -i 's/id("com.android.application") version "9.0.1"/id("com.android.application") version "9.1.1"/' android/settings.gradle.kts
+          grep -n com.android.application android/settings.gradle.kts
+          flutter build apk --debug
