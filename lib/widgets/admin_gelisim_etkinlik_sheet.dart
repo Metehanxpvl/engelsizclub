@@ -90,6 +90,10 @@ class _AdminGelisimEtkinlikSheetState extends State<AdminGelisimEtkinlikSheet> {
     try {
       await updateGelisimEtkinlik(
         id: item.id,
+        // Derleme düzeltmesi: başlık/açıklama artık zorunlu; bu form onları
+        // düzenlemediği için mevcut değerler aynen gönderilir.
+        title: item.title,
+        description: item.description,
         youtubeUrl: result.youtubeUrl,
         kaynak: result.kaynak,
         isActive: result.isActive,
