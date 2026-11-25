@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin_config.dart';
@@ -92,10 +96,116 @@ ForumComment forumCommentFromRow(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Forum akışı önbelleği — yalnızca hız için.
+// Forum sekmesine her girişte liste ağdan gelene kadar boş ekran + spinner
+// görünüyordu. Son liste bellekte (sekme geçişleri) ve cihazda (uygulama ilk
+// açılış) tutulur; sayfa önce bunu anında gösterir, ardından eskisi gibi
+// Supabase'den tazeler. Veri, filtre ve davranış değişmez.
+// ---------------------------------------------------------------------------
+
+const _kForumFeedCacheKey = 'forum_feed_cache_v1';
+
+List<ForumPost>? _forumFeedMemCache;
+String _forumFeedMemOwner = '';
+
+String _forumCacheOwnerKey(String userEmail) => userEmail.trim().toLowerCase();
+
+/// Bu oturumda en son yüklenen forum akışı (sekme geçişleri için).
+List<ForumPost>? forumFeedMemoryCache(String userEmail) {
+  final cache = _forumFeedMemCache;
+  if (cache == null || cache.isEmpty) return null;
+  if (_forumFeedMemOwner != _forumCacheOwnerKey(userEmail)) return null;
+  return List<ForumPost>.of(cache);
+}
+
+/// Forum sayfasının son gösterdiği listeyi bellekte tutar.
+void rememberForumFeed(String userEmail, List<ForumPost> posts) {
+  if (posts.isEmpty) return;
+  _forumFeedMemOwner = _forumCacheOwnerKey(userEmail);
+  _forumFeedMemCache = List<ForumPost>.of(posts);
+}
+
+/// Cihazda saklanan son forum akışı (uygulama ilk açılış). Eski base64
+/// fotoğraflar boyut nedeniyle saklanmaz; tazeleme gelince görünürler.
+Future<List<ForumPost>?> loadForumFeedDiskCache() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kForumFeedCacheKey);
+    if (raw == null || raw.isEmpty) return null;
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) return null;
+    final uid = Supabase.instance.client.auth.currentUser?.id ?? '';
+    if ((decoded['uid']?.toString() ?? '') != uid) return null;
+    final likedRaw = decoded['liked'];
+    final liked = <int>{
+      if (likedRaw is List)
+        for (final e in likedRaw)
+          if (e is num) e.toInt(),
+    };
+    final rowsRaw = decoded['rows'];
+    if (rowsRaw is! List || rowsRaw.isEmpty) return null;
+    return [
+      for (final r in rowsRaw.whereType<Map>())
+        forumPostFromRow(
+          Map<String, dynamic>.from(r),
+          likedByMe: liked.contains((r['id'] as num?)?.toInt() ?? -1),
+        ),
+    ];
+  } catch (_) {
+    return null;
+  }
+}
+
+Future<void> _saveForumFeedDiskCache(
+  List<Map<String, dynamic>> rows,
+  Set<int> liked,
+  String uid,
+) async {
+  try {
+    final slim = <Map<String, dynamic>>[];
+    for (final r in rows) {
+      final copy = Map<String, dynamic>.from(r);
+      final photos = copy['photos'];
+      if (photos is List) {
+        copy['photos'] = [
+          for (final p in photos)
+            if (p != null && !p.toString().startsWith('data:')) p.toString(),
+        ];
+      }
+      slim.add(copy);
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _kForumFeedCacheKey,
+      jsonEncode({'uid': uid, 'liked': liked.toList(), 'rows': slim}),
+    );
+  } catch (_) {}
+}
+
+Future<Set<int>> _loadMyForumLikes(SupabaseClient client, String userId) async {
+  try {
+    final likeRows = await withNetworkTimeout(
+      client.from('forum_likes').select('post_id').eq('owner_id', userId),
+    );
+    return {
+      for (final e in (likeRows as List).whereType<Map>())
+        if ((e['post_id'] as num?) != null) (e['post_id'] as num).toInt(),
+    };
+  } catch (_) {
+    return <int>{};
+  }
+}
+
 Future<List<ForumPost>> loadForumPosts() async {
   final client = Supabase.instance.client;
   final user = client.auth.currentUser;
   try {
+    // Beğeniler gönderilerle aynı anda istenir (sırayla değil) — sonuç aynı,
+    // bir ağ gidiş-dönüşü daha az.
+    final likesFuture = user != null
+        ? _loadMyForumLikes(client, user.id)
+        : Future<Set<int>>.value(<int>{});
     final rows = await withNetworkTimeout(
       client
           .from('forum_posts')
@@ -108,21 +218,9 @@ Future<List<ForumPost>> loadForumPosts() async {
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
 
-    Set<int> liked = {};
-    if (user != null) {
-      try {
-        final likeRows = await withNetworkTimeout(
-          client
-              .from('forum_likes')
-              .select('post_id')
-              .eq('owner_id', user.id),
-        );
-        liked = {
-          for (final e in (likeRows as List).whereType<Map>())
-            if ((e['post_id'] as num?) != null) (e['post_id'] as num).toInt(),
-        };
-      } catch (_) {}
-    }
+    final liked = await likesFuture;
+
+    unawaited(_saveForumFeedDiskCache(list, liked, user?.id ?? ''));
 
     return list
         .map((e) => forumPostFromRow(
