@@ -157,6 +157,17 @@ Future<List<ForumPost>?> loadForumFeedDiskCache() async {
   }
 }
 
+/// Uygulama açılışında Forum listesini arka planda hazırlar; kullanıcı Forum
+/// sekmesine geçtiğinde liste beklemeden görünür. Hata olursa sessiz geçer.
+Future<void> prefetchForumFeed(String userEmail) async {
+  if (forumFeedMemoryCache(userEmail) != null) return;
+  try {
+    final posts = await loadForumPosts();
+    if (forumFeedMemoryCache(userEmail) != null) return;
+    rememberForumFeed(userEmail, posts);
+  } catch (_) {}
+}
+
 Future<void> _saveForumFeedDiskCache(
   List<Map<String, dynamic>> rows,
   Set<int> liked,
