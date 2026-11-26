@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'admin_config.dart';
 import 'bildirim_store.dart';
 import 'feed_seen_store.dart';
+import 'forum_store.dart' show prefetchForumFeed;
 import 'guest_limit_store.dart';
 import 'home_page.dart';
 import 'cocuk_profil_store.dart';
@@ -534,6 +535,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     _loadUserCloud();
     _loadIlanlarVeFoto();
     _loadSohbetOzetleri();
+    // Hız: Forum listesini arka planda hazırla (sekmeye geçince beklemesin).
+    unawaited(prefetchForumFeed(widget.user.email));
     unawaited(ensureSectionEditorsLoaded(widget.user.email).then((_) {
       if (mounted) setState(() {});
     }));

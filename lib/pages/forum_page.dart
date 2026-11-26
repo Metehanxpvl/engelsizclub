@@ -320,6 +320,16 @@ class ForumPageState extends State<ForumPage> {
       _uzmanMeslek = 'Aile';
     }
     _applyOpenCategoryFromShell(notify: false);
+    // Hız: son listeyi anında göster, ardından aşağıda eskisi gibi tazele.
+    final memPosts = forumFeedMemoryCache(widget.userEmail);
+    if (memPosts != null) {
+      _cloudPosts = memPosts;
+    } else {
+      unawaited(loadForumFeedDiskCache().then((diskPosts) {
+        if (!mounted || diskPosts == null || _cloudPosts.isNotEmpty) return;
+        setState(() => _cloudPosts = diskPosts);
+      }));
+    }
     _loadPosts().then((_) {
       if (mounted) unawaited(_tryOpenPostFromShell());
     });
@@ -354,6 +364,7 @@ class ForumPageState extends State<ForumPage> {
 
   @override
   void dispose() {
+    rememberForumFeed(widget.userEmail, _cloudPosts);
     unawaited(unsubscribeRealtime(_forumChannel));
     _forumChannel = null;
     _searchController.dispose();
@@ -391,6 +402,7 @@ class ForumPageState extends State<ForumPage> {
           ),
       ];
       if (!mounted) return;
+      rememberForumFeed(widget.userEmail, enriched);
       setState(() {
         _cloudPosts = enriched;
         _loading = false;

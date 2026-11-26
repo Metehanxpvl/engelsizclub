@@ -62,14 +62,34 @@ SectionKey? sectionKeyForTile(String tileKey) {
   return SectionKey.tryParse(tileKey.trim().toLowerCase());
 }
 
-Future<void> ensureSectionEditorsLoaded(String? email) async {
+// Hız: ana sayfadaki bölümler açılışta bunu aynı anda çağırıyor; her biri
+// ayrı istek atmasın diye süren istek paylaşılır. Sonuç ve davranış aynı.
+Future<void>? _editorsInFlight;
+String? _editorsInFlightFor;
+
+Future<void> ensureSectionEditorsLoaded(String? email) {
   final e = _normEmail(email);
-  if (e.isEmpty || isAppAdmin(e)) return;
+  if (e.isEmpty || isAppAdmin(e)) return Future<void>.value();
   if (_loadedFor == e &&
       _loadedAt != null &&
       DateTime.now().difference(_loadedAt!) < _cacheTtl) {
-    return;
+    return Future<void>.value();
   }
+  final running = _editorsInFlight;
+  if (running != null && _editorsInFlightFor == e) return running;
+  final f = _loadSectionEditorsFor(e);
+  _editorsInFlight = f;
+  _editorsInFlightFor = e;
+  f.whenComplete(() {
+    if (identical(_editorsInFlight, f)) {
+      _editorsInFlight = null;
+      _editorsInFlightFor = null;
+    }
+  });
+  return f;
+}
+
+Future<void> _loadSectionEditorsFor(String e) async {
   try {
     final rows = await Supabase.instance.client
         .from('section_editors')

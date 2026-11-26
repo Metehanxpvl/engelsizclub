@@ -190,21 +190,33 @@ Future<List<DuyuruItem>> loadDuyurular({
   bool forceRefresh = false,
   String? viewerEmail,
 }) async {
+  final needFetch = forceRefresh || !hasFreshDuyuruCache;
+  // Hız: duyurular sorgusu editör kontrolüyle aynı anda başlar (sırayla değil).
+  final Future<Object?>? rowsFuture = needFetch
+      ? () async {
+          try {
+            return await Supabase.instance.client
+                .from('duyurular')
+                .select()
+                .order('created_at', ascending: false)
+                .limit(kDuyuruFetchLimit);
+          } catch (e) {
+            return e; // hata aşağıda eskisi gibi catch'e düşer
+          }
+        }()
+      : null;
   await ensureSectionEditorsLoaded(viewerEmail);
   final editor = canEditSection(viewerEmail, SectionKey.duyurular);
-  if (!forceRefresh && hasFreshDuyuruCache) {
+  if (rowsFuture == null) {
     final cached = List<DuyuruItem>.from(_duyuruMemoryCache!);
     if (editor) return cached;
     return cached.where((d) => d.isVisibleNow()).toList();
   }
   try {
-    final rows = await Supabase.instance.client
-        .from('duyurular')
-        .select()
-        .order('created_at', ascending: false)
-        .limit(kDuyuruFetchLimit);
+    final rows = await rowsFuture;
+    if (rows is! List) throw rows ?? StateError('duyurular boş');
     final list = [
-      for (final e in (rows as List).whereType<Map>())
+      for (final e in rows.whereType<Map>())
         duyuruFromRow(Map<String, dynamic>.from(e)),
     ].where((d) {
       if (d.id <= 0) return false;
