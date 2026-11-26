@@ -400,11 +400,15 @@ class KesfetStage extends StatelessWidget {
                     reduceMotion: reduceMotion,
                     playback: playback,
                     // Video oynayana kadar siyah ekran yerine kapak resmi.
-                    placeholder: KesfetThumb(
-                      url: thumbnailUrl,
-                      semanticLabel: title,
-                      loading: isActive,
-                    ),
+                    // Web'de tarayıcı otomatik oynatmayı engelleyebildiği için
+                    // eski davranış korunur (kapak yok).
+                    placeholder: kIsWeb
+                        ? null
+                        : KesfetThumb(
+                            url: thumbnailUrl,
+                            semanticLabel: title,
+                            loading: isActive,
+                          ),
                   )
                 : KesfetThumb(url: thumbnailUrl, semanticLabel: title),
           ),
