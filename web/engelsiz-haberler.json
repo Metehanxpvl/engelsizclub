@@ -1,6 +1,6 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-11-25T04:34:10Z",
+  "fetchedAt": "2026-11-26T03:51:04Z",
   "ok": true,
   "count": 180,
   "items": [
@@ -57,6 +57,20 @@
       "source_url": "https://www.disabilityscoop.com/2026/10/28/families-of-kids-with-disabilities-endure-hardships-without-caregiver-pay/32239/",
       "image_url": "",
       "published_at": "Wed, 28 Oct 2026 02:01:41 +0000",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "5efceb716d7a0f7f88421860",
+      "title": "DEHB ve otizm değerlendirmeleri için uzun bekleyişler 'trajedi' olarak nitelendiriliyor",
+      "title_original": "Long waits 'a tragedy' as thousands seek ADHD and autism assessments",
+      "summary": "Bir aile hekimi, DEHB ve otizm değerlendirmelerindeki uzun bekleme sürelerinin, en çok ihtiyaç duyan kişilerin muayene edilememesi anlamına geldiği konusunda uyardı.",
+      "summary_original": "A GP warns that long waits for ADHD and autism assessments mean those most in need are not being seen.",
+      "category": "erisilebilirlik",
+      "source_name": "BBC Disability",
+      "source_url": "https://www.bbc.co.uk/news/articles/ckvg6gyddx5vo?at_medium=RSS&at_campaign=rss",
+      "image_url": "",
+      "published_at": "Wed, 25 Nov 2026 23:01:45 GMT",
       "status": "pending_review",
       "lang": "tr"
     },
@@ -547,6 +561,20 @@
       "source_url": "https://www.sciencedaily.com/releases/2026/01/260127010149.htm",
       "image_url": "",
       "published_at": "Tue, 27 Jan 2026 09:48:33 EST",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "08379d3683c21212b1f21e75",
+      "title": "Yüz Farklılıkları ve Biyometrik Kimlik Doğrulama Engelleri",
+      "title_original": "Facial Differences and Biometric Identity Check Barriers",
+      "summary": "Yüz tanıma, banka canlılık tespiti ve havalimanı e-kapılarının yüz farklılıklarına sahip bireyler için neden başarısız olabileceği ve halihazırda var olan erişilebilir alternatifler.",
+      "summary_original": "How face unlock, bank liveness detection and airport e-gates can fail people with facial differences, and the accessible alternatives that already exist",
+      "category": "erisilebilirlik",
+      "source_name": "Disabled World",
+      "source_url": "https://www.disabled-world.com/disability/discrimination/blink.php",
+      "image_url": "",
+      "published_at": "Tue, 24 Nov 2026 15:11:00 GMT",
       "status": "pending_review",
       "lang": "tr"
     },
@@ -2493,34 +2521,6 @@
       "source_url": "https://www.disabilityscoop.com/2026/09/25/effort-seeks-to-improve-dental-care-for-those-with-idd/32189/",
       "image_url": "",
       "published_at": "Fri, 25 Sep 2026 02:02:01 +0000",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "4a29f898a1a52e37fe098689",
-      "title": "Genç Kızlarda Fark Edilmeyen Otizm ve Maskelemenin Etkileri",
-      "title_original": "‘She Masked, She Masked, She Masked’: Unseen Autism And Its Toll On Young Girls",
-      "summary": "Otizmli kız çocuklarına erkeklere kıyasla belirgin şekilde daha geç tanı konulmaktadır. Bu durum, zorlu ortamlara uyum sağlamalarına yardımcı olabilecek erken müdahale imkanlarından mahrum kalmalarına yol açmaktadır.",
-      "summary_original": "Girls with autism tend to be diagnosed significantly later than boys. As a result, they miss out on early interventions that can help them navigate challenging environments. The post &#8216;She Masked, She Masked, She Masked&#8217;: Unseen Autism And Its Toll On Young Girls appeared first on Disability Scoop .",
-      "category": "haklar",
-      "source_name": "Disability Scoop",
-      "source_url": "https://www.disabilityscoop.com/2026/09/25/she-masked-she-masked-she-masked-unseen-autism-and-its-toll-on-young-girls/32192/",
-      "image_url": "",
-      "published_at": "Fri, 25 Sep 2026 02:01:51 +0000",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "40c96134c831088a16a4fb7a",
-      "title": "Özel Okul Öğrencilerinden Sınıf Arkadaşları İçin Özel Şarkı",
-      "title_original": "Pupils pen special song to give classmates a voice",
-      "summary": "Doğu Belfast'taki Mitchell House Özel Okulu'nda öğrenim gören ve konuşma yetisi olmayan birçok öğrenci, iletişim kurmanın yollarını buluyor.",
-      "summary_original": "Many pupils at Mitchell House Special School in east Belfast are non-verbal but that does not mean they cannot communicate.",
-      "category": "erisilebilirlik",
-      "source_name": "BBC Disability",
-      "source_url": "https://www.bbc.co.uk/news/articles/cmx2qpjge5lyo?at_medium=RSS&at_campaign=rss",
-      "image_url": "",
-      "published_at": "Fri, 23 Oct 2026 05:17:18 GMT",
       "status": "pending_review",
       "lang": "tr"
     }
