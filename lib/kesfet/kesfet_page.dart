@@ -13,6 +13,7 @@ import '../guest_limit_store.dart';
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
 import 'kesfet_models.dart';
+import 'kesfet_network.dart';
 import 'kesfet_player.dart';
 import 'kesfet_related.dart';
 import 'kesfet_store.dart';
@@ -69,6 +70,7 @@ class _KesfetPageState extends State<KesfetPage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (!kIsWeb) KesfetNetwork.ensureStarted();
     _guestQuotaReady = !_guestLimited;
     unawaited(_reload());
     unawaited(_bootstrapGuestQuota());
@@ -368,6 +370,8 @@ class _KesfetPageState extends State<KesfetPage> with WidgetsBindingObserver {
       physics: kIsWeb
           ? const NeverScrollableScrollPhysics()
           : const PageScrollPhysics(parent: ClampingScrollPhysics()),
+      // Hız: bir sonraki sayfa önceden kurulsun (oynatıcı ön yüklemesi).
+      allowImplicitScrolling: !kIsWeb,
       itemCount: _videos.length,
       onPageChanged: (i) {
         setState(() => _index = i);
@@ -382,9 +386,17 @@ class _KesfetPageState extends State<KesfetPage> with WidgetsBindingObserver {
             i == _index &&
             !_quotaExhausted &&
             (_guestQuotaReady || !_guestLimited);
+        // Bir sonraki video arka planda hazırlanır (Wi-Fi'de başı da iner).
+        final preload = !kIsWeb &&
+            widget.isTabActive &&
+            i == _index + 1 &&
+            !_quotaExhausted &&
+            (_guestQuotaReady || !_guestLimited);
         return _KesfetSlide(
           video: v,
           isActive: active,
+          preload: preload,
+          fullPreload: KesfetNetwork.isUnmetered,
           reduceMotion: reduce,
           pageController: _pageCtrl,
           itemCount: _videos.length,
@@ -626,6 +638,8 @@ class _KesfetSlide extends StatelessWidget {
   const _KesfetSlide({
     required this.video,
     required this.isActive,
+    this.preload = false,
+    this.fullPreload = false,
     required this.reduceMotion,
     required this.pageController,
     required this.itemCount,
@@ -637,6 +651,8 @@ class _KesfetSlide extends StatelessWidget {
 
   final KesfetVideo video;
   final bool isActive;
+  final bool preload;
+  final bool fullPreload;
   final bool reduceMotion;
   final PageController pageController;
   final int itemCount;
@@ -662,6 +678,8 @@ class _KesfetSlide extends StatelessWidget {
               videoId: video.youtubeVideoId,
               thumbnailUrl: video.resolvedThumb,
               isActive: isActive,
+              preload: preload,
+              fullPreload: fullPreload,
               reduceMotion: reduceMotion,
               title: video.title,
               playback: playback,
