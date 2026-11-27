@@ -14,6 +14,7 @@ import '../features/global_news/global_news_repository.dart';
 import '../home_hero_store.dart';
 import '../section_editors.dart';
 import '../meto_theme.dart';
+import '../services/app_catalog_service.dart';
 import '../services/image_optimize_service.dart';
 import '../services/r2_storage_service.dart';
 import 'instagram_embed.dart';
@@ -1484,7 +1485,9 @@ class _DuyuruFullscreen extends StatefulWidget {
 
 class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
     with SingleTickerProviderStateMixin {
-  static const _storyDuration = Duration(seconds: 5);
+  int get _storyAutoSeconds =>
+      AppCatalogService.instance.settingInt('story_auto_advance_seconds', 0);
+  bool get _autoAdvanceOn => _storyAutoSeconds > 0;
 
   late final AnimationController _progress;
   late final PageController _pageController;
@@ -1574,8 +1577,10 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
     super.initState();
     _index = widget.initialIndex.clamp(0, widget.items.length - 1);
     _pageController = PageController(initialPage: _index);
-    _progress = AnimationController(vsync: this, duration: _storyDuration)
-      ..addStatusListener(_onProgressStatus);
+    _progress = AnimationController(
+      vsync: this,
+      duration: Duration(seconds: _autoAdvanceOn ? _storyAutoSeconds : 1),
+    )..addStatusListener(_onProgressStatus);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _startCurrent();
@@ -1591,6 +1596,7 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
   }
 
   void _onProgressStatus(AnimationStatus status) {
+    if (!_autoAdvanceOn) return;
     if (status == AnimationStatus.completed) _goNext();
   }
 
@@ -1598,7 +1604,8 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
     widget.onSeen(item);
     _progress.stop();
     _progress.value = 0;
-    if (_holdCount == 0) {
+    if (_autoAdvanceOn && _holdCount == 0) {
+      _progress.duration = Duration(seconds: _storyAutoSeconds);
       _progress.forward();
     }
   }
@@ -1668,7 +1675,10 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
 
   void _resumeHold() {
     if (_holdCount > 0) _holdCount--;
-    if (_holdCount == 0 && mounted && _progress.value < 1) {
+    if (_autoAdvanceOn &&
+        _holdCount == 0 &&
+        mounted &&
+        _progress.value < 1) {
       _progress.forward();
     }
   }
@@ -1717,7 +1727,7 @@ class _DuyuruFullscreenState extends State<_DuyuruFullscreen>
                         ? 1
                         : i > _index
                             ? 0
-                            : _progress.value,
+                            : (_autoAdvanceOn ? _progress.value : 1),
                     backgroundColor: track,
                     color: fill,
                   ),
