@@ -1,0 +1,17 @@
+{
+  "name": "engelsizclub web (Vite + React)",
+  "install": "pnpm install",
+  "terminals": [
+    {
+      "name": "vite-dev",
+      "command": "pnpm run dev --host 0.0.0.0",
+      "description": "Vite dev server for the engelsizclub React web app (http://localhost:5173)."
+    }
+  ],
+  "ports": [
+    {
+      "name": "vite",
+      "port": 5173
+    }
+  ]
+}
