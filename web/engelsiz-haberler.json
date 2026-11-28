@@ -1,6 +1,6 @@
 {
   "source": "engelsiz-club-global-news",
-  "fetchedAt": "2026-11-26T03:51:04Z",
+  "fetchedAt": "2026-11-28T03:30:31Z",
   "ok": true,
   "count": 180,
   "items": [
@@ -1205,6 +1205,20 @@
       "source_url": "https://www.bbc.co.uk/news/articles/cqj9k8lr1p4po?at_medium=RSS&at_campaign=rss",
       "image_url": "",
       "published_at": "Thu, 29 Oct 2026 00:17:55 GMT",
+      "status": "pending_review",
+      "lang": "tr"
+    },
+    {
+      "id": "c8b2ac3108334a0529c9edb0",
+      "title": "NHS'te DEHB veya otizm teşhisi almak neden bu kadar zor?",
+      "title_original": "Why is it so hard to get ADHD or autism diagnosis on the NHS?",
+      "summary": "Lynne Balmain, bir DEHB değerlendirmesi için beklemenin yalnızca finansal baskıya neden olmadığını, aynı zamanda akıl sağlığı ve genel refahı üzerinde de olumsuz etki yarattığını belirtiyor.",
+      "summary_original": "Lynne Balmain says the wait for an ADHD assessment causes not just financial pressure, but has an impact on her mental health and wellbeing too.",
+      "category": "haklar",
+      "source_name": "BBC Disability",
+      "source_url": "https://www.bbc.co.uk/news/videos/c3j4rwxr1zgyo?at_medium=RSS&at_campaign=rss",
+      "image_url": "",
+      "published_at": "Thu, 26 Nov 2026 08:44:13 GMT",
       "status": "pending_review",
       "lang": "tr"
     },
@@ -2507,20 +2521,6 @@
       "source_url": "https://www.disabled-world.com/disability/publications/journals/neuralese-recurrence.php",
       "image_url": "",
       "published_at": "Fri, 25 Sep 2026 18:35:00 GMT",
-      "status": "pending_review",
-      "lang": "tr"
-    },
-    {
-      "id": "c0b6c43318898d95e2bd8ba7",
-      "title": "Gelişimsel Yetersizliği Olanlar İçin Diş Sağlığı Hizmetleri İyileştiriliyor",
-      "title_original": "Effort Seeks To Improve Dental Care For Those With IDD",
-      "summary": "Ülke genelinde gelişimsel yetersizliği olan çocukların diş bakımına erişimini artırmak amacıyla 51 milyon dolarlık yeni bir girişim başlatıldı.",
-      "summary_original": "With $51 million, a new initiative is underway to increase access to dental care for children with developmental disabilities in communities across the country. The post Effort Seeks To Improve Dental Care For Those With IDD appeared first on Disability Scoop .",
-      "category": "erisilebilirlik",
-      "source_name": "Disability Scoop",
-      "source_url": "https://www.disabilityscoop.com/2026/09/25/effort-seeks-to-improve-dental-care-for-those-with-idd/32189/",
-      "image_url": "",
-      "published_at": "Fri, 25 Sep 2026 02:02:01 +0000",
       "status": "pending_review",
       "lang": "tr"
     }
