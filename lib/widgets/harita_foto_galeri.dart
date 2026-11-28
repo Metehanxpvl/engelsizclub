@@ -9,6 +9,7 @@ import '../harita_foto_store.dart';
 import '../l10n/l10n_text.dart';
 import '../meto_theme.dart';
 import 'guest_gate.dart';
+import 'photo_gallery_lightbox.dart' show resolveIlanPhotoUrl;
 
 /// Mekan detayında R2 fotoğraf şeridi (metadata Postgres, dosya R2).
 class HaritaFotoGaleri extends StatefulWidget {
@@ -165,7 +166,9 @@ class _HaritaFotoGaleriState extends State<HaritaFotoGaleri> {
             title: L10nText(photo.altText.isEmpty ? widget.center.name : photo.altText),
           ),
           body: PhotoView(
-            imageProvider: NetworkImage(photo.photoUrl),
+            imageProvider: NetworkImage(
+              resolveIlanPhotoUrl(photo.photoUrl) ?? photo.photoUrl,
+            ),
             backgroundDecoration: const BoxDecoration(color: Colors.black),
             minScale: PhotoViewComputedScale.contained,
             maxScale: PhotoViewComputedScale.covered * 2.4,
@@ -261,7 +264,7 @@ class _HaritaFotoGaleriState extends State<HaritaFotoGaleri> {
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(12),
                             child: Image.network(
-                              p.previewUrl,
+                              resolveIlanPhotoUrl(p.previewUrl) ?? p.previewUrl,
                               width: 120,
                               height: 92,
                               fit: BoxFit.cover,
